@@ -48,11 +48,12 @@ typedef int8_t    S8;
 
 U8  R = 0, S = 0;
 U8  bytecode, c;
-U32 P, IP, WP, thread, len, top = 0;
-U64 d, n, m;
+U32 P, IP, WP, thread, len;
+S32 top = 0;
+S64 d, n, m;
 
 U32 rack[256]   = { 0 };
-U32 stack[256]  = { 0 };
+S32 stack[256]  = { 0 };
 U32 data[16000] = {};
 U8* cData = (U8*)data;
 
@@ -64,15 +65,16 @@ void bye(void)
 }
 void qrx(void)
 {
-	push(S32) getchar();
+	push (S32)getchar();
 	if (top != 0) push TRUE;
 }
 void txsto(void)
 {
+	char c = (U8)top;
 	putchar((U8)top);
 	pop;
 }
-void next(void)
+void inline next(void)
 {
 	P = data[IP >> 2];
 	WP = P + 4;
@@ -1394,7 +1396,7 @@ int main(int ac, char* av[])
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
 	int USER  = LABEL(8, 0X100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
-	// dump dictionary
+	// dump dictionaryHEADER(3, "HLD")
 	P = 0;
 	for (len = 0; len < 0x100; len++) { CheckSum(); }
 
@@ -1406,7 +1408,9 @@ int main(int ac, char* av[])
 	top = 0;
 	printf("\nceForth v3.3, 01jul19cht\n");
 	for (;;) {
-		primitives[cData[P++]]();
+		//printf("%04x ", P);
+		U8 op = cData[P++];
+		primitives[op]();
 	}
 }
 /* End of ceforth_33.cpp */
