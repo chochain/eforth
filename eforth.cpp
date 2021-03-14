@@ -1,7 +1,6 @@
 /******************************************************************************/
 /* ceForth_33.cpp, Version 3.3 : Forth in C                                   */
 /******************************************************************************/
-
 /* Chen-Hanson Ting                                                           */
 /* 01jul19cht   version 3.3                                                   */
 /* Macro assembler, Visual Studio 2019 Community                              */
@@ -21,35 +20,43 @@
 /*   from c:/F#/ceforth_21                                                    */
 /* C compiler must be reminded that S and R are (char)                        */
 /******************************************************************************/
-
 //Preamble
 
-#include <stdlib.h>
 #include <stdio.h>
-#include <tchar.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdint.h>
+
+typedef uint64_t  U64;
+typedef uint32_t  U32;
+typedef uint16_t  U16;
+typedef uint8_t   U8;
+typedef int64_t   S64;
+typedef int32_t   S32;
+typedef int16_t   S16;
+typedef int8_t    S8;
 
 # define	FALSE	0
 # define	TRUE	-1
 # define	LOGICAL ? TRUE : FALSE
-# define 	LOWER(x,y) ((unsigned long)(x)<(unsigned long)(y))
+# define 	LOWER(x,y) ((U32)(x)<(U32)(y))
 # define	pop	top = stack[(char) S--]
 # define	push	stack[(char) ++S] = top; top =
 # define	popR rack[(unsigned char)R--]
 # define	pushR rack[(unsigned char)++R]
 
-long rack[256] = { 0 };
-long stack[256] = { 0 };
-long long int d, n, m;
-unsigned char R = 0;
-unsigned char S = 0;
-long top = 0;
-long  P, IP, WP, thread, len;
-unsigned char bytecode, c;
+U32 rack[256] = { 0 };
+U32 stack[256] = { 0 };
+U64 d, n, m;
+U8  R = 0;
+U8  S = 0;
+U32 top = 0;
+U32 P, IP, WP, thread, len;
+U8  bytecode, c;
 
-long data[16000] = {};
-unsigned char* cData = (unsigned char*)data;
+U32 data[16000] = {};
+U8* cData = (U8*)data;
 
 // Virtual Forth Machine
 
@@ -69,6 +76,7 @@ void txsto(void)
 }
 void next(void)
 {
+	unsigned int *i = (unsigned int *)&cData[IP];
 	P = data[IP >> 2];
 	WP = P + 4;
 	IP += 4;
@@ -457,28 +465,29 @@ void HEADER(int lex, const char seq[]) {
 	int len = lex & 31;
 	data[IP++] = thread;
 	P = IP << 2;
-	//printf("\n%X",thread);
-	//for (i = thread >> 2; i < IP; i++)
-	//{	printf(" %X",data[i]); }
+	printf("\n%lx",thread);
+	for (i = thread >> 2; i < IP; i++) {
+		printf(" %lx",data[i]);
+	}
 	thread = P;
-	cData[P++] = lex;
-	for (i = 0; i < len; i++)
+	cData[P++] = lex;                         // opcode
+	for (i = 0; i < len; i++)                 // memcpy word string
 	{
 		cData[P++] = seq[i];
 	}
-	while (P & 3) { cData[P++] = 0; }
+	while (P & 3) { cData[P++] = 0; }         // padding 4-byte align
 	printf("\n");
-	printf(seq);
-	printf(" %X", P);
+	printf(" %s", seq);
+	printf(" %lx", P);
 }
 int CODE(int len, ...) {
 	int addr = P;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
-		int j = va_arg(argList, int);
+		unsigned char j = (unsigned char)va_arg(argList, int);
 		cData[P++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	va_end(argList);
 	return addr;
@@ -489,11 +498,11 @@ int COLON(int len, ...) {
 	data[IP++] = 6; // dolist
 	va_list argList;
 	va_start(argList, len);
-	//printf(" %X ",6);
+	printf(" %x ",6);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -504,11 +513,11 @@ int LABEL(int len, ...) {
 	IP = P >> 2;
 	va_list argList;
 	va_start(argList, len);
-	//printf("\n%X ",addr);
+	printf("\n%x ",addr);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -516,21 +525,21 @@ int LABEL(int len, ...) {
 }
 void BEGIN(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X BEGIN ",P);
+	printf("\n%lx BEGIN ",P);
 	pushR = IP;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void AGAIN(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X AGAIN ",P);
+	printf("\n%lx AGAIN ",P);
 	data[IP++] = BRAN;
 	data[IP++] = popR << 2;
 	va_list argList;
@@ -538,14 +547,14 @@ void AGAIN(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void UNTIL(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X UNTIL ",P);
+	printf("\n%lx UNTIL ",P);
 	data[IP++] = QBRAN;
 	data[IP++] = popR << 2;
 	va_list argList;
@@ -553,7 +562,7 @@ void UNTIL(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -561,7 +570,7 @@ void UNTIL(int len, ...) {
 void WHILE(int len, ...) {
 	IP = P >> 2;
 	int k;
-	//printf("\n%X WHILE ",P);
+	printf("\n%lx WHILE ",P);
 	data[IP++] = QBRAN;
 	data[IP++] = 0;
 	k = popR;
@@ -572,14 +581,14 @@ void WHILE(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void REPEAT(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X REPEAT ",P);
+	printf("\n%lx REPEAT ",P);
 	data[IP++] = BRAN;
 	data[IP++] = popR << 2;
 	data[popR] = IP << 2;
@@ -588,14 +597,14 @@ void REPEAT(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void IF(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X IF ",P);
+	printf("\n%lx IF ",P);
 	data[IP++] = QBRAN;
 	pushR = IP;
 	data[IP++] = 0;
@@ -604,14 +613,14 @@ void IF(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void ELSE(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X ELSE ",P);
+	printf("\n%lx ELSE ",P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
 	data[popR] = IP << 2;
@@ -621,28 +630,28 @@ void ELSE(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void THEN(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X THEN ",P);
+	printf("\n%lx THEN ",P);
 	data[popR] = IP << 2;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void FOR(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X FOR ",P);
+	printf("\n%lx FOR ",P);
 	data[IP++] = TOR;
 	pushR = IP;
 	va_list argList;
@@ -650,14 +659,14 @@ void FOR(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void NEXT(int len, ...) {
 	IP = P >> 2;
-	//printf("\n%X NEXT ",P);
+	printf("\n%lx NEXT ",P);
 	data[IP++] = DONXT;
 	data[IP++] = popR << 2;
 	va_list argList;
@@ -665,7 +674,7 @@ void NEXT(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -673,7 +682,7 @@ void NEXT(int len, ...) {
 void AFT(int len, ...) {
 	IP = P >> 2;
 	int k;
-	//printf("\n%X AFT ",P);
+	printf("\n%lx AFT ",P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
 	k = popR;
@@ -684,7 +693,7 @@ void AFT(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		//printf(" %X",j);
+		printf(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -701,8 +710,8 @@ void DOTQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	//printf("\n%X ",P);
-	//printf(seq);
+	printf("\n%lx ",P);
+	printf("%s", seq);
 }
 void STRQ(const char seq[]) {
 	IP = P >> 2;
@@ -716,8 +725,8 @@ void STRQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	//printf("\n%X ",P);
-	//printf(seq);
+	printf("\n%lx ",P);
+	printf("%s", seq);
 }
 void ABORQ(const char seq[]) {
 	IP = P >> 2;
@@ -731,19 +740,20 @@ void ABORQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	//printf("\n%X ",P);
-	//printf(seq);
+	printf("\n%lx ",P);
+	printf("%s", seq);
 }
 
 void CheckSum() {
-	int i;
-	char sum = 0;
-	printf("\n%4X ", P);
-	for (i = 0; i < 16; i++) {
-		sum += cData[P];
-		printf("%2X", cData[P++]);
+	printf("\n%04lx: ", P);
+	for (int i=0; i < 32; i++) {
+		printf("%02x%s", cData[P+i], (i%4)==3 ? " " : "");
 	}
-	printf(" %2X", sum & 0XFF);
+	for (int i=0; i < 32; i++) {
+		char c = cData[P+i];
+		printf("%c", c ? ((c>32 && c<127) ? cData[P+i] : '_') : '.');
+	}
+	P += 32;
 }
 
 // Byte Code Assembler
@@ -788,7 +798,7 @@ int as_ddup = 36;
 int as_plus = 37;
 int as_inver = 38;
 int as_negat = 39;
-int as_dnega = 40;
+int as_dnega = 40;//
 int as_subb = 41;
 int as_abss = 42;
 int as_equal = 43;
@@ -819,11 +829,12 @@ int as_min = 63;
 int main(int ac, char* av[])
 {
 	cData = (unsigned char*)data;
-	P = 512;
+	P = thread = 512;
 	R = 0;
 
 	// Kernel
 
+	unsigned char *p = &cData[P];
 	HEADER(3, "HLD");
 	int HLD = CODE(8, as_docon, as_next, 0, 0, 0X80, 0, 0, 0);
 	HEADER(4, "SPAN");
@@ -1166,9 +1177,9 @@ int main(int ac, char* av[])
 	int FIND = COLON(10, SWAP, DUPP, AT, TEMP, STORE, DUPP, AT, TOR, CELLP, SWAP);
 	BEGIN(2, AT, DUPP);
 	IF(9, DUPP, AT, DOLIT, 0xFFFFFF3F, ANDD, UPPER, RAT, UPPER, XORR);
-	IF(3, CELLP, DOLIT, 0XFFFFFFFF);
-	ELSE(4, CELLP, TEMP, AT, SAMEQ);
-	THEN(0);
+	  IF(3, CELLP, DOLIT, 0XFFFFFFFF);
+	  ELSE(4, CELLP, TEMP, AT, SAMEQ);
+	  THEN(0);
 	ELSE(6, RFROM, DROP, SWAP, CELLM, SWAP, EXITT);
 	THEN(0);
 	WHILE(2, CELLM, CELLM);
@@ -1382,24 +1393,26 @@ int main(int ac, char* av[])
 
 	// Boot Up
 
-	printf("\n\nIZ=%X R-stack=%X", P, (popR << 2));
+	printf("\n\nIZ=%lx R-stack=%lx", P, (popR << 2));
 	P = 0;
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
-	int USER = LABEL(8, 0X100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
+	int USER  = LABEL(8, 0X100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
 	// dump dictionary
-	//P = 0;
-	//for (len = 0; len < 0x200; len++) { CheckSum(); }
-
 	P = 0;
-	WP = 4;
-	IP = 0;
-	S = 0;
-	R = 0;
+	for (len = 0; len < 0x100; len++) { CheckSum(); }
+
+	P   = 0;
+	WP  = 4;
+	IP  = 0;
+	S   = 0;
+	R   = 0;
 	top = 0;
 	printf("\nceForth v3.3, 01jul19cht\n");
-	while (TRUE) {
-		primitives[(unsigned char)cData[P++]]();
+	for (int i=0; i<100; i++) {
+		unsigned char op = cData[P++];
+		printf("i=%d: ", i);
+		primitives[op]();
 	}
 }
 /* End of ceforth_33.cpp */
