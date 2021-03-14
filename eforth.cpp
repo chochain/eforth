@@ -37,24 +37,22 @@ typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
-# define	FALSE	0
-# define	TRUE	-1
-# define	LOGICAL ? TRUE : FALSE
-# define 	LOWER(x,y) ((U32)(x)<(U32)(y))
-# define	pop	top = stack[(char) S--]
-# define	push	stack[(char) ++S] = top; top =
-# define	popR rack[(unsigned char)R--]
-# define	pushR rack[(unsigned char)++R]
+#define	FALSE	0
+#define	TRUE	-1
+#define	LOGICAL ? TRUE : FALSE
+#define LOWER(x,y) ((U32)(x)<(U32)(y))
+#define	pop	    top = stack[(U8)S--]
+#define	push	stack[(U8)++S] = top; top =
+#define	popR    rack[(U8)R--]
+#define	pushR   rack[(U8)++R]
 
-U32 rack[256] = { 0 };
-U32 stack[256] = { 0 };
-U64 d, n, m;
-U8  R = 0;
-U8  S = 0;
-U32 top = 0;
-U32 P, IP, WP, thread, len;
+U8  R = 0, S = 0;
 U8  bytecode, c;
+U32 P, IP, WP, thread, len, top = 0;
+U64 d, n, m;
 
+U32 rack[256]   = { 0 };
+U32 stack[256]  = { 0 };
 U32 data[16000] = {};
 U8* cData = (U8*)data;
 
@@ -66,17 +64,16 @@ void bye(void)
 }
 void qrx(void)
 {
-	push(long) getchar();
+	push(S32) getchar();
 	if (top != 0) push TRUE;
 }
 void txsto(void)
 {
-	putchar((char)top);
+	putchar((U8)top);
 	pop;
 }
 void next(void)
 {
-	unsigned int *i = (unsigned int *)&cData[IP];
 	P = data[IP >> 2];
 	WP = P + 4;
 	IP += 4;
@@ -97,13 +94,13 @@ void dolit(void)
 }
 void dolist(void)
 {
-	rack[(char)++R] = IP;
+	rack[(U8)++R] = IP;
 	IP = WP;
 	next();
 }
 void exitt(void)
 {
-	IP = (long)rack[(char)R--];
+	IP = rack[(U8)R--];
 	next();
 }
 void execu(void)
@@ -114,8 +111,8 @@ void execu(void)
 }
 void donext(void)
 {
-	if (rack[(char)R]) {
-		rack[(char)R] -= 1;
+	if (rack[(U8)R]) {
+		rack[(U8)R] -= 1;
 		IP = data[IP >> 2];
 	}
 	else {
@@ -138,7 +135,7 @@ void bran(void)
 }
 void store(void)
 {
-	data[top >> 2] = stack[(char)S--];
+	data[top >> 2] = stack[(U8)S--];
 	pop;
 }
 void at(void)
@@ -147,24 +144,24 @@ void at(void)
 }
 void cstor(void)
 {
-	cData[top] = (char)stack[(char)S--];
+	cData[top] = (U8)stack[(U8)S--];
 	pop;
 }
 void cat(void)
 {
-	top = (long)cData[top];
+	top = (U32)cData[top];
 }
 void rfrom(void)
 {
-	push rack[(char)R--];
+	push rack[(U8)R--];
 }
 void rat(void)
 {
-	push rack[(char)R];
+	push rack[(U8)R];
 }
 void tor(void)
 {
-	rack[(char)++R] = top;
+	rack[(U8)++R] = top;
 	pop;
 }
 void drop(void)
@@ -173,17 +170,17 @@ void drop(void)
 }
 void dup(void)
 {
-	stack[(char) ++S] = top;
+	stack[(U8)++S] = top;
 }
 void swap(void)
 {
 	WP = top;
-	top = stack[(char)S];
-	stack[(char)S] = WP;
+	top = stack[(U8)S];
+	stack[(U8)S] = WP;
 }
 void over(void)
 {
-	push stack[(char)S - 1];
+	push stack[(U8)S - 1];
 }
 void zless(void)
 {
@@ -191,20 +188,20 @@ void zless(void)
 }
 void andd(void)
 {
-	top &= stack[(char)S--];
+	top &= stack[(U8)S--];
 }
 void orr(void)
 {
-	top |= stack[(char)S--];
+	top |= stack[(U8)S--];
 }
 void xorr(void)
 {
-	top ^= stack[(char)S--];
+	top ^= stack[(U8)S--];
 }
 void uplus(void)
 {
-	stack[(char)S] += top;
-	top = LOWER(stack[(char)S], top);
+	stack[(U8)S] += top;
+	top = LOWER(stack[(U8)S], top);
 }
 void nop(void)
 {
@@ -212,13 +209,13 @@ void nop(void)
 }
 void qdup(void)
 {
-	if (top) stack[(char) ++S] = top;
+	if (top) stack[(U8) ++S] = top;
 }
 void rot(void)
 {
-	WP = stack[(char)S - 1];
-	stack[(char)S - 1] = stack[(char)S];
-	stack[(char)S] = top;
+	WP = stack[(U8)S - 1];
+	stack[(U8)S - 1] = stack[(U8)S];
+	stack[(U8)S] = top;
 	top = WP;
 }
 void ddrop(void)
@@ -231,7 +228,7 @@ void ddup(void)
 }
 void plus(void)
 {
-	top += stack[(char)S--];
+	top += stack[(U8)S--];
 }
 void inver(void)
 {
@@ -253,7 +250,7 @@ void dnega(void)
 }
 void subb(void)
 {
-	top = stack[(char)S--] - top;
+	top = stack[(U8)S--] - top;
 }
 void abss(void)
 {
@@ -262,107 +259,107 @@ void abss(void)
 }
 void great(void)
 {
-	top = (stack[(char)S--] > top) LOGICAL;
+	top = (stack[(U8)S--] > top) LOGICAL;
 }
 void less(void)
 {
-	top = (stack[(char)S--] < top) LOGICAL;
+	top = (stack[(U8)S--] < top) LOGICAL;
 }
 void equal(void)
 {
-	top = (stack[(char)S--] == top) LOGICAL;
+	top = (stack[(U8)S--] == top) LOGICAL;
 }
 void uless(void)
 {
-	top = LOWER(stack[(char)S], top) LOGICAL; (char)S--;
+	top = LOWER(stack[(U8)S], top) LOGICAL; (U8)S--;
 }
 void ummod(void)
 {
-	d = (long long int)((unsigned long)top);
-	m = (long long int)((unsigned long)stack[(char)S]);
-	n = (long long int)((unsigned long)stack[(char)S - 1]);
+	d = (S64)top;
+	m = (S64)((U32)stack[(U8)S]);
+	n = (S64)((U32)stack[(U8)S - 1]);
 	n += m << 32;
 	pop;
-	top = (unsigned long)(n / d);
-	stack[(char)S] = (unsigned long)(n % d);
+	top = (U32)(n / d);
+	stack[(U8)S] = (U32)(n % d);
 }
 void msmod(void)
 {
-	d = (signed long long int)((signed long)top);
-	m = (signed long long int)((signed long)stack[(char)S]);
-	n = (signed long long int)((signed long)stack[(char)S - 1]);
+	d = (S64)top;
+	m = (S64)stack[(U8)S];
+	n = (S64)stack[(U8)S - 1];
 	n += m << 32;
 	pop;
-	top = (signed long)(n / d);
-	stack[(char)S] = (signed long)(n % d);
+	top = (S32)(n / d);
+	stack[(U8)S] = (U32)(n % d);
 }
 void slmod(void)
 {
 	if (top != 0) {
-		WP = stack[(char)S] / top;
-		stack[(char)S] %= top;
+		WP = stack[(U8)S] / top;
+		stack[(U8)S] %= top;
 		top = WP;
 	}
 }
 void mod(void)
 {
-	top = (top) ? stack[(char)S--] % top : stack[(char)S--];
+	top = (top) ? stack[(U8)S--] % top : stack[(U8)S--];
 }
 void slash(void)
 {
-	top = (top) ? stack[(char)S--] / top : (stack[(char)S--], 0);
+	top = (top) ? stack[(U8)S--] / top : (stack[(U8)S--], 0);
 }
 void umsta(void)
 {
-	d = (unsigned long long int)top;
-	m = (unsigned long long int)stack[(char)S];
+	d = (U64)top;
+	m = (U64)stack[(U8)S];
 	m *= d;
-	top = (unsigned long)(m >> 32);
-	stack[(char)S] = (unsigned long)m;
+	top = (U32)(m >> 32);
+	stack[(U8)S] = (U32)m;
 }
 void star(void)
 {
-	top *= stack[(char)S--];
+	top *= stack[(U8)S--];
 }
 void mstar(void)
 {
-	d = (signed long long int)top;
-	m = (signed long long int)stack[(char)S];
+	d = (S64)top;
+	m = (S64)stack[(U8)S];
 	m *= d;
-	top = (signed long)(m >> 32);
-	stack[(char)S] = (signed long)m;
+	top = (S32)(m >> 32);
+	stack[(U8)S] = (S32)m;
 }
 void ssmod(void)
 {
-	d = (signed long long int)top;
-	m = (signed long long int)stack[(char)S];
-	n = (signed long long int)stack[(char)S - 1];
+	d = (S64)top;
+	m = (S64)stack[(U8)S];
+	n = (S64)stack[(U8)S - 1];
 	n *= m;
 	pop;
-	top = (signed long)(n / d);
-	stack[(char)S] = (signed long)(n % d);
+	top = (S32)(n / d);
+	stack[(U8)S] = (S32)(n % d);
 }
 void stasl(void)
 {
-	d = (signed long long int)top;
-	m = (signed long long int)stack[(char)S];
-	n = (signed long long int)stack[(char)S - 1];
+	d = (S64)top;
+	m = (S64)stack[(U8)S];
+	n = (S64)stack[(U8)S - 1];
 	n *= m;
 	pop; pop;
-	top = (signed long)(n / d);
+	top = (S32)(n / d);
 }
 void pick(void)
 {
-	top = stack[(char)S - (char)top];
+	top = stack[(U8)S - (U8)top];
 }
 void pstor(void)
 {
-	data[top >> 2] += stack[(char)S--], pop;
+	data[top >> 2] += stack[(U8)S--], pop;
 }
 void dstor(void)
 {
-	data[(top >> 2) + 1] = stack[(char)S--];
-	data[top >> 2] = stack[(char)S--];
+	data[(top >> 2) + 1] = stack[(U8)S--];
+	data[top >> 2] = stack[(U8)S--];
 	pop;
 }
 void dat(void)
@@ -372,17 +369,17 @@ void dat(void)
 }
 void count(void)
 {
-	stack[(char) ++S] = top + 1;
+	stack[(U8)++S] = top + 1;
 	top = cData[top];
 }
 void max(void)
 {
-	if (top < stack[(char)S]) pop;
-	else (char)S--;
+	if (top < stack[(U8)S]) pop;
+	else (U8)S--;
 }
 void min(void)
 {
-	if (top < stack[(char)S]) (char) S--;
+	if (top < stack[(U8)S]) (U8)S--;
 	else pop;
 }
 
@@ -403,12 +400,12 @@ void(*primitives[64])(void) = {
 	/* case 13 */ at,
 	/* case 14 */ cstor,
 	/* case 15 */ cat,
-	/* case 16  rpat, */ nop,
+	/* case 16  rpat, */  nop,
 	/* case 17  rpsto, */ nop,
 	/* case 18 */ rfrom,
 	/* case 19 */ rat,
 	/* case 20 */ tor,
-	/* case 21 spat, */ nop,
+	/* case 21 spat, */  nop,
 	/* case 22 spsto, */ nop,
 	/* case 23 */ drop,
 	/* case 24 */ dup,
@@ -461,33 +458,31 @@ int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0;
 
 void HEADER(int lex, const char seq[]) {
 	IP = P >> 2;
-	int i;
-	int len = lex & 31;
+	int len = lex & 0x1f;
 	data[IP++] = thread;
 	P = IP << 2;
-	printf("\n%lx",thread);
-	for (i = thread >> 2; i < IP; i++) {
-		printf(" %lx",data[i]);
+	printf("\n%x:",thread);
+	for (int i = thread>>2; thread && i < IP; i++) {
+		printf(" %08x", data[i]);
 	}
+	printf("\n");
 	thread = P;
 	cData[P++] = lex;                         // opcode
-	for (i = 0; i < len; i++)                 // memcpy word string
-	{
+	for (int i = 0; i < len; i++) {           // memcpy word string
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }         // padding 4-byte align
-	printf("\n");
+	printf(" %04x:", P);
 	printf(" %s", seq);
-	printf(" %lx", P);
 }
 int CODE(int len, ...) {
 	int addr = P;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
-		unsigned char j = (unsigned char)va_arg(argList, int);
+		U8 j = (U8)va_arg(argList, int);
 		cData[P++] = j;
-		printf(" %x",j);
+		printf(" %02x",j);
 	}
 	va_end(argList);
 	return addr;
@@ -525,7 +520,7 @@ int LABEL(int len, ...) {
 }
 void BEGIN(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx BEGIN ",P);
+	printf("\n%x BEGIN ",P);
 	pushR = IP;
 	va_list argList;
 	va_start(argList, len);
@@ -539,7 +534,7 @@ void BEGIN(int len, ...) {
 }
 void AGAIN(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx AGAIN ",P);
+	printf("\n%x AGAIN ",P);
 	data[IP++] = BRAN;
 	data[IP++] = popR << 2;
 	va_list argList;
@@ -554,7 +549,7 @@ void AGAIN(int len, ...) {
 }
 void UNTIL(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx UNTIL ",P);
+	printf("\n%x UNTIL ",P);
 	data[IP++] = QBRAN;
 	data[IP++] = popR << 2;
 	va_list argList;
@@ -570,7 +565,7 @@ void UNTIL(int len, ...) {
 void WHILE(int len, ...) {
 	IP = P >> 2;
 	int k;
-	printf("\n%lx WHILE ",P);
+	printf("\n%x WHILE ",P);
 	data[IP++] = QBRAN;
 	data[IP++] = 0;
 	k = popR;
@@ -588,7 +583,7 @@ void WHILE(int len, ...) {
 }
 void REPEAT(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx REPEAT ",P);
+	printf("\n%x REPEAT ",P);
 	data[IP++] = BRAN;
 	data[IP++] = popR << 2;
 	data[popR] = IP << 2;
@@ -604,7 +599,7 @@ void REPEAT(int len, ...) {
 }
 void IF(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx IF ",P);
+	printf("\n%x IF ",P);
 	data[IP++] = QBRAN;
 	pushR = IP;
 	data[IP++] = 0;
@@ -620,7 +615,7 @@ void IF(int len, ...) {
 }
 void ELSE(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx ELSE ",P);
+	printf("\n%x ELSE ",P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
 	data[popR] = IP << 2;
@@ -637,7 +632,7 @@ void ELSE(int len, ...) {
 }
 void THEN(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx THEN ",P);
+	printf("\n%x THEN ",P);
 	data[popR] = IP << 2;
 	va_list argList;
 	va_start(argList, len);
@@ -651,7 +646,7 @@ void THEN(int len, ...) {
 }
 void FOR(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx FOR ",P);
+	printf("\n%x FOR ",P);
 	data[IP++] = TOR;
 	pushR = IP;
 	va_list argList;
@@ -666,7 +661,7 @@ void FOR(int len, ...) {
 }
 void NEXT(int len, ...) {
 	IP = P >> 2;
-	printf("\n%lx NEXT ",P);
+	printf("\n%x NEXT ",P);
 	data[IP++] = DONXT;
 	data[IP++] = popR << 2;
 	va_list argList;
@@ -682,7 +677,7 @@ void NEXT(int len, ...) {
 void AFT(int len, ...) {
 	IP = P >> 2;
 	int k;
-	printf("\n%lx AFT ",P);
+	printf("\n%x AFT ",P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
 	k = popR;
@@ -710,7 +705,7 @@ void DOTQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	printf("\n%lx ",P);
+	printf("\n%x ",P);
 	printf("%s", seq);
 }
 void STRQ(const char seq[]) {
@@ -725,7 +720,7 @@ void STRQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	printf("\n%lx ",P);
+	printf("\n%x ",P);
 	printf("%s", seq);
 }
 void ABORQ(const char seq[]) {
@@ -740,12 +735,12 @@ void ABORQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	printf("\n%lx ",P);
+	printf("\n%x ",P);
 	printf("%s", seq);
 }
 
 void CheckSum() {
-	printf("\n%04lx: ", P);
+	printf("\n%04x: ", P);
 	for (int i=0; i < 32; i++) {
 		printf("%02x%s", cData[P+i], (i%4)==3 ? " " : "");
 	}
@@ -828,13 +823,13 @@ int as_min = 63;
 */
 int main(int ac, char* av[])
 {
-	cData = (unsigned char*)data;
-	P = thread = 512;
-	R = 0;
+	cData = (U8*)data;
+	P = 0x200;
+	R = thread = 0;
 
 	// Kernel
 
-	unsigned char *p = &cData[P];
+	U8 *k = &cData[P];
 	HEADER(3, "HLD");
 	int HLD = CODE(8, as_docon, as_next, 0, 0, 0X80, 0, 0, 0);
 	HEADER(4, "SPAN");
@@ -999,6 +994,7 @@ int main(int ac, char* av[])
 
 	// Common Colon Words
 
+	U8 *c = &cData[P];
 	HEADER(4, "?KEY");
 	int QKEY = COLON(2, QRX, EXITT);
 	HEADER(3, "KEY");
@@ -1393,7 +1389,7 @@ int main(int ac, char* av[])
 
 	// Boot Up
 
-	printf("\n\nIZ=%lx R-stack=%lx", P, (popR << 2));
+	printf("\n\nIZ=%x R-stack=%x", P, (popR << 2));
 	P = 0;
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
@@ -1409,10 +1405,8 @@ int main(int ac, char* av[])
 	R   = 0;
 	top = 0;
 	printf("\nceForth v3.3, 01jul19cht\n");
-	for (int i=0; i<100; i++) {
-		unsigned char op = cData[P++];
-		printf("i=%d: ", i);
-		primitives[op]();
+	for (;;) {
+		primitives[cData[P++]]();
 	}
 }
 /* End of ceforth_33.cpp */
