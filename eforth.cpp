@@ -36,6 +36,8 @@ typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
+#define PRINTF(s,v) printf(s,v)
+//#define PRINTF(s,v)
 #define	FALSE	    0
 #define	TRUE	    -1
 #define LOWER(x,y) 	((U32)(x)<(U32)(y))
@@ -67,13 +69,12 @@ void qrx(void)
 }
 void txsto(void)
 {
-	char c = (U8)top;
 	putchar((U8)top);
 	pop();
 }
 void next(void)
 {
-	P = data[IP >> 2];
+	P  = data[IP >> 2];
 	WP = P + 4;
 	IP += 4;
 }
@@ -269,8 +270,7 @@ void equal(void)
 }
 void uless(void)
 {
-	top = LOWER(stack[(U8)S], top);
-    S--;
+	top = LOWER(stack[(U8)S--], top);
 }
 void ummod(void)
 {
@@ -295,7 +295,7 @@ void msmod(void)
 void slmod(void)
 {
 	if (top) {
-		WP = stack[(U8)S] / top;
+		WP  = stack[(U8)S] / top;
 		stack[(U8)S] %= top;
 		top = WP;
 	}
@@ -462,19 +462,19 @@ void HEADER(int lex, const char seq[]) {
 	int len = lex & 0x1f;
 	data[IP++] = thread;
 	P = IP << 2;
-	printf("\n%x:",thread);
+	PRINTF("\n%x:",thread);
 	for (int i = thread>>2; thread && i < IP; i++) {
-		printf(" %08x", data[i]);
+		PRINTF(" %08x", data[i]);
 	}
-	printf("\n");
+	PRINTF("%c", '\n');
 	thread = P;
 	cData[P++] = lex;                         // opcode
 	for (int i = 0; i < len; i++) {           // memcpy word string
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }         // padding 4-byte align
-	printf(" %04x:", P);
-	printf(" %s", seq);
+	PRINTF(" %04x:", P);
+	PRINTF(" %s", seq);
 }
 int CODE(int len, ...) {
 	int addr = P;
@@ -483,7 +483,7 @@ int CODE(int len, ...) {
 	for (; len; len--) {
 		U8 j = (U8)va_arg(argList, int);
 		cData[P++] = j;
-		printf(" %02x",j);
+		PRINTF(" %02x", j);
 	}
 	va_end(argList);
 	return addr;
@@ -494,11 +494,11 @@ int COLON(int len, ...) {
 	data[IP++] = 6; // dolist
 	va_list argList;
 	va_start(argList, len);
-	printf(" %x ",6);
+	PRINTF(" %x ",6);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -509,11 +509,11 @@ int LABEL(int len, ...) {
 	IP = P >> 2;
 	va_list argList;
 	va_start(argList, len);
-	printf("\n%x ",addr);
+	PRINTF("\n%x ",addr);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -521,21 +521,21 @@ int LABEL(int len, ...) {
 }
 void BEGIN(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x BEGIN ",P);
+	PRINTF("\n%x BEGIN ",P);
 	pushR(IP);
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void AGAIN(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x AGAIN ",P);
+	PRINTF("\n%x AGAIN ",P);
 	data[IP++] = BRAN;
 	data[IP++] = popR() << 2;
 	va_list argList;
@@ -543,14 +543,14 @@ void AGAIN(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void UNTIL(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x UNTIL ",P);
+	PRINTF("\n%x UNTIL ", P);
 	data[IP++] = QBRAN;
 	data[IP++] = popR() << 2;
 	va_list argList;
@@ -558,18 +558,17 @@ void UNTIL(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void WHILE(int len, ...) {
 	IP = P >> 2;
-	int k;
-	printf("\n%x WHILE ",P);
+	PRINTF("\n%x WHILE ", P);
 	data[IP++] = QBRAN;
 	data[IP++] = 0;
-	k = popR();
+	int k = popR();
 	pushR(IP - 1);
 	pushR(k);
 	va_list argList;
@@ -577,14 +576,14 @@ void WHILE(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void REPEAT(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x REPEAT ",P);
+	PRINTF("\n%x REPEAT ", P);
 	data[IP++] = BRAN;
 	data[IP++] = popR() << 2;
 	data[popR()] = IP << 2;
@@ -593,14 +592,14 @@ void REPEAT(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void IF(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x IF ",P);
+	PRINTF("\n%x IF ", P);
 	data[IP++] = QBRAN;
 	pushR(IP);
 	data[IP++] = 0;
@@ -609,14 +608,14 @@ void IF(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void ELSE(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x ELSE ",P);
+	PRINTF("\n%x ELSE ", P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
 	data[popR()] = IP << 2;
@@ -626,28 +625,28 @@ void ELSE(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void THEN(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x THEN ",P);
+	PRINTF("\n%x THEN ", P);
 	data[popR()] = IP << 2;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void FOR(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x FOR ",P);
+	PRINTF("\n%x FOR ", P);
 	data[IP++] = TOR;
 	pushR(IP);
 	va_list argList;
@@ -655,14 +654,14 @@ void FOR(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void NEXT(int len, ...) {
 	IP = P >> 2;
-	printf("\n%x NEXT ",P);
+	PRINTF("\n%x NEXT ", P);
 	data[IP++] = DONXT;
 	data[IP++] = popR() << 2;
 	va_list argList;
@@ -670,18 +669,17 @@ void NEXT(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x",j);
 	}
 	P = IP << 2;
 	va_end(argList);
 }
 void AFT(int len, ...) {
 	IP = P >> 2;
-	int k;
-	printf("\n%x AFT ",P);
+	PRINTF("\n%x AFT ", P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
-	k = popR();
+	int k = popR();
 	pushR(IP);
 	pushR(IP - 1);
 	va_list argList;
@@ -689,7 +687,7 @@ void AFT(int len, ...) {
 	for (; len; len--) {
 		int j = va_arg(argList, int);
 		data[IP++] = j;
-		printf(" %x",j);
+		PRINTF(" %x", j);
 	}
 	P = IP << 2;
 	va_end(argList);
@@ -704,8 +702,8 @@ void DOTQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	printf("\n%x ",P);
-	printf("%s", seq);
+	PRINTF("\n%x ", P);
+	PRINTF("%s", seq);
 }
 void STRQ(const char seq[]) {
 	IP = P >> 2;
@@ -717,8 +715,8 @@ void STRQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	printf("\n%x ",P);
-	printf("%s", seq);
+	PRINTF("\n%x ",P);
+	PRINTF("%s", seq);
 }
 void ABORQ(const char seq[]) {
 	IP = P >> 2;
@@ -730,20 +728,23 @@ void ABORQ(const char seq[]) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
-	printf("\n%x ",P);
-	printf("%s", seq);
+	PRINTF("\n%x ",P);
+	PRINTF("%s", seq);
 }
 
 void CheckSum() {
-	printf("\n%04x: ", P);
-	for (int i=0; i < 32; i++) {
-		printf("%02x%s", cData[P+i], (i%4)==3 ? " " : "");
-	}
-	for (int i=0; i < 32; i++) {
-		char c = cData[P+i];
-		printf("%c", c ? ((c>32 && c<127) ? cData[P+i] : '_') : '.');
-	}
-	P += 32;
+    for (int p=0; p<0x2000; p+=0x20) {
+        PRINTF("\n%04x: ", p);
+        for (int i=0; i<0x20; i++) {
+        	U8 c = cData[p+i];
+            PRINTF("%02x", c);
+            PRINTF("%s", (i%4)==3 ? " " : "");
+        }
+        for (int i=0; i<0x20; i++) {
+            U8 c = cData[p+i];
+            PRINTF("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
+        }
+    }
 }
 
 // Byte Code Assembler
@@ -1324,7 +1325,7 @@ int main(int ac, char* av[])
 	THEN(1, ERRORR);
 	HEADER(4, "COLD");
 	int COLD = COLON(1, CR);
-	DOTQ("eForth in C,Ver 2.3,2017 ");
+	DOTQ("eForth in C,Ver 4.0,2021 ");
 	int DOTQ1 = LABEL(2, CR, QUITT);
 
 	// Structure Compiler
@@ -1383,22 +1384,23 @@ int main(int ac, char* av[])
 
 	// Boot Up
 
-	printf("\n\nIZ=%x R-stack=%x", P, (popR() << 2));
+	PRINTF("\n\nIZ=%x ", P);
+    PRINTF("R-stack=%x", (popR() << 2));
 	P = 0;
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
 	int USER  = LABEL(8, 0X100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
+    
 	// dump dictionaryHEADER(3, "HLD")
-	P = 0;
-	for (int len=0; len < 0x100; len++) { CheckSum(); }
+	CheckSum();
 
+	PRINTF("\n%s\n", "ceForth v3.3, 01jul19cht");
 	P   = 0;
 	WP  = 4;
 	IP  = 0;
 	S   = 0;
 	R   = 0;
 	top = 0;
-	printf("\nceForth v3.3, 01jul19cht\n");
 	for (;;) {
 		primitives[cData[P++]]();
 	}
