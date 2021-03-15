@@ -39,12 +39,11 @@ typedef int8_t    S8;
 
 #define	FALSE	0
 #define	TRUE	-1
-#define	LOGICAL ? TRUE : FALSE
-#define LOWER(x,y) ((U32)(x)<(U32)(y))
-#define	pop	    top = stack[(U8)S--]
-#define	push	stack[(U8)++S] = top; top =
-#define	popR    rack[(U8)R--]
-#define	pushR   rack[(U8)++R]
+#define LOWER(x,y) 	((U32)(x)<(U32)(y))
+#define	pop()		(top = stack[(U8)S--])
+#define	push(v)		{ stack[(U8)++S] = top; top = (S32)(v); }
+#define	popR()      (rack[(U8)R--])
+#define	pushR(v)    (rack[(U8)++R] = (U32)(v))
 
 U8  R = 0, S = 0;
 U8  bytecode, c;
@@ -65,16 +64,16 @@ void bye(void)
 }
 void qrx(void)
 {
-	push (S32)getchar();
-	if (top != 0) push TRUE;
+	push(getchar());
+	if (top != 0) push(TRUE);
 }
 void txsto(void)
 {
 	char c = (U8)top;
 	putchar((U8)top);
-	pop;
+	pop();
 }
-void inline next(void)
+void next(void)
 {
 	P = data[IP >> 2];
 	WP = P + 4;
@@ -82,34 +81,34 @@ void inline next(void)
 }
 void dovar(void)
 {
-	push WP;
+	push(WP);
 }
 void docon(void)
 {
-	push data[WP >> 2];
+	push(data[WP >> 2]);
 }
 void dolit(void)
 {
-	push data[IP >> 2];
+	push(data[IP >> 2]);
 	IP += 4;
-	next();
+    next();
 }
 void dolist(void)
 {
 	rack[(U8)++R] = IP;
 	IP = WP;
-	next();
+    next();
 }
 void exitt(void)
 {
 	IP = rack[(U8)R--];
-	next();
+    next();
 }
 void execu(void)
 {
 	P = top;
 	WP = P + 4;
-	pop;
+	pop();
 }
 void donext(void)
 {
@@ -121,14 +120,14 @@ void donext(void)
 		IP += 4;
 		R--;
 	}
-	next();
+    next();
 }
 void qbran(void)
 {
 	if (top == 0) IP = data[IP >> 2];
 	else IP += 4;
-	pop;
-	next();
+	pop();
+    next();
 }
 void bran(void)
 {
@@ -138,7 +137,7 @@ void bran(void)
 void store(void)
 {
 	data[top >> 2] = stack[(U8)S--];
-	pop;
+	pop();
 }
 void at(void)
 {
@@ -147,7 +146,7 @@ void at(void)
 void cstor(void)
 {
 	cData[top] = (U8)stack[(U8)S--];
-	pop;
+	pop();
 }
 void cat(void)
 {
@@ -155,20 +154,20 @@ void cat(void)
 }
 void rfrom(void)
 {
-	push rack[(U8)R--];
+	push(rack[(U8)R--]);
 }
 void rat(void)
 {
-	push rack[(U8)R];
+	push(rack[(U8)R]);
 }
 void tor(void)
 {
 	rack[(U8)++R] = top;
-	pop;
+	pop();
 }
 void drop(void)
 {
-	pop;
+	pop();
 }
 void dup(void)
 {
@@ -182,11 +181,11 @@ void swap(void)
 }
 void over(void)
 {
-	push stack[(U8)S - 1];
+	push(stack[(U8)S - 1]);
 }
 void zless(void)
 {
-	top = (top < 0) LOGICAL;
+	top = (top < 0) ? TRUE : FALSE;
 }
 void andd(void)
 {
@@ -245,7 +244,7 @@ void dnega(void)
 	inver();
 	tor();
 	inver();
-	push 1;
+	push(1);
 	uplus();
 	rfrom();
 	plus();
@@ -261,19 +260,20 @@ void abss(void)
 }
 void great(void)
 {
-	top = (stack[(U8)S--] > top) LOGICAL;
+	top = stack[(U8)S--] > top;
 }
 void less(void)
 {
-	top = (stack[(U8)S--] < top) LOGICAL;
+	top = stack[(U8)S--] < top;
 }
 void equal(void)
 {
-	top = (stack[(U8)S--] == top) LOGICAL;
+	top = stack[(U8)S--] == top;
 }
 void uless(void)
 {
-	top = LOWER(stack[(U8)S], top) LOGICAL; (U8)S--;
+	top = LOWER(stack[(U8)S], top);
+    S--;
 }
 void ummod(void)
 {
@@ -281,7 +281,7 @@ void ummod(void)
 	m = (S64)((U32)stack[(U8)S]);
 	n = (S64)((U32)stack[(U8)S - 1]);
 	n += m << 32;
-	pop;
+	pop();
 	top = (U32)(n / d);
 	stack[(U8)S] = (U32)(n % d);
 }
@@ -291,7 +291,7 @@ void msmod(void)
 	m = (S64)stack[(U8)S];
 	n = (S64)stack[(U8)S - 1];
 	n += m << 32;
-	pop;
+	pop();
 	top = (S32)(n / d);
 	stack[(U8)S] = (U32)(n % d);
 }
@@ -337,7 +337,7 @@ void ssmod(void)
 	m = (S64)stack[(U8)S];
 	n = (S64)stack[(U8)S - 1];
 	n *= m;
-	pop;
+	pop();
 	top = (S32)(n / d);
 	stack[(U8)S] = (S32)(n % d);
 }
@@ -347,7 +347,8 @@ void stasl(void)
 	m = (S64)stack[(U8)S];
 	n = (S64)stack[(U8)S - 1];
 	n *= m;
-	pop; pop;
+	pop();
+    pop();
 	top = (S32)(n / d);
 }
 void pick(void)
@@ -356,17 +357,18 @@ void pick(void)
 }
 void pstor(void)
 {
-	data[top >> 2] += stack[(U8)S--], pop;
+	data[top >> 2] += stack[(U8)S--];
+    pop();
 }
 void dstor(void)
 {
 	data[(top >> 2) + 1] = stack[(U8)S--];
 	data[top >> 2] = stack[(U8)S--];
-	pop;
+	pop();
 }
 void dat(void)
 {
-	push data[top >> 2];
+	push(data[top >> 2]);
 	top = data[(top >> 2) + 1];
 }
 void count(void)
@@ -376,13 +378,13 @@ void count(void)
 }
 void max(void)
 {
-	if (top < stack[(U8)S]) pop;
+	if (top < stack[(U8)S]) pop();
 	else (U8)S--;
 }
 void min(void)
 {
 	if (top < stack[(U8)S]) (U8)S--;
-	else pop;
+	else pop();
 }
 
 void(*primitives[64])(void) = {
@@ -523,7 +525,7 @@ int LABEL(int len, ...) {
 void BEGIN(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x BEGIN ",P);
-	pushR = IP;
+	pushR(IP);
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -538,7 +540,7 @@ void AGAIN(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x AGAIN ",P);
 	data[IP++] = BRAN;
-	data[IP++] = popR << 2;
+	data[IP++] = popR() << 2;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -553,7 +555,7 @@ void UNTIL(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x UNTIL ",P);
 	data[IP++] = QBRAN;
-	data[IP++] = popR << 2;
+	data[IP++] = popR() << 2;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -570,9 +572,9 @@ void WHILE(int len, ...) {
 	printf("\n%x WHILE ",P);
 	data[IP++] = QBRAN;
 	data[IP++] = 0;
-	k = popR;
-	pushR = (IP - 1);
-	pushR = k;
+	k = popR();
+	pushR(IP - 1);
+	pushR(k);
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -587,8 +589,8 @@ void REPEAT(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x REPEAT ",P);
 	data[IP++] = BRAN;
-	data[IP++] = popR << 2;
-	data[popR] = IP << 2;
+	data[IP++] = popR() << 2;
+	data[popR()] = IP << 2;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -603,7 +605,7 @@ void IF(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x IF ",P);
 	data[IP++] = QBRAN;
-	pushR = IP;
+	pushR(IP);
 	data[IP++] = 0;
 	va_list argList;
 	va_start(argList, len);
@@ -620,8 +622,8 @@ void ELSE(int len, ...) {
 	printf("\n%x ELSE ",P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
-	data[popR] = IP << 2;
-	pushR = IP - 1;
+	data[popR()] = IP << 2;
+	pushR(IP - 1);
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -635,7 +637,7 @@ void ELSE(int len, ...) {
 void THEN(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x THEN ",P);
-	data[popR] = IP << 2;
+	data[popR()] = IP << 2;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -650,7 +652,7 @@ void FOR(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x FOR ",P);
 	data[IP++] = TOR;
-	pushR = IP;
+	pushR(IP);
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -665,7 +667,7 @@ void NEXT(int len, ...) {
 	IP = P >> 2;
 	printf("\n%x NEXT ",P);
 	data[IP++] = DONXT;
-	data[IP++] = popR << 2;
+	data[IP++] = popR() << 2;
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -682,9 +684,9 @@ void AFT(int len, ...) {
 	printf("\n%x AFT ",P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
-	k = popR;
-	pushR = IP;
-	pushR = IP - 1;
+	k = popR();
+	pushR(IP);
+	pushR(IP - 1);
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {
@@ -825,6 +827,7 @@ int as_min = 63;
 */
 int main(int ac, char* av[])
 {
+	S32 *s = stack;
 	cData = (U8*)data;
 	P = 0x200;
 	R = thread = 0;
@@ -1391,7 +1394,7 @@ int main(int ac, char* av[])
 
 	// Boot Up
 
-	printf("\n\nIZ=%x R-stack=%x", P, (popR << 2));
+	printf("\n\nIZ=%x R-stack=%x", P, (popR() << 2));
 	P = 0;
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
