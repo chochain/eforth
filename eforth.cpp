@@ -21,7 +21,6 @@
 /* C compiler must be reminded that S and R are (char)                        */
 /******************************************************************************/
 //Preamble
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -37,24 +36,23 @@ typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
-#define	FALSE	0
-#define	TRUE	-1
+#define	FALSE	    0
+#define	TRUE	    -1
 #define LOWER(x,y) 	((U32)(x)<(U32)(y))
 #define	pop()		(top = stack[(U8)S--])
 #define	push(v)		{ stack[(U8)++S] = top; top = (S32)(v); }
 #define	popR()      (rack[(U8)R--])
 #define	pushR(v)    (rack[(U8)++R] = (U32)(v))
 
-U8  R = 0, S = 0;
-U8  bytecode, c;
-U32 P, IP, WP, thread, len;
-S32 top = 0;
-S64 d, n, m;
+U8  R=0, S=0;                      // return stack index, data stack index
+U32 P, IP, WP;                     // P (program counter), IP (intruction pointer), WP (parameter pointer)
+U32 thread;                        // pointer to previous word
+S32 top = 0;                       // stack top value (cache)
 
-U32 rack[256]   = { 0 };
-S32 stack[256]  = { 0 };
-U32 data[16000] = {};
-U8* cData = (U8*)data;
+U32 rack[256]   = { 0 };           // return stack
+S32 stack[256]  = { 0 };           // data stack
+U32 data[16000] = {};              // forth memory block
+U8* cData       = (U8*)data;       // linear byte array pointer
 
 // Virtual Forth Machine
 
@@ -65,7 +63,7 @@ void bye(void)
 void qrx(void)
 {
 	push(getchar());
-	if (top != 0) push(TRUE);
+	if (top) push(TRUE);
 }
 void txsto(void)
 {
@@ -124,8 +122,8 @@ void donext(void)
 }
 void qbran(void)
 {
-	if (top == 0) IP = data[IP >> 2];
-	else IP += 4;
+	if (top) IP += 4;
+    else     IP = data[IP >> 2];
 	pop();
     next();
 }
@@ -175,7 +173,7 @@ void dup(void)
 }
 void swap(void)
 {
-	WP = top;
+	WP  = top;
 	top = stack[(U8)S];
 	stack[(U8)S] = WP;
 }
@@ -255,8 +253,7 @@ void subb(void)
 }
 void abss(void)
 {
-	if (top < 0)
-		top = -top;
+	if (top < 0) top = -top;
 }
 void great(void)
 {
@@ -277,9 +274,9 @@ void uless(void)
 }
 void ummod(void)
 {
-	d = (S64)top;
-	m = (S64)((U32)stack[(U8)S]);
-	n = (S64)((U32)stack[(U8)S - 1]);
+	S64 d = (S64)top;
+	S64 m = (S64)((U32)stack[(U8)S]);
+	S64 n = (S64)((U32)stack[(U8)S - 1]);
 	n += m << 32;
 	pop();
 	top = (U32)(n / d);
@@ -287,9 +284,9 @@ void ummod(void)
 }
 void msmod(void)
 {
-	d = (S64)top;
-	m = (S64)stack[(U8)S];
-	n = (S64)stack[(U8)S - 1];
+	S64 d = (S64)top;
+	S64 m = (S64)stack[(U8)S];
+	S64 n = (S64)stack[(U8)S - 1];
 	n += m << 32;
 	pop();
 	top = (S32)(n / d);
@@ -297,7 +294,7 @@ void msmod(void)
 }
 void slmod(void)
 {
-	if (top != 0) {
+	if (top) {
 		WP = stack[(U8)S] / top;
 		stack[(U8)S] %= top;
 		top = WP;
@@ -313,8 +310,8 @@ void slash(void)
 }
 void umsta(void)
 {
-	d = (U64)top;
-	m = (U64)stack[(U8)S];
+	U64 d = (U64)top;
+	U64 m = (U64)stack[(U8)S];
 	m *= d;
 	top = (U32)(m >> 32);
 	stack[(U8)S] = (U32)m;
@@ -325,17 +322,17 @@ void star(void)
 }
 void mstar(void)
 {
-	d = (S64)top;
-	m = (S64)stack[(U8)S];
+	S64 d = (S64)top;
+	S64 m = (S64)stack[(U8)S];
 	m *= d;
 	top = (S32)(m >> 32);
 	stack[(U8)S] = (S32)m;
 }
 void ssmod(void)
 {
-	d = (S64)top;
-	m = (S64)stack[(U8)S];
-	n = (S64)stack[(U8)S - 1];
+	S64 d = (S64)top;
+	S64 m = (S64)stack[(U8)S];
+	S64 n = (S64)stack[(U8)S - 1];
 	n *= m;
 	pop();
 	top = (S32)(n / d);
@@ -343,9 +340,9 @@ void ssmod(void)
 }
 void stasl(void)
 {
-	d = (S64)top;
-	m = (S64)stack[(U8)S];
-	n = (S64)stack[(U8)S - 1];
+	S64 d = (S64)top;
+	S64 m = (S64)stack[(U8)S];
+	S64 n = (S64)stack[(U8)S - 1];
 	n *= m;
 	pop();
     pop();
@@ -699,13 +696,11 @@ void AFT(int len, ...) {
 }
 void DOTQ(const char seq[]) {
 	IP = P >> 2;
-	int i;
 	int len = strlen(seq);
 	data[IP++] = DOTQP;
 	P = IP << 2;
 	cData[P++] = len;
-	for (i = 0; i < len; i++)
-	{
+	for (int i = 0; i < len; i++) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
@@ -714,13 +709,11 @@ void DOTQ(const char seq[]) {
 }
 void STRQ(const char seq[]) {
 	IP = P >> 2;
-	int i;
 	int len = strlen(seq);
 	data[IP++] = STRQP;
 	P = IP << 2;
 	cData[P++] = len;
-	for (i = 0; i < len; i++)
-	{
+	for (int i = 0; i < len; i++) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
@@ -729,13 +722,11 @@ void STRQ(const char seq[]) {
 }
 void ABORQ(const char seq[]) {
 	IP = P >> 2;
-	int i;
 	int len = strlen(seq);
 	data[IP++] = ABORQP;
 	P = IP << 2;
 	cData[P++] = len;
-	for (i = 0; i < len; i++)
-	{
+	for (int i=0; i < len; i++) {
 		cData[P++] = seq[i];
 	}
 	while (P & 3) { cData[P++] = 0; }
@@ -756,7 +747,6 @@ void CheckSum() {
 }
 
 // Byte Code Assembler
-
 int as_nop = 0;
 int as_bye = 1;
 int as_qrx = 2;
@@ -827,7 +817,6 @@ int as_min = 63;
 */
 int main(int ac, char* av[])
 {
-	S32 *s = stack;
 	cData = (U8*)data;
 	P = 0x200;
 	R = thread = 0;
@@ -1142,17 +1131,17 @@ int main(int ac, char* av[])
 	HEADER(7, "(parse)");
 	int PARS = COLON(5, TEMP, CSTOR, OVER, TOR, DUPP);
 	IF(5, ONEM, TEMP, CAT, BLANK, EQUAL);
-	IF(0);
-	FOR(6, BLANK, OVER, CAT, SUBBB, ZLESS, INVER);
-	WHILE(1, ONEP);
-	NEXT(6, RFROM, DROP, DOLIT, 0, DUPP, EXITT);
-	THEN(1, RFROM);
+	  IF(0);
+	    FOR(6, BLANK, OVER, CAT, SUBBB, ZLESS, INVER);
+	    WHILE(1, ONEP);
+	    NEXT(6, RFROM, DROP, DOLIT, 0, DUPP, EXITT);
+	  THEN(1, RFROM);
 	THEN(2, OVER, SWAP);
-	FOR(9, TEMP, CAT, OVER, CAT, SUBBB, TEMP, CAT, BLANK, EQUAL);
-	IF(1, ZLESS);
-	THEN(0);
-	WHILE(1, ONEP);
-	NEXT(2, DUPP, TOR);
+	  FOR(9, TEMP, CAT, OVER, CAT, SUBBB, TEMP, CAT, BLANK, EQUAL);
+	    IF(1, ZLESS);
+	    THEN(0);
+	  WHILE(1, ONEP);
+	  NEXT(2, DUPP, TOR);
 	ELSE(5, RFROM, DROP, DUPP, ONEP, TOR);
 	THEN(6, OVER, SUBBB, RFROM, RFROM, SUBBB, EXITT);
 	THEN(4, OVER, RFROM, SUBBB, EXITT);
@@ -1169,22 +1158,22 @@ int main(int ac, char* av[])
 	HEADER(5, "SAME?");
 	int SAMEQ = COLON(4, DOLIT, 0x1F, ANDD, CELLD);
 	FOR(0);
-	AFT(14, OVER, RAT, CELLS, PLUS, AT, UPPER, OVER, RAT, CELLS, PLUS, AT, UPPER, SUBBB, QDUP);
-	IF(3, RFROM, DROP, EXITT);
-	THEN(0);
-	THEN(0);
+	  AFT(14, OVER, RAT, CELLS, PLUS, AT, UPPER, OVER, RAT, CELLS, PLUS, AT, UPPER, SUBBB, QDUP);
+	    IF(3, RFROM, DROP, EXITT);
+	    THEN(0);
+	  THEN(0);
 	NEXT(3, DOLIT, 0, EXITT);
 	HEADER(4, "find");
 	int FIND = COLON(10, SWAP, DUPP, AT, TEMP, STORE, DUPP, AT, TOR, CELLP, SWAP);
 	BEGIN(2, AT, DUPP);
-	IF(9, DUPP, AT, DOLIT, 0xFFFFFF3F, ANDD, UPPER, RAT, UPPER, XORR);
-	  IF(3, CELLP, DOLIT, 0XFFFFFFFF);
-	  ELSE(4, CELLP, TEMP, AT, SAMEQ);
+	  IF(9, DUPP, AT, DOLIT, 0xFFFFFF3F, ANDD, UPPER, RAT, UPPER, XORR);
+	    IF(3, CELLP, DOLIT, 0XFFFFFFFF);
+  	    ELSE(4, CELLP, TEMP, AT, SAMEQ);
+	    THEN(0);
+	  ELSE(6, RFROM, DROP, SWAP, CELLM, SWAP, EXITT);
 	  THEN(0);
-	ELSE(6, RFROM, DROP, SWAP, CELLM, SWAP, EXITT);
-	THEN(0);
 	WHILE(2, CELLM, CELLM);
-	REPEAT(9, RFROM, DROP, SWAP, DROP, CELLM, DUPP, NAMET, SWAP, EXITT);
+    REPEAT(9, RFROM, DROP, SWAP, DROP, CELLM, DUPP, NAMET, SWAP, EXITT);
 	HEADER(5, "NAME?");
 	int NAMEQ = COLON(3, CNTXT, FIND, EXITT);
 
@@ -1282,9 +1271,9 @@ int main(int ac, char* av[])
 	HEADER(8, "$COMPILE");
 	int SCOMP = COLON(2, NAMEQ, QDUP);
 	IF(4, AT, DOLIT, IMEDD, ANDD);
-	IF(1, EXECU);
-	ELSE(1, COMMA);
-	THEN(1, EXITT);
+	  IF(1, EXECU);
+	  ELSE(1, COMMA);
+	  THEN(1, EXITT);
 	THEN(1, NUMBQ);
 	IF(2, LITER, EXITT);
 	THEN(1, ERRORR);
@@ -1401,7 +1390,7 @@ int main(int ac, char* av[])
 	int USER  = LABEL(8, 0X100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
 	// dump dictionaryHEADER(3, "HLD")
 	P = 0;
-	for (len = 0; len < 0x100; len++) { CheckSum(); }
+	for (int len=0; len < 0x100; len++) { CheckSum(); }
 
 	P   = 0;
 	WP  = 4;
@@ -1411,9 +1400,7 @@ int main(int ac, char* av[])
 	top = 0;
 	printf("\nceForth v3.3, 01jul19cht\n");
 	for (;;) {
-		//printf("%04x ", P);
-		U8 op = cData[P++];
-		primitives[op]();
+		primitives[cData[P++]]();
 	}
 }
 /* End of ceforth_33.cpp */
