@@ -32,12 +32,18 @@ typedef uint32_t  U32;
 typedef uint16_t  U16;
 typedef uint8_t   U8;
 typedef int64_t   S64;
+
 typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
+// debugging macros
 #define PRINTF(s,v) printf(s,v)
 //#define PRINTF(s,v)
+#define DEBUG(s)    PRINTF("%s ", s)
+#define SHOWOP(op)  printf("\n%04x: %s\t", P, op)
+
+// stack and logic macros
 #define	FALSE	    0
 #define	TRUE	    -1
 #define LOWER(x,y) 	((U32)(x)<(U32)(y))
@@ -45,17 +51,6 @@ typedef int8_t    S8;
 #define	push(v)		{ stack[(U8)++S] = top; top = (S32)(v); }
 #define	popR()      (rack[(U8)R--])
 #define	pushR(v)    (rack[(U8)++R] = (U32)(v))
-#define MEMCPY(n)   {                  \
-	va_list argList;                   \
-	va_start(argList, n);              \
-	for (; n; n--) {                   \
-		int j = va_arg(argList, int);  \
-		data[IP++] = j;                \
-		PRINTF(" %04x", j);            \
-	}                                  \
-	va_end(argList);                   \
-    }
-    
 
 U8  R=0, S=0;                      // return stack index, data stack index
 U32 P, IP, WP;                     // P (program counter), IP (intruction pointer), WP (parameter pointer)
@@ -66,9 +61,21 @@ U32 rack[256]   = { 0 };           // return stack
 S32 stack[256]  = { 0 };           // data stack
 U32 data[16000] = {};              // forth memory block
 U8* cData       = (U8*)data;       // linear byte array pointer
+U32 TAB = 0;
+
+void show_word(int j) {
+	U8 *p0 = &cData[j-0x20];
+	U8 *p  = &cData[j];
+	U32 op = data[j>>2];
+	for (p-=4; *p>31; p-=4);
+	U8  buf[64];
+	int len = (int)*p;
+	memcpy(buf, p+1, len);
+	buf[len] = '\0';
+	printf(" %s", buf);
+}
 
 // Virtual Forth Machine
-
 void bye(void)
 {
 	exit(0);
@@ -80,12 +87,19 @@ void qrx(void)
 }
 void txsto(void)
 {
-	putchar((U8)top);
+	//putchar((U8)top);
+	switch (top) {
+	case 0xa: printf("<LF>");  break;
+	case 0xd: printf("<CR>");  break;
+	case 0x8: printf("<TAB>"); break;
+	default:  printf("<%c>", (U8)top);
+	}
 	pop();
 }
 void next(void)
 {
 	P  = data[IP >> 2];
+    show_word(P);
 	WP = P + 4;
 	IP += 4;
 }
@@ -99,18 +113,26 @@ void docon(void)
 }
 void dolit(void)
 {
+	S32 v = data[IP >> 2];
+	PRINTF(" %d", v);
 	push(data[IP >> 2]);
 	IP += 4;
     next();
 }
 void dolist(void)
 {
+	DEBUG("\n");
+	for (int i=0; i<TAB; i++) printf("  ");
+	printf(":");
+	TAB++;
 	rack[(U8)++R] = IP;
 	IP = WP;
     next();
 }
 void exitt(void)
 {
+	DEBUG(" ;");
+	TAB--;
 	IP = rack[(U8)R--];
     next();
 }
@@ -371,7 +393,7 @@ void pstor(void)
 void dstor(void)
 {
 	data[(top >> 2) + 1] = stack[(U8)S--];
-	data[top >> 2] = stack[(U8)S--];
+	data[top >> 2]       = stack[(U8)S--];
 	pop();
 }
 void dat(void)
@@ -468,24 +490,27 @@ int IMEDD = 0x80;
 int COMPO = 0x40;
 int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0;
 
-void HEADER(int lex, const char seq[]) {
+void HEADER(int lex, const char *seq) {
 	IP = P >> 2;
-	int len = lex & 0x1f;
-	data[IP++] = thread;
-	P = IP << 2;
-	PRINTF("\n%x:",thread);
+	int len = lex & 0x1f;                     // max length 31
+	data[IP++] = thread;                      // point to previous word
+
+	// dump memory between previous word and this
+	PRINTF("%s", "\n    :");
 	for (int i = thread>>2; thread && i < IP; i++) {
 		PRINTF(" %08x", data[i]);
 	}
 	PRINTF("%c", '\n');
-	thread = P;
+
+	P = IP << 2;
+	thread = P;                               // keep pointer to this word
 	cData[P++] = lex;                         // length of word
 	for (int i = 0; i < len; i++) {           // memcpy word string
 		cData[P++] = seq[i];
 	}
-	while (P & 3) { cData[P++] = 0; }         // padding 4-byte align
-	PRINTF(" %04x:", P);
-	PRINTF(" %s", seq);
+	while (P & 3) { cData[P++] = 0xff; }      // padding 4-byte align
+	PRINTF("%04x: ", P);
+	PRINTF("%s", seq);
 }
 int CODE(int len, ...) {
 	int addr = P;
@@ -499,170 +524,167 @@ int CODE(int len, ...) {
 	va_end(argList);
 	return addr;
 }
+#define DATACPY(n) {                  \
+	va_list argList;                  \
+	va_start(argList, n);             \
+	for (; n; n--) {                  \
+		U32 j = va_arg(argList, U32); \
+		data[IP++] = j;               \
+		PRINTF(" %04x", j);           \
+	}                                 \
+	va_end(argList);                  \
+}
 int COLON(int len, ...) {
+	PRINTF("%s", " COLON 0006");
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = 6; // dolist
-	PRINTF(" %x ", 6);
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 	return addr;
 }
 int LABEL(int len, ...) {
+	SHOWOP("LABEL");
 	int addr = P;
 	IP = P >> 2;
-	PRINTF("\n%x ",addr);
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 	return addr;
 }
 void BEGIN(int len, ...) {
+	SHOWOP("BEGIN");
 	IP = P >> 2;
-	PRINTF("\n%x BEGIN ",P);
 	pushR(IP);
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void AGAIN(int len, ...) {
+	SHOWOP("AGAIN");
 	IP = P >> 2;
-	PRINTF("\n%x AGAIN ",P);
 	data[IP++] = BRAN;
 	data[IP++] = popR() << 2;
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void UNTIL(int len, ...) {
+	SHOWOP("UNTIL");
 	IP = P >> 2;
-	PRINTF("\n%x UNTIL ", P);
 	data[IP++] = QBRAN;
 	data[IP++] = popR() << 2;
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void WHILE(int len, ...) {
+	SHOWOP("WHILE");
 	IP = P >> 2;
-	PRINTF("\n%x WHILE ", P);
 	data[IP++] = QBRAN;
 	data[IP++] = 0;
 	int k = popR();
 	pushR(IP - 1);
 	pushR(k);
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void REPEAT(int len, ...) {
+	SHOWOP("REPEAT");
 	IP = P >> 2;
-	PRINTF("\n%x REPEAT ", P);
 	data[IP++] = BRAN;
 	data[IP++] = popR() << 2;
 	data[popR()] = IP << 2;
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void IF(int len, ...) {
+	SHOWOP("IF");
 	IP = P >> 2;
-	PRINTF("\n%x IF ", P);
 	data[IP++] = QBRAN;
 	pushR(IP);
 	data[IP++] = 0;
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void ELSE(int len, ...) {
+	SHOWOP("ELSE");
 	IP = P >> 2;
-	PRINTF("\n%x ELSE ", P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
 	data[popR()] = IP << 2;
 	pushR(IP - 1);
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void THEN(int len, ...) {
+	SHOWOP("THEN");
 	IP = P >> 2;
-	PRINTF("\n%x THEN ", P);
 	data[popR()] = IP << 2;
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void FOR(int len, ...) {
+	SHOWOP("FOR");
 	IP = P >> 2;
-	PRINTF("\n%x FOR ", P);
 	data[IP++] = TOR;
 	pushR(IP);
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void NEXT(int len, ...) {
+	SHOWOP("NEXT");
 	IP = P >> 2;
-	PRINTF("\n%x NEXT ", P);
 	data[IP++] = DONXT;
 	data[IP++] = popR() << 2;
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
 void AFT(int len, ...) {
+	SHOWOP("AFT");
 	IP = P >> 2;
-	PRINTF("\n%x AFT ", P);
 	data[IP++] = BRAN;
 	data[IP++] = 0;
 	int k = popR();
 	pushR(IP);
 	pushR(IP - 1);
-    MEMCPY(len);
+    DATACPY(len);
 	P = IP << 2;
 }
-void DOTQ(const char seq[]) {
-	IP = P >> 2;
-	int len = strlen(seq);
-	data[IP++] = DOTQP;
-	P = IP << 2;
-	cData[P++] = len;
-	for (int i = 0; i < len; i++) {
-		cData[P++] = seq[i];
+#define STRCPY(op, seq) {              \
+	IP = P >> 2;                       \
+    data[IP++] = op;                   \
+    P  = IP << 2;                      \
+	int len = strlen(seq);             \
+	cData[P++] = len;                  \
+	for (int i = 0; i < len; i++) {    \
+		cData[P++] = seq[i];           \
+	}                                  \
+	while (P & 3) { cData[P++] = 0; }  \
 	}
-	while (P & 3) { cData[P++] = 0; }
-	PRINTF("\n%x ", P);
+void DOTQ(const char *seq) {
+	SHOWOP("DOTQ");
 	PRINTF("%s", seq);
+	STRCPY(DOTQP, seq);
 }
-void STRQ(const char seq[]) {
-	IP = P >> 2;
-	int len = strlen(seq);
-	data[IP++] = STRQP;
-	P = IP << 2;
-	cData[P++] = len;
-	for (int i = 0; i < len; i++) {
-		cData[P++] = seq[i];
-	}
-	while (P & 3) { cData[P++] = 0; }
-	PRINTF("\n%x ",P);
+void STRQ(const char *seq) {
+	SHOWOP("STRQ");
 	PRINTF("%s", seq);
+	STRCPY(STRQP, seq);
 }
-void ABORQ(const char seq[]) {
-	IP = P >> 2;
-	int len = strlen(seq);
-	data[IP++] = ABORQP;
-	P = IP << 2;
-	cData[P++] = len;
-	for (int i=0; i < len; i++) {
-		cData[P++] = seq[i];
-	}
-	while (P & 3) { cData[P++] = 0; }
-	PRINTF("\n%x ",P);
+void ABORQ(const char *seq) {
+	SHOWOP("ABORQP");
 	PRINTF("%s", seq);
+	STRCPY(ABORQP, seq);
 }
 
 void CheckSum() {
     for (int p=0; p<0x2000; p+=0x20) {
-        PRINTF("\n%04x: ", p);
+        printf("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
         	U8 c = cData[p+i];
-            PRINTF("%02x", c);
-            PRINTF("%s", (i%4)==3 ? " " : "");
+            printf("%02x", c);
+            printf("%s", (i%4)==3 ? " " : "");
         }
         for (int i=0; i<0x20; i++) {
             U8 c = cData[p+i];
-            PRINTF("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
+            printf("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
         }
     }
 }
@@ -746,29 +768,29 @@ int main(int ac, char* av[])
 
 	U8 *k = &cData[P];
 	HEADER(3, "HLD");
-	int HLD = CODE(8, as_docon, as_next, 0, 0, 0X80, 0, 0, 0);
+	int HLD = CODE(8, as_docon, as_next, 0, 0, 0x80, 0, 0, 0);
 	HEADER(4, "SPAN");
-	int SPAN = CODE(8, as_docon, as_next, 0, 0, 0X84, 0, 0, 0);
+	int SPAN = CODE(8, as_docon, as_next, 0, 0, 0x84, 0, 0, 0);
 	HEADER(3, ">IN");
-	int INN = CODE(8, as_docon, as_next, 0, 0, 0X88, 0, 0, 0);
+	int INN = CODE(8, as_docon, as_next, 0, 0, 0x88, 0, 0, 0);
 	HEADER(4, "#TIB");
-	int NTIB = CODE(8, as_docon, as_next, 0, 0, 0X8C, 0, 0, 0);
+	int NTIB = CODE(8, as_docon, as_next, 0, 0, 0x8C, 0, 0, 0);
 	HEADER(4, "'TIB");
-	int TTIB = CODE(8, as_docon, as_next, 0, 0, 0X90, 0, 0, 0);
+	int TTIB = CODE(8, as_docon, as_next, 0, 0, 0x90, 0, 0, 0);
 	HEADER(4, "BASE");
-	int BASE = CODE(8, as_docon, as_next, 0, 0, 0X94, 0, 0, 0);
+	int BASE = CODE(8, as_docon, as_next, 0, 0, 0x94, 0, 0, 0);
 	HEADER(7, "CONTEXT");
-	int CNTXT = CODE(8, as_docon, as_next, 0, 0, 0X98, 0, 0, 0);
+	int CNTXT = CODE(8, as_docon, as_next, 0, 0, 0x98, 0, 0, 0);
 	HEADER(2, "CP");
-	int CP = CODE(8, as_docon, as_next, 0, 0, 0X9C, 0, 0, 0);
+	int CP = CODE(8, as_docon, as_next, 0, 0, 0x9C, 0, 0, 0);
 	HEADER(4, "LAST");
-	int LAST = CODE(8, as_docon, as_next, 0, 0, 0XA0, 0, 0, 0);
+	int LAST = CODE(8, as_docon, as_next, 0, 0, 0xA0, 0, 0, 0);
 	HEADER(5, "'EVAL");
-	int TEVAL = CODE(8, as_docon, as_next, 0, 0, 0XA4, 0, 0, 0);
+	int TEVAL = CODE(8, as_docon, as_next, 0, 0, 0xA4, 0, 0, 0);
 	HEADER(6, "'ABORT");
-	int TABRT = CODE(8, as_docon, as_next, 0, 0, 0XA8, 0, 0, 0);
+	int TABRT = CODE(8, as_docon, as_next, 0, 0, 0xA8, 0, 0, 0);
 	HEADER(3, "tmp");
-	int TEMP = CODE(8, as_docon, as_next, 0, 0, 0XAC, 0, 0, 0);
+	int TEMP = CODE(8, as_docon, as_next, 0, 0, 0xAC, 0, 0, 0);
 
 	HEADER(3, "NOP");
 	int NOP = CODE(4, as_next, 0, 0, 0);
@@ -788,12 +810,14 @@ int main(int ac, char* av[])
 	int EXITT = CODE(4, as_exit, as_next, 0, 0);
 	HEADER(7, "EXECUTE");
 	int EXECU = CODE(4, as_execu, as_next, 0, 0);
+
 	HEADER(6, "DONEXT");
 	DONXT = CODE(4, as_donext, as_next, 0, 0);
 	HEADER(7, "QBRANCH");
 	QBRAN = CODE(4, as_qbran, as_next, 0, 0);
 	HEADER(6, "BRANCH");
 	BRAN = CODE(4, as_bran, as_next, 0, 0);
+
 	HEADER(1, "!");
 	int STORE = CODE(4, as_store, as_next, 0, 0);
 	HEADER(1, "@");
@@ -921,15 +945,15 @@ int main(int ac, char* av[])
 	HEADER(6, "WITHIN");
 	int WITHI = COLON(7, OVER, SUBBB, TOR, SUBBB, RFROM, ULESS, EXITT);
 	HEADER(5, ">CHAR");
-	int TCHAR = COLON(8, DOLIT, 0x7F, ANDD, DUPP, DOLIT, 0X7F, BLANK, WITHI);
-	IF(3, DROP, DOLIT, 0X5F);
+	int TCHAR = COLON(8, DOLIT, 0x7F, ANDD, DUPP, DOLIT, 0x7F, BLANK, WITHI);
+	IF(3, DROP, DOLIT, 0x5F);
 	THEN(1, EXITT);
 	HEADER(7, "ALIGNED");
-	int ALIGN = COLON(7, DOLIT, 3, PLUS, DOLIT, 0XFFFFFFFC, ANDD, EXITT);
+	int ALIGN = COLON(7, DOLIT, 3, PLUS, DOLIT, 0xFFFFFFFC, ANDD, EXITT);
 	HEADER(4, "HERE");
 	int HERE = COLON(3, CP, AT, EXITT);
 	HEADER(3, "PAD");
-	int PAD = COLON(5, HERE, DOLIT, 0X50, PLUS, EXITT);
+	int PAD = COLON(5, HERE, DOLIT, 0x50, PLUS, EXITT);
 	HEADER(3, "TIB");
 	int TIB = COLON(3, TTIB, AT, EXITT);
 	HEADER(8, "@EXECUTE");
@@ -958,7 +982,7 @@ int main(int ac, char* av[])
 	// Number Conversions
 
 	HEADER(5, "DIGIT");
-	int DIGIT = COLON(12, DOLIT, 9, OVER, LESS, DOLIT, 7, ANDD, PLUS, DOLIT, 0X30, PLUS, EXITT);
+	int DIGIT = COLON(12, DOLIT, 9, OVER, LESS, DOLIT, 7, ANDD, PLUS, DOLIT, 0x30, PLUS, EXITT);
 	HEADER(7, "EXTRACT");
 	int EXTRC = COLON(7, DOLIT, 0, SWAP, UMMOD, SWAP, DIGIT, EXITT);
 	HEADER(2, "<#");
@@ -974,7 +998,7 @@ int main(int ac, char* av[])
 	REPEAT(1, EXITT);
 	HEADER(4, "SIGN");
 	int SIGN = COLON(1, ZLESS);
-	IF(3, DOLIT, 0X2D, HOLD);
+	IF(3, DOLIT, 0x2D, HOLD);
 	THEN(1, EXITT);
 	HEADER(2, "#>");
 	int EDIGS = COLON(7, DROP, HLD, AT, PAD, OVER, SUBBB, EXITT);
@@ -991,22 +1015,22 @@ int main(int ac, char* av[])
 	IF(3, DOLIT, 0x5F, ANDD);
 	THEN(1, EXITT);
 	HEADER(6, "DIGIT?");
-	int DIGTQ = COLON(9, TOR, TOUPP, DOLIT, 0X30, SUBBB, DOLIT, 9, OVER, LESS);
+	int DIGTQ = COLON(9, TOR, TOUPP, DOLIT, 0x30, SUBBB, DOLIT, 9, OVER, LESS);
 	IF(8, DOLIT, 7, SUBBB, DUPP, DOLIT, 10, LESS, ORR);
 	THEN(4, DUPP, RFROM, ULESS, EXITT);
 	HEADER(7, "NUMBER?");
-	int NUMBQ = COLON(12, BASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0X24, EQUAL);
+	int NUMBQ = COLON(12, BASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL);
 	IF(5, HEXX, SWAP, ONEP, SWAP, ONEM);
-	THEN(13, OVER, CAT, DOLIT, 0X2D, EQUAL, TOR, SWAP, RAT, SUBBB, SWAP, RAT, PLUS, QDUP);
-	IF(1, ONEM);
-	FOR(6, DUPP, TOR, CAT, BASE, AT, DIGTQ);
-	WHILE(7, SWAP, BASE, AT, STAR, PLUS, RFROM, ONEP);
-	NEXT(2, DROP, RAT);
-	IF(1, NEGAT);
-	THEN(1, SWAP);
-	ELSE(6, RFROM, RFROM, DDROP, DDROP, DOLIT, 0);
-	THEN(1, DUPP);
-	THEN(6, RFROM, DDROP, RFROM, BASE, STORE, EXITT);
+	THEN(13, OVER, CAT, DOLIT, 0x2D, EQUAL, TOR, SWAP, RAT, SUBBB, SWAP, RAT, PLUS, QDUP);
+      IF(1, ONEM);
+        FOR(6, DUPP, TOR, CAT, BASE, AT, DIGTQ);
+        WHILE(7, SWAP, BASE, AT, STAR, PLUS, RFROM, ONEP);
+        NEXT(2, DROP, RAT);
+        IF(1, NEGAT);
+        THEN(1, SWAP);
+      ELSE(6, RFROM, RFROM, DDROP, DDROP, DOLIT, 0);
+      THEN(1, DUPP);
+    THEN(6, RFROM, DDROP, RFROM, BASE, STORE, EXITT);
 
 	// Terminal Output
 
@@ -1041,7 +1065,7 @@ int main(int ac, char* av[])
 	HEADER(2, "U.");
 	int UDOT = COLON(6, BDIGS, DIGS, EDIGS, SPACE, TYPES, EXITT);
 	HEADER(1, ".");
-	int DOT = COLON(5, BASE, AT, DOLIT, 0XA, XORR);
+	int DOT = COLON(5, BASE, AT, DOLIT, 0xA, XORR);
 	IF(2, UDOT, EXITT);
 	THEN(4, STRR, SPACE, TYPES, EXITT);
 	HEADER(1, "?");
@@ -1079,16 +1103,16 @@ int main(int ac, char* av[])
 	HEADER(5, "SAME?");
 	int SAMEQ = COLON(4, DOLIT, 0x1F, ANDD, CELLD);
 	FOR(0);
-	  AFT(14, OVER, RAT, CELLS, PLUS, AT, UPPER, OVER, RAT, CELLS, PLUS, AT, UPPER, SUBBB, QDUP);
-	    IF(3, RFROM, DROP, EXITT);
-	    THEN(0);
+	AFT(14, OVER, RAT, CELLS, PLUS, AT, UPPER, OVER, RAT, CELLS, PLUS, AT, UPPER, SUBBB, QDUP);
+      IF(3, RFROM, DROP, EXITT);
 	  THEN(0);
+	THEN(0);
 	NEXT(3, DOLIT, 0, EXITT);
 	HEADER(4, "find");
 	int FIND = COLON(10, SWAP, DUPP, AT, TEMP, STORE, DUPP, AT, TOR, CELLP, SWAP);
 	BEGIN(2, AT, DUPP);
 	  IF(9, DUPP, AT, DOLIT, 0xFFFFFF3F, ANDD, UPPER, RAT, UPPER, XORR);
-	    IF(3, CELLP, DOLIT, 0XFFFFFFFF);
+	    IF(3, CELLP, DOLIT, 0xFFFFFFFF);
   	    ELSE(4, CELLP, TEMP, AT, SAMEQ);
 	    THEN(0);
 	  ELSE(6, RFROM, DROP, SWAP, CELLM, SWAP, EXITT);
@@ -1107,24 +1131,24 @@ int main(int ac, char* av[])
 	HEADER(3, "TAP");
 	int TAP = COLON(6, DUPP, EMIT, OVER, CSTOR, ONEP, EXITT);
 	HEADER(4, "kTAP");
-	int KTAP = COLON(9, DUPP, DOLIT, 0XD, XORR, OVER, DOLIT, 0XA, XORR, ANDD);
+	int KTAP = COLON(9, DUPP, DOLIT, 0xD, XORR, OVER, DOLIT, 0xA, XORR, ANDD);
 	IF(3, DOLIT, 8, XORR);
-	IF(2, BLANK, TAP);
-	ELSE(1, HATH);
-	THEN(1, EXITT);
+	  IF(2, BLANK, TAP);
+	  ELSE(1, HATH);
+	  THEN(1, EXITT);
 	THEN(5, DROP, SWAP, DROP, DUPP, EXITT);
 	HEADER(6, "ACCEPT");
 	int ACCEP = COLON(3, OVER, PLUS, OVER);
 	BEGIN(2, DDUP, XORR);
-	WHILE(7, KEY, DUPP, BLANK, SUBBB, DOLIT, 0X5F, ULESS);
-	IF(1, TAP);
-	ELSE(1, KTAP);
-	THEN(0);
+	WHILE(7, KEY, DUPP, BLANK, SUBBB, DOLIT, 0x5F, ULESS);
+	  IF(1, TAP);
+  	  ELSE(1, KTAP);
+	  THEN(0);
 	REPEAT(4, DROP, OVER, SUBBB, EXITT);
 	HEADER(6, "EXPECT");
 	int EXPEC = COLON(5, ACCEP, SPAN, STORE, DROP, EXITT);
 	HEADER(5, "QUERY");
-	int QUERY = COLON(12, TIB, DOLIT, 0X50, ACCEP, NTIB, STORE, DROP, DOLIT, 0, INN, STORE, EXITT);
+	int QUERY = COLON(12, TIB, DOLIT, 0x50, ACCEP, NTIB, STORE, DROP, DOLIT, 0, INN, STORE, EXITT);
 
 	// Text Interpreter
 
@@ -1135,7 +1159,7 @@ int main(int ac, char* av[])
 	IF(4, DOSTR, COUNT, TYPES, ABORT);
 	THEN(3, DOSTR, DROP, EXITT);
 	HEADER(5, "ERROR");
-	int ERRORR = COLON(11, SPACE, COUNT, TYPES, DOLIT, 0x3F, EMIT, DOLIT, 0X1B, EMIT, CR, ABORT);
+	int ERRORR = COLON(11, SPACE, COUNT, TYPES, DOLIT, 0x3F, EMIT, DOLIT, 0x1B, EMIT, CR, ABORT);
 	HEADER(10, "$INTERPRET");
 	int INTER = COLON(2, NAMEQ, QDUP);
 	IF(4, CAT, DOLIT, COMPO, ANDD);
@@ -1158,7 +1182,7 @@ int main(int ac, char* av[])
 	WHILE(2, TEVAL, ATEXE);
 	REPEAT(3, DROP, DOTOK, EXITT);
 	HEADER(4, "QUIT");
-	int QUITT = COLON(5, DOLIT, 0X100, TTIB, STORE, LBRAC);
+	int QUITT = COLON(5, DOLIT, 0x100, TTIB, STORE, LBRAC);
 	BEGIN(2, QUERY, EVAL);
 	AGAIN(0);
 
@@ -1171,7 +1195,7 @@ int main(int ac, char* av[])
 	HEADER(5, "ALLOT");
 	int ALLOT = COLON(4, ALIGN, CP, PSTOR, EXITT);
 	HEADER(3, "$,\"");
-	int STRCQ = COLON(9, DOLIT, 0X22, WORDD, COUNT, PLUS, ALIGN, CP, STORE, EXITT);
+	int STRCQ = COLON(9, DOLIT, 0x22, WORDD, COUNT, PLUS, ALIGN, CP, STORE, EXITT);
 	HEADER(7, "?UNIQUE");
 	int UNIQU = COLON(3, DUPP, NAMEQ, QDUP);
 	IF(6, COUNT, DOLIT, 0x1F, ANDD, SPACE, TYPES);
@@ -1225,9 +1249,9 @@ int main(int ac, char* av[])
 	int TNAME = COLON(1, CNTXT);
 	BEGIN(2, AT, DUPP);
 	WHILE(3, DDUP, NAMET, XORR);
-	IF(1, ONEM);
-	ELSE(3, SWAP, DROP, EXITT);
-	THEN(0);
+	  IF(1, ONEM);
+	  ELSE(3, SWAP, DROP, EXITT);
+	  THEN(0);
 	REPEAT(3, SWAP, DROP, EXITT);
 	HEADER(3, ".ID");
 	int DOTID = COLON(7, COUNT, DOLIT, 0x1F, ANDD, TYPES, SPACE, EXITT);
@@ -1235,9 +1259,9 @@ int main(int ac, char* av[])
 	int WORDS = COLON(6, CR, CNTXT, DOLIT, 0, TEMP, STORE);
 	BEGIN(2, AT, QDUP);
 	WHILE(9, DUPP, SPACE, DOTID, CELLM, TEMP, AT, DOLIT, 0xA, LESS);
-	IF(4, DOLIT, 1, TEMP, PSTOR);
-	ELSE(5, CR, DOLIT, 0, TEMP, STORE);
-	THEN(0);
+	  IF(4, DOLIT, 1, TEMP, PSTOR);
+	  ELSE(5, CR, DOLIT, 0, TEMP, STORE);
+	  THEN(0);
 	REPEAT(1, EXITT);
 	HEADER(6, "FORGET");
 	int FORGT = COLON(3, TOKEN, NAMEQ, QDUP);
@@ -1245,7 +1269,7 @@ int main(int ac, char* av[])
 	THEN(1, ERRORR);
 	HEADER(4, "COLD");
 	int COLD = COLON(1, CR);
-	DOTQ("eForth in C,Ver 4.0,2021 ");
+	DOTQ("eForth in C v4.0");
 	int DOTQ1 = LABEL(2, CR, QUITT);
 
 	// Structure Compiler
@@ -1291,11 +1315,11 @@ int main(int ac, char* av[])
 	HEADER(8, "CONSTANT");
 	int CONST = COLON(6, CODE, DOLIT, 0x2004, COMMA, COMMA, EXITT);
 	HEADER(IMEDD + 2, ".(");
-	int DOTPR = COLON(5, DOLIT, 0X29, PARSE, TYPES, EXITT);
+	int DOTPR = COLON(5, DOLIT, 0x29, PARSE, TYPES, EXITT);
 	HEADER(IMEDD + 1, "\\");
 	int BKSLA = COLON(5, DOLIT, 0xA, WORDD, DROP, EXITT);
 	HEADER(IMEDD + 1, "(");
-	int PAREN = COLON(5, DOLIT, 0X29, PARSE, DDROP, EXITT);
+	int PAREN = COLON(5, DOLIT, 0x29, PARSE, DDROP, EXITT);
 	HEADER(12, "COMPILE-ONLY");
 	int ONLY = COLON(6, DOLIT, 0x40, LAST, AT, PSTOR, EXITT);
 	HEADER(9, "IMMEDIATE");
@@ -1309,12 +1333,12 @@ int main(int ac, char* av[])
 	P = 0;
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
-	int USER  = LABEL(8, 0X100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
+	int USER  = LABEL(8, 0x100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
     
 	// dump dictionaryHEADER(3, "HLD")
 	CheckSum();
 
-	PRINTF("\n%s\n", "ceForth v3.3, 01jul19cht");
+	PRINTF("\n%s\n", "ceForth v4.0");
 	P   = 0;
 	WP  = 4;
 	IP  = 0;
