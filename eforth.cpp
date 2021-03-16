@@ -47,10 +47,10 @@ typedef int8_t    S8;
 #define	FALSE	    0
 #define	TRUE	    -1
 #define LOWER(x,y) 	((U32)(x)<(U32)(y))
-#define	pop()		(top = stack[(U8)S--])
-#define	push(v)		{ stack[(U8)++S] = top; top = (S32)(v); }
-#define	popR()      (rack[(U8)R--])
-#define	pushR(v)    (rack[(U8)++R] = (U32)(v))
+#define	_pop()		(top = stack[(U8)S--])
+#define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
+#define	_popR()     (rack[(U8)R--])
+#define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
 
 U8  R=0, S=0;                      // return stack index, data stack index
 U32 P, IP, WP;                     // P (program counter), IP (intruction pointer), WP (parameter pointer)
@@ -76,16 +76,16 @@ void show_word(int j) {
 }
 
 // Virtual Forth Machine
-void bye(void)
+void _bye(void)
 {
 	exit(0);
 }
-void qrx(void)
+void _qrx(void)
 {
-	push(getchar());
-	if (top) push(TRUE);
+	_push(getchar());
+	if (top) _push(TRUE);
 }
-void txsto(void)
+void _txsto(void)
 {
 	//putchar((U8)top);
 	switch (top) {
@@ -94,32 +94,36 @@ void txsto(void)
 	case 0x8: printf("<TAB>"); break;
 	default:  printf("<%c>", (U8)top);
 	}
-	pop();
+	_pop();
 }
-void next(void)
+void _next(void)
 {
 	P  = data[IP >> 2];
     show_word(P);
 	WP = P + 4;
 	IP += 4;
 }
-void dovar(void)
+void _nop(void)
 {
-	push(WP);
+	_next();
 }
-void docon(void)
+void _dovar(void)
 {
-	push(data[WP >> 2]);
+	_push(WP);
 }
-void dolit(void)
+void _docon(void)
+{
+	_push(data[WP >> 2]);
+}
+void _dolit(void)
 {
 	S32 v = data[IP >> 2];
 	PRINTF(" %d", v);
-	push(data[IP >> 2]);
+	_push(data[IP >> 2]);
 	IP += 4;
-    next();
+    _next();
 }
-void dolist(void)
+void _dolist(void)
 {
 	DEBUG("\n");
 	for (int i=0; i<TAB; i++) printf("  ");
@@ -127,22 +131,22 @@ void dolist(void)
 	TAB++;
 	rack[(U8)++R] = IP;
 	IP = WP;
-    next();
+    _next();
 }
-void exitt(void)
+void _exit(void)
 {
 	DEBUG(" ;");
 	TAB--;
 	IP = rack[(U8)R--];
-    next();
+    _next();
 }
-void execu(void)
+void _execu(void)
 {
 	P = top;
 	WP = P + 4;
-	pop();
+	_pop();
 }
-void donext(void)
+void _donext(void)
 {
 	if (rack[(U8)R]) {
 		rack[(U8)R] -= 1;
@@ -152,180 +156,178 @@ void donext(void)
 		IP += 4;
 		R--;
 	}
-    next();
+    _next();
 }
-void qbran(void)
+void _qbran(void)
 {
 	if (top) IP += 4;
     else     IP = data[IP >> 2];
-	pop();
-    next();
+	_pop();
+    _next();
 }
-void bran(void)
+void _bran(void)
 {
 	IP = data[IP >> 2];
-	next();
+	_next();
 }
-void store(void)
+void _store(void)
 {
 	data[top >> 2] = stack[(U8)S--];
-	pop();
+	_pop();
 }
-void at(void)
+void _at(void)
 {
 	top = data[top >> 2];
 }
-void cstor(void)
+void _cstor(void)
 {
 	cData[top] = (U8)stack[(U8)S--];
-	pop();
+	_pop();
 }
-void cat(void)
+void _cat(void)
 {
 	top = (U32)cData[top];
 }
-void rfrom(void)
+void _rfrom(void)
 {
-	push(rack[(U8)R--]);
+	_push(rack[(U8)R--]);
 }
-void rat(void)
+void _rat(void)
 {
-	push(rack[(U8)R]);
+	_push(rack[(U8)R]);
 }
-void tor(void)
+void _tor(void)
 {
 	rack[(U8)++R] = top;
-	pop();
+	_pop();
 }
-void drop(void)
+void _drop(void)
 {
-	pop();
+	_pop();
 }
-void dup(void)
+void _dup(void)
 {
 	stack[(U8)++S] = top;
 }
-void swap(void)
+void _swap(void)
 {
 	WP  = top;
 	top = stack[(U8)S];
 	stack[(U8)S] = WP;
 }
-void over(void)
+void _over(void)
 {
-	push(stack[(U8)S - 1]);
+	_push(stack[(U8)S - 1]);
 }
-void zless(void)
+void _zless(void)
 {
 	top = (top < 0) ? TRUE : FALSE;
 }
-void andd(void)
+void _and(void)
 {
 	top &= stack[(U8)S--];
 }
-void orr(void)
+void _or(void)
 {
 	top |= stack[(U8)S--];
 }
-void xorr(void)
+void _xor(void)
 {
 	top ^= stack[(U8)S--];
 }
-void uplus(void)
+void _uplus(void)
 {
 	stack[(U8)S] += top;
 	top = LOWER(stack[(U8)S], top);
 }
-void nop(void)
-{
-	next();
-}
-void qdup(void)
+void _qdup(void)
 {
 	if (top) stack[(U8) ++S] = top;
 }
-void rot(void)
+void _rot(void)
 {
 	WP = stack[(U8)S - 1];
 	stack[(U8)S - 1] = stack[(U8)S];
 	stack[(U8)S] = top;
 	top = WP;
 }
-void ddrop(void)
+void _ddrop(void)
 {
-	drop(); drop();
+	_drop();
+	_drop();
 }
-void ddup(void)
+void _ddup(void)
 {
-	over(); over();
+	_over();
+	_over();
 }
-void plus(void)
+void _plus(void)
 {
 	top += stack[(U8)S--];
 }
-void inver(void)
+void _inver(void)
 {
 	top = -top - 1;
 }
-void negat(void)
+void _negat(void)
 {
 	top = 0 - top;
 }
-void dnega(void)
+void _dnega(void)
 {
-	inver();
-	tor();
-	inver();
-	push(1);
-	uplus();
-	rfrom();
-	plus();
+	_inver();
+	_tor();
+	_inver();
+	_push(1);
+	_uplus();
+	_rfrom();
+	_plus();
 }
-void subb(void)
+void _sub(void)
 {
 	top = stack[(U8)S--] - top;
 }
-void abss(void)
+void _abs(void)
 {
 	if (top < 0) top = -top;
 }
-void great(void)
+void _great(void)
 {
 	top = stack[(U8)S--] > top;
 }
-void less(void)
+void _less(void)
 {
 	top = stack[(U8)S--] < top;
 }
-void equal(void)
+void _equal(void)
 {
 	top = stack[(U8)S--] == top;
 }
-void uless(void)
+void _uless(void)
 {
 	top = LOWER(stack[(U8)S--], top);
 }
-void ummod(void)
+void _ummod(void)
 {
 	S64 d = (S64)top;
 	S64 m = (S64)((U32)stack[(U8)S]);
 	S64 n = (S64)((U32)stack[(U8)S - 1]);
 	n += m << 32;
-	pop();
+	_pop();
 	top = (U32)(n / d);
 	stack[(U8)S] = (U32)(n % d);
 }
-void msmod(void)
+void _msmod(void)
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
 	S64 n = (S64)stack[(U8)S - 1];
 	n += m << 32;
-	pop();
+	_pop();
 	top = (S32)(n / d);
 	stack[(U8)S] = (U32)(n % d);
 }
-void slmod(void)
+void _slmod(void)
 {
 	if (top) {
 		WP  = stack[(U8)S] / top;
@@ -333,15 +335,15 @@ void slmod(void)
 		top = WP;
 	}
 }
-void mod(void)
+void _mod(void)
 {
 	top = (top) ? stack[(U8)S--] % top : stack[(U8)S--];
 }
-void slash(void)
+void _slash(void)
 {
 	top = (top) ? stack[(U8)S--] / top : (stack[(U8)S--], 0);
 }
-void umsta(void)
+void _umsta(void)
 {
 	U64 d = (U64)top;
 	U64 m = (U64)stack[(U8)S];
@@ -349,11 +351,11 @@ void umsta(void)
 	top = (U32)(m >> 32);
 	stack[(U8)S] = (U32)m;
 }
-void star(void)
+void _star(void)
 {
 	top *= stack[(U8)S--];
 }
-void mstar(void)
+void _mstar(void)
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
@@ -361,127 +363,127 @@ void mstar(void)
 	top = (S32)(m >> 32);
 	stack[(U8)S] = (S32)m;
 }
-void ssmod(void)
+void _ssmod(void)
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
 	S64 n = (S64)stack[(U8)S - 1];
 	n *= m;
-	pop();
+	_pop();
 	top = (S32)(n / d);
 	stack[(U8)S] = (S32)(n % d);
 }
-void stasl(void)
+void _stasl(void)
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
 	S64 n = (S64)stack[(U8)S - 1];
 	n *= m;
-	pop();
-    pop();
+	_pop();
+    _pop();
 	top = (S32)(n / d);
 }
-void pick(void)
+void _pick(void)
 {
 	top = stack[(U8)S - (U8)top];
 }
-void pstor(void)
+void _pstor(void)
 {
 	data[top >> 2] += stack[(U8)S--];
-    pop();
+    _pop();
 }
-void dstor(void)
+void _dstor(void)
 {
 	data[(top >> 2) + 1] = stack[(U8)S--];
 	data[top >> 2]       = stack[(U8)S--];
-	pop();
+	_pop();
 }
-void dat(void)
+void _dat(void)
 {
-	push(data[top >> 2]);
+	_push(data[top >> 2]);
 	top = data[(top >> 2) + 1];
 }
-void count(void)
+void _count(void)
 {
 	stack[(U8)++S] = top + 1;
 	top = cData[top];
 }
-void max(void)
+void _max(void)
 {
-	if (top < stack[(U8)S]) pop();
+	if (top < stack[(U8)S]) _pop();
 	else (U8)S--;
 }
-void min(void)
+void _min(void)
 {
 	if (top < stack[(U8)S]) (U8)S--;
-	else pop();
+	else _pop();
 }
 
 void(*primitives[64])(void) = {
-	/* case 0 */ nop,
-	/* case 1 */ bye,
-	/* case 2 */ qrx,
-	/* case 3 */ txsto,
-	/* case 4 */ docon,
-	/* case 5 */ dolit,
-	/* case 6 */ dolist,
-	/* case 7 */ exitt,
-	/* case 8 */ execu,
-	/* case 9 */ donext,
-	/* case 10 */ qbran,
-	/* case 11 */ bran,
-	/* case 12 */ store,
-	/* case 13 */ at,
-	/* case 14 */ cstor,
-	/* case 15 */ cat,
-	/* case 16  rpat, */  nop,
-	/* case 17  rpsto, */ nop,
-	/* case 18 */ rfrom,
-	/* case 19 */ rat,
-	/* case 20 */ tor,
-	/* case 21 spat, */  nop,
-	/* case 22 spsto, */ nop,
-	/* case 23 */ drop,
-	/* case 24 */ dup,
-	/* case 25 */ swap,
-	/* case 26 */ over,
-	/* case 27 */ zless,
-	/* case 28 */ andd,
-	/* case 29 */ orr,
-	/* case 30 */ xorr,
-	/* case 31 */ uplus,
-	/* case 32 */ next,
-	/* case 33 */ qdup,
-	/* case 34 */ rot,
-	/* case 35 */ ddrop,
-	/* case 36 */ ddup,
-	/* case 37 */ plus,
-	/* case 38 */ inver,
-	/* case 39 */ negat,
-	/* case 40 */ dnega,
-	/* case 41 */ subb,
-	/* case 42 */ abss,
-	/* case 43 */ equal,
-	/* case 44 */ uless,
-	/* case 45 */ less,
-	/* case 46 */ ummod,
-	/* case 47 */ msmod,
-	/* case 48 */ slmod,
-	/* case 49 */ mod,
-	/* case 50 */ slash,
-	/* case 51 */ umsta,
-	/* case 52 */ star,
-	/* case 53 */ mstar,
-	/* case 54 */ ssmod,
-	/* case 55 */ stasl,
-	/* case 56 */ pick,
-	/* case 57 */ pstor,
-	/* case 58 */ dstor,
-	/* case 59 */ dat,
-	/* case 60 */ count,
-	/* case 61 */ dovar,
-	/* case 62 */ max,
-	/* case 63 */ min,
+	/* case 0 */ _nop,
+	/* case 1 */ _bye,
+	/* case 2 */ _qrx,
+	/* case 3 */ _txsto,
+	/* case 4 */ _docon,
+	/* case 5 */ _dolit,
+	/* case 6 */ _dolist,
+	/* case 7 */ _exit,
+	/* case 8 */ _execu,
+	/* case 9 */ _donext,
+	/* case 10 */ _qbran,
+	/* case 11 */ _bran,
+	/* case 12 */ _store,
+	/* case 13 */ _at,
+	/* case 14 */ _cstor,
+	/* case 15 */ _cat,
+	/* case 16  rpat, */  _nop,
+	/* case 17  rpsto, */ _nop,
+	/* case 18 */ _rfrom,
+	/* case 19 */ _rat,
+	/* case 20 */ _tor,
+	/* case 21 spat, */  _nop,
+	/* case 22 spsto, */ _nop,
+	/* case 23 */ _drop,
+	/* case 24 */ _dup,
+	/* case 25 */ _swap,
+	/* case 26 */ _over,
+	/* case 27 */ _zless,
+	/* case 28 */ _and,
+	/* case 29 */ _or,
+	/* case 30 */ _xor,
+	/* case 31 */ _uplus,
+	/* case 32 */ _next,
+	/* case 33 */ _qdup,
+	/* case 34 */ _rot,
+	/* case 35 */ _ddrop,
+	/* case 36 */ _ddup,
+	/* case 37 */ _plus,
+	/* case 38 */ _inver,
+	/* case 39 */ _negat,
+	/* case 40 */ _dnega,
+	/* case 41 */ _sub,
+	/* case 42 */ _abs,
+	/* case 43 */ _equal,
+	/* case 44 */ _uless,
+	/* case 45 */ _less,
+	/* case 46 */ _ummod,
+	/* case 47 */ _msmod,
+	/* case 48 */ _slmod,
+	/* case 49 */ _mod,
+	/* case 50 */ _slash,
+	/* case 51 */ _umsta,
+	/* case 52 */ _star,
+	/* case 53 */ _mstar,
+	/* case 54 */ _ssmod,
+	/* case 55 */ _stasl,
+	/* case 56 */ _pick,
+	/* case 57 */ _pstor,
+	/* case 58 */ _dstor,
+	/* case 59 */ _dat,
+	/* case 60 */ _count,
+	/* case 61 */ _dovar,
+	/* case 62 */ _max,
+	/* case 63 */ _min,
 };
 
 // Macro Assembler
@@ -554,7 +556,7 @@ int LABEL(int len, ...) {
 void BEGIN(int len, ...) {
 	SHOWOP("BEGIN");
 	IP = P >> 2;
-	pushR(IP);
+	_pushR(IP);
     DATACPY(len);
 	P = IP << 2;
 }
@@ -562,7 +564,7 @@ void AGAIN(int len, ...) {
 	SHOWOP("AGAIN");
 	IP = P >> 2;
 	data[IP++] = BRAN;
-	data[IP++] = popR() << 2;
+	data[IP++] = _popR() << 2;
     DATACPY(len);
 	P = IP << 2;
 }
@@ -570,7 +572,7 @@ void UNTIL(int len, ...) {
 	SHOWOP("UNTIL");
 	IP = P >> 2;
 	data[IP++] = QBRAN;
-	data[IP++] = popR() << 2;
+	data[IP++] = _popR() << 2;
     DATACPY(len);
 	P = IP << 2;
 }
@@ -579,9 +581,9 @@ void WHILE(int len, ...) {
 	IP = P >> 2;
 	data[IP++] = QBRAN;
 	data[IP++] = 0;
-	int k = popR();
-	pushR(IP - 1);
-	pushR(k);
+	int k = _popR();
+	_pushR(IP - 1);
+	_pushR(k);
     DATACPY(len);
 	P = IP << 2;
 }
@@ -589,8 +591,8 @@ void REPEAT(int len, ...) {
 	SHOWOP("REPEAT");
 	IP = P >> 2;
 	data[IP++] = BRAN;
-	data[IP++] = popR() << 2;
-	data[popR()] = IP << 2;
+	data[IP++] = _popR() << 2;
+	data[_popR()] = IP << 2;
     DATACPY(len);
 	P = IP << 2;
 }
@@ -598,7 +600,7 @@ void IF(int len, ...) {
 	SHOWOP("IF");
 	IP = P >> 2;
 	data[IP++] = QBRAN;
-	pushR(IP);
+	_pushR(IP);
 	data[IP++] = 0;
     DATACPY(len);
 	P = IP << 2;
@@ -608,15 +610,15 @@ void ELSE(int len, ...) {
 	IP = P >> 2;
 	data[IP++] = BRAN;
 	data[IP++] = 0;
-	data[popR()] = IP << 2;
-	pushR(IP - 1);
+	data[_popR()] = IP << 2;
+	_pushR(IP - 1);
     DATACPY(len);
 	P = IP << 2;
 }
 void THEN(int len, ...) {
 	SHOWOP("THEN");
 	IP = P >> 2;
-	data[popR()] = IP << 2;
+	data[_popR()] = IP << 2;
     DATACPY(len);
 	P = IP << 2;
 }
@@ -624,7 +626,7 @@ void FOR(int len, ...) {
 	SHOWOP("FOR");
 	IP = P >> 2;
 	data[IP++] = TOR;
-	pushR(IP);
+	_pushR(IP);
     DATACPY(len);
 	P = IP << 2;
 }
@@ -632,7 +634,7 @@ void NEXT(int len, ...) {
 	SHOWOP("NEXT");
 	IP = P >> 2;
 	data[IP++] = DONXT;
-	data[IP++] = popR() << 2;
+	data[IP++] = _popR() << 2;
     DATACPY(len);
 	P = IP << 2;
 }
@@ -641,9 +643,9 @@ void AFT(int len, ...) {
 	IP = P >> 2;
 	data[IP++] = BRAN;
 	data[IP++] = 0;
-	int k = popR();
-	pushR(IP);
-	pushR(IP - 1);
+	int k = _popR();
+	_pushR(IP);
+	_pushR(IP - 1);
     DATACPY(len);
 	P = IP << 2;
 }
@@ -1329,7 +1331,7 @@ int main(int ac, char* av[])
 	// Boot Up
 
 	PRINTF("\n\nIZ=%x ", P);
-    PRINTF("R-stack=%x", (popR() << 2));
+    PRINTF("R-stack=%x", (_popR() << 2));
 	P = 0;
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
