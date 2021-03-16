@@ -38,13 +38,12 @@ typedef int16_t   S16;
 typedef int8_t    S8;
 
 // debugging macros
-#define PRINTF(s,v)     printf(s,v)
-//#define PRINTF(s,v)
-#define DEBUG(s)        PRINTF("%s ", s)
+#define LOG(s,v)        printf(s,v)
+#define INFO(s)         LOG("%s ", s)
 #define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
-#define DEBUG_COLON() {                       \
+#define COLON_INFO() {                        \
 	printf("\n");                             \
-	for (U32 i=0; i<TAB; i++) printf("  ");   \
+	for (int i=0; i<TAB; i++) printf("  ");   \
     TAB++;                                    \
 	printf(":");                              \
 }
@@ -60,20 +59,20 @@ U8  R=0, S=0;                      // return stack index, data stack index
 U32 P, IP, WP;                     // P (program counter), IP (intruction pointer), WP (parameter pointer)
 U32 thread;                        // pointer to previous word
 S32 top = 0;                       // stack top value (cache)
+int TAB = 0;                       // debug indentation counter
 
 U32 rack[256]   = { 0 };           // return stack
 S32 stack[256]  = { 0 };           // data stack
 U32 data[16000] = {};              // 64K forth memory block
-U8* cData       = (U8*)data;       // linear byte array pointer
-U32 TAB = 0;
+U8* byte        = (U8*)data;       // linear byte array pointer
 
 void show_word(int j) {
-	U8 *p  = &cData[j];			   // pointer to address
+	U8 *p  = &byte[j];			   // pointer to address
 	U32 op = data[j>>2];		   // get opocode
 	for (p-=4; *p>31; p-=4);	   // retract pointer to word name
 
-	int len = (int)*p;
-	U8  buf[64];
+	int  len = (int)*p;
+	char buf[64];
 	memcpy(buf, p+1, len);
 	buf[len] = '\0';
 	printf(" %s", buf);
@@ -122,21 +121,21 @@ void _docon(void)               // ( -- n) push next token onto data stack as co
 void _dolit(void)               // ( -- w) push next token as an integer literal
 {
 	S32 v = data[IP >> 2];
-	PRINTF(" %d", v);
+	LOG(" %d", v);
 	_push(data[IP >> 2]);
 	IP += 4;
     _next();
 }
 void _dolist(void)              // ( -- ) push instruction pointer onto return stack and pop 
 {
-	DEBUG_COLON();
+	COLON_INFO();
 	rack[(U8)++R] = IP;
 	IP = WP;
     _next();
 }
 void _exit(void)               // ( -- ) terminate all token lists in colon words
 {
-	DEBUG(" ;");
+	INFO(" ;");
 	TAB--;
 	IP = rack[(U8)R--];
     _next();
@@ -182,12 +181,12 @@ void _at(void)                 // (a -- n) fetch from memory address onto top of
 }
 void _cstor(void)              // (c b -- ) store a byte into memory location
 {
-	cData[top] = (U8)stack[(U8)S--];
+	byte[top] = (U8)stack[(U8)S--];
 	_pop();
 }
 void _cat(void)                // (b -- n) fetch a byte from memory location
 {
-	top = (U32)cData[top];
+	top = (U32)byte[top];
 }
 void _rfrom(void)              // (n --) pop from data stack onto return stack
 {
@@ -407,7 +406,7 @@ void _dat(void)                // (a -- d) fetch double from address a
 void _count(void)              // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
 	stack[(U8)++S] = top + 1;
-	top = cData[top];
+	top = byte[top];
 }
 void _max(void)                // (n1 n2 -- n) return greater of two top stack items
 {
@@ -495,25 +494,25 @@ int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0;
 
 void HEADER(int lex, const char *seq) {
 	IP = P >> 2;
-	int len = lex & 0x1f;                     // max length 31
+	U32 len = lex & 0x1f;                     // max length 31
 	data[IP++] = thread;                      // point to previous word
 
 	// dump memory between previous word and this
-	PRINTF("%s", "\n    :");
+	LOG("%s", "\n    :");
 	for (U32 i = thread>>2; thread && i < IP; i++) {
-		PRINTF(" %08x", data[i]);
+		LOG(" %08x", data[i]);
 	}
-	PRINTF("%c", '\n');
+	LOG("%c", '\n');
 
 	P = IP << 2;
 	thread = P;                               // keep pointer to this word
-	cData[P++] = lex;                         // length of word
-	for (int i = 0; i < len; i++) {           // memcpy word string
-		cData[P++] = seq[i];
+	byte[P++] = lex;                         // length of word
+	for (U32 i = 0; i < len; i++) {           // memcpy word string
+		byte[P++] = seq[i];
 	}
-	while (P & 3) { cData[P++] = 0xff; }      // padding 4-byte align
-	PRINTF("%04x: ", P);
-	PRINTF("%s", seq);
+	while (P & 3) { byte[P++] = 0xff; }      // padding 4-byte align
+	LOG("%04x: ", P);
+	LOG("%s", seq);
 }
 int CODE(int len, ...) {
 	int addr = P;
@@ -521,8 +520,8 @@ int CODE(int len, ...) {
 	va_start(argList, len);
 	for (; len; len--) {
 		U8 j = (U8)va_arg(argList, int);
-		cData[P++] = j;
-		PRINTF(" %02x", j);
+		byte[P++] = j;
+		LOG(" %02x", j);
 	}
 	va_end(argList);
 	return addr;
@@ -533,12 +532,12 @@ int CODE(int len, ...) {
 	for (; n; n--) {                  \
 		U32 j = va_arg(argList, U32); \
 		data[IP++] = j;               \
-		PRINTF(" %04x", j);           \
+		LOG(" %04x", j);           \
 	}                                 \
 	va_end(argList);                  \
 }
 int COLON(int len, ...) {
-	PRINTF("%s", " COLON 0006");
+	LOG("%s", " COLON 0006");
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = 6; // dolist
@@ -655,25 +654,25 @@ void AFT(int len, ...) {
     data[IP++] = op;                   \
     P  = IP << 2;                      \
 	int len = strlen(seq);             \
-	cData[P++] = len;                  \
+	byte[P++] = len;                  \
 	for (int i = 0; i < len; i++) {    \
-		cData[P++] = seq[i];           \
+		byte[P++] = seq[i];           \
 	}                                  \
-	while (P & 3) { cData[P++] = 0; }  \
+	while (P & 3) { byte[P++] = 0; }  \
 	}
 void DOTQ(const char *seq) {
 	SHOWOP("DOTQ");
-	PRINTF("%s", seq);
+	LOG("%s", seq);
 	STRCPY(DOTQP, seq);
 }
 void STRQ(const char *seq) {
 	SHOWOP("STRQ");
-	PRINTF("%s", seq);
+	LOG("%s", seq);
 	STRCPY(STRQP, seq);
 }
 void ABORQ(const char *seq) {
 	SHOWOP("ABORQP");
-	PRINTF("%s", seq);
+	LOG("%s", seq);
 	STRCPY(ABORQP, seq);
 }
 
@@ -681,12 +680,12 @@ void CheckSum() {
     for (int p=0; p<0x2000; p+=0x20) {
         printf("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
-        	U8 c = cData[p+i];
+        	U8 c = byte[p+i];
             printf("%02x", c);
             printf("%s", (i%4)==3 ? " " : "");
         }
         for (int i=0; i<0x20; i++) {
-            U8 c = cData[p+i];
+            U8 c = byte[p+i];
             printf("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
         }
     }
@@ -763,7 +762,7 @@ int as_min = 63;
 */
 int main(int ac, char* av[])
 {
-	cData = (U8*)data;
+	byte = (U8*)data;
 	P = 0x200;
 	R = thread = 0;
 
@@ -935,7 +934,7 @@ int main(int ac, char* av[])
 
 	// Common Colon Words
 
-	U8 *c = &cData[P];
+	U8 *c = &byte[P];
 	HEADER(4, "?KEY");
 	int QKEY = COLON(2, QRX, EXITT);
 	HEADER(3, "KEY");
@@ -1330,8 +1329,8 @@ int main(int ac, char* av[])
 
 	// Boot Up
 
-	PRINTF("\n\nIZ=%x ", P);
-    PRINTF("R-stack=%x", (_popR() << 2));
+	LOG("\n\nIZ=%x ", P);
+    LOG("R-stack=%x", (_popR() << 2));
 	P = 0;
 	int RESET = LABEL(2, 6, COLD);
 	P = 0x90;
@@ -1340,7 +1339,7 @@ int main(int ac, char* av[])
 	// dump dictionaryHEADER(3, "HLD")
 	CheckSum();
 
-	PRINTF("\n%s\n", "ceForth v4.0");
+	LOG("\n%s\n", "ceForth v4.0");
 	P   = 0;
 	WP  = 4;
 	IP  = 0;
@@ -1348,7 +1347,7 @@ int main(int ac, char* av[])
 	R   = 0;
 	top = 0;
 	for (;;) {
-		primitives[cData[P++]]();
+		primitives[byte[P++]]();
 	}
 }
 /* End of ceforth_33.cpp */
