@@ -675,8 +675,8 @@ void ABORQ(const char *seq) {
 	STRCPY(ABORQP, seq);
 }
 
-void CheckSum() {
-    for (int p=0; p<0x2000; p+=0x20) {
+void dump_data(int len) {
+    for (int p=0; p<len; p+=0x20) {
         printf("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
         	U8 c = byte[p+i];
@@ -690,73 +690,7 @@ void CheckSum() {
     }
 }
 
-// Byte Code Assembler
-/*
-int as_nop = 0;
-int as_bye = 1;
-int as_qrx = 2;
-int as_txsto = 3;
-int as_docon = 4;
-int as_dolit = 5;
-int as_dolist = 6;
-int as_exit = 7;
-int as_execu = 8;
-int as_donext = 9;
-int as_qbran = 10;
-int as_bran = 11;
-int as_store = 12;
-int as_at = 13;
-int as_cstor = 14;
-int as_cat = 15;
-int as_rpat = 16;
-int as_rpsto = 17;
-int as_rfrom = 18;
-int as_rat = 19;
-int as_tor = 20;
-int as_spat = 21;
-int as_spsto = 22;
-int as_drop = 23;
-int as_dup = 24;
-int as_swap = 25;
-int as_over = 26;
-int as_zless = 27;
-int as_andd = 28;
-int as_orr = 29;
-int as_xorr = 30;
-int as_uplus = 31;
-int as_next = 32;
-int as_qdup = 33;
-int as_rot = 34;
-int as_ddrop = 35;
-int as_ddup = 36;
-int as_plus = 37;
-int as_inver = 38;
-int as_negat = 39;
-int as_dnega = 40;//
-int as_subb = 41;
-int as_abss = 42;
-int as_equal = 43;
-int as_uless = 44;
-int as_less = 45;
-int as_ummod = 46;
-int as_msmod = 47;
-int as_slmod = 48;
-int as_mod = 49;
-int as_slash = 50;
-int as_umsta = 51;
-int as_star = 52;
-int as_mstar = 53;
-int as_ssmod = 54;
-int as_stasl = 55;
-int as_pick = 56;
-int as_pstor = 57;
-int as_dstor = 58;
-int as_dat = 59;
-int as_count = 60;
-int as_dovar = 61;
-int as_max = 62;
-int as_min = 63;
-*/
+// Byte Code Assembler (opcode)
 enum {
     as_nop = 0,    // 0
     as_bye,        // 1
@@ -824,9 +758,6 @@ enum {
     as_min         // 63
 };
 
-/*
-* Main Program
-*/
 int main(int ac, char* av[])
 {
 	P = 0x200;
@@ -860,11 +791,11 @@ int main(int ac, char* av[])
 	int TEMP  = CODE(8, as_docon, as_next, 0, 0, 0xAC, 0, 0, 0);
 
 	HEADER(3, "NOP");
-	int NOP = CODE(4, as_next, 0, 0, 0);
+	int NOP   = CODE(4, as_next,  0,       0, 0);
 	HEADER(3, "BYE");
-	int BYE = CODE(4, as_bye, as_next, 0, 0);
+	int BYE   = CODE(4, as_bye,   as_next, 0, 0);
 	HEADER(3, "?RX");
-	int QRX = CODE(4, as_qrx, as_next, 0, 0);
+	int QRX   = CODE(4, as_qrx,   as_next, 0, 0);
 	HEADER(3, "TX!");
 	int TXSTO = CODE(4, as_txsto, as_next, 0, 0);
 	HEADER(5, "DOCON");
@@ -872,63 +803,63 @@ int main(int ac, char* av[])
 	HEADER(5, "DOLIT");
 	int DOLIT = CODE(4, as_dolit, as_next, 0, 0);
 	HEADER(6, "DOLIST");
-	int DOLST = CODE(4, as_dolist, as_next, 0, 0);
+	int DOLST = CODE(4, as_dolist,as_next, 0, 0);
 	HEADER(4, "EXIT");
-	int EXITT = CODE(4, as_exit, as_next, 0, 0);
+	int EXITT = CODE(4, as_exit,  as_next, 0, 0);
 	HEADER(7, "EXECUTE");
 	int EXECU = CODE(4, as_execu, as_next, 0, 0);
 
 	HEADER(6, "DONEXT");
-	DONXT = CODE(4, as_donext, as_next, 0, 0);
+	DONXT     = CODE(4, as_donext,as_next, 0, 0);
 	HEADER(7, "QBRANCH");
-	QBRAN = CODE(4, as_qbran, as_next, 0, 0);
+	QBRAN     = CODE(4, as_qbran, as_next, 0, 0);
 	HEADER(6, "BRANCH");
-	BRAN = CODE(4, as_bran, as_next, 0, 0);
+	BRAN      = CODE(4, as_bran,  as_next, 0, 0);
 
 	HEADER(1, "!");
 	int STORE = CODE(4, as_store, as_next, 0, 0);
 	HEADER(1, "@");
-	int AT = CODE(4, as_at, as_next, 0, 0);
+	int AT    = CODE(4, as_at,    as_next, 0, 0);
 	HEADER(2, "C!");
 	int CSTOR = CODE(4, as_cstor, as_next, 0, 0);
 	HEADER(2, "C@");
-	int CAT = CODE(4, as_cat, as_next, 0, 0);
+	int CAT   = CODE(4, as_cat,   as_next, 0, 0);
 	HEADER(2, "R>");
 	int RFROM = CODE(4, as_rfrom, as_next, 0, 0);
 	HEADER(2, "R@");
-	int RAT = CODE(4, as_rat, as_next, 0, 0);
+	int RAT   = CODE(4, as_rat,   as_next, 0, 0);
 	HEADER(2, ">R");
-	TOR = CODE(4, as_tor, as_next, 0, 0);
+	TOR       = CODE(4, as_tor,   as_next, 0, 0);
 	HEADER(4, "DROP");
-	int DROP = CODE(4, as_drop, as_next, 0, 0);
+	int DROP  = CODE(4, as_drop,  as_next, 0, 0);
 	HEADER(3, "DUP");
-	int DUPP = CODE(4, as_dup, as_next, 0, 0);
+	int DUPP  = CODE(4, as_dup,   as_next, 0, 0);
 	HEADER(4, "SWAP");
-	int SWAP = CODE(4, as_swap, as_next, 0, 0);
+	int SWAP  = CODE(4, as_swap,  as_next, 0, 0);
 	HEADER(4, "OVER");
-	int OVER = CODE(4, as_over, as_next, 0, 0);
+	int OVER  = CODE(4, as_over,  as_next, 0, 0);
 	HEADER(2, "0<");
 	int ZLESS = CODE(4, as_zless, as_next, 0, 0);
 	HEADER(3, "AND");
-	int ANDD = CODE(4, as_andd, as_next, 0, 0);
+	int ANDD  = CODE(4, as_andd,  as_next, 0, 0);
 	HEADER(2, "OR");
-	int ORR = CODE(4, as_orr, as_next, 0, 0);
+	int ORR   = CODE(4, as_orr,   as_next, 0, 0);
 	HEADER(3, "XOR");
-	int XORR = CODE(4, as_xorr, as_next, 0, 0);
+	int XORR  = CODE(4, as_xorr,  as_next, 0, 0);
 	HEADER(3, "UM+");
 	int UPLUS = CODE(4, as_uplus, as_next, 0, 0);
 	HEADER(4, "NEXT");
-	int NEXTT = CODE(4, as_next, as_next, 0, 0);
+	int NEXTT = CODE(4, as_next,  as_next, 0, 0);
 	HEADER(4, "?DUP");
-	int QDUP = CODE(4, as_qdup, as_next, 0, 0);
+	int QDUP  = CODE(4, as_qdup,  as_next, 0, 0);
 	HEADER(3, "ROT");
-	int ROT = CODE(4, as_rot, as_next, 0, 0);
+	int ROT   = CODE(4, as_rot,   as_next, 0, 0);
 	HEADER(5, "2DROP");
 	int DDROP = CODE(4, as_ddrop, as_next, 0, 0);
 	HEADER(4, "2DUP");
-	int DDUP = CODE(4, as_ddup, as_next, 0, 0);
+	int DDUP  = CODE(4, as_ddup,  as_next, 0, 0);
 	HEADER(1, "+");
-	int PLUS = CODE(4, as_plus, as_next, 0, 0);
+	int PLUS  = CODE(4, as_plus,  as_next, 0, 0);
 	HEADER(3, "NOT");
 	int INVER = CODE(4, as_inver, as_next, 0, 0);
 	HEADER(6, "NEGATE");
@@ -936,15 +867,15 @@ int main(int ac, char* av[])
 	HEADER(7, "DNEGATE");
 	int DNEGA = CODE(4, as_dnega, as_next, 0, 0);
 	HEADER(1, "-");
-	int SUBBB = CODE(4, as_subb, as_next, 0, 0);
+	int SUBBB = CODE(4, as_subb,  as_next, 0, 0);
 	HEADER(3, "ABS");
-	int ABSS = CODE(4, as_abss, as_next, 0, 0);
+	int ABSS  = CODE(4, as_abss,  as_next, 0, 0);
 	HEADER(1, "=");
 	int EQUAL = CODE(4, as_equal, as_next, 0, 0);
 	HEADER(2, "U<");
 	int ULESS = CODE(4, as_uless, as_next, 0, 0);
 	HEADER(1, "<");
-	int LESS = CODE(4, as_less, as_next, 0, 0);
+	int LESS  = CODE(4, as_less,  as_next, 0, 0);
 	HEADER(6, "UM/MOD");
 	int UMMOD = CODE(4, as_ummod, as_next, 0, 0);
 	HEADER(5, "M/MOD");
@@ -952,13 +883,13 @@ int main(int ac, char* av[])
 	HEADER(4, "/MOD");
 	int SLMOD = CODE(4, as_slmod, as_next, 0, 0);
 	HEADER(3, "MOD");
-	int MODD = CODE(4, as_mod, as_next, 0, 0);
+	int MODD  = CODE(4, as_mod,   as_next, 0, 0);
 	HEADER(1, "/");
 	int SLASH = CODE(4, as_slash, as_next, 0, 0);
 	HEADER(3, "UM*");
 	int UMSTA = CODE(4, as_umsta, as_next, 0, 0);
 	HEADER(1, "*");
-	int STAR = CODE(4, as_star, as_next, 0, 0);
+	int STAR = CODE(4, as_star,   as_next, 0, 0);
 	HEADER(2, "M*");
 	int MSTAR = CODE(4, as_mstar, as_next, 0, 0);
 	HEADER(5, "*/MOD");
@@ -966,35 +897,36 @@ int main(int ac, char* av[])
 	HEADER(2, "*/");
 	int STASL = CODE(4, as_stasl, as_next, 0, 0);
 	HEADER(4, "PICK");
-	int PICK = CODE(4, as_pick, as_next, 0, 0);
+	int PICK  = CODE(4, as_pick,  as_next, 0, 0);
 	HEADER(2, "+!");
 	int PSTOR = CODE(4, as_pstor, as_next, 0, 0);
 	HEADER(2, "2!");
 	int DSTOR = CODE(4, as_dstor, as_next, 0, 0);
 	HEADER(2, "2@");
-	int DAT = CODE(4, as_dat, as_next, 0, 0);
+	int DAT   = CODE(4, as_dat,   as_next, 0, 0);
 	HEADER(5, "COUNT");
 	int COUNT = CODE(4, as_count, as_next, 0, 0);
 	HEADER(3, "MAX");
-	int MAX = CODE(4, as_max, as_next, 0, 0);
+	int MAX   = CODE(4, as_max,   as_next, 0, 0);
 	HEADER(3, "MIN");
-	int MIN = CODE(4, as_min, as_next, 0, 0);
+	int MIN   = CODE(4, as_min,   as_next, 0, 0);
+    
 	HEADER(2, "BL");
-	int BLANK = CODE(8, as_docon, as_next, 0, 0, 32, 0, 0, 0);
+	int BLANK = CODE(8, as_docon, as_next, 0,       0, 32, 0, 0, 0);
 	HEADER(4, "CELL");
-	int CELL = CODE(8, as_docon, as_next, 0, 0, 4, 0, 0, 0);
+	int CELL  = CODE(8, as_docon, as_next, 0,       0,  4, 0, 0, 0);
 	HEADER(5, "CELL+");
-	int CELLP = CODE(8, as_docon, as_plus, as_next, 0, 4, 0, 0, 0);
+	int CELLP = CODE(8, as_docon, as_plus, as_next, 0,  4, 0, 0, 0);
 	HEADER(5, "CELL-");
-	int CELLM = CODE(8, as_docon, as_subb, as_next, 0, 4, 0, 0, 0);
+	int CELLM = CODE(8, as_docon, as_subb, as_next, 0,  4, 0, 0, 0);
 	HEADER(5, "CELLS");
-	int CELLS = CODE(8, as_docon, as_star, as_next, 0, 4, 0, 0, 0);
+	int CELLS = CODE(8, as_docon, as_star, as_next, 0,  4, 0, 0, 0);
 	HEADER(5, "CELL/");
-	int CELLD = CODE(8, as_docon, as_slash, as_next, 0, 4, 0, 0, 0);
+	int CELLD = CODE(8, as_docon, as_slash,as_next, 0,  4, 0, 0, 0);
 	HEADER(2, "1+");
-	int ONEP = CODE(8, as_docon, as_plus, as_next, 0, 1, 0, 0, 0);
+	int ONEP  = CODE(8, as_docon, as_plus, as_next, 0,  1, 0, 0, 0);
 	HEADER(2, "1-");
-	int ONEM = CODE(8, as_docon, as_subb, as_next, 0, 1, 0, 0, 0);
+	int ONEM  = CODE(8, as_docon, as_subb, as_next, 0,  1, 0, 0, 0);
 	HEADER(5, "DOVAR");
 	int DOVAR = CODE(4, as_dovar, as_next, 0, 0);
 
@@ -1002,13 +934,13 @@ int main(int ac, char* av[])
 
 	U8 *c = &byte[P];
 	HEADER(4, "?KEY");
-	int QKEY = COLON(2, QRX, EXITT);
+	int QKEY  = COLON(2, QRX, EXITT);
 	HEADER(3, "KEY");
-	int KEY = COLON(0);
+	int KEY   = COLON(0);
 	BEGIN(1, QKEY);
 	UNTIL(1, EXITT);
 	HEADER(4, "EMIT");
-	int EMIT = COLON(2, TXSTO, EXITT);
+	int EMIT  = COLON(2, TXSTO, EXITT);
 	HEADER(6, "WITHIN");
 	int WITHI = COLON(7, OVER, SUBBB, TOR, SUBBB, RFROM, ULESS, EXITT);
 	HEADER(5, ">CHAR");
@@ -1018,11 +950,11 @@ int main(int ac, char* av[])
 	HEADER(7, "ALIGNED");
 	int ALIGN = COLON(7, DOLIT, 3, PLUS, DOLIT, 0xFFFFFFFC, ANDD, EXITT);
 	HEADER(4, "HERE");
-	int HERE = COLON(3, CP, AT, EXITT);
+	int HERE  = COLON(3, CP, AT, EXITT);
 	HEADER(3, "PAD");
-	int PAD = COLON(5, HERE, DOLIT, 0x50, PLUS, EXITT);
+	int PAD   = COLON(5, HERE, DOLIT, 0x50, PLUS, EXITT);
 	HEADER(3, "TIB");
-	int TIB = COLON(3, TTIB, AT, EXITT);
+	int TIB   = COLON(3, TTIB, AT, EXITT);
 	HEADER(8, "@EXECUTE");
 	int ATEXE = COLON(2, AT, QDUP);
 	IF(1, EXECU);
@@ -1034,7 +966,7 @@ int main(int ac, char* av[])
 	THEN(0);
 	NEXT(2, DDROP, EXITT);
 	HEADER(4, "MOVE");
-	int MOVE = COLON(1, CELLD);
+	int MOVE  = COLON(1, CELLD);
 	FOR(0);
 	AFT(8, OVER, AT, OVER, STORE, TOR, CELLP, RFROM, CELLP);
 	THEN(0);
@@ -1055,24 +987,24 @@ int main(int ac, char* av[])
 	HEADER(2, "<#");
 	int BDIGS = COLON(4, PAD, HLD, STORE, EXITT);
 	HEADER(4, "HOLD");
-	int HOLD = COLON(8, HLD, AT, ONEM, DUPP, HLD, STORE, CSTOR, EXITT);
+	int HOLD  = COLON(8, HLD, AT, ONEM, DUPP, HLD, STORE, CSTOR, EXITT);
 	HEADER(1, "#");
-	int DIG = COLON(5, BASE, AT, EXTRC, HOLD, EXITT);
+	int DIG   = COLON(5, BASE, AT, EXTRC, HOLD, EXITT);
 	HEADER(2, "#S");
-	int DIGS = COLON(0);
+	int DIGS  = COLON(0);
 	BEGIN(2, DIG, DUPP);
 	WHILE(0);
 	REPEAT(1, EXITT);
 	HEADER(4, "SIGN");
-	int SIGN = COLON(1, ZLESS);
+	int SIGN  = COLON(1, ZLESS);
 	IF(3, DOLIT, 0x2D, HOLD);
 	THEN(1, EXITT);
 	HEADER(2, "#>");
 	int EDIGS = COLON(7, DROP, HLD, AT, PAD, OVER, SUBBB, EXITT);
 	HEADER(3, "str");
-	int STRR = COLON(9, DUPP, TOR, ABSS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXITT);
+	int STRR  = COLON(9, DUPP, TOR, ABSS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXITT);
 	HEADER(3, "HEX");
-	int HEXX = COLON(5, DOLIT, 16, BASE, STORE, EXITT);
+	int HEXX  = COLON(5, DOLIT, 16, BASE, STORE, EXITT);
 	HEADER(7, "DECIMAL");
 	int DECIM = COLON(5, DOLIT, 10, BASE, STORE, EXITT);
 	HEADER(6, "wupper");
@@ -1126,13 +1058,13 @@ int main(int ac, char* av[])
 	HEADER(3, ".\"|");
 	DOTQP = COLON(4, DOSTR, COUNT, TYPES, EXITT);
 	HEADER(2, ".R");
-	int DOTR = COLON(8, TOR, STRR, RFROM, OVER, SUBBB, SPACS, TYPES, EXITT);
+	int DOTR  = COLON(8, TOR, STRR, RFROM, OVER, SUBBB, SPACS, TYPES, EXITT);
 	HEADER(3, "U.R");
 	int UDOTR = COLON(10, TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUBBB, SPACS, TYPES, EXITT);
 	HEADER(2, "U.");
-	int UDOT = COLON(6, BDIGS, DIGS, EDIGS, SPACE, TYPES, EXITT);
+	int UDOT  = COLON(6, BDIGS, DIGS, EDIGS, SPACE, TYPES, EXITT);
 	HEADER(1, ".");
-	int DOT = COLON(5, BASE, AT, DOLIT, 0xA, XORR);
+	int DOT   = COLON(5, BASE, AT, DOLIT, 0xA, XORR);
 	IF(2, UDOT, EXITT);
 	THEN(4, STRR, SPACE, TYPES, EXITT);
 	HEADER(1, "?");
@@ -1141,7 +1073,7 @@ int main(int ac, char* av[])
 	// Parser
 
 	HEADER(7, "(parse)");
-	int PARS = COLON(5, TEMP, CSTOR, OVER, TOR, DUPP);
+	int PARS  = COLON(5, TEMP, CSTOR, OVER, TOR, DUPP);
 	IF(5, ONEM, TEMP, CAT, BLANK, EQUAL);
 	  IF(0);
 	    FOR(6, BLANK, OVER, CAT, SUBBB, ZLESS, INVER);
@@ -1176,7 +1108,7 @@ int main(int ac, char* av[])
 	THEN(0);
 	NEXT(3, DOLIT, 0, EXITT);
 	HEADER(4, "find");
-	int FIND = COLON(10, SWAP, DUPP, AT, TEMP, STORE, DUPP, AT, TOR, CELLP, SWAP);
+	int FIND  = COLON(10, SWAP, DUPP, AT, TEMP, STORE, DUPP, AT, TOR, CELLP, SWAP);
 	BEGIN(2, AT, DUPP);
 	  IF(9, DUPP, AT, DOLIT, 0xFFFFFF3F, ANDD, UPPER, RAT, UPPER, XORR);
 	    IF(3, CELLP, DOLIT, 0xFFFFFFFF);
@@ -1192,13 +1124,13 @@ int main(int ac, char* av[])
 	// Terminal Input
 
 	HEADER(2, "^H");
-	int HATH = COLON(6, TOR, OVER, RFROM, SWAP, OVER, XORR);
+	int HATH  = COLON(6, TOR, OVER, RFROM, SWAP, OVER, XORR);
 	IF(9, DOLIT, 8, EMIT, ONEM, BLANK, EMIT, DOLIT, 8, EMIT);
 	THEN(1, EXITT);
 	HEADER(3, "TAP");
-	int TAP = COLON(6, DUPP, EMIT, OVER, CSTOR, ONEP, EXITT);
+	int TAP   = COLON(6, DUPP, EMIT, OVER, CSTOR, ONEP, EXITT);
 	HEADER(4, "kTAP");
-	int KTAP = COLON(9, DUPP, DOLIT, 0xD, XORR, OVER, DOLIT, 0xA, XORR, ANDD);
+	int KTAP  = COLON(9, DUPP, DOLIT, 0xD, XORR, OVER, DOLIT, 0xA, XORR, ANDD);
 	IF(3, DOLIT, 8, XORR);
 	  IF(2, BLANK, TAP);
 	  ELSE(1, HATH);
@@ -1226,12 +1158,12 @@ int main(int ac, char* av[])
 	IF(4, DOSTR, COUNT, TYPES, ABORT);
 	THEN(3, DOSTR, DROP, EXITT);
 	HEADER(5, "ERROR");
-	int ERRORR = COLON(11, SPACE, COUNT, TYPES, DOLIT, 0x3F, EMIT, DOLIT, 0x1B, EMIT, CR, ABORT);
+	int ERRORR= COLON(11, SPACE, COUNT, TYPES, DOLIT, 0x3F, EMIT, DOLIT, 0x1B, EMIT, CR, ABORT);
 	HEADER(10, "$INTERPRET");
 	int INTER = COLON(2, NAMEQ, QDUP);
 	IF(4, CAT, DOLIT, COMPO, ANDD);
 	ABORQ(" compile only");
-	int INTER0 = LABEL(2, EXECU, EXITT);
+	int INTER0= LABEL(2, EXECU, EXITT);
 	THEN(1, NUMBQ);
 	IF(1, EXITT);
 	ELSE(1, ERRORR);
@@ -1244,7 +1176,7 @@ int main(int ac, char* av[])
 	DOTQ(" ok>");
 	THEN(1, EXITT);
 	HEADER(4, "EVAL");
-	int EVAL = COLON(0);
+	int EVAL  = COLON(0);
 	BEGIN(3, TOKEN, DUPP, AT);
 	WHILE(2, TEVAL, ATEXE);
 	REPEAT(3, DROP, DOTOK, EXITT);
@@ -1273,7 +1205,7 @@ int main(int ac, char* av[])
 	IF(14, UNIQU, DUPP, NAMET, CP, STORE, DUPP, LAST, STORE, CELLM, CNTXT, AT, SWAP, STORE, EXITT);
 	THEN(1, ERRORR);
 	HEADER(1, "'");
-	int TICK = COLON(2, TOKEN, NAMEQ);
+	int TICK  = COLON(2, TOKEN, NAMEQ);
 	IF(1, EXITT);
 	THEN(1, ERRORR);
 	HEADER(IMEDD + 9, "[COMPILE]");
@@ -1294,20 +1226,20 @@ int main(int ac, char* av[])
 	HEADER(1, "]");
 	int RBRAC = COLON(5, DOLIT, SCOMP, TEVAL, STORE, EXITT);
 	HEADER(1, ":");
-	int COLN = COLON(7, TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXITT);
+	int COLN  = COLON(7, TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXITT);
 	HEADER(IMEDD + 1, ";");
 	int SEMIS = COLON(6, DOLIT, EXITT, COMMA, LBRAC, OVERT, EXITT);
 
 	// Debugging Tools
 
 	HEADER(3, "dm+");
-	int DMP = COLON(4, OVER, DOLIT, 6, UDOTR);
+	int DMP   = COLON(4, OVER, DOLIT, 6, UDOTR);
 	FOR(0);
 	AFT(6, DUPP, AT, DOLIT, 9, UDOTR, CELLP);
 	THEN(0);
 	NEXT(1, EXITT);
 	HEADER(4, "DUMP");
-	int DUMP = COLON(10, BASE, AT, TOR, HEXX, DOLIT, 0x1F, PLUS, DOLIT, 0x20, SLASH);
+	int DUMP  = COLON(10, BASE, AT, TOR, HEXX, DOLIT, 0x1F, PLUS, DOLIT, 0x20, SLASH);
 	FOR(0);
 	AFT(10, CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPES, RFROM);
 	THEN(0);
@@ -1335,7 +1267,7 @@ int main(int ac, char* av[])
 	IF(12, CELLM, DUPP, CP, STORE, AT, DUPP, CNTXT, STORE, LAST, STORE, DROP, EXITT);
 	THEN(1, ERRORR);
 	HEADER(4, "COLD");
-	int COLD = COLON(1, CR);
+	int COLD  = COLON(1, CR);
 	DOTQ("eForth in C v4.0");
 	int DOTQ1 = LABEL(2, CR, QUITT);
 
@@ -1344,7 +1276,7 @@ int main(int ac, char* av[])
 	HEADER(IMEDD + 4, "THEN");
 	int THENN = COLON(4, HERE, SWAP, STORE, EXITT);
 	HEADER(IMEDD + 3, "FOR");
-	int FORR = COLON(4, COMPI, TOR, HERE, EXITT);
+	int FORR  = COLON(4, COMPI, TOR, HERE, EXITT);
 	HEADER(IMEDD + 5, "BEGIN");
 	int BEGIN = COLON(2, HERE, EXITT);
 	HEADER(IMEDD + 4, "NEXT");
@@ -1354,27 +1286,27 @@ int main(int ac, char* av[])
 	HEADER(IMEDD + 5, "AGAIN");
 	int AGAIN = COLON(4, COMPI, BRAN, COMMA, EXITT);
 	HEADER(IMEDD + 2, "IF");
-	int IFF = COLON(7, COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXITT);
+	int IFF   = COLON(7, COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXITT);
 	HEADER(IMEDD + 5, "AHEAD");
 	int AHEAD = COLON(7, COMPI, BRAN, HERE, DOLIT, 0, COMMA, EXITT);
 	HEADER(IMEDD + 6, "REPEAT");
 	int REPEA = COLON(3, AGAIN, THENN, EXITT);
 	HEADER(IMEDD + 3, "AFT");
-	int AFT = COLON(5, DROP, AHEAD, HERE, SWAP, EXITT);
+	int AFT   = COLON(5, DROP, AHEAD, HERE, SWAP, EXITT);
 	HEADER(IMEDD + 4, "ELSE");
 	int ELSEE = COLON(4, AHEAD, SWAP, THENN, EXITT);
 	HEADER(IMEDD + 4, "WHEN");
-	int WHEN = COLON(3, IFF, OVER, EXITT);
+	int WHEN  = COLON(3, IFF, OVER, EXITT);
 	HEADER(IMEDD + 5, "WHILE");
-	int WHILEE = COLON(3, IFF, SWAP, EXITT);
+	int WHILEE= COLON(3, IFF, SWAP, EXITT);
 	HEADER(IMEDD + 6, "ABORT\"");
 	int ABRTQ = COLON(6, DOLIT, ABORQP, HERE, STORE, STRCQ, EXITT);
 	HEADER(IMEDD + 2, "$\"");
-	int STRQ = COLON(6, DOLIT, STRQP, HERE, STORE, STRCQ, EXITT);
+	int STRQ  = COLON(6, DOLIT, STRQP, HERE, STORE, STRCQ, EXITT);
 	HEADER(IMEDD + 2, ".\"");
 	int DOTQQ = COLON(6, DOLIT, DOTQP, HERE, STORE, STRCQ, EXITT);
 	HEADER(4, "CODE");
-	int CODE = COLON(4, TOKEN, SNAME, OVERT, EXITT);
+	int CODE  = COLON(4, TOKEN, SNAME, OVERT, EXITT);
 	HEADER(6, "CREATE");
 	int CREAT = COLON(5, CODE, DOLIT, 0x203D, COMMA, EXITT);
 	HEADER(8, "VARIABLE");
@@ -1388,10 +1320,10 @@ int main(int ac, char* av[])
 	HEADER(IMEDD + 1, "(");
 	int PAREN = COLON(5, DOLIT, 0x29, PARSE, DDROP, EXITT);
 	HEADER(12, "COMPILE-ONLY");
-	int ONLY = COLON(6, DOLIT, 0x40, LAST, AT, PSTOR, EXITT);
+	int ONLY  = COLON(6, DOLIT, 0x40, LAST, AT, PSTOR, EXITT);
 	HEADER(9, "IMMEDIATE");
 	int IMMED = COLON(6, DOLIT, 0x80, LAST, AT, PSTOR, EXITT);
-	int ENDD = P;
+	int ENDD  = P;
 
 	// Boot Up
 
@@ -1402,8 +1334,8 @@ int main(int ac, char* av[])
 	P = 0x90;
 	int USER  = LABEL(8, 0x100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
     
-	// dump dictionaryHEADER(3, "HLD")
-	CheckSum();
+	// dump dictionary
+	dump_data(0x2000);
 
 	LOG("\n%s\n", "ceForth v4.0");
 	P   = 0;
