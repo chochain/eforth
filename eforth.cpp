@@ -44,7 +44,7 @@ typedef int8_t    S8;
 #define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
 #define DEBUG_COLON() {                       \
 	printf("\n");                             \
-	for (int i=0; i<TAB; i++) printf("  ");   \
+	for (U32 i=0; i<TAB; i++) printf("  ");   \
     TAB++;                                    \
 	printf(":");                              \
 }
@@ -500,7 +500,7 @@ void HEADER(int lex, const char *seq) {
 
 	// dump memory between previous word and this
 	PRINTF("%s", "\n    :");
-	for (int i = thread>>2; thread && i < IP; i++) {
+	for (U32 i = thread>>2; thread && i < IP; i++) {
 		PRINTF(" %08x", data[i]);
 	}
 	PRINTF("%c", '\n');
@@ -644,7 +644,7 @@ void AFT(int len, ...) {
 	IP = P >> 2;
 	data[IP++] = BRAN;
 	data[IP++] = 0;
-	int k = _popR();
+	_popR();
 	_pushR(IP);
 	_pushR(IP - 1);
     DATACPY(len);
@@ -769,7 +769,6 @@ int main(int ac, char* av[])
 
 	// Kernel
 
-	U8 *k = &cData[P];
 	HEADER(3, "HLD");
 	int HLD = CODE(8, as_docon, as_next, 0, 0, 0x80, 0, 0, 0);
 	HEADER(4, "SPAN");
