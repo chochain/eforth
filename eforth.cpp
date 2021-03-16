@@ -26,6 +26,33 @@
 #include <string.h>
 #include <stdint.h>
 
+#define FORTH_TRACE  1
+
+// tracing/logging macros
+#if FORTH_TRACE
+int TAB = 0;                       // trace indentation counter
+#define LOG(s,v)        printf(s,v)
+#define INFO(s)         LOG("%s ", s)
+#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
+#define TRACE_COLON() {                       \
+	printf("\n");                             \
+	for (int i=0; i<TAB; i++) printf("  ");   \
+    TAB++;                                    \
+	printf(":");                              \
+}
+#define TRACE_EXIT() {                        \
+    printf(" ; ");                            \
+    TAB--;                                    \
+}
+#else // FORTH_TRACE
+#define TRACE_COLON()
+#define TRACE_EXIT()
+#define LOG(s,v)
+#define INFO(s)
+#define SHOWOP(op)
+#endif // FORTH_TRACE
+
+// portable types
 typedef uint64_t  U64;
 typedef uint32_t  U32;
 typedef uint16_t  U16;
@@ -36,17 +63,7 @@ typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
-// debugging macros
-#define LOG(s,v)        printf(s,v)
-#define INFO(s)         LOG("%s ", s)
-#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
-#define COLON_INFO() {                        \
-	printf("\n");                             \
-	for (int i=0; i<TAB; i++) printf("  ");   \
-    TAB++;                                    \
-	printf(":");                              \
-}
-// stack and logic macros
+// logic and stack op macros
 #define	FALSE	    0
 #define	TRUE	    -1
 #define	_pop()		(top = stack[(U8)S--])
@@ -58,7 +75,6 @@ U8  R=0, S=0;                      // return stack index, data stack index
 U32 P, IP, WP;                     // P (program counter), IP (intruction pointer), WP (parameter pointer)
 U32 thread;                        // pointer to previous word
 S32 top = 0;                       // stack top value (cache)
-int TAB = 0;                       // debug indentation counter
 
 U32 rack[256]   = { 0 };           // return stack
 S32 stack[256]  = { 0 };           // data stack
@@ -78,24 +94,27 @@ void show_word(int j) {
 }
 
 // Virtual Forth Machine
-void _bye(void)                   // ( -- ) exit to OS
+void _bye(void)                 // ( -- ) exit to OS
 {
 	exit(0);
 }
-void _qrx(void)                   // ( -- c t|f) read a char from terminal input device
+void _qrx(void)                 // ( -- c t|f) read a char from terminal input device
 {
 	_push(getchar());
 	if (top) _push(TRUE);
 }
-void _txsto(void)                 // (c -- ) send a char to console
+void _txsto(void)               // (c -- ) send a char to console
 {
-	//putchar((U8)top);
+#if !FORTH_TRACE
+	putchar((U8)top);
+#else  // !FORTH_TRACE
 	switch (top) {
 	case 0xa: printf("<LF>");  break;
 	case 0xd: printf("<CR>");  break;
 	case 0x8: printf("<TAB>"); break;
 	default:  printf("<%c>", (U8)top);
 	}
+#endif // !FORTH_TRACE
 	_pop();
 }
 void _next(void)                // advance instruction pointer
@@ -127,25 +146,24 @@ void _dolit(void)               // ( -- w) push next token as an integer literal
 }
 void _dolist(void)              // ( -- ) push instruction pointer onto return stack and pop 
 {
-	COLON_INFO();
+	TRACE_COLON();
 	rack[(U8)++R] = IP;
 	IP = WP;
     _next();
 }
-void _exit(void)               // ( -- ) terminate all token lists in colon words
+void _exit(void)                // ( -- ) terminate all token lists in colon words
 {
-	INFO(" ;");
-	TAB--;
+	TRACE_EXIT();
 	IP = rack[(U8)R--];
     _next();
 }
-void _execu(void)              // (a -- ) take execution address from data stack and execute the token
+void _execu(void)               // (a -- ) take execution address from data stack and execute the token
 {
 	P  = top;
 	WP = P + 4;
 	_pop();
 }
-void _donext(void)             // ( -- ) terminate a FOR-NEXT loop
+void _donext(void)              // ( -- ) terminate a FOR-NEXT loop
 {
 	if (rack[(U8)R]) {
 		rack[(U8)R] -= 1;
@@ -157,122 +175,122 @@ void _donext(void)             // ( -- ) terminate a FOR-NEXT loop
 	}
     _next();
 }
-void _qbran(void)              // (f -- ) test top as a flag on data stack
+void _qbran(void)               // (f -- ) test top as a flag on data stack
 {
 	if (top) IP += 4;
     else     IP = data[IP >> 2];
 	_pop();
     _next();
 }
-void _bran(void)               // ( -- ) branch to address following
+void _bran(void)                // ( -- ) branch to address following
 {
 	IP = data[IP >> 2];
 	_next();
 }
-void _store(void)              // (n a -- ) store into memory location from top of stack
+void _store(void)               // (n a -- ) store into memory location from top of stack
 {
 	data[top >> 2] = stack[(U8)S--];
 	_pop();
 }
-void _at(void)                 // (a -- n) fetch from memory address onto top of stack
+void _at(void)                  // (a -- n) fetch from memory address onto top of stack
 {
 	top = data[top >> 2];
 }
-void _cstor(void)              // (c b -- ) store a byte into memory location
+void _cstor(void)               // (c b -- ) store a byte into memory location
 {
 	byte[top] = (U8)stack[(U8)S--];
 	_pop();
 }
-void _cat(void)                // (b -- n) fetch a byte from memory location
+void _cat(void)                 // (b -- n) fetch a byte from memory location
 {
 	top = (U32)byte[top];
 }
-void _rfrom(void)              // (n --) pop from data stack onto return stack
+void _rfrom(void)               // (n --) pop from data stack onto return stack
 {
 	_push(rack[(U8)R--]);
 }
-void _rat(void)                // (-- n) copy a number off the return stack and push onto data stack
+void _rat(void)                 // (-- n) copy a number off the return stack and push onto data stack
 {
 	_push(rack[(U8)R]);
 }
-void _tor(void)                // (-- n) pop from data stack and push onto return stack
+void _tor(void)                 // (-- n) pop from data stack and push onto return stack
 {
 	rack[(U8)++R] = top;
 	_pop();
 }
-void _drop(void)               // (w -- ) drop top of stack item
+void _drop(void)                // (w -- ) drop top of stack item
 {
 	_pop();
 }
-void _dup(void)                // (w -- w w) duplicate to of stack
+void _dup(void)                 // (w -- w w) duplicate to of stack
 {
 	stack[(U8)++S] = top;
 }
-void _swap(void)               // (w1 w2 -- w2 w1) swap top two items on the data stack
+void _swap(void)                // (w1 w2 -- w2 w1) swap top two items on the data stack
 {
 	WP  = top;
 	top = stack[(U8)S];
 	stack[(U8)S] = WP;
 }
-void _over(void)               // (w1 w2 -- w1 w2 w1) copy second stack item to top
+void _over(void)                // (w1 w2 -- w1 w2 w1) copy second stack item to top
 {
 	_push(stack[(U8)S - 1]);
 }
-void _zless(void)              // (n -- f) check whether top of stack is negative 
+void _zless(void)               // (n -- f) check whether top of stack is negative
 {
 	top = (top < 0) ? TRUE : FALSE;
 }
-void _and(void)                // (w w -- w) bitwise AND
+void _and(void)                 // (w w -- w) bitwise AND
 {
 	top &= stack[(U8)S--];
 }
-void _or(void)                 // (w w -- w) bitwise OR
+void _or(void)                  // (w w -- w) bitwise OR
 {
 	top |= stack[(U8)S--];
 }
-void _xor(void)                // (w w -- w) bitwise XOR
+void _xor(void)                 // (w w -- w) bitwise XOR
 {
 	top ^= stack[(U8)S--];
 }
-void _uplus(void)              // (w w -- w c) add two numbers, return the sum and carry flag
+void _uplus(void)               // (w w -- w c) add two numbers, return the sum and carry flag
 {
 	stack[(U8)S] += top;
 	top = (U32)stack[(U8)S] < (U32)top;
 }
-void _qdup(void)               // (w -- w w | 0) dup top of stack if it is not zero
+void _qdup(void)                // (w -- w w | 0) dup top of stack if it is not zero
 {
 	if (top) stack[(U8) ++S] = top;
 }
-void _rot(void)                // (w1 w2 w3 -- w2 w3 w1) rotate 3rd item to top
+void _rot(void)                 // (w1 w2 w3 -- w2 w3 w1) rotate 3rd item to top
 {
 	WP = stack[(U8)S - 1];
 	stack[(U8)S - 1] = stack[(U8)S];
 	stack[(U8)S] = top;
 	top = WP;
 }
-void _ddrop(void)              // (w w --) drop top two items
+void _ddrop(void)               // (w w --) drop top two items
 {
 	_drop();
 	_drop();
 }
-void _ddup(void)               // (w1 w2 -- w1 w2 w1 w2) duplicate top two items
+void _ddup(void)                // (w1 w2 -- w1 w2 w1 w2) duplicate top two items
 {
 	_over();
 	_over();
 }
-void _plus(void)               // (w w -- sum) add top two items
+void _plus(void)                // (w w -- sum) add top two items
 {
 	top += stack[(U8)S--];
 }
-void _inver(void)              // (w -- w) one's complement
+void _inver(void)               // (w -- w) one's complement
 {
 	top = -top - 1;
 }
-void _negat(void)              // (n -- -n) two's complement
+void _negat(void)               // (n -- -n) two's complement
 {
 	top = 0 - top;
 }
-void _dnega(void)              // (d -- -d) two's complement of top double
+void _dnega(void)               // (d -- -d) two's complement of top double
 {
 	_inver();
 	_tor();
@@ -282,31 +300,31 @@ void _dnega(void)              // (d -- -d) two's complement of top double
 	_rfrom();
 	_plus();
 }
-void _sub(void)                // (n1 n2 -- n1-n2) subtraction
+void _sub(void)                 // (n1 n2 -- n1-n2) subtraction
 {
 	top = stack[(U8)S--] - top;
 }
-void _abs(void)                // (n -- n) absolute value of n
+void _abs(void)                 // (n -- n) absolute value of n
 {
 	if (top < 0) top = -top;
 }
-void _great(void)              // (n1 n2 -- t) true if n1>n2
+void _great(void)               // (n1 n2 -- t) true if n1>n2
 {
 	top = (stack[(U8)S--] > top) ? TRUE : FALSE;
 }
-void _less(void)               // (n1 n2 -- t) true if n1<n2
+void _less(void)                // (n1 n2 -- t) true if n1<n2
 {
 	top = (stack[(U8)S--] < top) ? TRUE : FALSE;
 }
-void _equal(void)              // (w w -- t) true if top two items are equal
+void _equal(void)               // (w w -- t) true if top two items are equal
 {
 	top = (stack[(U8)S--]==top) ? TRUE : FALSE;
 }
-void _uless(void)              // (u1 u2 -- t) unsigned compare top two items
+void _uless(void)               // (u1 u2 -- t) unsigned compare top two items
 {
 	top = ((U32)(stack[(U8)S--]) < (U32)top) ? TRUE : FALSE;
 }
-void _ummod(void)              // (udl udh u -- ur uq) unsigned divide of a double by single
+void _ummod(void)               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
 	S64 d = (S64)top;
 	S64 m = (S64)((U32)stack[(U8)S]);
@@ -316,17 +334,17 @@ void _ummod(void)              // (udl udh u -- ur uq) unsigned divide of a doub
 	top = (U32)(n / d);
 	stack[(U8)S] = (U32)(n % d);
 }
-void _msmod(void)              // (d n -- r q) signed floored divide of double by single 
+void _msmod(void)               // (d n -- r q) signed floored divide of double by single
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
 	S64 n = (S64)stack[(U8)S - 1];
 	n += m << 32;
 	_pop();
-	top = (S32)(n / d);           // mod
-	stack[(U8)S] = (U32)(n % d);  // quotien
+	top = (S32)(n / d);         // mod
+	stack[(U8)S] = (U32)(n % d);// quotien
 }
-void _slmod(void)              // (n1 n2 -- r q) signed devide, return mod and quotien
+void _slmod(void)               // (n1 n2 -- r q) signed devide, return mod and quotien
 {
 	if (top) {
 		WP  = stack[(U8)S] / top;
@@ -334,15 +352,15 @@ void _slmod(void)              // (n1 n2 -- r q) signed devide, return mod and q
 		top = WP;
 	}
 }
-void _mod(void)                // (n n -- r) signed divide, returns mod
+void _mod(void)                 // (n n -- r) signed divide, returns mod
 {
 	top = (top) ? stack[(U8)S--] % top : stack[(U8)S--];
 }
-void _slash(void)              // (n n - q) signed divide, return quotient
+void _slash(void)               // (n n - q) signed divide, return quotient
 {
 	top = (top) ? stack[(U8)S--] / top : (stack[(U8)S--], 0);
 }
-void _umsta(void)              // (u1 u2 -- ud) unsigned multiply return double product
+void _umsta(void)               // (u1 u2 -- ud) unsigned multiply return double product
 {
 	U64 d = (U64)top;
 	U64 m = (U64)stack[(U8)S];
@@ -350,11 +368,11 @@ void _umsta(void)              // (u1 u2 -- ud) unsigned multiply return double 
 	top = (U32)(m >> 32);
 	stack[(U8)S] = (U32)m;
 }
-void _star(void)               // (n n -- n) signed multiply, return single product
+void _star(void)                // (n n -- n) signed multiply, return single product
 {
 	top *= stack[(U8)S--];
 }
-void _mstar(void)              // (n1 n2 -- d) signed multiply, return double product
+void _mstar(void)               // (n1 n2 -- d) signed multiply, return double product
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
@@ -362,7 +380,7 @@ void _mstar(void)              // (n1 n2 -- d) signed multiply, return double pr
 	top = (S32)(m >> 32);
 	stack[(U8)S] = (S32)m;
 }
-void _ssmod(void)              // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotion
+void _ssmod(void)               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotion
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
@@ -372,7 +390,7 @@ void _ssmod(void)              // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quo
 	top = (S32)(n / d);
 	stack[(U8)S] = (S32)(n % d);
 }
-void _stasl(void)              // (n1 n2 n3 -- q) n1*n2/n3 return quotient
+void _stasl(void)               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[(U8)S];
@@ -382,37 +400,37 @@ void _stasl(void)              // (n1 n2 n3 -- q) n1*n2/n3 return quotient
     _pop();
 	top = (S32)(n / d);
 }
-void _pick(void)               // (... +n -- ...w) copy nth stack item to top
+void _pick(void)                // (... +n -- ...w) copy nth stack item to top
 {
 	top = stack[(U8)S - (U8)top];
 }
-void _pstor(void)              // (n a -- ) add n to content at address a
+void _pstor(void)               // (n a -- ) add n to content at address a
 {
 	data[top >> 2] += stack[(U8)S--];
     _pop();
 }
-void _dstor(void)              // (d a -- ) store the double to address a
+void _dstor(void)               // (d a -- ) store the double to address a
 {
 	data[(top >> 2) + 1] = stack[(U8)S--];
 	data[top >> 2]       = stack[(U8)S--];
 	_pop();
 }
-void _dat(void)                // (a -- d) fetch double from address a
+void _dat(void)                 // (a -- d) fetch double from address a
 {
 	_push(data[top >> 2]);
 	top = data[(top >> 2) + 1];
 }
-void _count(void)              // (b -- b+1 +n) count byte of a string and add 1 to byte address
+void _count(void)               // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
 	stack[(U8)++S] = top + 1;
 	top = byte[top];
 }
-void _max(void)                // (n1 n2 -- n) return greater of two top stack items
+void _max(void)                 // (n1 n2 -- n) return greater of two top stack items
 {
 	if (top < stack[(U8)S]) _pop();
 	else (U8)S--;
 }
-void _min(void)                // (n1 n2 -- n) return smaller of two top stack items
+void _min(void)                 // (n1 n2 -- n) return smaller of two top stack items
 {
 	if (top < stack[(U8)S]) (U8)S--;
 	else _pop();
@@ -572,11 +590,11 @@ void _header(int lex, const char *seq) {
 
 	P = IP << 2;
 	thread = P;                               // keep pointer to this word
-	byte[P++] = lex;                         // length of word
+	byte[P++] = lex;                          // length of word
 	for (U32 i = 0; i < len; i++) {           // memcpy word string
 		byte[P++] = seq[i];
 	}
-	while (P & 3) { byte[P++] = 0xff; }      // padding 4-byte align
+	while (P & 3) { byte[P++] = 0xff; }       // padding 4-byte align
 	LOG("%04x: ", P);
 	LOG("%s", seq);
 }
