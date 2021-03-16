@@ -545,7 +545,7 @@ int _COLON(const char *seg, int len, ...) {
 	P = IP << 2;
 	return addr;
 }
-int _IMMEDIATE(const char *seg, int len, ...) {
+int _IMMED(const char *seg, int len, ...) {
     _header(FLAG_IMEDD | strlen(seg), seg);
 	LOG("%s", " COLON 0006");
 	int addr = P;
@@ -917,8 +917,8 @@ int main(int ac, char* av[])
         _THEN(1, EXIT);
     }
 	int EDIGS = _COLON("#>",      7, DROP, HLD, AT, PAD, OVER, SUB, EXIT);
-	int STRR  = _COLON("str",     9, DUP, TOR, ABS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXIT);
-	int HEXX  = _COLON("HEX",     5, DOLIT, 16, BASE, STORE, EXIT);
+	int STR   = _COLON("str",     9, DUP, TOR, ABS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXIT);
+	int HEX   = _COLON("HEX",     5, DOLIT, 16, BASE, STORE, EXIT);
 	int DECIM = _COLON("DECIMAL", 5, DOLIT, 10, BASE, STORE, EXIT);
 	int UPPER = _COLON("wupper",  4, DOLIT, 0x5f5f5f5f, AND, EXIT);
 	int TOUPP = _COLON(">upper",  6, DUP, DOLIT, 0x61, DOLIT, 0x7b, WITHI); {
@@ -930,7 +930,7 @@ int main(int ac, char* av[])
         _THEN(4, DUP, RFROM, ULESS, EXIT);
     }
 	int NUMBQ = _COLON("NUMBER?", 12, BASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
-        _IF(5, HEXX, SWAP, ONEP, SWAP, ONEM);
+        _IF(5, HEX, SWAP, ONEP, SWAP, ONEM);
         _THEN(13, OVER, CAT, DOLIT, 0x2d, EQUAL, TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP); {
             _IF(1, ONEM); {
                 _FOR(6, DUP, TOR, CAT, BASE, AT, DIGTQ);
@@ -955,22 +955,22 @@ int main(int ac, char* av[])
         _NEXT(2, DROP, EXIT);
     }
 	int SPACS = _COLON("SPACES", 3, BLANK, CHARS, EXIT);
-	int TYPES = _COLON("TYPE",   0); {
+	int TYPE  = _COLON("TYPE",   0); {
         _FOR(0);
         _AFT(3, COUNT, TCHAR, EMIT);
         _THEN(0);
         _NEXT(2, DROP, EXIT);
     }
-	int CR = _COLON("CR", 7, DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
+	int CR    = _COLON("CR",     7, DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
 	int DOSTR = _COLON("do$",   10, RFROM, RAT, RFROM, COUNT, PLUS, ALIGN, TOR, SWAP, TOR, EXIT);
 	int STRQP = _COLON("$\"|",   2, DOSTR, EXIT);
-	DOTQP     = _COLON(".\"|",   4, DOSTR, COUNT, TYPES, EXIT);
-	int DOTR  = _COLON(".R",     8, TOR, STRR, RFROM, OVER, SUB, SPACS, TYPES, EXIT);
-	int UDOTR = _COLON("U.R",   10, TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUB, SPACS, TYPES, EXIT);
-	int UDOT  = _COLON("U.",     6, BDIGS, DIGS, EDIGS, SPACE, TYPES, EXIT);
+	DOTQP     = _COLON(".\"|",   4, DOSTR, COUNT, TYPE, EXIT);
+	int DOTR  = _COLON(".R",     8, TOR, STR, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
+	int UDOTR = _COLON("U.R",   10, TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
+	int UDOT  = _COLON("U.",     6, BDIGS, DIGS, EDIGS, SPACE, TYPE, EXIT);
 	int DOT   = _COLON(".",      5, BASE, AT, DOLIT, 0xa, XOR); {
         _IF(2, UDOT, EXIT);
-        _THEN(4, STRR, SPACE, TYPES, EXIT);
+        _THEN(4, STR, SPACE, TYPE, EXIT);
     }
 	int QUEST = _COLON("?",      3, AT, DOT, EXIT);
 
@@ -1011,7 +1011,7 @@ int main(int ac, char* av[])
         _THEN(0);
         _NEXT(3, DOLIT, 0, EXIT);
     }
-	int FIND  = _COLON("find",  10, SWAP, DUP, AT, TEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
+	int FIND = _COLON("find",  10, SWAP, DUP, AT, TEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
         _BEGIN(2, AT, DUP); {
             _IF(9, DUP, AT, DOLIT, 0xffffff3f, AND, UPPER, RAT, UPPER, XOR); {
                 _IF(3, CELLP, DOLIT, 0xffffffff);
@@ -1057,10 +1057,10 @@ int main(int ac, char* av[])
 
 	int ABORT = _COLON("ABORT", 2, TABRT, ATEXE);
 	ABORQP = _COLON("abort\"",  0); {
-        _IF(4, DOSTR, COUNT, TYPES, ABORT);
+        _IF(4, DOSTR, COUNT, TYPE, ABORT);
         _THEN(3, DOSTR, DROP, EXIT);
     }
-	int ERRORR= _COLON("ERROR", 11, SPACE, COUNT, TYPES, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
+	int ERRORR= _COLON("ERROR", 11, SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
 	int INTER = _COLON("$INTERPRET", 2, NAMEQ, QDUP); {
         _IF(4, CAT, DOLIT, FLAG_COMPO, AND);
         _ABORQ(" compile only");
@@ -1071,7 +1071,7 @@ int main(int ac, char* av[])
         _ELSE(1, ERRORR);
         _THEN(0);
     }
-	int LBRAC = _IMMEDIATE("[", 5, DOLIT, INTER, TEVAL, STORE, EXIT);
+	int LBRAC = _IMMED("[", 5, DOLIT, INTER, TEVAL, STORE, EXIT);
 	int DOTOK = _COLON(".OK",   6, CR, DOLIT, INTER, TEVAL, AT, EQUAL); {
         _IF(14, TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
             _DOTQ(" ok>");
@@ -1091,11 +1091,11 @@ int main(int ac, char* av[])
 	// Colon Word Compiler
 
 	int COMMA = _COLON(",", 7, HERE, DUP, CELLP, CP, STORE, STORE, EXIT);
-	int LITER = _IMMEDIATE("LITERAL", 5, DOLIT, DOLIT, COMMA, COMMA, EXIT);
+	int LITER = _IMMED("LITERAL", 5, DOLIT, DOLIT, COMMA, COMMA, EXIT);
 	int ALLOT = _COLON("ALLOT", 4, ALIGN, CP, PSTOR, EXIT);
 	int STRCQ = _COLON("$,\"",  9, DOLIT, 0x22, WORDD, COUNT, PLUS, ALIGN, CP, STORE, EXIT);
 	int UNIQU = _COLON("?UNIQUE", 3, DUP, NAMEQ, QDUP); {
-        _IF(6, COUNT, DOLIT, 0x1f, AND, SPACE, TYPES); {
+        _IF(6, COUNT, DOLIT, 0x1f, AND, SPACE, TYPE); {
             _DOTQ(" reDef");
         }
         _THEN(2, DROP, EXIT);
@@ -1108,7 +1108,7 @@ int main(int ac, char* av[])
         _IF(1, EXIT);
         _THEN(1, ERRORR);
     }
-	int BCOMP = _IMMEDIATE("[COMPILE]", 3, TICK, COMMA, EXIT);
+	int BCOMP = _IMMED("[COMPILE]", 3, TICK, COMMA, EXIT);
 	int COMPI = _COLON("COMPILE",  7, RFROM, DUP, AT, COMMA, CELLP, TOR, EXIT);
 	int SCOMP = _COLON("$COMPILE", 2, NAMEQ, QDUP); {
         _IF(4, AT, DOLIT, FLAG_IMEDD, AND); {
@@ -1122,8 +1122,8 @@ int main(int ac, char* av[])
     }
 	int OVERT = _COLON("OVERT", 5, LAST, AT, CNTXT, STORE, EXIT);
 	int RBRAC = _COLON("]",     5, DOLIT, SCOMP, TEVAL, STORE, EXIT);
-	int COLN  = _COLON(":",     7, TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXIT);
-	int SEMIS = _IMMEDIATE(";", 6, DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
+	int COLON = _COLON(":",     7, TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXIT);
+	int SEMIS = _IMMED(";", 6, DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
 
 	// Debugging Tools
 
@@ -1133,9 +1133,9 @@ int main(int ac, char* av[])
         _THEN(0);
         _NEXT(1, EXIT);
     }
-	int DUMP  = _COLON("DUMP", 10, BASE, AT, TOR, HEXX, DOLIT, 0x1f, PLUS, DOLIT, 0x20, SLASH); {
+	int DUMP  = _COLON("DUMP", 10, BASE, AT, TOR, HEX, DOLIT, 0x1f, PLUS, DOLIT, 0x20, SLASH); {
         _FOR(0);
-        _AFT(10, CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPES, RFROM);
+        _AFT(10, CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPE, RFROM);
         _THEN(0);
         _NEXT(5, DROP, RFROM, BASE, STORE, EXIT);
     }
@@ -1148,7 +1148,7 @@ int main(int ac, char* av[])
         }
         _REPEAT(3, SWAP, DROP, EXIT);
     }
-	int DOTID = _COLON(".ID",   7, COUNT, DOLIT, 0x1f, AND, TYPES, SPACE, EXIT);
+	int DOTID = _COLON(".ID",   7, COUNT, DOLIT, 0x1f, AND, TYPE, SPACE, EXIT);
 	int WORDS = _COLON("WORDS", 6, CR, CNTXT, DOLIT, 0, TEMP, STORE); {
         _BEGIN(2, AT, QDUP);
         _WHILE(9, DUP, SPACE, DOTID, CELLM, TEMP, AT, DOLIT, 0xa, LESS); {
@@ -1162,39 +1162,37 @@ int main(int ac, char* av[])
         _IF(12, CELLM, DUP, CP, STORE, AT, DUP, CNTXT, STORE, LAST, STORE, DROP, EXIT);
         _THEN(1, ERRORR);
     }
-	int COLD  = _COLON("COLD", 1, CR); {
-        _DOTQ("eForth in C v4.0");
-    }
+	int COLD  = _COLON("COLD", 1, CR); {  _DOTQ("eForth in C v4.0"); }
 	int DOTQ1 = _LABEL(2, CR, QUITT);
 
 	// Structure Compiler
 
-	int iTHEN  = _IMMEDIATE("THEN",    4, HERE, SWAP, STORE, EXIT);
-    int iFOR   = _IMMEDIATE("FOR",     4, COMPI, TOR, HERE, EXIT);
-	int iBEGIN = _IMMEDIATE("BEGIN",   2, HERE, EXIT);
-	int iNEXT  = _IMMEDIATE("NEXT",    4, COMPI, DONXT, COMMA, EXIT);
-	int iUNTIL = _IMMEDIATE("UNTIL",   4, COMPI, QBRAN, COMMA, EXIT);
-	int iAGAIN = _IMMEDIATE("AGAIN",   4, COMPI, BRAN, COMMA, EXIT);
-	int iIF    = _IMMEDIATE("IF",      7, COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXIT);
-	int iAHEAD = _IMMEDIATE("AHEAD",   7, COMPI, BRAN, HERE, DOLIT, 0, COMMA, EXIT);
-	int iREPEA = _IMMEDIATE("REPEAT",  3, iAGAIN, iTHEN, EXIT);
-	int iAFT   = _IMMEDIATE("AFT",     5, DROP, iAHEAD, HERE, SWAP, EXIT);
-	int iELSE  = _IMMEDIATE("ELSE",    4, iAHEAD, SWAP, iTHEN, EXIT);
-	int iWHEN  = _IMMEDIATE("WHEN",    3, iIF, OVER, EXIT);
-	int iWHILE = _IMMEDIATE("WHILE",   3, iIF, SWAP, EXIT);
-	int iABRTQ = _IMMEDIATE("ABORT\"", 6, DOLIT, ABORQP, HERE, STORE, STRCQ, EXIT);
-	int iSTRQ  = _IMMEDIATE("$\"",     6, DOLIT, STRQP, HERE, STORE, STRCQ, EXIT);
-	int iDOTQQ = _IMMEDIATE(".\"",     6, DOLIT, DOTQP, HERE, STORE, STRCQ, EXIT);
+	int iTHEN  = _IMMED("THEN",    4, HERE, SWAP, STORE, EXIT);
+    int iFOR   = _IMMED("FOR",     4, COMPI, TOR, HERE, EXIT);
+	int iBEGIN = _IMMED("BEGIN",   2, HERE, EXIT);
+	int iNEXT  = _IMMED("NEXT",    4, COMPI, DONXT, COMMA, EXIT);
+	int iUNTIL = _IMMED("UNTIL",   4, COMPI, QBRAN, COMMA, EXIT);
+	int iAGAIN = _IMMED("AGAIN",   4, COMPI, BRAN,  COMMA, EXIT);
+	int iIF    = _IMMED("IF",      7, COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXIT);
+	int iAHEAD = _IMMED("AHEAD",   7, COMPI, BRAN,  HERE, DOLIT, 0, COMMA, EXIT);
+	int iREPEA = _IMMED("REPEAT",  3, iAGAIN, iTHEN, EXIT);
+	int iAFT   = _IMMED("AFT",     5, DROP, iAHEAD, HERE, SWAP, EXIT);
+	int iELSE  = _IMMED("ELSE",    4, iAHEAD, SWAP, iTHEN, EXIT);
+	int iWHEN  = _IMMED("WHEN",    3, iIF, OVER, EXIT);
+	int iWHILE = _IMMED("WHILE",   3, iIF, SWAP, EXIT);
+	int iABRTQ = _IMMED("ABORT\"", 6, DOLIT, ABORQP, HERE, STORE, STRCQ, EXIT);
+	int iSTRQ  = _IMMED("$\"",     6, DOLIT, STRQP, HERE, STORE, STRCQ, EXIT);
+	int iDOTQQ = _IMMED(".\"",     6, DOLIT, DOTQP, HERE, STORE, STRCQ, EXIT);
 
-	int CODE   = _COLON("CODE",        4, TOKEN, SNAME, OVERT, EXIT);
-	int CREAT  = _COLON("CREATE",      5, CODE, DOLIT, 0x203d, COMMA, EXIT);
-	int VARIA  = _COLON("VARIABLE",    5, CREAT, DOLIT, 0, COMMA, EXIT);
-	int CONST  = _COLON("CONSTANT",    6, CODE, DOLIT, 0x2004, COMMA, COMMA, EXIT);
-	int iDOTPR = _IMMEDIATE(".(",      5, DOLIT, 0x29, PARSE, TYPES, EXIT);
-	int iBKSLA = _IMMEDIATE("\\",      5, DOLIT, 0xa, WORDD, DROP, EXIT);
-	int iPAREN = _IMMEDIATE("(",       5, DOLIT, 0x29, PARSE, DDROP, EXIT);
-	int ONLY   = _COLON("COMPILE-ONLY",6, DOLIT, 0x40, LAST, AT, PSTOR, EXIT);
-	int IMMED  = _COLON("IMMEDIATE",   6, DOLIT, 0x80, LAST, AT, PSTOR, EXIT);
+	int CODE   = _COLON("CODE",    4, TOKEN, SNAME, OVERT, EXIT);
+	int CREAT  = _COLON("CREATE",  5, CODE, DOLIT, 0x203d, COMMA, EXIT);         // CC: hardcoded
+	int VARIA  = _COLON("VARIABLE",5, CREAT, DOLIT, 0, COMMA, EXIT);
+	int CONST  = _COLON("CONSTANT",6, CODE, DOLIT, 0x2004, COMMA, COMMA, EXIT);  // CC: hardcoded
+	int iDOTPR = _IMMED(".(",      5, DOLIT, 0x29, PARSE, TYPE, EXIT);
+	int iBKSLA = _IMMED("\\",      5, DOLIT, 0xa,  WORDD, DROP,  EXIT);
+	int iPAREN = _IMMED("(",       5, DOLIT, 0x29, PARSE, DDROP, EXIT);
+	int ONLY   = _COLON("COMPILE-ONLY", 6, DOLIT, 0x40, LAST, AT, PSTOR, EXIT);
+	int IMMED  = _COLON("IMMEDIATE",    6, DOLIT, 0x80, LAST, AT, PSTOR, EXIT);
 	int ENDD   = P;
 
 	// Boot Up
