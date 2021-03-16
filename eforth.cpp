@@ -485,6 +485,74 @@ void(*primitives[64])(void) = {
 	/* case 63 */ _min,
 };
 
+// Opcodes (for Bytecode Assembler)
+enum {
+    as_nop = 0,    // 0
+    as_bye,        // 1
+    as_qrx,        // 2
+    as_txsto,      // 3
+    as_docon,      // 4
+    as_dolit,      // 5
+    as_dolist,     // 6
+    as_exit,       // 7
+    as_execu,      // 8
+    as_donext,     // 9
+    as_qbran,      // 10
+    as_bran,       // 11
+    as_store,      // 12
+    as_at,         // 13
+    as_cstor,      // 14
+    as_cat,        // 15
+    as_rpat,       // 16
+    as_rpsto,      // 17
+    as_rfrom,      // 18
+    as_rat,        // 19
+    as_tor,        // 20
+    as_spat,       // 21
+    as_spsto,      // 22
+    as_drop,       // 23
+    as_dup,        // 24
+    as_swap,       // 25
+    as_over,       // 26
+    as_zless,      // 27
+    as_and,        // 28
+    as_or,         // 29
+    as_xor,        // 30
+    as_uplus,      // 31
+    as_next,       // 32
+    as_qdup,       // 33
+    as_rot,        // 34
+    as_ddrop,      // 35
+    as_ddup,       // 36
+    as_plus,       // 37
+    as_inver,      // 38
+    as_negat,      // 39
+    as_dnega,      // 40
+    as_sub,        // 41
+    as_abs,        // 42
+    as_equal,      // 43
+    as_uless,      // 44
+    as_less,       // 45
+    as_ummod,      // 46
+    as_msmod,      // 47
+    as_slmod,      // 48
+    as_mod,        // 49
+    as_slash,      // 50
+    as_umsta,      // 51
+    as_star,       // 52
+    as_mstar,      // 53
+    as_ssmod,      // 54
+    as_stasl,      // 55
+    as_pick,       // 56
+    as_pstor,      // 57
+    as_dstor,      // 58
+    as_dat,        // 59
+    as_count,      // 60
+    as_dovar,      // 61
+    as_max,        // 62
+    as_min         // 63
+};
+
 // Macro Assembler
 #define FLAG_IMEDD  0x80              // immediate flag
 #define FLAG_COMPO  0x40              // composit flag
@@ -531,7 +599,7 @@ int _CODE(const char *seg, int len, ...) {
 	for (; n; n--) {                  \
 		U32 j = va_arg(argList, U32); \
 		data[IP++] = j;               \
-		LOG(" %04x", j);           \
+		LOG(" %04x", j);              \
 	}                                 \
 	va_end(argList);                  \
 }
@@ -540,7 +608,7 @@ int _COLON(const char *seg, int len, ...) {
 	LOG("%s", " COLON 0006");
 	int addr = P;
 	IP = P >> 2;
-	data[IP++] = 6; // dolist
+	data[IP++] = as_dolist;
     DATACPY(len);
 	P = IP << 2;
 	return addr;
@@ -550,7 +618,7 @@ int _IMMED(const char *seg, int len, ...) {
 	LOG("%s", " COLON 0006");
 	int addr = P;
 	IP = P >> 2;
-	data[IP++] = 6; // dolist
+	data[IP++] = as_dolist;
     DATACPY(len);
 	P = IP << 2;
 	return addr;
@@ -559,6 +627,7 @@ int _LABEL(int len, ...) {
 	SHOWOP("LABEL");
 	int addr = P;
 	IP = P >> 2;
+	// label has no opcode here
     DATACPY(len);
 	P = IP << 2;
 	return addr;
@@ -566,7 +635,7 @@ int _LABEL(int len, ...) {
 void _BEGIN(int len, ...) {
 	SHOWOP("BEGIN");
 	IP = P >> 2;
-	_pushR(IP);
+	_pushR(IP);                   // keep current address for looping
     DATACPY(len);
 	P = IP << 2;
 }
@@ -574,22 +643,22 @@ void _AGAIN(int len, ...) {
 	SHOWOP("AGAIN");
 	IP = P >> 2;
 	data[IP++] = BRAN;
-	data[IP++] = _popR() << 2;
+	data[IP++] = _popR() << 2;    // loop begin address
     DATACPY(len);
 	P = IP << 2;
 }
 void _UNTIL(int len, ...) {
 	SHOWOP("UNTIL");
 	IP = P >> 2;
-	data[IP++] = QBRAN;
-	data[IP++] = _popR() << 2;
+	data[IP++] = QBRAN;           // conditional branch
+	data[IP++] = _popR() << 2;    // loop begin address
     DATACPY(len);
 	P = IP << 2;
 }
 void _WHILE(int len, ...) {
 	SHOWOP("WHILE");
 	IP = P >> 2;
-	data[IP++] = QBRAN;
+	data[IP++] = QBRAN;           // conditional branch
 	data[IP++] = 0;
 	int k = _popR();
 	_pushR(IP - 1);
@@ -601,7 +670,7 @@ void _REPEAT(int len, ...) {
 	SHOWOP("REPEAT");
 	IP = P >> 2;
 	data[IP++] = BRAN;
-	data[IP++] = _popR() << 2;
+	data[IP++] = _popR() << 2;    // loop begin address
 	data[_popR()] = IP << 2;
     DATACPY(len);
 	P = IP << 2;
@@ -686,95 +755,11 @@ void _ABORQ(const char *seq) {
 	STRCPY(ABORQP, seq);
 }
 
-void dump_data(int len) {
-    for (int p=0; p<len; p+=0x20) {
-        printf("\n%04x: ", p);
-        for (int i=0; i<0x20; i++) {
-        	U8 c = byte[p+i];
-            printf("%02x", c);
-            printf("%s", (i%4)==3 ? " " : "");
-        }
-        for (int i=0; i<0x20; i++) {
-            U8 c = byte[p+i];
-            printf("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
-        }
-    }
-}
-
-// Byte Code Assembler (opcode)
-enum {
-    as_nop = 0,    // 0
-    as_bye,        // 1
-    as_qrx,        // 2
-    as_txsto,      // 3
-    as_docon,      // 4
-    as_dolit,      // 5
-    as_dolist,     // 6
-    as_exit,       // 7
-    as_execu,      // 8
-    as_donext,     // 9
-    as_qbran,      // 10
-    as_bran,       // 11
-    as_store,      // 12
-    as_at,         // 13
-    as_cstor,      // 14
-    as_cat,        // 15
-    as_rpat,       // 16
-    as_rpsto,      // 17
-    as_rfrom,      // 18
-    as_rat,        // 19
-    as_tor,        // 20
-    as_spat,       // 21
-    as_spsto,      // 22
-    as_drop,       // 23
-    as_dup,        // 24
-    as_swap,       // 25
-    as_over,       // 26
-    as_zless,      // 27
-    as_and,        // 28
-    as_or,         // 29
-    as_xor,        // 30
-    as_uplus,      // 31
-    as_next,       // 32
-    as_qdup,       // 33
-    as_rot,        // 34
-    as_ddrop,      // 35
-    as_ddup,       // 36
-    as_plus,       // 37
-    as_inver,      // 38
-    as_negat,      // 39
-    as_dnega,      // 40
-    as_sub,        // 41
-    as_abs,        // 42
-    as_equal,      // 43
-    as_uless,      // 44
-    as_less,       // 45
-    as_ummod,      // 46
-    as_msmod,      // 47
-    as_slmod,      // 48
-    as_mod,        // 49
-    as_slash,      // 50
-    as_umsta,      // 51
-    as_star,       // 52
-    as_mstar,      // 53
-    as_ssmod,      // 54
-    as_stasl,      // 55
-    as_pick,       // 56
-    as_pstor,      // 57
-    as_dstor,      // 58
-    as_dat,        // 59
-    as_count,      // 60
-    as_dovar,      // 61
-    as_max,        // 62
-    as_min         // 63
-};
-
-int main(int ac, char* av[])
-{
+void assemble() {
 	P = 0x200;
 	R = thread = 0;
 
-	// Kernel
+	// Kernel (user variables for input)
 	int HLD   = _CODE("HLD",     8, as_docon, as_next, 0, 0, 0x80, 0, 0, 0);
 	int SPAN  = _CODE("SPAN",    8, as_docon, as_next, 0, 0, 0x84, 0, 0, 0);
 	int INN   = _CODE(">IN",     8, as_docon, as_next, 0, 0, 0x88, 0, 0, 0);
@@ -788,6 +773,7 @@ int main(int ac, char* av[])
 	int TABRT = _CODE("'ABORT",  8, as_docon, as_next, 0, 0, 0xa8, 0, 0, 0);
 	int TEMP  = _CODE("tmp",     8, as_docon, as_next, 0, 0, 0xac, 0, 0, 0);
 
+	// Kernel dictionary (primitive proxies)
 	int NOP   = _CODE("NOP",     4, as_next,  0,       0, 0);
 	int BYE   = _CODE("BYE",     4, as_bye,   as_next, 0, 0);
 	int QRX   = _CODE("?RX",     4, as_qrx,   as_next, 0, 0);
@@ -849,7 +835,7 @@ int main(int ac, char* av[])
 	int COUNT = _CODE("COUNT",   4, as_count, as_next, 0, 0);
 	int MAX   = _CODE("MAX",     4, as_max,   as_next, 0, 0);
 	int MIN   = _CODE("MIN",     4, as_min,   as_next, 0, 0);
-    
+
 	int BLANK = _CODE("BL",      8, as_docon, as_next, 0,       0, 32, 0, 0, 0);
 	int CELL  = _CODE("CELL",    8, as_docon, as_next, 0,       0,  4, 0, 0, 0);
 	int CELLP = _CODE("CELL+",   8, as_docon, as_plus, as_next, 0,  4, 0, 0, 0);
@@ -1195,16 +1181,34 @@ int main(int ac, char* av[])
 	int IMMED  = _COLON("IMMEDIATE",    6, DOLIT, 0x80, LAST, AT, PSTOR, EXIT);
 	int ENDD   = P;
 
-	// Boot Up
-
 	LOG("\n\nIZ=%x ", P);
     LOG("R-stack=%x", (_popR() << 2));
+
+	// Boot Up
 	P = 0;
 	int RESET = _LABEL(2, 6, COLD);
 	P = 0x90;
 	int USER  = _LABEL(8, 0x100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
-    
-	// dump dictionary
+}
+
+void dump_data(int len) {
+    for (int p=0; p<len; p+=0x20) {
+        printf("\n%04x: ", p);
+        for (int i=0; i<0x20; i++) {
+        	U8 c = byte[p+i];
+            printf("%02x", c);
+            printf("%s", (i%4)==3 ? " " : "");
+        }
+        for (int i=0; i<0x20; i++) {
+            U8 c = byte[p+i];
+            printf("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
+        }
+    }
+}
+
+int main(int ac, char* av[])
+{
+    assemble();
 	dump_data(0x2000);
 
 	LOG("\n%s\n", "ceForth v4.0");
