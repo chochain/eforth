@@ -122,7 +122,7 @@ void _dolit(void)               // ( -- w) push next token as an integer literal
 {
 	S32 v = data[IP >> 2];
 	LOG(" %d", v);
-	_push(data[IP >> 2]);
+	_push(v);
 	IP += 4;
     _next();
 }
@@ -142,7 +142,7 @@ void _exit(void)               // ( -- ) terminate all token lists in colon word
 }
 void _execu(void)              // (a -- ) take execution address from data stack and execute the token
 {
-	P = top;
+	P  = top;
 	WP = P + 4;
 	_pop();
 }
@@ -487,9 +487,8 @@ void(*primitives[64])(void) = {
 };
 
 // Macro Assembler
-
-int IMEDD = 0x80;
-int COMPO = 0x40;
+#define IMEDD  0x80              // immediate flag
+#define COMPO  0x40              // composit flag
 int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0;
 
 void HEADER(int lex, const char *seq) {
@@ -692,6 +691,7 @@ void CheckSum() {
 }
 
 // Byte Code Assembler
+/*
 int as_nop = 0;
 int as_bye = 1;
 int as_qrx = 2;
@@ -756,42 +756,108 @@ int as_count = 60;
 int as_dovar = 61;
 int as_max = 62;
 int as_min = 63;
+*/
+enum {
+    as_nop = 0,    // 0
+    as_bye,        // 1
+    as_qrx,        // 2
+    as_txsto,      // 3
+    as_docon,      // 4
+    as_dolit,      // 5
+    as_dolist,     // 6
+    as_exit,       // 7
+    as_execu,      // 8
+    as_donext,     // 9
+    as_qbran,      // 10
+    as_bran,       // 11
+    as_store,      // 12
+    as_at,         // 13
+    as_cstor,      // 14
+    as_cat,        // 15
+    as_rpat,       // 16
+    as_rpsto,      // 17
+    as_rfrom,      // 18
+    as_rat,        // 19
+    as_tor,        // 20
+    as_spat,       // 21
+    as_spsto,      // 22
+    as_drop,       // 23
+    as_dup,        // 24
+    as_swap,       // 25
+    as_over,       // 26
+    as_zless,      // 27
+    as_andd,       // 28
+    as_orr,        // 29
+    as_xorr,       // 30
+    as_uplus,      // 31
+    as_next,       // 32
+    as_qdup,       // 33
+    as_rot,        // 34
+    as_ddrop,      // 35
+    as_ddup,       // 36
+    as_plus,       // 37
+    as_inver,      // 38
+    as_negat,      // 39
+    as_dnega,      // 40//
+    as_subb,       // 41
+    as_abss,       // 42
+    as_equal,      // 43
+    as_uless,      // 44
+    as_less,       // 45
+    as_ummod,      // 46
+    as_msmod,      // 47
+    as_slmod,      // 48
+    as_mod,        // 49
+    as_slash,      // 50
+    as_umsta,      // 51
+    as_star,       // 52
+    as_mstar,      // 53
+    as_ssmod,      // 54
+    as_stasl,      // 55
+    as_pick,       // 56
+    as_pstor,      // 57
+    as_dstor,      // 58
+    as_dat,        // 59
+    as_count,      // 60
+    as_dovar,      // 61
+    as_max,        // 62
+    as_min         // 63
+};
 
 /*
 * Main Program
 */
 int main(int ac, char* av[])
 {
-	byte = (U8*)data;
 	P = 0x200;
 	R = thread = 0;
 
 	// Kernel
 
 	HEADER(3, "HLD");
-	int HLD = CODE(8, as_docon, as_next, 0, 0, 0x80, 0, 0, 0);
+	int HLD   = CODE(8, as_docon, as_next, 0, 0, 0x80, 0, 0, 0);
 	HEADER(4, "SPAN");
-	int SPAN = CODE(8, as_docon, as_next, 0, 0, 0x84, 0, 0, 0);
+	int SPAN  = CODE(8, as_docon, as_next, 0, 0, 0x84, 0, 0, 0);
 	HEADER(3, ">IN");
-	int INN = CODE(8, as_docon, as_next, 0, 0, 0x88, 0, 0, 0);
+	int INN   = CODE(8, as_docon, as_next, 0, 0, 0x88, 0, 0, 0);
 	HEADER(4, "#TIB");
-	int NTIB = CODE(8, as_docon, as_next, 0, 0, 0x8C, 0, 0, 0);
+	int NTIB  = CODE(8, as_docon, as_next, 0, 0, 0x8C, 0, 0, 0);
 	HEADER(4, "'TIB");
-	int TTIB = CODE(8, as_docon, as_next, 0, 0, 0x90, 0, 0, 0);
+	int TTIB  = CODE(8, as_docon, as_next, 0, 0, 0x90, 0, 0, 0);
 	HEADER(4, "BASE");
-	int BASE = CODE(8, as_docon, as_next, 0, 0, 0x94, 0, 0, 0);
+	int BASE  = CODE(8, as_docon, as_next, 0, 0, 0x94, 0, 0, 0);
 	HEADER(7, "CONTEXT");
 	int CNTXT = CODE(8, as_docon, as_next, 0, 0, 0x98, 0, 0, 0);
 	HEADER(2, "CP");
-	int CP = CODE(8, as_docon, as_next, 0, 0, 0x9C, 0, 0, 0);
+	int CP    = CODE(8, as_docon, as_next, 0, 0, 0x9C, 0, 0, 0);
 	HEADER(4, "LAST");
-	int LAST = CODE(8, as_docon, as_next, 0, 0, 0xA0, 0, 0, 0);
+	int LAST  = CODE(8, as_docon, as_next, 0, 0, 0xA0, 0, 0, 0);
 	HEADER(5, "'EVAL");
 	int TEVAL = CODE(8, as_docon, as_next, 0, 0, 0xA4, 0, 0, 0);
 	HEADER(6, "'ABORT");
 	int TABRT = CODE(8, as_docon, as_next, 0, 0, 0xA8, 0, 0, 0);
 	HEADER(3, "tmp");
-	int TEMP = CODE(8, as_docon, as_next, 0, 0, 0xAC, 0, 0, 0);
+	int TEMP  = CODE(8, as_docon, as_next, 0, 0, 0xAC, 0, 0, 0);
 
 	HEADER(3, "NOP");
 	int NOP = CODE(4, as_next, 0, 0, 0);
