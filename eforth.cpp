@@ -26,14 +26,22 @@
 #include <string.h>
 #include <stdint.h>
 
+#define ASSEM_DUMP   0
 #define FORTH_TRACE  1
 
 // tracing/logging macros
+#if ASSEM_DEBUG
+#define DEBUG(s, v)     printf(s, v)
+#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
+#else  // ASSEM_DUMP
+#define DEBUG(s, v)
+#define SHOWOP(op)
+#endif // ASSEM_DUMP
+
 #if FORTH_TRACE
 int TAB = 0;                       // trace indentation counter
 #define LOG(s,v)        printf(s,v)
 #define INFO(s)         LOG("%s ", s)
-#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
 #define TRACE_COLON() {                       \
 	printf("\n");                             \
 	for (int i=0; i<TAB; i++) printf("  ");   \
@@ -45,11 +53,10 @@ int TAB = 0;                       // trace indentation counter
     TAB--;                                    \
 }
 #else // FORTH_TRACE
-#define TRACE_COLON()
-#define TRACE_EXIT()
 #define LOG(s,v)
 #define INFO(s)
-#define SHOWOP(op)
+#define TRACE_COLON()
+#define TRACE_EXIT()
 #endif // FORTH_TRACE
 
 // portable types
@@ -141,7 +148,7 @@ void _docon(void)               // ( -- n) push next token onto data stack as co
 void _dolit(void)               // ( -- w) push next token as an integer literal
 {
 	S32 v = data[IP >> 2];
-	LOG(" %d", v);
+	DEBUG(" %d", v);
 	_push(v);
 	IP += 4;
     _next();
@@ -584,11 +591,11 @@ void _header(int lex, const char *seq) {
 	data[IP++] = thread;                      // point to previous word
 
 	// dump memory between previous word and this
-	LOG("%s", "\n    :");
+	DEBUG("%s", "\n    :");
 	for (U32 i = thread>>2; thread && i < IP; i++) {
-		LOG(" %08x", data[i]);
+		DEBUG(" %08x", data[i]);
 	}
-	LOG("%c", '\n');
+	DEBUG("%c", '\n');
 
 	P = IP << 2;
 	thread = P;                               // keep pointer to this word
@@ -597,8 +604,8 @@ void _header(int lex, const char *seq) {
 		byte[P++] = seq[i];
 	}
 	while (P & 3) { byte[P++] = 0xff; }       // padding 4-byte align
-	LOG("%04x: ", P);
-	LOG("%s", seq);
+	DEBUG("%04x: ", P);
+	DEBUG("%s", seq);
 }
 int _CODE(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
@@ -608,7 +615,7 @@ int _CODE(const char *seg, int len, ...) {
 	for (; len; len--) {
 		U8 j = (U8)va_arg(argList, int);
 		byte[P++] = j;
-		LOG(" %02x", j);
+		DEBUG(" %02x", j);
 	}
 	va_end(argList);
 	return addr;
@@ -619,13 +626,13 @@ int _CODE(const char *seg, int len, ...) {
 	for (; n; n--) {                  \
 		U32 j = va_arg(argList, U32); \
 		data[IP++] = j;               \
-		LOG(" %04x", j);              \
+		DEBUG(" %04x", j);            \
 	}                                 \
 	va_end(argList);                  \
 }
 int _COLON(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-	LOG("%s", " COLON 0006");
+	DEBUG("%s", " COLON 0006");
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = as_dolist;
@@ -635,7 +642,7 @@ int _COLON(const char *seg, int len, ...) {
 }
 int _IMMED(const char *seg, int len, ...) {
     _header(FLAG_IMEDD | strlen(seg), seg);
-	LOG("%s", " COLON 0006");
+	DEBUG("%s", " IMMED 0006");
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = as_dolist;
@@ -761,17 +768,17 @@ void _AFT(int len, ...) {
 	}
 void _DOTQ(const char *seq) {
 	SHOWOP("DOTQ");
-	LOG("%s", seq);
+	DEBUG("%s", seq);
 	STRCPY(DOTQP, seq);
 }
 void _STRQ(const char *seq) {
 	SHOWOP("STRQ");
-	LOG("%s", seq);
+	DEBUG("%s", seq);
 	STRCPY(STRQP, seq);
 }
 void _ABORQ(const char *seq) {
 	SHOWOP("ABORQP");
-	LOG("%s", seq);
+	DEBUG("%s", seq);
 	STRCPY(ABORQP, seq);
 }
 
@@ -1066,7 +1073,7 @@ void assemble() {
         _IF(4, DOSTR, COUNT, TYPE, ABORT);
         _THEN(3, DOSTR, DROP, EXIT);
     }
-	int ERRORR= _COLON("ERROR", 11, SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
+	int ERROR = _COLON("ERROR", 11, SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
 	int INTER = _COLON("$INTERPRET", 2, NAMEQ, QDUP); {
         _IF(4, CAT, DOLIT, FLAG_COMPO, AND);
         _ABORQ(" compile only");
@@ -1074,7 +1081,7 @@ void assemble() {
 	int INTER0= _LABEL(2, EXECU, EXIT); {
         _THEN(1, NUMBQ);
         _IF(1, EXIT);
-        _ELSE(1, ERRORR);
+        _ELSE(1, ERROR);
         _THEN(0);
     }
 	int LBRAC = _IMMED("[", 5, DOLIT, INTER, TEVAL, STORE, EXIT);
@@ -1089,7 +1096,7 @@ void assemble() {
         _WHILE(2, TEVAL, ATEXE);
         _REPEAT(3, DROP, DOTOK, EXIT);
     }
-	int QUITT = _COLON("QUIT", 5, DOLIT, 0x100, TTIB, STORE, LBRAC); {
+	int QUIT  = _COLON("QUIT", 5, DOLIT, 0x100, TTIB, STORE, LBRAC); {
         _BEGIN(2, QUERY, EVAL);
         _AGAIN(0);
     }
@@ -1108,11 +1115,11 @@ void assemble() {
     }
 	int SNAME = _COLON("$,n", 2, DUP, AT); {
         _IF(14, UNIQU, DUP, NAMET, CP, STORE, DUP, LAST, STORE, CELLM, CNTXT, AT, SWAP, STORE, EXIT);
-        _THEN(1, ERRORR);
+        _THEN(1, ERROR);
     }
 	int TICK  = _COLON("'", 2, TOKEN, NAMEQ); {
         _IF(1, EXIT);
-        _THEN(1, ERRORR);
+        _THEN(1, ERROR);
     }
 	int BCOMP = _IMMED("[COMPILE]", 3, TICK, COMMA, EXIT);
 	int COMPI = _COLON("COMPILE",  7, RFROM, DUP, AT, COMMA, CELLP, TOR, EXIT);
@@ -1124,7 +1131,7 @@ void assemble() {
         }
         _THEN(1, NUMBQ);
         _IF(2, LITER, EXIT);
-        _THEN(1, ERRORR);
+        _THEN(1, ERROR);
     }
 	int OVERT = _COLON("OVERT", 5, LAST, AT, CNTXT, STORE, EXIT);
 	int RBRAC = _COLON("]",     5, DOLIT, SCOMP, TEVAL, STORE, EXIT);
@@ -1166,10 +1173,10 @@ void assemble() {
     }
 	int FORGT = _COLON("FORGET", 3, TOKEN, NAMEQ, QDUP); {
         _IF(12, CELLM, DUP, CP, STORE, AT, DUP, CNTXT, STORE, LAST, STORE, DROP, EXIT);
-        _THEN(1, ERRORR);
+        _THEN(1, ERROR);
     }
 	int COLD  = _COLON("COLD", 1, CR); {  _DOTQ("eForth in C v4.0"); }
-	int DOTQ1 = _LABEL(2, CR, QUITT);
+	int DOTQ1 = _LABEL(2, CR, QUIT);
 
 	// Structure Compiler
 
@@ -1201,18 +1208,18 @@ void assemble() {
 	int IMMED  = _COLON("IMMEDIATE",    6, DOLIT, 0x80, LAST, AT, PSTOR, EXIT);
 	int ENDD   = P;
 
-	LOG("\n\nIZ=%x ", P);
-    LOG("R-stack=%x", (_popR() << 2));
+	DEBUG("IZ=%04x", P);
+    DEBUG(" R=%02x", (_popR() << 2));
 
 	// Boot Up
 	P = 0;
 	int RESET = _LABEL(2, 6, COLD);
 	P = 0x90;
-	int USER  = _LABEL(8, 0x100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUITT, 0);
+	int USER  = _LABEL(8, 0x100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUIT, 0);
 }
 
 void dump_data(int len) {
-#if FORTH_TRACE
+#if ASSEM_DUMP
     for (int p=0; p<len; p+=0x20) {
         printf("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
@@ -1225,7 +1232,7 @@ void dump_data(int len) {
             printf("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
         }
     }
-#endif // FORTH_TRACE
+#endif // ASSEM_DUMP
 }
 
 int main(int ac, char* av[])
