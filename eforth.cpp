@@ -26,7 +26,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define ASSEM_DUMP   0
+#define ASSEM_DUMP   1
 #define FORTH_TRACE  0
 
 // tracing/logging macros
@@ -78,21 +78,21 @@ typedef int8_t    S8;
 #define	_popR()     (rack[(U8)R--])
 #define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
 
-U8  R=0, S=0;                      // return stack index, data stack index
-U32 P, IP, WP;                     // P (program counter), IP (intruction pointer), WP (parameter pointer)
-U32 thread;                        // pointer to previous word
-S32 top = 0;                       // stack top value (cache)
+U8  R=0, S=0;                   // return stack index, data stack index
+U32 P, IP, WP;                  // P (program counter), IP (intruction pointer), WP (parameter pointer)
+U32 thread;                     // pointer to previous word
+S32 top = 0;                    // stack top value (cache)
 
-U32 rack[256]   = { 0 };           // return stack
-S32 stack[256]  = { 0 };           // data stack
-U32 data[16000] = {};              // 64K forth memory block
-U8* byte        = (U8*)data;       // linear byte array pointer
+U32 rack[256]   = { 0 };        // return stack
+S32 stack[256]  = { 0 };        // data stack
+U32 data[16000] = {};           // 64K forth memory block
+U8* byte        = (U8*)data;    // linear byte array pointer
 
 void show_word(int j) {
 #if FORTH_TRACE
-	U8 *p  = &byte[j];			   // pointer to address
-	U32 op = data[j>>2];		   // get opocode
-	for (p-=4; *p>31; p-=4);	   // retract pointer to word name
+	U8 *p  = &byte[j];			// pointer to address
+	U32 op = data[j>>2];		// get opocode
+	for (p-=4; *p>31; p-=4);	// retract pointer to word name
 
 	int  len = (int)*p;
 	char buf[64];
@@ -104,10 +104,7 @@ void show_word(int j) {
 
 // Virtual Forth Machine
 void _nop(void) {}              // ( -- )
-void _bye(void)                 // ( -- ) exit to OS
-{
-	exit(0);
-}
+void _bye(void) { exit(0); }    // ( -- ) exit to OS
 void _qrx(void)                 // ( -- c t|f) read a char from terminal input device
 {
 	_push(getchar());
@@ -578,8 +575,8 @@ enum {
 };
 
 // Macro Assembler
-#define FLAG_IMEDD  0x80              // immediate flag
-#define FLAG_COMPO  0x40              // composit flag
+#define fIMMED  0x80              // immediate flag
+#define fCOMPO  0x40              // composit flag
 int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0, NOP = 0;
 
 void _header(int lex, const char *seq) {
@@ -639,7 +636,7 @@ int _colon(const char *seg, int len, ...) {
 	return addr;
 }
 int _immed(const char *seg, int len, ...) {
-    _header(FLAG_IMEDD | strlen(seg), seg);
+    _header(fIMMED | strlen(seg), seg);
 	DEBUG("%s", " IMMED 0006");
 	int addr = P;
 	IP = P >> 2;
@@ -1109,7 +1106,7 @@ void assemble() {
     }
 	int ERROR = _COLON("ERROR",      SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
 	int INTER = _COLON("$INTERPRET", NAMEQ, QDUP); {
-        _IF(CAT, DOLIT, FLAG_COMPO, AND);
+        _IF(CAT, DOLIT, fCOMPO, AND);
         _ABORQ(" compile only");
     }
 	int INTER0= _LABEL(EXECU, EXIT); {
@@ -1158,7 +1155,7 @@ void assemble() {
 	int BCOMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);
 	int COMPI = _COLON("COMPILE",  RFROM, DUP, AT, COMMA, CELLP, TOR, EXIT);
 	int SCOMP = _COLON("$COMPILE", NAMEQ, QDUP); {
-        _IF(AT, DOLIT, FLAG_IMEDD, AND); {
+        _IF(AT, DOLIT, fIMMED, AND); {
             _IF(EXECU);
             _ELSE(COMMA);
             _THEN(EXIT);
@@ -1232,14 +1229,14 @@ void assemble() {
 	int iDOTQQ = _IMMED(".\"",     DOLIT, DOTQP, HERE, STORE, STRCQ, EXIT);
 
 	int CODE   = _COLON("CODE",    TOKEN, SNAME, OVERT, EXIT);
-	int CREAT  = _COLON("CREATE",  CODE, DOLIT, 0x203d, COMMA, EXIT);         // CC: hardcoded
+	int CREAT  = _COLON("CREATE",  CODE, DOLIT, ((as_next<<8)|as_dovar), COMMA, EXIT);
 	int VARIA  = _COLON("VARIABLE",CREAT, DOLIT, 0, COMMA, EXIT);
-	int CONST  = _COLON("CONSTANT",CODE, DOLIT, 0x2004, COMMA, COMMA, EXIT);  // CC: hardcoded
+	int CONST  = _COLON("CONSTANT",CODE, DOLIT, ((as_next<<8)|as_docon), COMMA, COMMA, EXIT);
 	int iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);
 	int iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORDD, DROP,  EXIT);
 	int iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
-	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, 0x40, vLAST, AT, PSTOR, EXIT);
-	int IMMED  = _COLON("IMMEDIATE",    DOLIT, 0x80, vLAST, AT, PSTOR, EXIT);
+	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
+	int IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
 	int ENDD   = P;
 
 	DEBUG("IZ=%04x", P);
@@ -1281,5 +1278,4 @@ int main(int ac, char* av[])
 		primitives[byte[P++]]();
 	}
 }
-/* End of ceforth_33.cpp */
 
