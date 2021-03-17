@@ -82,6 +82,7 @@ U32 data[16000] = {};              // 64K forth memory block
 U8* byte        = (U8*)data;       // linear byte array pointer
 
 void show_word(int j) {
+#if FORTH_TRACE
 	U8 *p  = &byte[j];			   // pointer to address
 	U32 op = data[j>>2];		   // get opocode
 	for (p-=4; *p>31; p-=4);	   // retract pointer to word name
@@ -91,6 +92,7 @@ void show_word(int j) {
 	memcpy(buf, p+1, len);
 	buf[len] = '\0';
 	printf(" %s", buf);
+#endif // FORTH_TRACE
 }
 
 // Virtual Forth Machine
@@ -1210,6 +1212,7 @@ void assemble() {
 }
 
 void dump_data(int len) {
+#if FORTH_TRACE
     for (int p=0; p<len; p+=0x20) {
         printf("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
@@ -1222,6 +1225,7 @@ void dump_data(int len) {
             printf("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
         }
     }
+#endif // FORTH_TRACE
 }
 
 int main(int ac, char* av[])
