@@ -508,70 +508,70 @@ void(*primitives[64])(void) = {
 
 // Opcodes (for Bytecode Assembler)
 enum {
-    as_nop = 0,    // 0
-    as_bye,        // 1
-    as_qrx,        // 2
-    as_txsto,      // 3
-    as_docon,      // 4
-    as_dolit,      // 5
-    as_dolist,     // 6
-    as_exit,       // 7
-    as_execu,      // 8
-    as_donext,     // 9
-    as_qbran,      // 10
-    as_bran,       // 11
-    as_store,      // 12
-    as_at,         // 13
-    as_cstor,      // 14
-    as_cat,        // 15
-    as_rpat,       // 16
-    as_rpsto,      // 17
-    as_rfrom,      // 18
-    as_rat,        // 19
-    as_tor,        // 20
-    as_spat,       // 21
-    as_spsto,      // 22
-    as_drop,       // 23
-    as_dup,        // 24
-    as_swap,       // 25
-    as_over,       // 26
-    as_zless,      // 27
-    as_and,        // 28
-    as_or,         // 29
-    as_xor,        // 30
-    as_uplus,      // 31
-    as_next,       // 32
-    as_qdup,       // 33
-    as_rot,        // 34
-    as_ddrop,      // 35
-    as_ddup,       // 36
-    as_plus,       // 37
-    as_inver,      // 38
-    as_negat,      // 39
-    as_dnega,      // 40
-    as_sub,        // 41
-    as_abs,        // 42
-    as_equal,      // 43
-    as_uless,      // 44
-    as_less,       // 45
-    as_ummod,      // 46
-    as_msmod,      // 47
-    as_slmod,      // 48
-    as_mod,        // 49
-    as_slash,      // 50
-    as_umsta,      // 51
-    as_star,       // 52
-    as_mstar,      // 53
-    as_ssmod,      // 54
-    as_stasl,      // 55
-    as_pick,       // 56
-    as_pstor,      // 57
-    as_dstor,      // 58
-    as_dat,        // 59
-    as_count,      // 60
-    as_dovar,      // 61
-    as_max,        // 62
-    as_min         // 63
+    opNOP = 0,    // 0
+    opBYE,        // 1
+    opQRX,        // 2
+    opTXSTO,      // 3
+    opDOCON,      // 4
+    opDOLIT,      // 5
+    opDOLIST,     // 6
+    opEXIT,       // 7
+    opEXECU,      // 8
+    opDONEXT,     // 9
+    opQBRAN,      // 10
+    opBRAN,       // 11
+    opSTORE,      // 12
+    opAT,         // 13
+    opCSTOR,      // 14
+    opCAT,        // 15
+    opRPAT,       // 16
+    opRPSTO,      // 17
+    opRFROM,      // 18
+    opRAT,        // 19
+    opTOR,        // 20
+    opSPAT,       // 21
+    opSPSTO,      // 22
+    opDROP,       // 23
+    opDUP,        // 24
+    opSWAP,       // 25
+    opOVER,       // 26
+    opZLESS,      // 27
+    opAND,        // 28
+    opOR,         // 29
+    opXOR,        // 30
+    opUPLUS,      // 31
+    opNEXT,       // 32
+    opQDUP,       // 33
+    opROT,        // 34
+    opDDROP,      // 35
+    opDDUP,       // 36
+    opPLUS,       // 37
+    opINVER,      // 38
+    opNEGAT,      // 39
+    opDNEGA,      // 40
+    opSUB,        // 41
+    opABS,        // 42
+    opEQUAL,      // 43
+    opULESS,      // 44
+    opLESS,       // 45
+    opUMMOD,      // 46
+    opMSMOD,      // 47
+    opSLMOD,      // 48
+    opMOD,        // 49
+    opSLASH,      // 50
+    opUMSTA,      // 51
+    opSTAR,       // 52
+    opMSTAR,      // 53
+    opSSMOD,      // 54
+    opSTASL,      // 55
+    opPICK,       // 56
+    opPSTOR,      // 57
+    opDSTOR,      // 58
+    opDAT,        // 59
+    opCOUNT,      // 60
+    opDOVAR,      // 61
+    opMAX,        // 62
+    opMIN         // 63
 };
 
 // Macro Assembler
@@ -630,7 +630,7 @@ int _colon(const char *seg, int len, ...) {
 	DEBUG("%s", " COLON 0006");
 	int addr = P;
 	IP = P >> 2;
-	data[IP++] = as_dolist;
+	data[IP++] = opDOLIST;
 	DATACPY(len);
 	P = IP << 2;
 	return addr;
@@ -640,7 +640,7 @@ int _immed(const char *seg, int len, ...) {
 	DEBUG("%s", " IMMED 0006");
 	int addr = P;
 	IP = P >> 2;
-	data[IP++] = as_dolist;
+	data[IP++] = opDOLIST;
     DATACPY(len);
 	P = IP << 2;
 	return addr;
@@ -818,91 +818,91 @@ void assemble() {
 	R = thread = 0;
 
 	// Kernel (user variables for input)
-	int vHLD  = _CODE("HLD",     as_docon, as_next, 0, 0, 0x80, 0, 0, 0);
-	int vSPAN = _CODE("SPAN",    as_docon, as_next, 0, 0, 0x84, 0, 0, 0);
-	int vIN   = _CODE(">IN",     as_docon, as_next, 0, 0, 0x88, 0, 0, 0);
-	int vNTIB = _CODE("#TIB",    as_docon, as_next, 0, 0, 0x8c, 0, 0, 0);
-	int vTTIB = _CODE("'TIB",    as_docon, as_next, 0, 0, 0x90, 0, 0, 0);
-	int vBASE = _CODE("BASE",    as_docon, as_next, 0, 0, 0x94, 0, 0, 0);
-	int vCNTX = _CODE("CONTEXT", as_docon, as_next, 0, 0, 0x98, 0, 0, 0);
-	int vCP   = _CODE("CP",      as_docon, as_next, 0, 0, 0x9c, 0, 0, 0);
-	int vLAST = _CODE("LAST",    as_docon, as_next, 0, 0, 0xa0, 0, 0, 0);
-	int vTEVL = _CODE("'EVAL",   as_docon, as_next, 0, 0, 0xa4, 0, 0, 0);
-	int vTABRT= _CODE("'ABORT",  as_docon, as_next, 0, 0, 0xa8, 0, 0, 0);
-	int vTEMP = _CODE("tmp",     as_docon, as_next, 0, 0, 0xac, 0, 0, 0);
+	int vHLD  = _CODE("HLD",     opDOCON, opNEXT, 0, 0, 0x80, 0, 0, 0);
+	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, 0x84, 0, 0, 0);
+	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, 0x88, 0, 0, 0);
+	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, 0x8c, 0, 0, 0);
+	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, 0x90, 0, 0, 0);
+	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, 0x94, 0, 0, 0);
+	int vCNTX = _CODE("CONTEXT", opDOCON, opNEXT, 0, 0, 0x98, 0, 0, 0);
+	int vCP   = _CODE("CP",      opDOCON, opNEXT, 0, 0, 0x9c, 0, 0, 0);
+	int vLAST = _CODE("LAST",    opDOCON, opNEXT, 0, 0, 0xa0, 0, 0, 0);
+	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, 0xa4, 0, 0, 0);
+	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, 0xa8, 0, 0, 0);
+	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, 0xac, 0, 0, 0);
 
 	// Kernel dictionary (primitive proxies)
-	NOP       = _CODE("NOP",     as_nop,   as_next, 0, 0);
-	int BYE   = _CODE("BYE",     as_bye,   as_next, 0, 0);
-	int QRX   = _CODE("?RX",     as_qrx,   as_next, 0, 0);
-	int TXSTO = _CODE("TX!",     as_txsto, as_next, 0, 0);
-	int DOCON = _CODE("DOCON",   as_docon, as_next, 0, 0);
-	int DOLIT = _CODE("DOLIT",   as_dolit, as_next, 0, 0);
-	int DOLST = _CODE("DOLIST",  as_dolist,as_next, 0, 0);
-	int EXIT  = _CODE("EXIT",    as_exit,  as_next, 0, 0);
-	int EXECU = _CODE("EXECUTE", as_execu, as_next, 0, 0);
+	NOP       = _CODE("NOP",     opNOP,   opNEXT, 0, 0);
+	int BYE   = _CODE("BYE",     opBYE,   opNEXT, 0, 0);
+	int QRX   = _CODE("?RX",     opQRX,   opNEXT, 0, 0);
+	int TXSTO = _CODE("TX!",     opTXSTO, opNEXT, 0, 0);
+	int DOCON = _CODE("DOCON",   opDOCON, opNEXT, 0, 0);
+	int DOLIT = _CODE("DOLIT",   opDOLIT, opNEXT, 0, 0);
+	int DOLST = _CODE("DOLIST",  opDOLIST,opNEXT, 0, 0);
+	int EXIT  = _CODE("EXIT",    opEXIT,  opNEXT, 0, 0);
+	int EXECU = _CODE("EXECUTE", opEXECU, opNEXT, 0, 0);
 
-	DONXT     = _CODE("DONEXT",  as_donext,as_next, 0, 0);
-	QBRAN     = _CODE("QBRANCH", as_qbran, as_next, 0, 0);
-	BRAN      = _CODE("BRANCH",  as_bran,  as_next, 0, 0);
+	DONXT     = _CODE("DONEXT",  opDONEXT,opNEXT, 0, 0);
+	QBRAN     = _CODE("QBRANCH", opQBRAN, opNEXT, 0, 0);
+	BRAN      = _CODE("BRANCH",  opBRAN,  opNEXT, 0, 0);
 
-	int STORE = _CODE("!",       as_store, as_next, 0, 0);
-	int AT    = _CODE("@",       as_at,    as_next, 0, 0);
-	int CSTOR = _CODE("C!",      as_cstor, as_next, 0, 0);
-	int CAT   = _CODE("C@",      as_cat,   as_next, 0, 0);
-	int RFROM = _CODE("R>",      as_rfrom, as_next, 0, 0);
-	int RAT   = _CODE("R@",      as_rat,   as_next, 0, 0);
-	TOR       = _CODE(">R",      as_tor,   as_next, 0, 0);
-	int DROP  = _CODE("DROP",    as_drop,  as_next, 0, 0);
-	int DUP   = _CODE("DUP",     as_dup,   as_next, 0, 0);
-	int SWAP  = _CODE("SWAP",    as_swap,  as_next, 0, 0);
-	int OVER  = _CODE("OVER",    as_over,  as_next, 0, 0);
-	int ZLESS = _CODE("0<",      as_zless, as_next, 0, 0);
-	int AND   = _CODE("AND",     as_and,   as_next, 0, 0);
-	int OR    = _CODE("OR",      as_or,    as_next, 0, 0);
-	int XOR   = _CODE("XOR",     as_xor,   as_next, 0, 0);
-	int UPLUS = _CODE("UM+",     as_uplus, as_next, 0, 0);
-	int NEXT  = _CODE("NEXT",    as_next,  as_next, 0, 0);
-	int QDUP  = _CODE("?DUP",    as_qdup,  as_next, 0, 0);
-	int ROT   = _CODE("ROT",     as_rot,   as_next, 0, 0);
-	int DDROP = _CODE("2DROP",   as_ddrop, as_next, 0, 0);
-	int DDUP  = _CODE("2DUP",    as_ddup,  as_next, 0, 0);
-	int PLUS  = _CODE("+",       as_plus,  as_next, 0, 0);
-	int INVER = _CODE("NOT",     as_inver, as_next, 0, 0);
-	int NEGAT = _CODE("NEGATE",  as_negat, as_next, 0, 0);
-	int DNEGA = _CODE("DNEGATE", as_dnega, as_next, 0, 0);
-	int SUB   = _CODE("-",       as_sub,   as_next, 0, 0);
-	int ABS   = _CODE("ABS",     as_abs,   as_next, 0, 0);
-	int EQUAL = _CODE("=",       as_equal, as_next, 0, 0);
-	int ULESS = _CODE("U<",      as_uless, as_next, 0, 0);
-	int LESS  = _CODE("<",       as_less,  as_next, 0, 0);
-	int UMMOD = _CODE("UM/MOD",  as_ummod, as_next, 0, 0);
-	int MSMOD = _CODE("M/MOD",   as_msmod, as_next, 0, 0);
-	int SLMOD = _CODE("/MOD",    as_slmod, as_next, 0, 0);
-	int MOD   = _CODE("MOD",     as_mod,   as_next, 0, 0);
-	int SLASH = _CODE("/",       as_slash, as_next, 0, 0);
-	int UMSTA = _CODE("UM*",     as_umsta, as_next, 0, 0);
-	int STAR  = _CODE("*",       as_star,  as_next, 0, 0);
-	int MSTAR = _CODE("M*",      as_mstar, as_next, 0, 0);
-	int SSMOD = _CODE("*/MOD",   as_ssmod, as_next, 0, 0);
-	int STASL = _CODE("*/",      as_stasl, as_next, 0, 0);
-	int PICK  = _CODE("PICK",    as_pick,  as_next, 0, 0);
-	int PSTOR = _CODE("+!",      as_pstor, as_next, 0, 0);
-	int DSTOR = _CODE("2!",      as_dstor, as_next, 0, 0);
-	int DAT   = _CODE("2@",      as_dat,   as_next, 0, 0);
-	int COUNT = _CODE("COUNT",   as_count, as_next, 0, 0);
-	int MAX   = _CODE("MAX",     as_max,   as_next, 0, 0);
-	int MIN   = _CODE("MIN",     as_min,   as_next, 0, 0);
+	int STORE = _CODE("!",       opSTORE, opNEXT, 0, 0);
+	int AT    = _CODE("@",       opAT,    opNEXT, 0, 0);
+	int CSTOR = _CODE("C!",      opCSTOR, opNEXT, 0, 0);
+	int CAT   = _CODE("C@",      opCAT,   opNEXT, 0, 0);
+	int RFROM = _CODE("R>",      opRFROM, opNEXT, 0, 0);
+	int RAT   = _CODE("R@",      opRAT,   opNEXT, 0, 0);
+	TOR       = _CODE(">R",      opTOR,   opNEXT, 0, 0);
+	int DROP  = _CODE("DROP",    opDROP,  opNEXT, 0, 0);
+	int DUP   = _CODE("DUP",     opDUP,   opNEXT, 0, 0);
+	int SWAP  = _CODE("SWAP",    opSWAP,  opNEXT, 0, 0);
+	int OVER  = _CODE("OVER",    opOVER,  opNEXT, 0, 0);
+	int ZLESS = _CODE("0<",      opZLESS, opNEXT, 0, 0);
+	int AND   = _CODE("AND",     opAND,   opNEXT, 0, 0);
+	int OR    = _CODE("OR",      opOR,    opNEXT, 0, 0);
+	int XOR   = _CODE("XOR",     opXOR,   opNEXT, 0, 0);
+	int UPLUS = _CODE("UM+",     opUPLUS, opNEXT, 0, 0);
+	int NEXT  = _CODE("NEXT",    opNEXT,  opNEXT, 0, 0);
+	int QDUP  = _CODE("?DUP",    opQDUP,  opNEXT, 0, 0);
+	int ROT   = _CODE("ROT",     opROT,   opNEXT, 0, 0);
+	int DDROP = _CODE("2DROP",   opDDROP, opNEXT, 0, 0);
+	int DDUP  = _CODE("2DUP",    opDDUP,  opNEXT, 0, 0);
+	int PLUS  = _CODE("+",       opPLUS,  opNEXT, 0, 0);
+	int INVER = _CODE("NOT",     opINVER, opNEXT, 0, 0);
+	int NEGAT = _CODE("NEGATE",  opNEGAT, opNEXT, 0, 0);
+	int DNEGA = _CODE("DNEGATE", opDNEGA, opNEXT, 0, 0);
+	int SUB   = _CODE("-",       opSUB,   opNEXT, 0, 0);
+	int ABS   = _CODE("ABS",     opABS,   opNEXT, 0, 0);
+	int EQUAL = _CODE("=",       opEQUAL, opNEXT, 0, 0);
+	int ULESS = _CODE("U<",      opULESS, opNEXT, 0, 0);
+	int LESS  = _CODE("<",       opLESS,  opNEXT, 0, 0);
+	int UMMOD = _CODE("UM/MOD",  opUMMOD, opNEXT, 0, 0);
+	int MSMOD = _CODE("M/MOD",   opMSMOD, opNEXT, 0, 0);
+	int SLMOD = _CODE("/MOD",    opSLMOD, opNEXT, 0, 0);
+	int MOD   = _CODE("MOD",     opMOD,   opNEXT, 0, 0);
+	int SLASH = _CODE("/",       opSLASH, opNEXT, 0, 0);
+	int UMSTA = _CODE("UM*",     opUMSTA, opNEXT, 0, 0);
+	int STAR  = _CODE("*",       opSTAR,  opNEXT, 0, 0);
+	int MSTAR = _CODE("M*",      opMSTAR, opNEXT, 0, 0);
+	int SSMOD = _CODE("*/MOD",   opSSMOD, opNEXT, 0, 0);
+	int STASL = _CODE("*/",      opSTASL, opNEXT, 0, 0);
+	int PICK  = _CODE("PICK",    opPICK,  opNEXT, 0, 0);
+	int PSTOR = _CODE("+!",      opPSTOR, opNEXT, 0, 0);
+	int DSTOR = _CODE("2!",      opDSTOR, opNEXT, 0, 0);
+	int DAT   = _CODE("2@",      opDAT,   opNEXT, 0, 0);
+	int COUNT = _CODE("COUNT",   opCOUNT, opNEXT, 0, 0);
+	int MAX   = _CODE("MAX",     opMAX,   opNEXT, 0, 0);
+	int MIN   = _CODE("MIN",     opMIN,   opNEXT, 0, 0);
 
-	int BLANK = _CODE("BL",      as_docon, as_next, 0,       0, 32, 0, 0, 0);
-	int CELL  = _CODE("CELL",    as_docon, as_next, 0,       0,  4, 0, 0, 0);
-	int CELLP = _CODE("CELL+",   as_docon, as_plus, as_next, 0,  4, 0, 0, 0);
-	int CELLM = _CODE("CELL-",   as_docon, as_sub,  as_next, 0,  4, 0, 0, 0);
-	int CELLS = _CODE("CELLS",   as_docon, as_star, as_next, 0,  4, 0, 0, 0);
-	int CELLD = _CODE("CELL/",   as_docon, as_slash,as_next, 0,  4, 0, 0, 0);
-	int ONEP  = _CODE("1+",      as_docon, as_plus, as_next, 0,  1, 0, 0, 0);
-	int ONEM  = _CODE("1-",      as_docon, as_sub,  as_next, 0,  1, 0, 0, 0);
-	int DOVAR = _CODE("DOVAR",   as_dovar, as_next, 0, 0);
+	int BLANK = _CODE("BL",      opDOCON, opNEXT, 0,      0, 32, 0, 0, 0);
+	int CELL  = _CODE("CELL",    opDOCON, opNEXT, 0,      0,  4, 0, 0, 0);
+	int CELLP = _CODE("CELL+",   opDOCON, opPLUS, opNEXT, 0,  4, 0, 0, 0);
+	int CELLM = _CODE("CELL-",   opDOCON, opSUB,  opNEXT, 0,  4, 0, 0, 0);
+	int CELLS = _CODE("CELLS",   opDOCON, opSTAR, opNEXT, 0,  4, 0, 0, 0);
+	int CELLD = _CODE("CELL/",   opDOCON, opSLASH,opNEXT, 0,  4, 0, 0, 0);
+	int ONEP  = _CODE("1+",      opDOCON, opPLUS, opNEXT, 0,  1, 0, 0, 0);
+	int ONEM  = _CODE("1-",      opDOCON, opSUB,  opNEXT, 0,  1, 0, 0, 0);
+	int DOVAR = _CODE("DOVAR",   opDOVAR, opNEXT, 0,      0);
 
 	// Common Colon Words
 
@@ -1229,9 +1229,9 @@ void assemble() {
 	int iDOTQQ = _IMMED(".\"",     DOLIT, DOTQP, HERE, STORE, STRCQ, EXIT);
 
 	int CODE   = _COLON("CODE",    TOKEN, SNAME, OVERT, EXIT);
-	int CREAT  = _COLON("CREATE",  CODE, DOLIT, ((as_next<<8)|as_dovar), COMMA, EXIT);
+	int CREAT  = _COLON("CREATE",  CODE, DOLIT, ((opNEXT<<8)|opDOVAR), COMMA, EXIT);
 	int VARIA  = _COLON("VARIABLE",CREAT, DOLIT, 0, COMMA, EXIT);
-	int CONST  = _COLON("CONSTANT",CODE, DOLIT, ((as_next<<8)|as_docon), COMMA, COMMA, EXIT);
+	int CONST  = _COLON("CONSTANT",CODE, DOLIT, ((opNEXT<<8)|opDOCON), COMMA, COMMA, EXIT);
 	int iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);
 	int iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORDD, DROP,  EXIT);
 	int iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
@@ -1244,7 +1244,7 @@ void assemble() {
 
 	// Boot Up
 	P = 0;
-	int RESET = _LABEL(as_dolist, COLD);
+	int RESET = _LABEL(opDOLIST, COLD);
 	P = 0x90;
 	int USER  = _LABEL(0x100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUIT, 0);
 }
