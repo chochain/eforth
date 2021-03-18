@@ -51,16 +51,16 @@ typedef int8_t    S8;
 #endif // ASSEM_DUMP
 
 #if FORTH_TRACE
-int tMUTE = 0, tTAB = 0;           // trace indentation counter
-#define TRACE(s,v)      { if(!tMUTE) printf(s,v); }
+int tOFF = 0, tTAB = 0;           // trace indentation counter
+#define TRACE(s,v)      { if(!tOFF) printf(s,v); }
 #define LOG(s)          TRACE("%s ", s)
-#define TRACE_COLON() if (!tMUTE) {           \
+#define TRACE_COLON() if (!tOFF) {            \
 	printf("\n");                             \
 	for (int i=0; i<tTAB; i++) printf("  ");  \
     tTAB++;                                   \
 	printf(":");                              \
 }
-#define TRACE_EXIT()  if (!tMUTE) {           \
+#define TRACE_EXIT()  if (!tOFF) {            \
     printf(" ;");                             \
     tTAB--;                                   \
 }
@@ -105,7 +105,7 @@ U8* byte        = (U8*)data;    // linear byte array pointer
 //
 void TRACE_WORD(int j) {
 #if FORTH_TRACE
-	if (tMUTE) return;
+	if (tOFF) return;
 	U8 *p  = &byte[j];			// pointer to address
 	U32 op = data[j>>2];		// get opocode
 	for (p-=4; *p>31; p-=4);	// retract pointer to word name
@@ -117,8 +117,8 @@ void TRACE_WORD(int j) {
 	printf(" %s", buf);
 #endif // FORTH_TRACE
 }
-void _trc_on(void)  { tMUTE++; }
-void _trc_off(void) { tMUTE--; }
+void _trc_on(void)  { tOFF++; }
+void _trc_off(void) { tOFF--; }
 
 //
 // Forth Virtual Machine (primitive functions)
@@ -139,7 +139,9 @@ void _txsto(void)               // (c -- ) send a char to console
 	case 0xa: printf("<LF>");  break;
 	case 0xd: printf("<CR>");  break;
 	case 0x8: printf("<TAB>"); break;
-	default:  printf("<%c>", (U8)top);
+	default:
+		if (tOFF) printf("%c",   (U8)top);
+		else      printf("<%c>", (U8)top);
 	}
 #endif // !FORTH_TRACE
 	_pop();
@@ -1169,6 +1171,9 @@ void assemble() {
         _WHILE(vTEVL, ATEXE);
         _REPEAT(DROP, DOTOK, EXIT);
     }
+    //
+    // main interpreter loop
+    //
 	int QUIT  = _COLON("QUIT", DOLIT, FORTH_BUF_ADDR, vTTIB, STORE, LBRAC); {
         _BEGIN(QUERY, EVAL);
         _AGAIN(NOP);
