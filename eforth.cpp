@@ -26,8 +26,20 @@
 #include <string.h>
 #include <stdint.h>
 
-#define ASSEM_DUMP   1
-#define FORTH_TRACE  0
+#define ASSEM_DUMP   0
+#define FORTH_TRACE  1
+//
+// portable types
+//
+typedef uint64_t  U64;
+typedef uint32_t  U32;
+typedef uint16_t  U16;
+typedef uint8_t   U8;
+typedef int64_t   S64;
+
+typedef int32_t   S32;
+typedef int16_t   S16;
+typedef int8_t    S8;
 
 // tracing/logging macros
 #if ASSEM_DUMP
@@ -39,70 +51,78 @@
 #endif // ASSEM_DUMP
 
 #if FORTH_TRACE
-int TAB = 0;                       // trace indentation counter
-#define LOG(s,v)        printf(s,v)
-#define INFO(s)         LOG("%s ", s)
-#define TRACE_COLON() {                       \
+int tMUTE = 0, tTAB = 0;           // trace indentation counter
+#define TRACE(s,v)      { if(!tMUTE) printf(s,v); }
+#define LOG(s)          TRACE("%s ", s)
+#define TRACE_COLON() if (!tMUTE) {           \
 	printf("\n");                             \
-	for (int i=0; i<TAB; i++) printf("  ");   \
-    TAB++;                                    \
+	for (int i=0; i<tTAB; i++) printf("  ");  \
+    tTAB++;                                   \
 	printf(":");                              \
 }
-#define TRACE_EXIT() {                        \
-    printf(" ; ");                            \
-    TAB--;                                    \
+#define TRACE_EXIT()  if (!tMUTE) {           \
+    printf(" ;");                             \
+    tTAB--;                                   \
 }
 #else // FORTH_TRACE
-#define LOG(s,v)
-#define INFO(s)
+#define TRACE(s,v)
+#define LOG(s)
 #define TRACE_COLON()
 #define TRACE_EXIT()
 #endif // FORTH_TRACE
-
-// portable types
-typedef uint64_t  U64;
-typedef uint32_t  U32;
-typedef uint16_t  U16;
-typedef uint8_t   U8;
-typedef int64_t   S64;
-
-typedef int32_t   S32;
-typedef int16_t   S16;
-typedef int8_t    S8;
-
+//
 // logic and stack op macros
-#define	FALSE	    0
-#define	TRUE	    -1
-#define	_pop()		(top = stack[(U8)S--])
-#define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
-#define	_popR()     (rack[(U8)R--])
-#define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
+//
+#define FORTH_BOOT_ADDR  0x0
+#define FORTH_TIB_ADDR   0x80
+#define FORTH_UVAR_ADDR  0x90
+#define FORTH_DIC_ADDR   0x200
+#define FORTH_BUF_ADDR   0x100
+#define FORTH_BUF_SIZE   0x100
 
+#define	FALSE	         0
+#define	TRUE	         -1
+#define	_pop()		     (top = stack[(U8)S--])
+#define	_push(v)	     { stack[(U8)++S] = top; top = (S32)(v); }
+#define	_popR()          (rack[(U8)R--])
+#define	_pushR(v)        (rack[(U8)++R] = (U32)(v))
+//
+// Forth VM control registers
+//
 U8  R=0, S=0;                   // return stack index, data stack index
 U32 P, IP, WP;                  // P (program counter), IP (intruction pointer), WP (parameter pointer)
 U32 thread;                     // pointer to previous word
 S32 top = 0;                    // stack top value (cache)
-
+//
+// Forth VM core storage
+//
 U32 rack[256]   = { 0 };        // return stack
 S32 stack[256]  = { 0 };        // data stack
 U32 data[16000] = {};           // 64K forth memory block
 U8* byte        = (U8*)data;    // linear byte array pointer
-
-void show_word(int j) {
+//
+// tracing instrumentation
+//
+void TRACE_WORD(int j) {
 #if FORTH_TRACE
+	if (tMUTE) return;
 	U8 *p  = &byte[j];			// pointer to address
 	U32 op = data[j>>2];		// get opocode
 	for (p-=4; *p>31; p-=4);	// retract pointer to word name
 
-	int  len = (int)*p;
+	int  len = (int)*p & 0x1f;
 	char buf[64];
 	memcpy(buf, p+1, len);
 	buf[len] = '\0';
 	printf(" %s", buf);
 #endif // FORTH_TRACE
 }
+void _trc_on(void)  { tMUTE++; }
+void _trc_off(void) { tMUTE--; }
 
-// Virtual Forth Machine
+//
+// Forth Virtual Machine (primitive functions)
+//
 void _nop(void) {}              // ( -- )
 void _bye(void) { exit(0); }    // ( -- ) exit to OS
 void _qrx(void)                 // ( -- c t|f) read a char from terminal input device
@@ -127,7 +147,7 @@ void _txsto(void)               // (c -- ) send a char to console
 void _next(void)                // advance instruction pointer
 {
 	P  = data[IP >> 2];			// fetch next address
-    show_word(P);
+    TRACE_WORD(P);              // show next word
 	WP = P + 4;                 // parameter pointer (used optionally)
 	IP += 4;
 }
@@ -142,7 +162,7 @@ void _docon(void)               // ( -- n) push next token onto data stack as co
 void _dolit(void)               // ( -- w) push next token as an integer literal
 {
 	S32 v = data[IP >> 2];
-	DEBUG(" %d", v);
+	TRACE(" %d", v);
 	_push(v);
 	IP += 4;
     _next();
@@ -456,8 +476,8 @@ void(*primitives[64])(void) = {
 	/* case 13 */ _at,
 	/* case 14 */ _cstor,
 	/* case 15 */ _cat,
-	/* case 16  rpat, */  _nop,
-	/* case 17  rpsto, */ _nop,
+	/* case 16  rpat, */  _trc_on,
+	/* case 17  rpsto, */ _trc_off,
 	/* case 18 */ _rfrom,
 	/* case 19 */ _rat,
 	/* case 20 */ _tor,
@@ -505,8 +525,9 @@ void(*primitives[64])(void) = {
 	/* case 62 */ _max,
 	/* case 63 */ _min,
 };
-
-// Opcodes (for Bytecode Assembler)
+// 
+// Forth VM Opcodes (for Bytecode Assembler)
+//
 enum {
     opNOP = 0,    // 0
     opBYE,        // 1
@@ -524,8 +545,8 @@ enum {
     opAT,         // 13
     opCSTOR,      // 14
     opCAT,        // 15
-    opRPAT,       // 16
-    opRPSTO,      // 17
+    opRPAT,       // 16   borrow for trc_on
+    opRPSTO,      // 17   borrow for trc_off
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
@@ -573,10 +594,14 @@ enum {
     opMAX,        // 62
     opMIN         // 63
 };
-
-// Macro Assembler
+//
+// Forth Macro Assembler
+//
 #define fIMMED  0x80              // immediate flag
 #define fCOMPO  0x40              // composit flag
+//
+// address variable (which are needed by other macros)
+//
 int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0, NOP = 0;
 
 void _header(int lex, const char *seq) {
@@ -619,15 +644,15 @@ int _code(const char *seg, int len, ...) {
 	va_start(argList, n);             \
 	for (; n; n--) {                  \
 		U32 j = va_arg(argList, U32); \
-		if (j==NOP) continue;         \
+		/* if (j==NOP) continue; */         \
 		data[IP++] = j;               \
 		DEBUG(" %04x", j);            \
 	}                                 \
 	va_end(argList);                  \
 }
 int _colon(const char *seg, int len, ...) {
-    _header(strlen(seg), seg);
 	DEBUG("%s", " COLON 0006");
+    _header(strlen(seg), seg);
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = opDOLIST;
@@ -636,8 +661,8 @@ int _colon(const char *seg, int len, ...) {
 	return addr;
 }
 int _immed(const char *seg, int len, ...) {
-    _header(fIMMED | strlen(seg), seg);
 	DEBUG("%s", " IMMED 0006");
+    _header(fIMMED | strlen(seg), seg);
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = opDOLIST;
@@ -776,9 +801,9 @@ void _ABORQ(const char *seq) {
 	DEBUG("%s", seq);
 	STRCPY(ABORQP, seq);
 }
-/* Note dummy first argument _ and ##__VA_ARGS__ instead of __VA_ARGS__ */
-//#define my_func(...)     func(_NARG(__VA_ARGS__), __VA_ARGS__)
-
+//
+// variable length parameter handler macros
+//
 #define _ARG_N(                                            \
           _1,  _2,  _3,  _4,  _5,  _6,  _7,  _8,  _9, _10, \
          _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
@@ -797,6 +822,9 @@ void _ABORQ(const char *seq) {
           9,  8,  7,  6,  5,  4,  3,  2,  1,  0
 #define _NARG0(...)          _ARG_N(__VA_ARGS__)
 #define _NARG(...)           _NARG0(_, ##__VA_ARGS__, _NUM_N())
+//
+// assembler macros
+//
 #define _CODE(seg, ...)      _code(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
 #define _COLON(seg, ...)     _colon(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
 #define _IMMED(seg, ...)     _immed(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
@@ -814,22 +842,26 @@ void _ABORQ(const char *seq) {
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
 void assemble() {
-	P = 0x200;
+	P = FORTH_DIC_ADDR;
 	R = thread = 0;
 
 	// Kernel (user variables for input)
-	int vHLD  = _CODE("HLD",     opDOCON, opNEXT, 0, 0, 0x80, 0, 0, 0);
-	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, 0x84, 0, 0, 0);
-	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, 0x88, 0, 0, 0);
-	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, 0x8c, 0, 0, 0);
-	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, 0x90, 0, 0, 0);
-	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, 0x94, 0, 0, 0);
-	int vCNTX = _CODE("CONTEXT", opDOCON, opNEXT, 0, 0, 0x98, 0, 0, 0);
-	int vCP   = _CODE("CP",      opDOCON, opNEXT, 0, 0, 0x9c, 0, 0, 0);
-	int vLAST = _CODE("LAST",    opDOCON, opNEXT, 0, 0, 0xa0, 0, 0, 0);
-	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, 0xa4, 0, 0, 0);
-	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, 0xa8, 0, 0, 0);
-	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, 0xac, 0, 0, 0);
+	// FORTH_TIB_ADDR = 0x80
+	//
+	int ta    = FORTH_TIB_ADDR;
+	int vHLD  = _CODE("HLD",     opDOCON, opNEXT, 0, 0, ta+0,  0, 0, 0);
+	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, ta+4,  0, 0, 0);
+	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, ta+8,  0, 0, 0);
+	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, ta+12, 0, 0, 0);
+	int va    = FORTH_UVAR_ADDR;
+	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, va+0,  0, 0, 0);
+	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, va+4,  0, 0, 0);
+	int vCNTX = _CODE("CONTEXT", opDOCON, opNEXT, 0, 0, va+8,  0, 0, 0);
+	int vCP   = _CODE("CP",      opDOCON, opNEXT, 0, 0, va+12, 0, 0, 0);
+	int vLAST = _CODE("LAST",    opDOCON, opNEXT, 0, 0, va+16, 0, 0, 0);
+	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, va+20, 0, 0, 0);
+	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, va+24, 0, 0, 0);
+	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, va+28, 0, 0, 0);
 
 	// Kernel dictionary (primitive proxies)
 	NOP       = _CODE("NOP",     opNOP,   opNEXT, 0, 0);
@@ -903,6 +935,16 @@ void assemble() {
 	int ONEP  = _CODE("1+",      opDOCON, opPLUS, opNEXT, 0,  1, 0, 0, 0);
 	int ONEM  = _CODE("1-",      opDOCON, opSUB,  opNEXT, 0,  1, 0, 0, 0);
 	int DOVAR = _CODE("DOVAR",   opDOVAR, opNEXT, 0,      0);
+	//
+	// tracing instrumentation (borrow 2 opcodes)
+	//
+#if FORTH_TRACE
+    int trc_on  = _CODE("trc_on",  opRPAT,  opNEXT, 0, 0);
+    int trc_off = _CODE("trc_off", opRPSTO, opNEXT, 0, 0);
+#else
+    int trc_on  = NOP;
+    int trc_off = NOP;
+#endif // FORTH_TRACE
 
 	// Common Colon Words
 
@@ -1008,7 +1050,7 @@ void assemble() {
 	int CR    = _COLON("CR",    DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
 	int DOSTR = _COLON("do$",   RFROM, RAT, RFROM, COUNT, PLUS, ALIGN, TOR, SWAP, TOR, EXIT);
 	int STRQP = _COLON("$\"|",  DOSTR, EXIT);
-	DOTQP     = _COLON(".\"|",  DOSTR, COUNT, TYPE, EXIT);
+	DOTQP     = _COLON(".\"|",  trc_off, DOSTR, COUNT, TYPE, trc_on, EXIT);
 	int DOTR  = _COLON(".R",    TOR, STR, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOTR = _COLON("U.R",   TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOT  = _COLON("U.",    BDIGS, DIGS, EDIGS, SPACE, TYPE, EXIT);
@@ -1055,14 +1097,14 @@ void assemble() {
         _THEN(NOP);
         _NEXT(DOLIT, 0, EXIT);
     }
-	int FIND = _COLON("find", SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
+	int FIND = _COLON("find", trc_off, SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
         _BEGIN(AT, DUP); {
             _IF(DUP, AT, DOLIT, 0xffffff3f, AND, UPPER, RAT, UPPER, XOR); {
                 _IF(CELLP, DOLIT, 0xffffffff);
                 _ELSE(CELLP, vTEMP, AT, SAMEQ);
                 _THEN(NOP);
             }
-            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, EXIT);
+            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, trc_on, EXIT);
             _THEN(NOP);
         }
         _WHILE(CELLM, CELLM);
@@ -1127,7 +1169,7 @@ void assemble() {
         _WHILE(vTEVL, ATEXE);
         _REPEAT(DROP, DOTOK, EXIT);
     }
-	int QUIT  = _COLON("QUIT", DOLIT, 0x100, vTTIB, STORE, LBRAC); {
+	int QUIT  = _COLON("QUIT", DOLIT, FORTH_BUF_ADDR, vTTIB, STORE, LBRAC); {
         _BEGIN(QUERY, EVAL);
         _AGAIN(NOP);
     }
@@ -1237,16 +1279,28 @@ void assemble() {
 	int iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
 	int IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
-	int ENDD   = P;
+	int DICEND = P;
 
 	DEBUG("IZ=%04x", P);
     DEBUG(" R=%02x", (_popR() << 2));
 
-	// Boot Up
-	P = 0;
+	// Boot Vector
+	P = FORTH_BOOT_ADDR;
 	int RESET = _LABEL(opDOLIST, COLD);
-	P = 0x90;
-	int USER  = _LABEL(0x100, 0x10, IMMED - 12, ENDD, IMMED - 12, INTER, QUIT, 0);
+	//
+	// Forth internal (user) variables
+	//
+    //   'TIB    = FORTH_BUF_SIZE
+	//   BASE    = 0x10
+	//   CONTEXT = IMMED - 12        ???
+	//   CP      = DICEND
+	//   LAST    = IMMED - 12        ???
+	//   'EVAL   = INTER
+	//   ABORT   = QUIT
+	//   tmp     = 0
+	//
+	P = FORTH_UVAR_ADDR;
+	int USER  = _LABEL(FORTH_BUF_SIZE, 0x10, IMMED - 12, DICEND, IMMED - 12, INTER, QUIT, 0);
 }
 
 void dump_data(int len) {
@@ -1271,7 +1325,7 @@ int main(int ac, char* av[])
     assemble();
 	dump_data(0x2000);
 
-	LOG("\n%s\n", "ceForth v4.0");
+	TRACE("\n%s\n", "ceForth v4.0");
 	R  = S = P = IP = top = 0;
 	WP = 4;
 	for (;;) {
