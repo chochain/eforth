@@ -24,68 +24,12 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <stdint.h>
+#include "eforth.h"
 
-#define ASSEM_DUMP   0
-#define FORTH_TRACE  1
-//
-// portable types
-//
-typedef uint64_t  U64;
-typedef uint32_t  U32;
-typedef uint16_t  U16;
-typedef uint8_t   U8;
-typedef int64_t   S64;
-
-typedef int32_t   S32;
-typedef int16_t   S16;
-typedef int8_t    S8;
-
-// tracing/logging macros
-#if ASSEM_DUMP
-#define DEBUG(s, v)     printf(s, v)
-#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
-#else  // ASSEM_DUMP
-#define DEBUG(s, v)
-#define SHOWOP(op)
-#endif // ASSEM_DUMP
-
-#if FORTH_TRACE
-int tOFF = 0, tTAB = 0;           // trace indentation counter
-#define TRACE(s,v)      { if(!tOFF) printf(s,v); }
-#define LOG(s)          TRACE("%s ", s)
-#define TRACE_COLON() if (!tOFF) {            \
-	printf("\n");                             \
-	for (int i=0; i<tTAB; i++) printf("  ");  \
-    tTAB++;                                   \
-	printf(":");                              \
-}
-#define TRACE_EXIT()  if (!tOFF) {            \
-    printf(" ;");                             \
-    tTAB--;                                   \
-}
-#else // FORTH_TRACE
-#define TRACE(s,v)
-#define LOG(s)
-#define TRACE_COLON()
-#define TRACE_EXIT()
-#endif // FORTH_TRACE
-//
-// logic and stack op macros
-//
-#define FORTH_BOOT_ADDR  0x0
-#define FORTH_TIB_ADDR   0x80
-#define FORTH_UVAR_ADDR  0x90
-#define FORTH_DIC_ADDR   0x200
-#define FORTH_BUF_ADDR   0x100
-#define FORTH_BUF_SIZE   0x100
-
-#define	FALSE	         0
-#define	TRUE	         -1
-#define	_pop()		     (top = stack[(U8)S--])
-#define	_push(v)	     { stack[(U8)++S] = top; top = (S32)(v); }
-#define	_popR()          (rack[(U8)R--])
-#define	_pushR(v)        (rack[(U8)++R] = (U32)(v))
+#define	_pop()		(top = stack[(U8)S--])
+#define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
+#define	_popR()     (rack[(U8)R--])
+#define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
 //
 // Forth VM control registers
 //
@@ -100,26 +44,59 @@ U32 rack[256]   = { 0 };        // return stack
 S32 stack[256]  = { 0 };        // data stack
 U32 data[16000] = {};           // 64K forth memory block
 U8* byte        = (U8*)data;    // linear byte array pointer
+
+// tracing/logging macros
+#if ASSEM_DUMP
+#define DEBUG(s, v)     printf(s, v)
+#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
+#else  // ASSEM_DUMP
+#define DEBUG(s, v)
+#define SHOWOP(op)
+#endif // ASSEM_DUMP
 //
 // tracing instrumentation
 //
-void TRACE_WORD(int j) {
 #if FORTH_TRACE
+int tOFF = 0, tTAB = 0;           // trace indentation counter
+#define TRACE(s,v)      { if(!tOFF) printf(s,v); }
+#define LOG(s)          TRACE(" %s", s)
+void _trc_on(void)  	{ tOFF++; }
+void _trc_off(void) 	{ tOFF--; }
+void TRACE_WORD(int p) {
 	if (tOFF) return;
-	U8 *p  = &byte[j];			// pointer to address
-	U32 op = data[j>>2];		// get opocode
-	for (p-=4; *p>31; p-=4);	// retract pointer to word name
 
-	int  len = (int)*p & 0x1f;
+	U8 *e = &byte[p-0x20];      // for memory dump
+	U8 *a = &byte[p];		    // get opocode
+	U8 op = *a;
+	if (*a==opEXIT) return;
+	if (*a==opNEXT) return;
+	for (a-=4; *a>31; a-=4);	// retract pointer to word name
+
+	int  len = (int)*a & 0x1f;
 	char buf[64];
-	memcpy(buf, p+1, len);
+	memcpy(buf, a+1, len);
 	buf[len] = '\0';
-	printf(" %s", buf);
-#endif // FORTH_TRACE
+	printf("_%s", buf);
 }
-void _trc_on(void)  { tOFF++; }
-void _trc_off(void) { tOFF--; }
-
+#define TRACE_COLON() if (!tOFF) {             \
+    printf("\n");                              \
+	for (int i=0; i<tTAB; i++) printf("  ");   \
+	tTAB++;                                    \
+	printf(":");                               \
+}
+#define TRACE_EXIT()  if (!tOFF) {             \
+	printf(" ;");                              \
+	tTAB--;                                    \
+}
+#else // FORTH_TRACE
+#define TRACE(s,v)
+#define LOG(s)
+void _trc_on(void)     {}
+void _trc_off(void)    {}
+void TRACE_WORD(int p) {}
+#define TRACE_COLON()
+#define TRACE_EXIT()
+#endif // FORTH_TRACE
 //
 // Forth Virtual Machine (primitive functions)
 //
@@ -140,7 +117,7 @@ void _txsto(void)               // (c -- ) send a char to console
 	case 0xd: printf("<CR>");  break;
 	case 0x8: printf("<TAB>"); break;
 	default:
-		if (tOFF) printf("%c",   (U8)top);
+		if (tOFF) putchar((U8)top);
 		else      printf("<%c>", (U8)top);
 	}
 #endif // !FORTH_TRACE
@@ -149,7 +126,7 @@ void _txsto(void)               // (c -- ) send a char to console
 void _next(void)                // advance instruction pointer
 {
 	P  = data[IP >> 2];			// fetch next address
-    TRACE_WORD(P);              // show next word
+	TRACE_WORD(P);
 	WP = P + 4;                 // parameter pointer (used optionally)
 	IP += 4;
 }
@@ -527,75 +504,6 @@ void(*primitives[64])(void) = {
 	/* case 62 */ _max,
 	/* case 63 */ _min,
 };
-// 
-// Forth VM Opcodes (for Bytecode Assembler)
-//
-enum {
-    opNOP = 0,    // 0
-    opBYE,        // 1
-    opQRX,        // 2
-    opTXSTO,      // 3
-    opDOCON,      // 4
-    opDOLIT,      // 5
-    opDOLIST,     // 6
-    opEXIT,       // 7
-    opEXECU,      // 8
-    opDONEXT,     // 9
-    opQBRAN,      // 10
-    opBRAN,       // 11
-    opSTORE,      // 12
-    opAT,         // 13
-    opCSTOR,      // 14
-    opCAT,        // 15
-    opRPAT,       // 16   borrow for trc_on
-    opRPSTO,      // 17   borrow for trc_off
-    opRFROM,      // 18
-    opRAT,        // 19
-    opTOR,        // 20
-    opSPAT,       // 21
-    opSPSTO,      // 22
-    opDROP,       // 23
-    opDUP,        // 24
-    opSWAP,       // 25
-    opOVER,       // 26
-    opZLESS,      // 27
-    opAND,        // 28
-    opOR,         // 29
-    opXOR,        // 30
-    opUPLUS,      // 31
-    opNEXT,       // 32
-    opQDUP,       // 33
-    opROT,        // 34
-    opDDROP,      // 35
-    opDDUP,       // 36
-    opPLUS,       // 37
-    opINVER,      // 38
-    opNEGAT,      // 39
-    opDNEGA,      // 40
-    opSUB,        // 41
-    opABS,        // 42
-    opEQUAL,      // 43
-    opULESS,      // 44
-    opLESS,       // 45
-    opUMMOD,      // 46
-    opMSMOD,      // 47
-    opSLMOD,      // 48
-    opMOD,        // 49
-    opSLASH,      // 50
-    opUMSTA,      // 51
-    opSTAR,       // 52
-    opMSTAR,      // 53
-    opSSMOD,      // 54
-    opSTASL,      // 55
-    opPICK,       // 56
-    opPSTOR,      // 57
-    opDSTOR,      // 58
-    opDAT,        // 59
-    opCOUNT,      // 60
-    opDOVAR,      // 61
-    opMAX,        // 62
-    opMIN         // 63
-};
 //
 // Forth Macro Assembler
 //
@@ -604,7 +512,8 @@ enum {
 //
 // address variable (which are needed by other macros)
 //
-int BRAN = 0, QBRAN = 0, DONXT = 0, DOTQP = 0, STRQP = 0, TOR = 0, ABORQP = 0, NOP = 0;
+int BRAN, QBRAN, DONXT, DOTQP, STRQP, TOR, ABORQP;
+int NOP;
 
 void _header(int lex, const char *seq) {
 	IP = P >> 2;
@@ -653,8 +562,8 @@ int _code(const char *seg, int len, ...) {
 	va_end(argList);                  \
 }
 int _colon(const char *seg, int len, ...) {
-	DEBUG("%s", " COLON 0006");
     _header(strlen(seg), seg);
+	DEBUG("%s", " COLON 0006");
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = opDOLIST;
@@ -663,8 +572,8 @@ int _colon(const char *seg, int len, ...) {
 	return addr;
 }
 int _immed(const char *seg, int len, ...) {
-	DEBUG("%s", " IMMED 0006");
     _header(fIMMED | strlen(seg), seg);
+	DEBUG("%s", " IMMED 0006");
 	int addr = P;
 	IP = P >> 2;
 	data[IP++] = opDOLIST;
@@ -866,7 +775,7 @@ void assemble() {
 	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, va+28, 0, 0, 0);
 
 	// Kernel dictionary (primitive proxies)
-	NOP       = _CODE("NOP",     opNOP,   opNEXT, 0, 0);
+	    NOP   = _CODE("NOP",     opNOP,   opNEXT, 0, 0);
 	int BYE   = _CODE("BYE",     opBYE,   opNEXT, 0, 0);
 	int QRX   = _CODE("?RX",     opQRX,   opNEXT, 0, 0);
 	int TXSTO = _CODE("TX!",     opTXSTO, opNEXT, 0, 0);
@@ -876,9 +785,9 @@ void assemble() {
 	int EXIT  = _CODE("EXIT",    opEXIT,  opNEXT, 0, 0);
 	int EXECU = _CODE("EXECUTE", opEXECU, opNEXT, 0, 0);
 
-	DONXT     = _CODE("DONEXT",  opDONEXT,opNEXT, 0, 0);
-	QBRAN     = _CODE("QBRANCH", opQBRAN, opNEXT, 0, 0);
-	BRAN      = _CODE("BRANCH",  opBRAN,  opNEXT, 0, 0);
+	    DONXT = _CODE("DONEXT",  opDONEXT,opNEXT, 0, 0);
+	    QBRAN = _CODE("QBRANCH", opQBRAN, opNEXT, 0, 0);
+	    BRAN  = _CODE("BRANCH",  opBRAN,  opNEXT, 0, 0);
 
 	int STORE = _CODE("!",       opSTORE, opNEXT, 0, 0);
 	int AT    = _CODE("@",       opAT,    opNEXT, 0, 0);
@@ -1327,14 +1236,16 @@ void dump_data(int len) {
 
 int main(int ac, char* av[])
 {
-    assemble();
+	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
+
+	assemble();
 	dump_data(0x2000);
 
 	TRACE("\n%s\n", "ceForth v4.0");
 	R  = S = P = IP = top = 0;
 	WP = 4;
 	for (;;) {
-		primitives[byte[P++]]();
+		primitives[byte[P++]]();            // walk bytecode stream
 	}
 }
 
