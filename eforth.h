@@ -1,9 +1,11 @@
 #ifndef __EFORTH_SRC_EFORTH_H
 #define __EFORTH_SRC_EFORTH_H
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 
-#define ASSEM_DUMP   1
-#define FORTH_TRACE  1
+#define ASSEM_DUMP   0
+#define FORTH_TRACE  0
 //
 // portable types
 //
@@ -28,6 +30,15 @@ typedef int8_t    S8;
 
 #define	FALSE	         0
 #define	TRUE	         -1
+
+// tracing/logging macros
+#if ASSEM_DUMP
+#define DEBUG(s, v)     printf(s, v)
+#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
+#else  // ASSEM_DUMP
+#define DEBUG(s, v)
+#define SHOWOP(op)
+#endif // ASSEM_DUMP
 //
 // Forth VM Opcodes (for Bytecode Assembler)
 //
@@ -97,4 +108,24 @@ enum {
     opMAX,        // 62
     opMIN         // 63
 };
+
+extern U8  R, S;
+extern U32 P, IP, WP;
+extern U32 thread;
+extern S32 top;
+extern U8  *byte;
+
+extern U32 data[];         // main heap
+extern U32 rack[];         // return stack
+extern S32 stack[];        // data stack
+
+extern void (*primitives[])(void);
+//
+// data/return stack ops
+//
+#define	_pop()		(top = stack[(U8)S--])
+#define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
+#define	_popR()     (rack[(U8)R--])
+#define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
+
 #endif // __EFORTH_SRC_EFORTH_H
