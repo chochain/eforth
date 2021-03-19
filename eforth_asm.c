@@ -14,48 +14,59 @@ int DOTQ, STRQ, TOR, NOP;
 //
 // return stack for branching ops
 //
+U8  *aByte     = 0;                           //
 U32 aRack[64] = { 0 };                        // return stack
 U8  aR        = 0;                            // return stack index
-U32 aThread;                                  // pointer to previous word
+U32 aP, aThread;                              // pointer to previous word
 //
 // stack op macros
 //
-#define SET(d, v)      (*(U32*)&byte[d]=(v))
-#define DATA(v)        { SET(P, (v)); P+=4; }
+#define SET(d, v)      (*(U32*)(aByte+d)=(v))
+#define DATA(v)        { SET(aP, (v)); aP+=4; }
 #define	PUSH(v)        (aRack[++aR] = (U32)(v))
 #define	POP()          (aRack[aR--])
+//
+// tracing/logging macros
+//
+#if    ASSEM_DUMP
+#define DEBUG(s, v)     printf(s, v)
+#define SHOWOP(op)      printf("\n%04x: %s\t", aP, op)
+#else  // ASSEM_DUMP
+#define DEBUG(s, v)
+#define SHOWOP(op)
+#endif // ASSEM_DUMP
 
 void _dump(int b, int u) {
 	// dump memory between previous word and this
 	DEBUG("%s", "\n    :");
-	for (int i=(b>>2); b && i<(u>>2); i++) {
-		DEBUG(" %08x", data[i]);
+	for (int i=b; b && i<u; i+=4) {
+		DEBUG(" %08x", *(U32*)(aByte+i));
 	}
 	DEBUG("%c", '\n');
 }
 void _header(int lex, const char *seq) {
 	DATA(aThread);                            // point to previous word
-	_dump(aThread, P);                        // dump data from previous word to current word
-	aThread = P;                              // keep pointer to this word
+	_dump(aThread, aP);                       // dump data from previous word to current word
+	aThread = aP;                             // keep pointer to this word
 
-	byte[P++] = lex;                          // length of word (with optional fIMMED or fCOMPO flags)
+	aByte[aP++] = lex;                        // length of word (with optional fIMMED or fCOMPO flags)
 	U32 len = lex & 0x1f;                     // Forth allows word max length 31
 	for (U32 i = 0; i < len; i++) {           // memcpy word string
-		byte[P++] = seq[i];
+		aByte[aP++] = seq[i];
 	}
-	while (P & 3) { byte[P++] = 0; }          // padding 4-byte align
+	while (aP & 3) { aByte[aP++] = 0; }       // padding 4-byte align
 
-	DEBUG("%04x: ", P);
+	DEBUG("%04x: ", aP);
 	DEBUG("%s", seq);
 }
 int _code(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-	int addr = P;                             // keep address of current word
+	int addr = aP;                            // keep address of current word
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {                      // copy bytecodes
 		U8 b = (U8)va_arg(argList, int);
-		byte[P++] = b;
+		aByte[aP++] = b;
 		DEBUG(" %02x", b);
 	}
 	va_end(argList);
@@ -75,7 +86,7 @@ int _code(const char *seg, int len, ...) {
 int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
 	DEBUG("%s", " 0006");
-	int addr = P;
+	int addr = aP;
 	DATA(opDOLIST);
 	DATACPY(len);
 	return addr;
@@ -83,21 +94,21 @@ int _colon(const char *seg, int len, ...) {
 int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
 	DEBUG("%s", " 0006");
-	int addr = P;
+	int addr = aP;
 	DATA(opDOLIST);
     DATACPY(len);
 	return addr;
 }
 int _label(int len, ...) {
 	SHOWOP("LABEL");
-	int addr = P;
+	int addr = aP;
 	// label has no opcode here
     DATACPY(len);
 	return addr;
 }
 void _begin(int len, ...) {
 	SHOWOP("BEGIN");
-	PUSH(P);                       // keep current address for looping
+	PUSH(aP);                      // keep current address for looping
     DATACPY(len);
 }
 void _again(int len, ...) {
@@ -117,7 +128,7 @@ void _while(int len, ...) {
 	DATA(QBRAN);
 	DATA(0);                       // branching address
 	int k = POP();
-	PUSH(P - 4);
+	PUSH(aP - 4);
 	PUSH(k);
     DATACPY(len);
 }
@@ -125,13 +136,13 @@ void _repeat(int len, ...) {
 	SHOWOP("REPEAT");
 	DATA(BRAN);
 	DATA(POP());
-	SET(POP(), P);
+	SET(POP(), aP);
     DATACPY(len);
 }
 void _if(int len, ...) {
 	SHOWOP("IF");
 	DATA(QBRAN);
-	PUSH(P);                       // keep for ELSE-THEN
+	PUSH(aP);                      // keep for ELSE-THEN
 	DATA(0);                       // reserved for branching address
     DATACPY(len);
 }
@@ -139,19 +150,19 @@ void _else(int len, ...) {
 	SHOWOP("ELSE");
 	DATA(BRAN);
 	DATA(0);
-	SET(POP(), P);
-	PUSH(P - 4);
+	SET(POP(), aP);
+	PUSH(aP - 4);
     DATACPY(len);
 }
 void _then(int len, ...) {
 	SHOWOP("THEN");
-	SET(POP(), P);
+	SET(POP(), aP);
     DATACPY(len);
 }
 void _for(int len, ...) {
 	SHOWOP("FOR");
 	DATA(TOR);
-	PUSH(P);
+	PUSH(aP);
     DATACPY(len);
 }
 void _nxt(int len, ...) {          // _next() is multi-defined in vm
@@ -165,18 +176,18 @@ void _aft(int len, ...) {
 	DATA(BRAN);
 	DATA(0);
 	POP();
-	PUSH(P);
-	PUSH(P - 4);
+	PUSH(aP);
+	PUSH(aP - 4);
     DATACPY(len);
 }
 #define STRCPY(op, seq) {              \
     DATA(op);                          \
 	int len = strlen(seq);             \
-	byte[P++] = len;                   \
+	aByte[aP++] = len;                 \
 	for (int i = 0; i < len; i++) {    \
-		byte[P++] = seq[i];            \
+		aByte[aP++] = seq[i];          \
 	}                                  \
-	while (P & 3) { byte[P++] = 0; }   \
+	while (aP & 3) { aByte[aP++] = 0; }\
 	}
 void _DOTQ(const char *seq) {
 	SHOWOP("DOTQ");
@@ -194,9 +205,10 @@ void _ABORTQ(const char *seq) {
 	STRCPY(ABORTQ, seq);
 }
 
-void assemble() {
-	P  = FORTH_DIC_ADDR;
-	aR = aThread = 0;
+int assemble(U8 *rom) {
+	aByte = rom;
+	aP    = FORTH_DIC_ADDR;
+	aR    = aThread = 0;
     //
 	// Kernel variables (in bytecode streams)
 	// FORTH_TIB_ADDR = 0x80
@@ -638,13 +650,13 @@ void assemble() {
 	//
 	// End of dictionary
 	//
-	int DICEND = P;
+	int DICEND = aP;
 
-	DEBUG("IZ=%04x", P);
+	DEBUG("IZ=%04x", aP);
     DEBUG(" R=%02x", (POP() << 2));
 
 	// Setup Boot Vector
-	P = FORTH_BOOT_ADDR;
+	aP = FORTH_BOOT_ADDR;
 	int RESET = _LABEL(opDOLIST, COLD);
 	//
 	// Forth internal (user) variables
@@ -658,7 +670,9 @@ void assemble() {
 	//   ABORT   = QUIT
 	//   tmp     = 0
 	//
-	P = FORTH_UVAR_ADDR;
+	aP = FORTH_UVAR_ADDR;
 	int USER  = _LABEL(FORTH_BUF_SIZE, 0x10, IMMED - 12, DICEND, IMMED - 12, INTER, QUIT, 0);
+
+	return DICEND;
 }
 
