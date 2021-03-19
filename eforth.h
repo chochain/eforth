@@ -6,7 +6,7 @@
 //
 // debugging flags
 //
-#define ASSEM_DUMP   0
+#define ASSEM_DUMP   1
 #define FORTH_TRACE  1
 //
 // portable types
@@ -112,7 +112,7 @@ enum {
     opMIN         // 63
 };
 
-struct {
+typedef struct {
 	U8  R, S;              // return stack index, data stack index
 	U32 P, IP, WP;         // P (program counter), IP (intruction pointer), WP (parameter pointer)
 	U32 thread;            // pointer to previous word
@@ -120,7 +120,7 @@ struct {
 	void (*vtbl[64])();    // opcode vtable
 } vmState;
 
-struct {
+typedef struct {
 	U32 rack[256];         // return stack
 	S32 stack[256];        // data stack
 	U32	data[16000];       // main memory block
