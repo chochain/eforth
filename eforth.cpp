@@ -23,9 +23,14 @@
 #include <stdio.h>
 #include "eforth.h"
 
-extern "C" void assemble();
+extern "C" int  assemble(U8 *rom);
+extern "C" void vm_init(U8 *rom);
+extern "C" void vm_run();
 
-void dump_data(int len) {
+U32 data[16000] = {};           			// 64K forth memory block
+
+void dump_data(U8* byte, int len) {
+#if DATA_DUMP
     for (int p=0; p<len; p+=0x20) {
         printf("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
@@ -38,20 +43,19 @@ void dump_data(int len) {
             printf("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
         }
     }
+#endif // DATA_DUMP
 }
 
 int main(int ac, char* av[])
 {
+	U8 *rom = (U8*)data;
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
 
-	assemble();
-	dump_data(0x2000);
+	int sz  = assemble(rom);
+	dump_data(rom, sz+0x20);
 
-	printf("\n%s\n", "ceForth v4.0");
-	R  = S = P = IP = top = 0;
-	WP = 4;
-	for (;;) {
-		primitives[byte[P++]]();            // walk bytecode stream
-	}
+	printf("\nceForth v4.0 ROM[%04x]\n", sz);
+	vm_init(rom);
+	vm_run();
 }
 

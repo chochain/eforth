@@ -7,6 +7,7 @@
 // debugging flags
 //
 #define ASSEM_DUMP   1
+#define DATA_DUMP    1
 #define FORTH_TRACE  0
 //
 // portable types
@@ -32,16 +33,6 @@ typedef int8_t    S8;
 
 #define	FALSE	         0
 #define	TRUE	         -1
-//
-// tracing/logging macros
-//
-#if    ASSEM_DUMP
-#define DEBUG(s, v)     printf(s, v)
-#define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
-#else  // ASSEM_DUMP
-#define DEBUG(s, v)
-#define SHOWOP(op)
-#endif // ASSEM_DUMP
 //
 // Forth VM Opcodes (for Bytecode Assembler)
 //
@@ -126,19 +117,5 @@ typedef struct {
 	U32	data[16000];       // main memory block
 	U8  *byte;             // byte stream pointer to data[]
 } efHeap;
-//
-// shared variables
-//
-extern U8  R, S;           // return stack and data stack indices
-extern U32 P, IP, WP;      // program counter, instruction pointer, and parameter pointer
-extern U32 thread;         // previous word pointer
-extern S32 top;            // value on top of stack (cache)
-
-extern U32 data[];         // main heap
-extern U32 rack[];         // return stack
-extern S32 stack[];        // data stack
-extern U8  *byte;          // heap byte pointer
-
-extern void (*primitives[])();  // virtual machine vtable
 
 #endif // __EFORTH_SRC_EFORTH_H
