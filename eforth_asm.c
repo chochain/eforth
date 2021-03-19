@@ -256,8 +256,8 @@ void _ABORQ(const char *seq) {
 void assemble() {
 	P = FORTH_DIC_ADDR;
 	R = thread = 0;
-
-	// Kernel (user variables for input)
+    //
+	// Kernel variables (in bytecode streams)
 	// FORTH_TIB_ADDR = 0x80
 	//
 	int ta    = FORTH_TIB_ADDR;
@@ -274,8 +274,9 @@ void assemble() {
 	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, va+20, 0, 0, 0);
 	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, va+24, 0, 0, 0);
 	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, va+28, 0, 0, 0);
-
+	//
 	// Kernel dictionary (primitive proxies)
+	//
 	    NOP   = _CODE("NOP",     opNOP,   opNEXT, 0, 0);
 	int BYE   = _CODE("BYE",     opBYE,   opNEXT, 0, 0);
 	int QRX   = _CODE("?RX",     opQRX,   opNEXT, 0, 0);
@@ -357,9 +358,9 @@ void assemble() {
     int trc_on  = NOP;
     int trc_off = NOP;
 #endif // FORTH_TRACE
-
-	// Common Colon Words
-
+	//
+	// Common Colon Words (in word streams)
+	//
 	int QKEY  = _COLON("?KEY",  QRX, EXIT);
 	int KEY   = _COLON("KEY",   NOP); {
         _BEGIN(QKEY);
@@ -397,9 +398,9 @@ void assemble() {
         _THEN(NOP);
         _NEXT(DDROP, EXIT);
     }
-
+	//
 	// Number Conversions
-
+	//
 	int DIGIT = _COLON("DIGIT",   DOLIT, 9, OVER, LESS, DOLIT, 7, AND, PLUS, DOLIT, 0x30, PLUS, EXIT);
 	int EXTRC = _COLON("EXTRACT", DOLIT, 0, SWAP, UMMOD, SWAP, DIGIT, EXIT);
 	int BDIGS = _COLON("<#",      PAD, vHLD, STORE, EXIT);
@@ -442,9 +443,9 @@ void assemble() {
         }
         _THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
     }
-
+	//
 	// Terminal Output
-
+	//
 	int SPACE = _COLON("SPACE", BLANK, EMIT, EXIT);
 	int CHARS = _COLON("CHARS", SWAP, DOLIT, 0, MAX); {
         _FOR(NOP);
@@ -482,14 +483,13 @@ void assemble() {
                 _NEXT(RFROM, DROP, DOLIT, 0, DUP, EXIT);
                 _THEN(RFROM);
             }
-            _THEN(OVER, SWAP); {
-                _FOR(vTEMP, CAT, OVER, CAT, SUB, vTEMP, CAT, BLANK, EQUAL); {
-                    _IF(ZLESS);
-                    _THEN(NOP);
-                }
-                _WHILE(ONEP);
-                _NEXT(DUP, TOR);
+            _THEN(OVER, SWAP);
+            _FOR(vTEMP, CAT, OVER, CAT, SUB, vTEMP, CAT, BLANK, EQUAL); {
+                _IF(ZLESS);
+                _THEN(NOP);
             }
+            _WHILE(ONEP);
+            _NEXT(DUP, TOR);
         }
         _ELSE(RFROM, DROP, DUP, ONEP, TOR);
         _THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);
@@ -523,9 +523,9 @@ void assemble() {
         _REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);
     }
 	int NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
-
+	//
 	// Terminal Input
-
+	//
 	int HATH  = _COLON("^H", TOR, OVER, RFROM, SWAP, OVER, XOR); {
         _IF(DOLIT, 8, EMIT, ONEM, BLANK, EMIT, DOLIT, 8, EMIT);
         _THEN(EXIT);
@@ -550,9 +550,9 @@ void assemble() {
     }
 	int EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
 	int QUERY = _COLON("QUERY",  TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
-
+	//
 	// Text Interpreter
-
+	//
 	int ABORT = _COLON("ABORT", vTABRT, ATEXE);
 	ABORQP = _COLON("abort\"",  NOP); {
         _IF(DOSTR, COUNT, TYPE, ABORT);
@@ -588,9 +588,9 @@ void assemble() {
         _BEGIN(QUERY, EVAL);
         _AGAIN(NOP);
     }
-
+	//
 	// Colon Word Compiler
-
+	//
 	int COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);
 	int LITER = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
 	int ALLOT = _COLON("ALLOT",   ALIGN, vCP, PSTOR, EXIT);
@@ -625,20 +625,20 @@ void assemble() {
 	int RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
 	int COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXIT);
 	int SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
-
+	//
 	// Debugging Tools
-
+	//
 	int DMP   = _COLON("dm+", OVER, DOLIT, 6, UDOTR); {
         _FOR(NOP);
         _AFT(DUP, AT, DOLIT, 9, UDOTR, CELLP);
         _THEN(NOP);
         _NEXT(EXIT);
     }
-	int DUMP  = _COLON("DUMP", vBASE, AT, TOR, HEX, DOLIT, 0x1f, PLUS, DOLIT, 0x20, SLASH); {
+	int DUMP  = _COLON("DUMP", vBASE, AT, TOR, HEX, DOLIT, 0x1f, PLUS, DOLIT, 0x20, SLASH); {              // 
         _FOR(NOP);
         _AFT(CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPE, RFROM);
         _THEN(NOP);
-        _NEXT(DROP, RFROM, vBASE, STORE, EXIT);
+        _NEXT(DROP, RFROM, vBASE, STORE, EXIT);    // restore BASE
     }
 	int TNAME = _COLON(">NAME", vCNTX); {
         _BEGIN(AT, DUP);
@@ -665,9 +665,9 @@ void assemble() {
     }
 	int COLD  = _COLON("COLD", CR); {  _DOTQ("eForth in C v4.0"); }
 	int DOTQ1 = _LABEL(CR, QUIT);
-
+	//
 	// Structure Compiler
-
+	//
 	int iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
     int iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
 	int iBEGIN = _IMMED("BEGIN",   HERE, EXIT);
@@ -694,6 +694,9 @@ void assemble() {
 	int iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
 	int IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
+	//
+	// End of dictionary
+	//
 	int DICEND = P;
 
 	DEBUG("IZ=%04x", P);

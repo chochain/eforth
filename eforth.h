@@ -6,8 +6,8 @@
 //
 // debugging flags
 //
-#define ASSEM_DUMP   1
-#define FORTH_TRACE  1
+#define ASSEM_DUMP   0
+#define FORTH_TRACE  0
 //
 // portable types
 //
@@ -117,15 +117,15 @@ typedef struct {
 	U32 P, IP, WP;         // P (program counter), IP (intruction pointer), WP (parameter pointer)
 	U32 thread;            // pointer to previous word
 	S32 top0;              // stack top value (cache)
-	void (*vtbl[64])();    // opcode vtable
-} vmState;
+	void (*vtbl[])();      // opcode vtable
+} efState;
 
 typedef struct {
 	U32 rack[256];         // return stack
 	S32 stack[256];        // data stack
 	U32	data[16000];       // main memory block
 	U8  *byte;             // byte stream pointer to data[]
-} vmHeap;
+} efHeap;
 //
 // shared variables
 //
