@@ -1,35 +1,42 @@
 #include <stdarg.h>
 #include "eforth.h"
+#include "eforth_asm.h"
 //
 // Forth Macro Assembler
 //
 #define fIMMED  0x80                          // immediate flag
 #define fCOMPO  0x40                          // composit flag
 //
+// variables to keep branching addresses
+//
+int BRAN, QBRAN, DONXT, ABORTQ;
+int DOTQ, STRQ, TOR, NOP;
+//
+// return stack for branching ops
+//
+U32 asm_rack[64] = { 0 };                     // return stack
+U8  asm_R        = 0;                         // return stack index
+U32 asm_thread;                               // pointer to previous word
+//
 // stack op macros
 //
-#define	_pushR(v) (rack[(U8)++R] = (U32)(v))
-#define	_popR()   (rack[(U8)R--])
-//
-// address variable (which are needed by other macros)
-//
-int BRAN, QBRAN, DONXT, DOTQP, STRQP, TOR, ABORTQ;
-int NOP;
+#define	_pushR(v) (asm_rack[++asm_R] = (U32)(v))
+#define	_popR()   (asm_rack[asm_R--])
 
 void _header(int lex, const char *seq) {
 	IP = P >> 2;
 	U32 len = lex & 0x1f;                     // max length 31
-	data[IP++] = thread;                      // point to previous word
+	data[IP++] = asm_thread;                  // point to previous word
 
 	// dump memory between previous word and this
 	DEBUG("%s", "\n    :");
-	for (U32 i = thread>>2; thread && i < IP; i++) {
+	for (U32 i = asm_thread>>2; asm_thread && i < IP; i++) {
 		DEBUG(" %08x", data[i]);
 	}
 	DEBUG("%c", '\n');
 
 	P = IP << 2;
-	thread = P;                               // keep pointer to this word
+	asm_thread = P;                           // keep pointer to this word
 	byte[P++] = lex;                          // length of word
 	for (U32 i = 0; i < len; i++) {           // memcpy word string
 		byte[P++] = seq[i];
@@ -201,61 +208,22 @@ void _aft(int len, ...) {
 void _DOTQ(const char *seq) {
 	SHOWOP("DOTQ");
 	DEBUG("%s", seq);
-	STRCPY(DOTQP, seq);
+	STRCPY(DOTQ, seq);
 }
 void _STRQ(const char *seq) {
 	SHOWOP("STRQ");
 	DEBUG("%s", seq);
-	STRCPY(STRQP, seq);
+	STRCPY(STRQ, seq);
 }
 void _ABORTQ(const char *seq) {
 	SHOWOP("ABORTQ");
 	DEBUG("%s", seq);
 	STRCPY(ABORTQ, seq);
 }
-//
-// variable length parameter handler macros
-//
-#define _ARG_N(                                            \
-          _1,  _2,  _3,  _4,  _5,  _6,  _7,  _8,  _9, _10, \
-         _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
-         _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, \
-         _31, _32, _33, _34, _35, _36, _37, _38, _39, _40, \
-         _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, \
-         _51, _52, _53, _54, _55, _56, _57, _58, _59, _60, \
-         _61, _62, _63, N, ...) N
-#define _NUM_N()                                           \
-         62, 61, 60,                                       \
-         59, 58, 57, 56, 55, 54, 53, 52, 51, 50,           \
-         49, 48, 47, 46, 45, 44, 43, 42, 41, 40,           \
-         39, 38, 37, 36, 35, 34, 33, 32, 31, 30,           \
-         29, 28, 27, 26, 25, 24, 23, 22, 21, 20,           \
-         19, 18, 17, 16, 15, 14, 13, 12, 11, 10,           \
-          9,  8,  7,  6,  5,  4,  3,  2,  1,  0
-#define _NARG0(...)          _ARG_N(__VA_ARGS__)
-#define _NARG(...)           _NARG0(_, ##__VA_ARGS__, _NUM_N())
-//
-// assembler macros
-//
-#define _CODE(seg, ...)      _code(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
-#define _COLON(seg, ...)     _colon(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
-#define _IMMED(seg, ...)     _immed(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
-#define _LABEL(...)          _label(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _BEGIN(...)          _begin(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _AGAIN(...)          _again(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _UNTIL(...)          _until(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _WHILE(...)          _while(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _REPEAT(...)         _repeat(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _IF(...)             _if(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _ELSE(...)           _else(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _THEN(...)           _then(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _FOR(...)            _for(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
 void assemble() {
 	P = FORTH_DIC_ADDR;
-	R = thread = 0;
+	R = asm_thread = 0;
     //
 	// Kernel variables (in bytecode streams)
 	// FORTH_TIB_ADDR = 0x80
@@ -297,7 +265,7 @@ void assemble() {
 	int CAT   = _CODE("C@",      opCAT,   opNEXT, 0, 0);
 	int RFROM = _CODE("R>",      opRFROM, opNEXT, 0, 0);
 	int RAT   = _CODE("R@",      opRAT,   opNEXT, 0, 0);
-	TOR       = _CODE(">R",      opTOR,   opNEXT, 0, 0);
+	    TOR   = _CODE(">R",      opTOR,   opNEXT, 0, 0);
 	int DROP  = _CODE("DROP",    opDROP,  opNEXT, 0, 0);
 	int DUP   = _CODE("DUP",     opDUP,   opNEXT, 0, 0);
 	int SWAP  = _CODE("SWAP",    opSWAP,  opNEXT, 0, 0);
@@ -462,8 +430,8 @@ void assemble() {
     }
 	int CR    = _COLON("CR",    DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
 	int DOSTR = _COLON("do$",   RFROM, RAT, RFROM, COUNT, PLUS, ALIGN, TOR, SWAP, TOR, EXIT);
-	int STRQP = _COLON("$\"|",  DOSTR, EXIT);
-	DOTQP     = _COLON(".\"|",  trc_off, DOSTR, COUNT, TYPE, trc_on, EXIT);
+	int STRQ  = _COLON("$\"|",  DOSTR, EXIT);
+	    DOTQ  = _COLON(".\"|",  trc_off, DOSTR, COUNT, TYPE, trc_on, EXIT);
 	int DOTR  = _COLON(".R",    TOR, STR, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOTR = _COLON("U.R",   TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOT  = _COLON("U.",    BDIGS, DIGS, EDIGS, SPACE, TYPE, EXIT);
@@ -682,8 +650,8 @@ void assemble() {
 	int iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
 	int iWHILE = _IMMED("WHILE",   iIF, SWAP, EXIT);
 	int iABRTQ = _IMMED("ABORT\"", DOLIT, ABORTQ, HERE, STORE, STRCQ, EXIT);
-	int iSTRQ  = _IMMED("$\"",     DOLIT, STRQP, HERE, STORE, STRCQ, EXIT);
-	int iDOTQQ = _IMMED(".\"",     DOLIT, DOTQP, HERE, STORE, STRCQ, EXIT);
+	int iSTRQ  = _IMMED("$\"",     DOLIT, STRQ, HERE, STORE, STRCQ, EXIT);
+	int iDOTQ  = _IMMED(".\"",     DOLIT, DOTQ, HERE, STORE, STRCQ, EXIT);
 
 	int CODE   = _COLON("CODE",    TOKEN, SNAME, OVERT, EXIT);
 	int CREAT  = _COLON("CREATE",  CODE, DOLIT, ((opNEXT<<8)|opDOVAR), COMMA, EXIT);

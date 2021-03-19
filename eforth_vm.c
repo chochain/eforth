@@ -5,7 +5,6 @@
 //
 U8  R=0, S=0;                   // return stack index, data stack index
 U32 P, IP, WP;                  // P (program counter), IP (intruction pointer), WP (parameter pointer)
-U32 thread;                     // pointer to previous word
 S32 top = 0;                    // stack top value (cache)
 //
 // Forth VM core storage
@@ -19,8 +18,6 @@ U8* byte        = (U8*)data;    // linear byte array pointer
 //
 #define	_pop()		(top = stack[(U8)S--])
 #define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
-#define	_popR()     (rack[(U8)R--])
-#define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
 //
 // tracing instrumentation
 //
