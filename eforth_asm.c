@@ -14,46 +14,49 @@ int DOTQ, STRQ, TOR, NOP;
 //
 // return stack for branching ops
 //
-U32 asm_rack[64] = { 0 };                     // return stack
-U8  asm_R        = 0;                         // return stack index
-U32 asm_thread;                               // pointer to previous word
+U32 aRack[64] = { 0 };                        // return stack
+U8  aR        = 0;                            // return stack index
+U32 aThread;                                  // pointer to previous word
 //
 // stack op macros
 //
-#define	_pushR(v) (asm_rack[++asm_R] = (U32)(v))
-#define	_popR()   (asm_rack[asm_R--])
+#define SET(d, v)      (*(U32*)&byte[d]=(v))
+#define DATA(v)        { SET(P, (v)); P+=4; }
+#define	PUSH(v)        (aRack[++aR] = (U32)(v))
+#define	POP()          (aRack[aR--])
 
-void _header(int lex, const char *seq) {
-	IP = P >> 2;
-	U32 len = lex & 0x1f;                     // max length 31
-	data[IP++] = asm_thread;                  // point to previous word
-
+void _dump(int b, int u) {
 	// dump memory between previous word and this
 	DEBUG("%s", "\n    :");
-	for (U32 i = asm_thread>>2; asm_thread && i < IP; i++) {
+	for (int i=(b>>2); b && i<(u>>2); i++) {
 		DEBUG(" %08x", data[i]);
 	}
 	DEBUG("%c", '\n');
+}
+void _header(int lex, const char *seq) {
+	DATA(aThread);                            // point to previous word
+	_dump(aThread, P);                        // dump data from previous word to current word
+	aThread = P;                              // keep pointer to this word
 
-	P = IP << 2;
-	asm_thread = P;                           // keep pointer to this word
-	byte[P++] = lex;                          // length of word
+	byte[P++] = lex;                          // length of word (with optional fIMMED or fCOMPO flags)
+	U32 len = lex & 0x1f;                     // Forth allows word max length 31
 	for (U32 i = 0; i < len; i++) {           // memcpy word string
 		byte[P++] = seq[i];
 	}
 	while (P & 3) { byte[P++] = 0; }          // padding 4-byte align
+
 	DEBUG("%04x: ", P);
 	DEBUG("%s", seq);
 }
 int _code(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-	int addr = P;
+	int addr = P;                             // keep address of current word
 	va_list argList;
 	va_start(argList, len);
-	for (; len; len--) {
-		U8 j = (U8)va_arg(argList, int);
-		byte[P++] = j;
-		DEBUG(" %02x", j);
+	for (; len; len--) {                      // copy bytecodes
+		U8 b = (U8)va_arg(argList, int);
+		byte[P++] = b;
+		DEBUG(" %02x", b);
 	}
 	va_end(argList);
 	return addr;
@@ -64,7 +67,7 @@ int _code(const char *seg, int len, ...) {
 	for (; n; n--) {                  \
 		U32 j = va_arg(argList, U32); \
 		if (j==NOP) continue;         \
-		data[IP++] = j;               \
+		DATA(j);                      \
 		DEBUG(" %04x", j);            \
 	}                                 \
 	va_end(argList);                  \
@@ -73,131 +76,101 @@ int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
 	DEBUG("%s", " 0006");
 	int addr = P;
-	IP = P >> 2;
-	data[IP++] = opDOLIST;
+	DATA(opDOLIST);
 	DATACPY(len);
-	P = IP << 2;
 	return addr;
 }
 int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
 	DEBUG("%s", " 0006");
 	int addr = P;
-	IP = P >> 2;
-	data[IP++] = opDOLIST;
+	DATA(opDOLIST);
     DATACPY(len);
-	P = IP << 2;
 	return addr;
 }
 int _label(int len, ...) {
 	SHOWOP("LABEL");
 	int addr = P;
-	IP = P >> 2;
 	// label has no opcode here
     DATACPY(len);
-	P = IP << 2;
 	return addr;
 }
 void _begin(int len, ...) {
 	SHOWOP("BEGIN");
-	IP = P >> 2;
-	_pushR(IP);                   // keep current address for looping
+	PUSH(P);                       // keep current address for looping
     DATACPY(len);
-	P = IP << 2;
 }
 void _again(int len, ...) {
 	SHOWOP("AGAIN");
-	IP = P >> 2;
-	data[IP++] = BRAN;
-	data[IP++] = _popR() << 2;    // loop begin address
+	DATA(BRAN);
+	DATA(POP());                   // store return address
     DATACPY(len);
-	P = IP << 2;
 }
 void _until(int len, ...) {
 	SHOWOP("UNTIL");
-	IP = P >> 2;
-	data[IP++] = QBRAN;           // conditional branch
-	data[IP++] = _popR() << 2;    // loop begin address
+	DATA(QBRAN);                   // conditional branch
+	DATA(POP());                   // loop begin address
     DATACPY(len);
-	P = IP << 2;
 }
 void _while(int len, ...) {
 	SHOWOP("WHILE");
-	IP = P >> 2;
-	data[IP++] = QBRAN;           // conditional branch
-	data[IP++] = 0;
-	int k = _popR();
-	_pushR(IP - 1);
-	_pushR(k);
+	DATA(QBRAN);
+	DATA(0);                       // branching address
+	int k = POP();
+	PUSH(P - 4);
+	PUSH(k);
     DATACPY(len);
-	P = IP << 2;
 }
 void _repeat(int len, ...) {
 	SHOWOP("REPEAT");
-	IP = P >> 2;
-	data[IP++] = BRAN;
-	data[IP++] = _popR() << 2;    // loop begin address
-	data[_popR()] = IP << 2;
+	DATA(BRAN);
+	DATA(POP());
+	SET(POP(), P);
     DATACPY(len);
-	P = IP << 2;
 }
 void _if(int len, ...) {
 	SHOWOP("IF");
-	IP = P >> 2;
-	data[IP++] = QBRAN;
-	_pushR(IP);
-	data[IP++] = 0;
+	DATA(QBRAN);
+	PUSH(P);                       // keep for ELSE-THEN
+	DATA(0);                       // reserved for branching address
     DATACPY(len);
-	P = IP << 2;
 }
 void _else(int len, ...) {
 	SHOWOP("ELSE");
-	IP = P >> 2;
-	data[IP++] = BRAN;
-	data[IP++] = 0;
-	data[_popR()] = IP << 2;
-	_pushR(IP - 1);
+	DATA(BRAN);
+	DATA(0);
+	SET(POP(), P);
+	PUSH(P - 4);
     DATACPY(len);
-	P = IP << 2;
 }
 void _then(int len, ...) {
 	SHOWOP("THEN");
-	IP = P >> 2;
-	data[_popR()] = IP << 2;
+	SET(POP(), P);
     DATACPY(len);
-	P = IP << 2;
 }
 void _for(int len, ...) {
 	SHOWOP("FOR");
-	IP = P >> 2;
-	data[IP++] = TOR;
-	_pushR(IP);
+	DATA(TOR);
+	PUSH(P);
     DATACPY(len);
-	P = IP << 2;
 }
 void _nxt(int len, ...) {          // _next() is multi-defined in vm
 	SHOWOP("NEXT");
-	IP = P >> 2;
-	data[IP++] = DONXT;
-	data[IP++] = _popR() << 2;
+	DATA(DONXT);
+	DATA(POP());
     DATACPY(len);
-	P = IP << 2;
 }
 void _aft(int len, ...) {
 	SHOWOP("AFT");
-	IP = P >> 2;
-	data[IP++] = BRAN;
-	data[IP++] = 0;
-	_popR();
-	_pushR(IP);
-	_pushR(IP - 1);
+	DATA(BRAN);
+	DATA(0);
+	POP();
+	PUSH(P);
+	PUSH(P - 4);
     DATACPY(len);
-	P = IP << 2;
 }
 #define STRCPY(op, seq) {              \
-	IP = P >> 2;                       \
-    data[IP++] = op;                   \
-    P  = IP << 2;                      \
+    DATA(op);                          \
 	int len = strlen(seq);             \
 	byte[P++] = len;                   \
 	for (int i = 0; i < len; i++) {    \
@@ -222,8 +195,8 @@ void _ABORTQ(const char *seq) {
 }
 
 void assemble() {
-	P = FORTH_DIC_ADDR;
-	R = asm_thread = 0;
+	P  = FORTH_DIC_ADDR;
+	aR = aThread = 0;
     //
 	// Kernel variables (in bytecode streams)
 	// FORTH_TIB_ADDR = 0x80
@@ -668,7 +641,7 @@ void assemble() {
 	int DICEND = P;
 
 	DEBUG("IZ=%04x", P);
-    DEBUG(" R=%02x", (_popR() << 2));
+    DEBUG(" R=%02x", (POP() << 2));
 
 	// Setup Boot Vector
 	P = FORTH_BOOT_ADDR;
