@@ -13,7 +13,7 @@
 //
 // address variable (which are needed by other macros)
 //
-int BRAN, QBRAN, DONXT, DOTQP, STRQP, TOR, ABORQP;
+int BRAN, QBRAN, DONXT, DOTQP, STRQP, TOR, ABORTQ;
 int NOP;
 
 void _header(int lex, const char *seq) {
@@ -208,10 +208,10 @@ void _STRQ(const char *seq) {
 	DEBUG("%s", seq);
 	STRCPY(STRQP, seq);
 }
-void _ABORQ(const char *seq) {
-	SHOWOP("ABORQP");
+void _ABORTQ(const char *seq) {
+	SHOWOP("ABORTQ");
 	DEBUG("%s", seq);
-	STRCPY(ABORQP, seq);
+	STRCPY(ABORTQ, seq);
 }
 //
 // variable length parameter handler macros
@@ -553,15 +553,15 @@ void assemble() {
 	//
 	// Text Interpreter
 	//
-	int ABORT = _COLON("ABORT", vTABRT, ATEXE);
-	ABORQP = _COLON("abort\"",  NOP); {
+	int ABORT  = _COLON("ABORT", vTABRT, ATEXE);
+	    ABORTQ = _COLON("abort\"",  NOP); {
         _IF(DOSTR, COUNT, TYPE, ABORT);
         _THEN(DOSTR, DROP, EXIT);
     }
 	int ERROR = _COLON("ERROR",      SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
 	int INTER = _COLON("$INTERPRET", NAMEQ, QDUP); {
         _IF(CAT, DOLIT, fCOMPO, AND);
-        _ABORQ(" compile only");
+        _ABORTQ(" compile only");
     }
 	int INTER0= _LABEL(EXECU, EXIT); {
         _THEN(NUMBQ);
@@ -681,7 +681,7 @@ void assemble() {
 	int iELSE  = _IMMED("ELSE",    iAHEAD, SWAP, iTHEN, EXIT);
 	int iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
 	int iWHILE = _IMMED("WHILE",   iIF, SWAP, EXIT);
-	int iABRTQ = _IMMED("ABORT\"", DOLIT, ABORQP, HERE, STORE, STRCQ, EXIT);
+	int iABRTQ = _IMMED("ABORT\"", DOLIT, ABORTQ, HERE, STORE, STRCQ, EXIT);
 	int iSTRQ  = _IMMED("$\"",     DOLIT, STRQP, HERE, STORE, STRCQ, EXIT);
 	int iDOTQQ = _IMMED(".\"",     DOLIT, DOTQP, HERE, STORE, STRCQ, EXIT);
 
