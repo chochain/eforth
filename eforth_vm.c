@@ -11,13 +11,13 @@ S32 top = 0;                    // stack top value (cache)
 //
 U32 rack[256]   = { 0 };        // return stack
 S32 stack[256]  = { 0 };        // data stack
-U32 data[16000] = {};           // 64K forth memory block
-U8* byte        = (U8*)data;    // linear byte array pointer
+U8* byte        = 0;            // linear byte array pointer
 //
 // data and return stack ops
 //
 #define	_pop()		(top = stack[(U8)S--])
 #define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
+#define DATA(ip)    (*(U32*)(byte+(ip)))
 //
 // tracing instrumentation
 //
@@ -87,7 +87,7 @@ void _txsto()               // (c -- ) send a char to console
 }
 void _next()                // advance instruction pointer
 {
-	P  = data[IP >> 2];		// fetch next address
+	P  = DATA(IP);	        // fetch next address
 	TRACE_WORD(P);
 	WP = P + 4;             // parameter pointer (used optionally)
 	IP += 4;
@@ -98,11 +98,11 @@ void _dovar()               // ( -- a) return address of a variable
 }
 void _docon()               // ( -- n) push next token onto data stack as constant
 {
-	_push(data[WP >> 2]);
+	_push(DATA(WP));
 }
 void _dolit()               // ( -- w) push next token as an integer literal
 {
-	S32 v = data[IP >> 2];
+	S32 v = DATA(IP);
 	TRACE(" %d", v);
 	_push(v);
 	IP += 4;
@@ -131,7 +131,7 @@ void _donext()              // ( -- ) terminate a FOR-NEXT loop
 {
 	if (rack[(U8)R]) {
 		rack[(U8)R] -= 1;
-		IP = data[IP >> 2];
+		IP = DATA(IP);
 	}
 	else {
 		IP += 4;
@@ -142,23 +142,23 @@ void _donext()              // ( -- ) terminate a FOR-NEXT loop
 void _qbran()               // (f -- ) test top as a flag on data stack
 {
 	if (top) IP += 4;
-    else     IP = data[IP >> 2];
+    else     IP = DATA(IP);
 	_pop();
     _next();
 }
 void _bran()                // ( -- ) branch to address following
 {
-	IP = data[IP >> 2];
+	IP = DATA(IP);
 	_next();
 }
 void _store()               // (n a -- ) store into memory location from top of stack
 {
-	data[top >> 2] = stack[(U8)S--];
+	DATA(top) = stack[(U8)S--];
 	_pop();
 }
 void _at()                  // (a -- n) fetch from memory address onto top of stack
 {
-	top = data[top >> 2];
+	top = DATA(top);
 }
 void _cstor()               // (c b -- ) store a byte into memory location
 {
@@ -370,19 +370,19 @@ void _pick()                // (... +n -- ...w) copy nth stack item to top
 }
 void _pstor()               // (n a -- ) add n to content at address a
 {
-	data[top >> 2] += stack[(U8)S--];
+	DATA(top) += stack[(U8)S--];
     _pop();
 }
 void _dstor()               // (d a -- ) store the double to address a
 {
-	data[(top >> 2) + 1] = stack[(U8)S--];
-	data[top >> 2]       = stack[(U8)S--];
+	DATA(top+4) = stack[(U8)S--];
+	DATA(top)   = stack[(U8)S--];
 	_pop();
 }
 void _dat()                 // (a -- d) fetch double from address a
 {
-	_push(data[top >> 2]);
-	top = data[(top >> 2) + 1];
+	_push(DATA(top));
+	top = DATA(top + 4);
 }
 void _count()               // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
@@ -466,3 +466,15 @@ void(*primitives[64])() = {
 	/* case 62 */ _max,
 	/* case 63 */ _min,
 };
+
+void vm_init(U8 *rom) {
+	byte = rom;
+	R  = S = P = IP = top = 0;
+	WP = 4;
+}
+
+void vm_run() {
+	for (;;) {
+		primitives[byte[P++]]();            // walk bytecode stream
+	}
+}
