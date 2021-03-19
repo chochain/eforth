@@ -15,6 +15,13 @@ S32 stack[256]  = { 0 };        // data stack
 U32 data[16000] = {};           // 64K forth memory block
 U8* byte        = (U8*)data;    // linear byte array pointer
 //
+// data and return stack ops
+//
+#define	_pop()		(top = stack[(U8)S--])
+#define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
+#define	_popR()     (rack[(U8)R--])
+#define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
+//
 // tracing instrumentation
 //
 #if FORTH_TRACE

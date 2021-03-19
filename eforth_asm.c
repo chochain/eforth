@@ -6,6 +6,11 @@
 #define fIMMED  0x80                          // immediate flag
 #define fCOMPO  0x40                          // composit flag
 //
+// stack op macros
+//
+#define	_pushR(v) (rack[(U8)++R] = (U32)(v))
+#define	_popR()   (rack[(U8)R--])
+//
 // address variable (which are needed by other macros)
 //
 int BRAN, QBRAN, DONXT, DOTQP, STRQP, TOR, ABORQP;
@@ -694,7 +699,7 @@ void assemble() {
 	DEBUG("IZ=%04x", P);
     DEBUG(" R=%02x", (_popR() << 2));
 
-	// Boot Vector
+	// Setup Boot Vector
 	P = FORTH_BOOT_ADDR;
 	int RESET = _LABEL(opDOLIST, COLD);
 	//

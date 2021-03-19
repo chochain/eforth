@@ -3,9 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-
+//
+// debugging flags
+//
 #define ASSEM_DUMP   0
-#define FORTH_TRACE  0
+#define FORTH_TRACE  1
 //
 // portable types
 //
@@ -30,9 +32,10 @@ typedef int8_t    S8;
 
 #define	FALSE	         0
 #define	TRUE	         -1
-
+//
 // tracing/logging macros
-#if ASSEM_DUMP
+//
+#if    ASSEM_DUMP
 #define DEBUG(s, v)     printf(s, v)
 #define SHOWOP(op)      printf("\n%04x: %s\t", P, op)
 #else  // ASSEM_DUMP
@@ -109,23 +112,33 @@ enum {
     opMIN         // 63
 };
 
-extern U8  R, S;
-extern U32 P, IP, WP;
-extern U32 thread;
-extern S32 top;
-extern U8  *byte;
+struct {
+	U8  R, S;              // return stack index, data stack index
+	U32 P, IP, WP;         // P (program counter), IP (intruction pointer), WP (parameter pointer)
+	U32 thread;            // pointer to previous word
+	S32 top0;              // stack top value (cache)
+	void (*vtbl[64])();    // opcode vtable
+} vmState;
+
+struct {
+	U32 rack[256];         // return stack
+	S32 stack[256];        // data stack
+	U32	data[16000];       // main memory block
+	U8  *byte;             // byte stream pointer to data[]
+} vmHeap;
+//
+// shared variables
+//
+extern U8  R, S;           // return stack and data stack indices
+extern U32 P, IP, WP;      // program counter, instruction pointer, and parameter pointer
+extern U32 thread;         // previous word pointer
+extern S32 top;            // value on top of stack (cache)
 
 extern U32 data[];         // main heap
 extern U32 rack[];         // return stack
 extern S32 stack[];        // data stack
+extern U8  *byte;          // heap byte pointer
 
-extern void (*primitives[])(void);
-//
-// data/return stack ops
-//
-#define	_pop()		(top = stack[(U8)S--])
-#define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
-#define	_popR()     (rack[(U8)R--])
-#define	_pushR(v)   (rack[(U8)++R] = (U32)(v))
+extern void (*primitives[])();  // virtual machine vtable
 
 #endif // __EFORTH_SRC_EFORTH_H
