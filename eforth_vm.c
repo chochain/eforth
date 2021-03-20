@@ -3,7 +3,7 @@
 //
 // Forth VM control registers
 //
-U32 P, IP, WP;                  // P (program counter), IP (intruction pointer), WP (parameter pointer)
+U32 PC, IP, WP;                 // PC (program counter), IP (intruction pointer), WP (parameter pointer)
 U8  R, S;                       // return stack index, data stack index
 S32 top;                        // ALU (i.e. cached stack top value)
 //
@@ -14,9 +14,9 @@ S32 stack[256] = { 0 };         // data stack
 U8* byte       = 0;             // linear byte array pointer
 //
 // data and return stack ops
-//
-//                     |
-// ..., S2, S1, S0 <- Top -> R0, R1, R2, ...
+//              S            R
+//              |            |
+// ..., S2, S1, S0 <- top -> R0, R1, R2, ...
 //
 #define	POP()		(top = stack[S--])
 #define	PUSH(v)	    { stack[++S] = top; top = (S32)(v); }
@@ -28,11 +28,11 @@ void _break_point(char *name) {
 	int i=0;
 }
 
-char *_name(int p)  {
+char *_name(int pc)  {
 	static U8 *sEXIT = "EXIT";
 	static U8 buf[32];			        // allocated in memory instead of on C stack
 
-	U8 *a = &byte[p];		    		// pointer to current code pointer
+	U8 *a = &byte[pc];		    		// pointer to current code pointer
 	if (*a==opEXIT) return sEXIT;
 	for (a-=4; (*a & 0x7f)>0x1f; a-=4); // retract pointer to word name (ASCII range: 0x20~0x7f)
 
@@ -77,10 +77,10 @@ void    _trc_off()    {}
 // Forth Virtual Machine (primitive functions)
 //
 #define NEXT()      {  	\
-	P  = DATA(IP);      \
-	WP = P + 4; 	    \
+	PC = DATA(IP);      \
+	WP = PC + 4; 	    \
 	IP += 4;       		\
-	TRACE_WORD(P); 	    \
+	TRACE_WORD(PC); 	\
 	}
 void _nop() {}              // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
@@ -140,7 +140,7 @@ void __exit()                // ( -- ) terminate all token lists in colon words
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
 {
-	P  = top;               // fetch instruction pointer
+	PC = top;               // fetch instruction pointer
 	WP = top + 4;           // parameter starts here
 	POP();
 }
@@ -159,13 +159,13 @@ void _donext()              // ( -- ) terminate a FOR-NEXT loop
 void _qbran()               // (f -- ) test top as a flag on data stack
 {
 	if (top) IP += 4;		// next instruction
-    else     IP = DATA(IP);	// fetch branching address
+    else     IP = DATA(IP);	// fetch branching target address
 	POP();
     NEXT();
 }
 void _bran()                // ( -- ) branch to address following
 {
-	IP = DATA(IP);			// fetch branching address
+	IP = DATA(IP);			// fetch branching target address
 	NEXT();
 }
 void _store()               // (n a -- ) store into memory location from top of stack
@@ -186,7 +186,7 @@ void _cat()                 // (b -- n) fetch a byte from memory location
 {
 	top = (U32)byte[top];
 }
-void _rfrom()               // (n --) pop from data stack onto return stack
+void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
 {
 	PUSH(rack[R--]);
 }
@@ -209,7 +209,7 @@ void _dup()                 // (w -- w w) duplicate to of stack
 }
 void _swap()                // (w1 w2 -- w2 w1) swap top two items on the data stack
 {
-	WP  = top;
+	WP  = top;              // use WP as temp
 	top = stack[S];
 	stack[S] = WP;
 }
@@ -486,12 +486,12 @@ void(*primitives[64])() = {
 
 void vm_init(U8 *rom) {
 	byte = rom;
-	R  = S = P = IP = top = 0;
+	R  = S = PC = IP = top = 0;
 	WP = 4;
 }
 
 void vm_run() {
 	for (;;) {
-		primitives[byte[P++]]();            // walk bytecode stream
+		primitives[byte[PC++]]();            // walk bytecode stream
 	}
 }
