@@ -85,7 +85,7 @@ int _code(const char *seg, int len, ...) {
 }
 int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-	DEBUG("%s", " 0006");
+	DEBUG(" %s", ":0006");
 	int addr = aP;
 	DATA(opDOLIST);
 	DATACPY(len);
@@ -93,7 +93,7 @@ int _colon(const char *seg, int len, ...) {
 }
 int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
-	DEBUG("%s", " 0006");
+	DEBUG(" %s", "i0006");
 	int addr = aP;
 	DATA(opDOLIST);
     DATACPY(len);
@@ -462,14 +462,14 @@ int assemble(U8 *rom) {
         _THEN(NOP);
         _NEXT(DOLIT, 0, EXIT);
     }
-	int FIND = _COLON("find", trc_off, SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
+	int FIND = _COLON("find", SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
         _BEGIN(AT, DUP); {
             _IF(DUP, AT, DOLIT, 0xffffff3f, AND, UPPER, RAT, UPPER, XOR); {
                 _IF(CELLP, DOLIT, 0xffffffff);
                 _ELSE(CELLP, vTEMP, AT, SAMEQ);
                 _THEN(NOP);
             }
-            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, trc_on, EXIT);
+            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, EXIT);
             _THEN(NOP);
         }
         _WHILE(CELLM, CELLM);
@@ -647,15 +647,11 @@ int assemble(U8 *rom) {
 	int iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
 	int IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
-	//
-	// End of dictionary
-	//
-	int DICEND = aP;
 
-	DEBUG("IZ=%04x", aP);
-    DEBUG(" R=%02x", (POP() << 2));
-
+	int XDIC   = aP;                // End of dictionary
+	//
 	// Setup Boot Vector
+	//
 	aP = FORTH_BOOT_ADDR;
 	int RESET = _LABEL(opDOLIST, COLD);
 	//
@@ -671,8 +667,8 @@ int assemble(U8 *rom) {
 	//   tmp     = 0
 	//
 	aP = FORTH_UVAR_ADDR;
-	int USER  = _LABEL(FORTH_BUF_SIZE, 0x10, IMMED - 12, DICEND, IMMED - 12, INTER, QUIT, 0);
+	int USER  = _LABEL(FORTH_BUF_SIZE, 0x10, IMMED - 12, XDIC, IMMED - 12, INTER, QUIT, 0);
 
-	return DICEND;
+	return XDIC;
 }
 
