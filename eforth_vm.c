@@ -9,14 +9,14 @@ S32 top = 0;                    // stack top value (cache)
 //
 // Forth VM core storage
 //
-U32 rack[256]   = { 0 };        // return stack
-S32 stack[256]  = { 0 };        // data stack
-U8* byte        = 0;            // linear byte array pointer
+U32 rack[256]  = { 0 };         // return stack
+S32 stack[256] = { 0 };         // data stack
+U8* byte       = 0;             // linear byte array pointer
 //
 // data and return stack ops
 //
-#define	_pop()		(top = stack[(U8)S--])
-#define	_push(v)	{ stack[(U8)++S] = top; top = (S32)(v); }
+#define	POP()		(top = stack[(U8)S--])
+#define	PUSH(v)	    { stack[(U8)++S] = top; top = (S32)(v); }
 #define DATA(ip)    (*(U32*)(byte+(ip)))
 //
 // tracing instrumentation
@@ -66,8 +66,8 @@ void _nop() {}              // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
 void _qrx()                 // ( -- c t|f) read a char from terminal input device
 {
-	_push(getchar());
-	if (top) _push(TRUE);
+	PUSH(getchar());
+	if (top) PUSH(TRUE);
 }
 void _txsto()               // (c -- ) send a char to console
 {
@@ -83,7 +83,7 @@ void _txsto()               // (c -- ) send a char to console
 		else      printf("<%c>", (U8)top);
 	}
 #endif // !FORTH_TRACE
-	_pop();
+	POP();
 }
 void _next()                // advance instruction pointer
 {
@@ -94,17 +94,17 @@ void _next()                // advance instruction pointer
 }
 void _dovar()               // ( -- a) return address of a variable
 {
-	_push(WP);
+	PUSH(WP);
 }
 void _docon()               // ( -- n) push next token onto data stack as constant
 {
-	_push(DATA(WP));
+	PUSH(DATA(WP));
 }
 void _dolit()               // ( -- w) push next token as an integer literal
 {
 	S32 v = DATA(IP);
 	TRACE(" %d", v);
-	_push(v);
+	PUSH(v);
 	IP += 4;
     _next();
 }
@@ -125,7 +125,7 @@ void _execu()               // (a -- ) take execution address from data stack an
 {
 	P  = top;
 	WP = P + 4;
-	_pop();
+	POP();
 }
 void _donext()              // ( -- ) terminate a FOR-NEXT loop
 {
@@ -143,7 +143,7 @@ void _qbran()               // (f -- ) test top as a flag on data stack
 {
 	if (top) IP += 4;
     else     IP = DATA(IP);
-	_pop();
+	POP();
     _next();
 }
 void _bran()                // ( -- ) branch to address following
@@ -154,7 +154,7 @@ void _bran()                // ( -- ) branch to address following
 void _store()               // (n a -- ) store into memory location from top of stack
 {
 	DATA(top) = stack[(U8)S--];
-	_pop();
+	POP();
 }
 void _at()                  // (a -- n) fetch from memory address onto top of stack
 {
@@ -163,7 +163,7 @@ void _at()                  // (a -- n) fetch from memory address onto top of st
 void _cstor()               // (c b -- ) store a byte into memory location
 {
 	byte[top] = (U8)stack[(U8)S--];
-	_pop();
+	POP();
 }
 void _cat()                 // (b -- n) fetch a byte from memory location
 {
@@ -171,20 +171,20 @@ void _cat()                 // (b -- n) fetch a byte from memory location
 }
 void _rfrom()               // (n --) pop from data stack onto return stack
 {
-	_push(rack[(U8)R--]);
+	PUSH(rack[(U8)R--]);
 }
 void _rat()                 // (-- n) copy a number off the return stack and push onto data stack
 {
-	_push(rack[(U8)R]);
+	PUSH(rack[(U8)R]);
 }
 void _tor()                 // (-- n) pop from data stack and push onto return stack
 {
 	rack[(U8)++R] = top;
-	_pop();
+	POP();
 }
 void _drop()                // (w -- ) drop top of stack item
 {
-	_pop();
+	POP();
 }
 void _dup()                 // (w -- w w) duplicate to of stack
 {
@@ -198,7 +198,7 @@ void _swap()                // (w1 w2 -- w2 w1) swap top two items on the data s
 }
 void _over()                // (w1 w2 -- w1 w2 w1) copy second stack item to top
 {
-	_push(stack[(U8)S - 1]);
+	PUSH(stack[(U8)S - 1]);
 }
 void _zless()               // (n -- f) check whether top of stack is negative
 {
@@ -259,7 +259,7 @@ void _dnega()               // (d -- -d) two's complement of top double
 	_inver();
 	_tor();
 	_inver();
-	_push(1);
+	PUSH(1);
 	_uplus();
 	_rfrom();
 	_plus();
@@ -294,7 +294,7 @@ void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double 
 	S64 m = (S64)((U32)stack[(U8)S]);
 	S64 n = (S64)((U32)stack[(U8)S - 1]);
 	n += m << 32;
-	_pop();
+	POP();
 	top = (U32)(n / d);
 	stack[(U8)S] = (U32)(n % d);
 }
@@ -304,7 +304,7 @@ void _msmod()               // (d n -- r q) signed floored divide of double by s
 	S64 m = (S64)stack[(U8)S];
 	S64 n = (S64)stack[(U8)S - 1];
 	n += m << 32;
-	_pop();
+	POP();
 	top = (S32)(n / d);         // mod
 	stack[(U8)S] = (U32)(n % d);// quotien
 }
@@ -350,7 +350,7 @@ void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotio
 	S64 m = (S64)stack[(U8)S];
 	S64 n = (S64)stack[(U8)S - 1];
 	n *= m;
-	_pop();
+	POP();
 	top = (S32)(n / d);
 	stack[(U8)S] = (S32)(n % d);
 }
@@ -360,8 +360,8 @@ void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 	S64 m = (S64)stack[(U8)S];
 	S64 n = (S64)stack[(U8)S - 1];
 	n *= m;
-	_pop();
-    _pop();
+	POP();
+    POP();
 	top = (S32)(n / d);
 }
 void _pick()                // (... +n -- ...w) copy nth stack item to top
@@ -371,17 +371,17 @@ void _pick()                // (... +n -- ...w) copy nth stack item to top
 void _pstor()               // (n a -- ) add n to content at address a
 {
 	DATA(top) += stack[(U8)S--];
-    _pop();
+    POP();
 }
 void _dstor()               // (d a -- ) store the double to address a
 {
 	DATA(top+4) = stack[(U8)S--];
 	DATA(top)   = stack[(U8)S--];
-	_pop();
+	POP();
 }
 void _dat()                 // (a -- d) fetch double from address a
 {
-	_push(DATA(top));
+	PUSH(DATA(top));
 	top = DATA(top + 4);
 }
 void _count()               // (b -- b+1 +n) count byte of a string and add 1 to byte address
@@ -391,13 +391,13 @@ void _count()               // (b -- b+1 +n) count byte of a string and add 1 to
 }
 void _max()                 // (n1 n2 -- n) return greater of two top stack items
 {
-	if (top < stack[(U8)S]) _pop();
+	if (top < stack[(U8)S]) POP();
 	else (U8)S--;
 }
 void _min()                 // (n1 n2 -- n) return smaller of two top stack items
 {
 	if (top < stack[(U8)S]) (U8)S--;
-	else _pop();
+	else POP();
 }
 
 void(*primitives[64])() = {
