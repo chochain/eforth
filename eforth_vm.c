@@ -3,9 +3,9 @@
 //
 // Forth VM control registers
 //
-U8  R=0, S=0;                   // return stack index, data stack index
 U32 P, IP, WP;                  // P (program counter), IP (intruction pointer), WP (parameter pointer)
-S32 top = 0;                    // stack top value (cache)
+U8  R, S;                       // return stack index, data stack index
+S32 top;                        // stack top value (cache)
 //
 // Forth VM core storage
 //
@@ -32,7 +32,7 @@ void TRACE_WORD(int p)  {
 	if (*a==opEXIT) return;
 	for (a-=4; (*a & 0x7f)>31; a-=4);	// retract pointer to word name
 
-	int  len = (int)*a & 0x1f;
+	int  len = (int)*a & 0x1f;          // Forth allow 31 char max
 	char buf[64];
 	memcpy(buf, a+1, len);
 	buf[len] = '\0';
