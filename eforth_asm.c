@@ -14,17 +14,18 @@ int DOTQ, STRQ, TOR, NOP;
 //
 // return stack for branching ops
 //
-UA aRack[ASSEM_RACK_SZ] = { 0 };    // return stack (independent of Forth return stack for modulization)
+XA aRack[ASSEM_RACK_SZ] = { 0 };    // return stack (independent of Forth return stack for modulization)
 U8 *aByte    = 0;                   //
 U8 aR        = 0;                   // return stack index
-UA aP, aThread;                     // pointer to previous word
+XA aP, aThread;                     // pointer to previous word
 //
 // stack op macros
 //
-#define SET(d, v)      (*(UA*)(aByte+d)=(v))
+#define SET(d, v)      (*(XA*)(aByte+d)=(v))
 #define DATA(v)        { SET(aP, (v)); aP+=CELLSZ; }
-#define	PUSH(v)        (aRack[++aR] = (UA)(v))
+#define	PUSH(v)        (aRack[++aR] = (XA)(v))
 #define	POP()          (aRack[aR--])
+#define VAR(a, i)      ((a)+CELLSZ*(i))
 //
 // tracing/logging macros
 //
@@ -40,7 +41,7 @@ void _dump(int b, int u) {
 	// dump memory between previous word and this
 	DEBUG("%s", "\n    :");
 	for (int i=b; b && i<u; i+=CELLSZ) {
-		DEBUG(" %08x", *(UA*)(aByte+i));
+		DEBUG(" %08x", *(XA*)(aByte+i));
 	}
 	DEBUG("%c", '\n');
 }
@@ -213,20 +214,20 @@ int assemble(U8 *rom) {
 	// Kernel variables (in bytecode streams)
 	// FORTH_TIB_ADDR = 0x80
 	//
-	int ta    = FORTH_TIB_ADDR;
-	int vHLD  = _CODE("HLD",     opDOCON, opNEXT, 0, 0, ta+0,        0, 0, 0);
-	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, ta+CELLSZ,   0, 0, 0);
-	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, ta+CELLSZ*2, 0, 0, 0);
-	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, ta+CELLSZ*3, 0, 0, 0);
-	int va    = FORTH_UVAR_ADDR;
-	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, va+0,        0, 0, 0);
-	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, va+CELLSZ,   0, 0, 0);
-	int vCNTX = _CODE("CONTEXT", opDOCON, opNEXT, 0, 0, va+CELLSZ*2, 0, 0, 0);
-	int vCP   = _CODE("CP",      opDOCON, opNEXT, 0, 0, va+CELLSZ*3, 0, 0, 0);
-	int vLAST = _CODE("LAST",    opDOCON, opNEXT, 0, 0, va+CELLSZ*4, 0, 0, 0);
-	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, va+CELLSZ*5, 0, 0, 0);
-	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, va+CELLSZ*6, 0, 0, 0);
-	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, va+CELLSZ*7, 0, 0, 0);
+	int ta    = FORTH_TVAR_ADDR;
+	int vHLD  = _CODE("HLD",     opDOCON, opNEXT, 0, 0, VAR(ta,0), 0, 0, 0);
+	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, VAR(ta,1), 0, 0, 0);
+	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, VAR(ta,2), 0, 0, 0);
+	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, VAR(ta,3), 0, 0, 0);
+	int ua    = FORTH_UVAR_ADDR;
+	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, VAR(ua,0), 0, 0, 0);
+	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, VAR(ua,1), 0, 0, 0);
+	int vCNTX = _CODE("CONTEXT", opDOCON, opNEXT, 0, 0, VAR(ua,2), 0, 0, 0);
+	int vCP   = _CODE("CP",      opDOCON, opNEXT, 0, 0, VAR(ua,3), 0, 0, 0);
+	int vLAST = _CODE("LAST",    opDOCON, opNEXT, 0, 0, VAR(ua,4), 0, 0, 0);
+	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, VAR(ua,5), 0, 0, 0);
+	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, VAR(ua,6), 0, 0, 0);
+	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, VAR(ua,7), 0, 0, 0);
 	//
 	// Kernel dictionary (primitive proxies)
 	//
@@ -537,7 +538,7 @@ int assemble(U8 *rom) {
     //
     // main interpreter loop
     //
-	int QUIT  = _COLON("QUIT", DOLIT, FORTH_BUF_ADDR, vTTIB, STORE, LBRAC); {
+	int QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, LBRAC); {
         _BEGIN(QUERY, EVAL);
         _AGAIN(NOP);
     }
@@ -659,7 +660,7 @@ int assemble(U8 *rom) {
 	//
 	// Forth internal (user) variables
 	//
-    //   'TIB    = FORTH_BUF_SIZE (pointer to top of input buffer)
+    //   'TIB    = FORTH_TIB_SIZE (pointer to top of input buffer)
 	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
 	//   CONTEXT = IMMED - 12     (pointer to name field of the most recently defined word in dictionary)
 	//   CP      = XDIC           (pointer to top of dictionary, first memory location to add new word)
@@ -669,7 +670,7 @@ int assemble(U8 *rom) {
 	//   tmp     = 0              (scratch pad)
 	//
 	aP = FORTH_UVAR_ADDR;
-	int USER  = _LABEL(FORTH_BUF_SZ, 0x10, last, XDIC, last, INTER, QUIT, 0);
+	int USER  = _LABEL(FORTH_TIB_SZ, 0x10, last, XDIC, last, INTER, QUIT, 0);
 
 	return XDIC;
 }
