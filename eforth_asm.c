@@ -657,14 +657,14 @@ int assemble(U8 *rom) {
 	//
 	// Forth internal (user) variables
 	//
-    //   'TIB    = FORTH_BUF_SIZE
-	//   BASE    = 0x10
-	//   CONTEXT = IMMED - 12        ???
-	//   CP      = DICEND
-	//   LAST    = IMMED - 12        ???
-	//   'EVAL   = INTER
-	//   ABORT   = QUIT
-	//   tmp     = 0
+    //   'TIB    = FORTH_BUF_SIZE (pointer to top of input buffer)
+	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
+	//   CONTEXT = IMMED - 12     (pointer to name field of the most recently defined word in dictionary)
+	//   CP      = XDIC           (pointer to top of dictionary, first memory location to add new word)
+	//   LAST    = IMMED - 12     (pointer to name field of last word in dictionary)
+	//   'EVAL   = INTER          ($COMPILE for compiler or $INTERPRET for interpreter)
+	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
+	//   tmp     = 0              (scratch pad)
 	//
 	aP = FORTH_UVAR_ADDR;
 	int USER  = _LABEL(FORTH_BUF_SIZE, 0x10, IMMED - 12, XDIC, IMMED - 12, INTER, QUIT, 0);
