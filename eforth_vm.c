@@ -3,24 +3,25 @@
 //
 // Forth VM control registers
 //
-U32 PC, IP, WP;                 // PC (program counter), IP (intruction pointer), WP (parameter pointer)
+UA  PC, IP, WP;                 // PC (program counter), IP (intruction pointer), WP (parameter pointer)
 U8  R, S;                       // return stack index, data stack index
-S32 top;                        // ALU (i.e. cached stack top value)
+SC  top;                        // ALU (i.e. cached stack top value)
 //
 // Forth VM core storage
 //
-U32 rack[256]  = { 0 };         // return stack
-S32 stack[256] = { 0 };         // data stack
-U8* byte       = 0;             // linear byte array pointer
+UA  rack[FORTH_RACK_SZ]   = { 0 };   	// return stack
+SC  stack[FORTH_STACK_SZ] = { 0 };   	// data stack
+U8* byte = 0;             			 	// linear byte array pointer
 //
 // data and return stack ops
 //              S            R
 //              |            |
 // ..., S2, S1, S0 <- top -> R0, R1, R2, ...
 //
+#define BOOL(f)     ((f) ? TRUE : FALSE)
 #define	POP()		(top = stack[S--])
-#define	PUSH(v)	    { stack[++S] = top; top = (S32)(v); }
-#define DATA(ip)    (*(U32*)(byte+(ip)))
+#define	PUSH(v)	    { stack[++S]=top; top=(SC)(v); }
+#define DATA(ip)    (*(UA*)(byte+(UA)(ip)))
 
 void _break_point(char *name) {
 	if (strcmp(name, "find")) return;
@@ -33,7 +34,7 @@ char *_name(int pc)  {
 
 	U8 *a = &byte[pc];		    		// pointer to current code pointer
 	if (*a==opEXIT) return 0;
-	for (a-=4; (*a & 0x7f)>0x1f; a-=4); // retract pointer to word name (ASCII range: 0x20~0x7f)
+	for (a-=CELLSZ; (*a & 0x7f)>0x1f; a-=CELLSZ);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
 	int  len = (int)*a & 0x1f;          // Forth allows 31 char max
 	memcpy(buf, a+1, len);
@@ -80,8 +81,8 @@ void    _trc_off()    {}
 //
 #define NEXT()      {  	 \
 	PC = DATA(IP);       \
-	WP = PC + 4; 	     \
-	IP += 4;       		 \
+	WP = PC + CELLSZ; 	 \
+	IP += CELLSZ;        \
 	TRACE_WORD();        \
 	}
 void _nop() {}              // ( -- )
@@ -121,10 +122,10 @@ void _docon()               // ( -- n) push next token onto data stack as consta
 }
 void _dolit()               // ( -- w) push next token as an integer literal
 {
-	S32 v = DATA(IP);		// fetch literal from data
+	SC v = (SC)DATA(IP);	// fetch literal from data
 	TRACE(" %d", v);
 	PUSH(v);				// push onto data stack
-	IP += 4;				// skip to next instruction
+	IP += CELLSZ;			// skip to next instruction
     NEXT();
 }
 void _dolist()              // ( -- ) push instruction pointer onto return stack and pop
@@ -142,8 +143,8 @@ void __exit()                // ( -- ) terminate all token lists in colon words
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
 {
-	PC = top;               // fetch instruction pointer
-	WP = top + 4;           // parameter starts here
+	PC = (UA)top;           // fetch instruction pointer
+	WP = (UA)top + CELLSZ;  // parameter starts here
 	POP();
 }
 void _donext()              // ( -- ) terminate a FOR-NEXT loop
@@ -153,14 +154,14 @@ void _donext()              // ( -- ) terminate a FOR-NEXT loop
 		IP = DATA(IP);		// branch back to FOR
 	}
 	else {
-		IP += 4;			// skip to next instruction
+		IP += CELLSZ;		// skip to next instruction
 		R--;				// pop off return stack
 	}
     NEXT();
 }
 void _qbran()               // (f -- ) test top as a flag on data stack
 {
-	if (top) IP += 4;		// next instruction
+	if (top) IP += CELLSZ;	// next instruction
     else     IP = DATA(IP);	// fetch branching target address
 	POP();
     NEXT();
@@ -177,7 +178,7 @@ void _store()               // (n a -- ) store into memory location from top of 
 }
 void _at()                  // (a -- n) fetch from memory address onto top of stack
 {
-	top = DATA(top);
+	top = (SC)DATA(top);
 }
 void _cstor()               // (c b -- ) store a byte into memory location
 {
@@ -186,7 +187,7 @@ void _cstor()               // (c b -- ) store a byte into memory location
 }
 void _cat()                 // (b -- n) fetch a byte from memory location
 {
-	top = (U32)byte[top];
+	top = (SC)byte[top];
 }
 void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
 {
@@ -198,7 +199,7 @@ void _rat()                 // (-- n) copy a number off the return stack and pus
 }
 void _tor()                 // (-- n) pop from data stack and push onto return stack
 {
-	rack[++R] = top;
+	rack[++R] = (UA)top;
 	POP();
 }
 void _drop()                // (w -- ) drop top of stack item
@@ -211,9 +212,9 @@ void _dup()                 // (w -- w w) duplicate to of stack
 }
 void _swap()                // (w1 w2 -- w2 w1) swap top two items on the data stack
 {
-	WP  = top;              // use WP as temp
+	WP  = (UA)top;          // use WP as temp
 	top = stack[S];
-	stack[S] = WP;
+	stack[S] = (SC)WP;
 }
 void _over()                // (w1 w2 -- w1 w2 w1) copy second stack item to top
 {
@@ -221,7 +222,7 @@ void _over()                // (w1 w2 -- w1 w2 w1) copy second stack item to top
 }
 void _zless()               // (n -- f) check whether top of stack is negative
 {
-	top = (top < 0) ? TRUE : FALSE;
+	top = BOOL(top < 0);
 }
 void _and()                 // (w w -- w) bitwise AND
 {
@@ -246,10 +247,10 @@ void _qdup()                // (w -- w w | 0) dup top of stack if it is not zero
 }
 void _rot()                 // (w1 w2 w3 -- w2 w3 w1) rotate 3rd item to top
 {
-	WP = stack[S - 1];
+	WP = (UA)stack[S - 1];
 	stack[S - 1] = stack[S];
 	stack[S]     = top;
-	top = WP;
+	top = (SC)WP;
 }
 void _ddrop()               // (w w --) drop top two items
 {
@@ -293,29 +294,29 @@ void _abs()                 // (n -- n) absolute value of n
 }
 void _great()               // (n1 n2 -- t) true if n1>n2
 {
-	top = (stack[S--] > top) ? TRUE : FALSE;
+	top = BOOL(stack[S--] > top);
 }
 void _less()                // (n1 n2 -- t) true if n1<n2
 {
-	top = (stack[S--] < top) ? TRUE : FALSE;
+	top = BOOL(stack[S--] < top);
 }
 void _equal()               // (w w -- t) true if top two items are equal
 {
-	top = (stack[S--]==top) ? TRUE : FALSE;
+	top = BOOL(stack[S--]==top);
 }
 void _uless()               // (u1 u2 -- t) unsigned compare top two items
 {
-	top = ((U32)(stack[S--]) < (U32)top) ? TRUE : FALSE;
+	top = BOOL((UA)(stack[S--]) < (UA)top);
 }
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
 	S64 d = (S64)top;
 	S64 m = (S64)stack[S];
 	S64 n = (S64)stack[S - 1];
-	n += m << 32;
+	n += m << (CELLSZ<<3);
 	POP();
 	top = (U32)(n / d);
-	stack[S] = (U32)(n % d);
+	stack[S] = (U32)(n%d);
 }
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
@@ -325,7 +326,7 @@ void _msmod()               // (d n -- r q) signed floored divide of double by s
 	n += m << 32;
 	POP();
 	top = (S32)(n / d);     // mod
-	stack[S] = (U32)(n % d);// quotien
+	stack[S] = (S32)(n%d);  // quotion
 }
 void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotien
 {
@@ -389,7 +390,7 @@ void _pick()                // (... +n -- ...w) copy nth stack item to top
 }
 void _pstor()               // (n a -- ) add n to content at address a
 {
-	DATA(top) += stack[S--];
+	DATA(top) += (UA)stack[S--];
     POP();
 }
 void _dstor()               // (d a -- ) store the double to address a
@@ -401,7 +402,7 @@ void _dstor()               // (d a -- ) store the double to address a
 void _dat()                 // (a -- d) fetch double from address a
 {
 	PUSH(DATA(top));
-	top = DATA(top + 4);
+	top = DATA(top + CELLSZ);
 }
 void _count()               // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
@@ -419,7 +420,7 @@ void _min()                 // (n1 n2 -- n) return smaller of two top stack item
 	else POP();
 }
 
-void(*primitives[64])() = {
+void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 0 */ _nop,
 	/* case 1 */ _bye,
 	/* case 2 */ _qrx,
@@ -489,11 +490,11 @@ void(*primitives[64])() = {
 void vm_init(U8 *rom) {
 	byte = rom;
 	R  = S = PC = IP = top = 0;
-	WP = 4;
+	WP = CELLSZ;
 }
 
 void vm_run() {
 	for (;;) {
-		primitives[byte[PC++]]();            // walk bytecode stream
+		prim[byte[PC++]]();            // walk bytecode stream
 	}
 }

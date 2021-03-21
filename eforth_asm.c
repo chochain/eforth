@@ -4,8 +4,8 @@
 //
 // Forth Macro Assembler
 //
-#define fIMMED  0x80                          // immediate flag
-#define fCOMPO  0x40                          // composit flag
+#define fIMMED  0x80           		// immediate flag
+#define fCOMPO  0x40                // compile only flag
 //
 // variables to keep branching addresses
 //
@@ -14,16 +14,16 @@ int DOTQ, STRQ, TOR, NOP;
 //
 // return stack for branching ops
 //
-U8  *aByte     = 0;                           //
-U32 aRack[64] = { 0 };                        // return stack
-U8  aR        = 0;                            // return stack index
-U32 aP, aThread;                              // pointer to previous word
+UA aRack[ASSEM_RACK_SZ] = { 0 };    // return stack (independent of Forth return stack for modulization)
+U8 *aByte    = 0;                   //
+U8 aR        = 0;                   // return stack index
+UA aP, aThread;                     // pointer to previous word
 //
 // stack op macros
 //
-#define SET(d, v)      (*(U32*)(aByte+d)=(v))
-#define DATA(v)        { SET(aP, (v)); aP+=4; }
-#define	PUSH(v)        (aRack[++aR] = (U32)(v))
+#define SET(d, v)      (*(UA*)(aByte+d)=(v))
+#define DATA(v)        { SET(aP, (v)); aP+=CELLSZ; }
+#define	PUSH(v)        (aRack[++aR] = (UA)(v))
 #define	POP()          (aRack[aR--])
 //
 // tracing/logging macros
@@ -39,8 +39,8 @@ U32 aP, aThread;                              // pointer to previous word
 void _dump(int b, int u) {
 	// dump memory between previous word and this
 	DEBUG("%s", "\n    :");
-	for (int i=b; b && i<u; i+=4) {
-		DEBUG(" %08x", *(U32*)(aByte+i));
+	for (int i=b; b && i<u; i+=CELLSZ) {
+		DEBUG(" %08x", *(UA*)(aByte+i));
 	}
 	DEBUG("%c", '\n');
 }
@@ -54,7 +54,7 @@ void _header(int lex, const char *seq) {
 	for (U32 i = 0; i < len; i++) {           // memcpy word string
 		aByte[aP++] = seq[i];
 	}
-	while (aP & 3) { aByte[aP++] = 0; }       // padding 4-byte align
+	while (aP&(CELLSZ-1)) { aByte[aP++]=0; }  // padding cell alignment
 
 	DEBUG("%04x: ", aP);
 	DEBUG("%s", seq);
@@ -128,7 +128,7 @@ void _while(int len, ...) {
 	DATA(QBRAN);
 	DATA(0);                       // branching address
 	int k = POP();
-	PUSH(aP - 4);
+	PUSH(aP - CELLSZ);
 	PUSH(k);
     DATACPY(len);
 }
@@ -151,7 +151,7 @@ void _else(int len, ...) {
 	DATA(BRAN);
 	DATA(0);
 	SET(POP(), aP);
-	PUSH(aP - 4);
+	PUSH(aP - CELLSZ);
     DATACPY(len);
 }
 void _then(int len, ...) {
@@ -177,17 +177,17 @@ void _aft(int len, ...) {
 	DATA(0);
 	POP();
 	PUSH(aP);
-	PUSH(aP - 4);
+	PUSH(aP - CELLSZ);
     DATACPY(len);
 }
-#define STRCPY(op, seq) {              \
-    DATA(op);                          \
-	int len = strlen(seq);             \
-	aByte[aP++] = len;                 \
-	for (int i = 0; i < len; i++) {    \
-		aByte[aP++] = seq[i];          \
-	}                                  \
-	while (aP & 3) { aByte[aP++] = 0; }\
+#define STRCPY(op, seq) {                    \
+    DATA(op);                                \
+	int len = strlen(seq);                   \
+	aByte[aP++] = len;                       \
+	for (int i = 0; i < len; i++) {          \
+		aByte[aP++] = seq[i];                \
+	}                                        \
+	while (aP&(CELLSZ-1)) { aByte[aP++]=0; } \
 	}
 void _DOTQ(const char *seq) {
 	SHOWOP("DOTQ");
@@ -214,19 +214,19 @@ int assemble(U8 *rom) {
 	// FORTH_TIB_ADDR = 0x80
 	//
 	int ta    = FORTH_TIB_ADDR;
-	int vHLD  = _CODE("HLD",     opDOCON, opNEXT, 0, 0, ta+0,  0, 0, 0);
-	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, ta+4,  0, 0, 0);
-	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, ta+8,  0, 0, 0);
-	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, ta+12, 0, 0, 0);
+	int vHLD  = _CODE("HLD",     opDOCON, opNEXT, 0, 0, ta+0,        0, 0, 0);
+	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, ta+CELLSZ,   0, 0, 0);
+	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, ta+CELLSZ*2, 0, 0, 0);
+	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, ta+CELLSZ*3, 0, 0, 0);
 	int va    = FORTH_UVAR_ADDR;
-	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, va+0,  0, 0, 0);
-	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, va+4,  0, 0, 0);
-	int vCNTX = _CODE("CONTEXT", opDOCON, opNEXT, 0, 0, va+8,  0, 0, 0);
-	int vCP   = _CODE("CP",      opDOCON, opNEXT, 0, 0, va+12, 0, 0, 0);
-	int vLAST = _CODE("LAST",    opDOCON, opNEXT, 0, 0, va+16, 0, 0, 0);
-	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, va+20, 0, 0, 0);
-	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, va+24, 0, 0, 0);
-	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, va+28, 0, 0, 0);
+	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, va+0,        0, 0, 0);
+	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, va+CELLSZ,   0, 0, 0);
+	int vCNTX = _CODE("CONTEXT", opDOCON, opNEXT, 0, 0, va+CELLSZ*2, 0, 0, 0);
+	int vCP   = _CODE("CP",      opDOCON, opNEXT, 0, 0, va+CELLSZ*3, 0, 0, 0);
+	int vLAST = _CODE("LAST",    opDOCON, opNEXT, 0, 0, va+CELLSZ*4, 0, 0, 0);
+	int vTEVL = _CODE("'EVAL",   opDOCON, opNEXT, 0, 0, va+CELLSZ*5, 0, 0, 0);
+	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, va+CELLSZ*6, 0, 0, 0);
+	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, va+CELLSZ*7, 0, 0, 0);
 	//
 	// Kernel dictionary (primitive proxies)
 	//
@@ -292,14 +292,14 @@ int assemble(U8 *rom) {
 	int MAX   = _CODE("MAX",     opMAX,   opNEXT, 0, 0);
 	int MIN   = _CODE("MIN",     opMIN,   opNEXT, 0, 0);
 
-	int BLANK = _CODE("BL",      opDOCON, opNEXT, 0,      0, 32, 0, 0, 0);
-	int CELL  = _CODE("CELL",    opDOCON, opNEXT, 0,      0,  4, 0, 0, 0);
-	int CELLP = _CODE("CELL+",   opDOCON, opPLUS, opNEXT, 0,  4, 0, 0, 0);
-	int CELLM = _CODE("CELL-",   opDOCON, opSUB,  opNEXT, 0,  4, 0, 0, 0);
-	int CELLS = _CODE("CELLS",   opDOCON, opSTAR, opNEXT, 0,  4, 0, 0, 0);
-	int CELLD = _CODE("CELL/",   opDOCON, opSLASH,opNEXT, 0,  4, 0, 0, 0);
-	int ONEP  = _CODE("1+",      opDOCON, opPLUS, opNEXT, 0,  1, 0, 0, 0);
-	int ONEM  = _CODE("1-",      opDOCON, opSUB,  opNEXT, 0,  1, 0, 0, 0);
+	int BLANK = _CODE("BL",      opDOCON, opNEXT, 0,      0, 0x20,   0, 0, 0);
+	int CELL  = _CODE("CELL",    opDOCON, opNEXT, 0,      0, CELLSZ, 0, 0, 0);
+	int CELLP = _CODE("CELL+",   opDOCON, opPLUS, opNEXT, 0, CELLSZ, 0, 0, 0);
+	int CELLM = _CODE("CELL-",   opDOCON, opSUB,  opNEXT, 0, CELLSZ, 0, 0, 0);
+	int CELLS = _CODE("CELLS",   opDOCON, opSTAR, opNEXT, 0, CELLSZ, 0, 0, 0);
+	int CELLD = _CODE("CELL/",   opDOCON, opSLASH,opNEXT, 0, CELLSZ, 0, 0, 0);
+	int ONEP  = _CODE("1+",      opDOCON, opPLUS, opNEXT, 0, 1,      0, 0, 0);
+	int ONEM  = _CODE("1-",      opDOCON, opSUB,  opNEXT, 0, 1,      0, 0, 0);
 	int DOVAR = _CODE("DOVAR",   opDOVAR, opNEXT, 0,      0);
 	//
 	// tracing instrumentation (borrow 2 opcodes)
@@ -648,7 +648,9 @@ int assemble(U8 *rom) {
 	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
 	int IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
 
-	int XDIC   = aP;                // End of dictionary
+	int XDIC   = aP;                                    // End of dictionary
+	int sz     = strlen("IMMEDIATE");                   // size of last word
+	int last   = IMMED - (sz + (-sz & (CELLSZ-1)));     // name field of last word
 	//
 	// Setup Boot Vector
 	//
@@ -667,7 +669,7 @@ int assemble(U8 *rom) {
 	//   tmp     = 0              (scratch pad)
 	//
 	aP = FORTH_UVAR_ADDR;
-	int USER  = _LABEL(FORTH_BUF_SIZE, 0x10, IMMED - 12, XDIC, IMMED - 12, INTER, QUIT, 0);
+	int USER  = _LABEL(FORTH_BUF_SZ, 0x10, last, XDIC, last, INTER, QUIT, 0);
 
 	return XDIC;
 }
