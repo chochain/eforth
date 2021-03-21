@@ -29,19 +29,15 @@ void _break_point(char *name) {
 }
 
 char *_name(int pc)  {
-	static U8 *sEXIT = "EXIT";
 	static U8 buf[32];			        // allocated in memory instead of on C stack
 
 	U8 *a = &byte[pc];		    		// pointer to current code pointer
-	if (*a==opEXIT) return sEXIT;
+	if (*a==opEXIT) return 0;
 	for (a-=4; (*a & 0x7f)>0x1f; a-=4); // retract pointer to word name (ASCII range: 0x20~0x7f)
 
 	int  len = (int)*a & 0x1f;          // Forth allows 31 char max
 	memcpy(buf, a+1, len);
 	buf[len] = '\0';
-
-	_break_point(buf);
-
 	return buf;
 }
 //
@@ -63,7 +59,13 @@ void _trc_off() 	{ tOFF--; }
 	printf(" ;");                              \
 	tTAB--;                                    \
 }
-#define TRACE_WORD(p) if (!tOFF) { printf(" %s_%04x", _name(p), p); }
+#define TRACE_WORD() if (!tOFF) {              \
+	char *n = _name(PC);                       \
+	if (n) {                                   \
+		printf(" %x_%x_%s", stack[S], top, n); \
+		_break_point(n);                       \
+	}                                          \
+}
 #else // FORTH_TRACE
 void    _trc_on()     {}
 void    _trc_off()    {}
@@ -71,16 +73,16 @@ void    _trc_off()    {}
 #define LOG(s)
 #define TRACE_COLON()
 #define TRACE_EXIT()
-#define TRACE_WORD(p)
+#define TRACE_WORD()
 #endif // FORTH_TRACE
 //
 // Forth Virtual Machine (primitive functions)
 //
-#define NEXT()      {  	\
-	PC = DATA(IP);      \
-	WP = PC + 4; 	    \
-	IP += 4;       		\
-	TRACE_WORD(PC); 	\
+#define NEXT()      {  	 \
+	PC = DATA(IP);       \
+	WP = PC + 4; 	     \
+	IP += 4;       		 \
+	TRACE_WORD();        \
 	}
 void _nop() {}              // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS

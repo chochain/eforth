@@ -6,9 +6,9 @@
 //
 // debugging flags
 //
-#define ASSEM_DUMP   1
-#define DATA_DUMP    1
-#define FORTH_TRACE  0
+#define ASSEM_DUMP   0
+#define DATA_DUMP    0
+#define FORTH_TRACE  1
 //
 // portable types
 //
