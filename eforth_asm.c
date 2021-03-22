@@ -429,7 +429,7 @@ int assemble(U8 *rom) {
 
 	// Parser
 
-	int PARS  = _COLON("(parse)", vTEMP, CSTOR, OVER, TOR, DUP); {
+	int PARSE0= _COLON("(parse)", vTEMP, CSTOR, OVER, TOR, DUP); {
         _IF(ONEM, vTEMP, CAT, BLANK, EQUAL); {
             _IF(NOP); {
                 _FOR(BLANK, OVER, CAT, SUB, ZLESS, INVER);
@@ -450,7 +450,7 @@ int assemble(U8 *rom) {
         _THEN(OVER, RFROM, SUB, EXIT);                   // CC: this line is questionable
     }
 	int PACKS = _COLON("PACK$", DUP, TOR, DDUP, PLUS, DOLIT, 0xfffffffc, AND, DOLIT, 0, SWAP, STORE, DDUP, CSTOR, ONEP, SWAP, CMOVE, RFROM, EXIT);
-	int PARSE = _COLON("PARSE", TOR, TIB, vIN, AT, PLUS, vNTIB, AT, vIN, AT, SUB, RFROM, PARS, vIN, PSTOR, EXIT);
+	int PARSE = _COLON("PARSE", TOR, TIB, vIN, AT, PLUS, vNTIB, AT, vIN, AT, SUB, RFROM, PARSE0, vIN, PSTOR, EXIT);
 	int TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);
 	int WORDD = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
 	int NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, ALIGN, EXIT);
@@ -484,7 +484,7 @@ int assemble(U8 *rom) {
         _IF(DOLIT, 8, EMIT, ONEM, BLANK, EMIT, DOLIT, 8, EMIT);
         _THEN(EXIT);
     }
-	int TAP   = _COLON("TAP",  DUP, EMIT, OVER, CSTOR, ONEP, EXIT);
+	int TAP   = _COLON("TAP", DUP, EMIT, OVER, CSTOR, ONEP, EXIT);
 	int KTAP  = _COLON("kTAP", DUP, DOLIT, 0xd, XOR, OVER, DOLIT, 0xa, XOR, AND); {
         _IF(DOLIT, 8, XOR); {
             _IF(BLANK, TAP);
@@ -503,16 +503,42 @@ int assemble(U8 *rom) {
         _REPEAT(DROP, OVER, SUB, EXIT);
     }
 	int EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
-	int QUERY = _COLON("QUERY",  TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
+	int QUERY = _COLON("QUERY", TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
 	//
 	// Text Interpreter
 	//
+    /* QUIT Forth main interpreter loop
+       QUERY/ACCEPT - start the interpreter loop <-----------<------.
+	   TOKEN - get a space delimited word                            \
+	   find  - attempt to look up that word in the dictionary         \
+	   EVAL - was the word found?                                      ^
+	   |-Yes:                                                          |
+	   |   $INTERPRET - are we in compile mode?                        |
+	   |   |-Yes:                                                      ^
+	   |   | \-Is the Word an Immediate word?                          |
+	   |   |   |-Yes:                                                  |
+	   |   |   | \- EXECUTE Execute the word ------------------->----->.
+	   |   |   \-No:                                                   |
+	   |   |     \-Compile the word into the dictionary -------->----->.
+	   |   \-No:                                                       |
+	   |     \- EXECUTE Execute the word ----->----------------->----->.
+	   \-No:                                                           ^
+	       Can the word be treated as a number?                        |
+ 	       |-Yes:                                                      |
+	       | \-Are we in compile mode?                                 |
+	       |   |-Yes:                                                  |
+	       |   | \-Compile a literal into the dictionary >------>----->.
+	       |   \-No:                                                   |
+	       |     \-Push the number to the variable stack >------>----->.
+	       \-No:                                                      /
+	        \-An Error has occurred, print out an error message >---->
+    */
 	int ABORT  = _COLON("ABORT", vTABRT, ATEXE);
-	    ABORTQ = _COLON("abort\"",  NOP); {
+	    ABORTQ = _COLON("abort\"", NOP); {
         _IF(DOSTR, COUNT, TYPE, ABORT);
         _THEN(DOSTR, DROP, EXIT);
     }
-	int ERROR = _COLON("ERROR",      SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
+	int ERROR = _COLON("ERROR", SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
 	int INTER = _COLON("$INTERPRET", NAMEQ, QDUP); {
         _IF(CAT, DOLIT, fCOMPO, AND);
         _ABORTQ(" compile only");
@@ -523,7 +549,7 @@ int assemble(U8 *rom) {
         _ELSE(ERROR);
         _THEN(NOP);
     }
-	int LBRAC = _IMMED("[",   DOLIT, INTER, vTEVL, STORE, EXIT);
+	int LBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
 	int DOTOK = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {
         _IF(TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
             _DOTQ(" ok>");
@@ -535,9 +561,6 @@ int assemble(U8 *rom) {
         _WHILE(vTEVL, ATEXE);
         _REPEAT(DROP, DOTOK, EXIT);
     }
-    //
-    // main interpreter loop
-    //
 	int QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, LBRAC); {
         _BEGIN(QUERY, EVAL);
         _AGAIN(NOP);
