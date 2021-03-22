@@ -327,8 +327,9 @@ int assemble(U8 *rom) {
         _THEN(EXIT);
     }
 	int ALIGN = _COLON("ALIGNED", DOLIT, 3, PLUS, DOLIT, 0xfffffffc, AND, EXIT);
-	int HERE  = _COLON("HERE",    vCP, AT, EXIT);
-	int PAD   = _COLON("PAD",     HERE, DOLIT, 0x50, PLUS, EXIT);
+	int HERE  = _COLON("HERE",    vCP, AT, EXIT);                  // top of dictionary
+	int PAD   = _COLON("PAD",     HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
+	                                                               // CC: change to RAM buffer for R/W
 	int TIB   = _COLON("TIB",     vTTIB, AT, EXIT);
 	int ATEXE = _COLON("@EXECUTE",AT, QDUP); {
         _IF(EXECU);
@@ -425,7 +426,7 @@ int assemble(U8 *rom) {
         _IF(UDOT, EXIT);
         _THEN(STR, SPACE, TYPE, EXIT);
     }
-	int QUEST = _COLON("?",     AT, DOT, EXIT);
+	int QUEST = _COLON("?", AT, DOT, EXIT);
 
 	// Parser
 
@@ -463,18 +464,18 @@ int assemble(U8 *rom) {
         _THEN(NOP);
         _NEXT(DOLIT, 0, EXIT);
     }
-	int FIND = _COLON("find", SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
+	int FIND = _COLON("find", trc_off, SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
         _BEGIN(AT, DUP); {
             _IF(DUP, AT, DOLIT, 0xffffff3f, AND, UPPER, RAT, UPPER, XOR); {
                 _IF(CELLP, DOLIT, 0xffffffff);
                 _ELSE(CELLP, vTEMP, AT, SAMEQ);
                 _THEN(NOP);
             }
-            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, EXIT);
+            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, trc_on, EXIT);
             _THEN(NOP);
         }
         _WHILE(CELLM, CELLM);
-        _REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);
+        _REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, trc_on, EXIT);
     }
 	int NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
 	//
@@ -509,9 +510,9 @@ int assemble(U8 *rom) {
 	//
     /* QUIT Forth main interpreter loop
        QUERY/ACCEPT - start the interpreter loop <-----------<------.
-	   TOKEN - get a space delimited word                            \
-	   find  - attempt to look up that word in the dictionary         \
-	   EVAL - was the word found?                                      ^
+	   TOKEN/PARSE - get a space delimited word                      \
+	   @EXECUTE - attempt to look up that word in the dictionary      \
+	   NAME?/find - was the word found?                                ^
 	   |-Yes:                                                          |
 	   |   $INTERPRET - are we in compile mode?                        |
 	   |   |-Yes:                                                      ^
@@ -523,7 +524,7 @@ int assemble(U8 *rom) {
 	   |   \-No:                                                       |
 	   |     \- EXECUTE Execute the word ----->----------------->----->.
 	   \-No:                                                           ^
-	       Can the word be treated as a number?                        |
+	       NUMBER? - Can the word be treated as a number?              |
  	       |-Yes:                                                      |
 	       | \-Are we in compile mode?                                 |
 	       |   |-Yes:                                                  |
