@@ -1,11 +1,12 @@
 #include <stdlib.h>
+#include <time.h>
 #include "eforth.h"
 //
 // Forth VM control registers
 //
 XA  PC, IP, WP;                 // PC (program counter), IP (intruction pointer), WP (parameter pointer)
 U8  R, S;                       // return stack index, data stack index
-XS  top;                        // ALU (i.e. cached stack top value)
+XS  top;                        // ALU (i.e. cached top of stack value)
 //
 // Forth VM core storage
 //
@@ -18,16 +19,18 @@ U8* byte = 0;             			 	// linear byte array pointer
 //              |            |
 // ..., S2, S1, S0 <- top -> R0, R1, R2, ...
 //
+// Ting uses 256 and U8 for wrap-around control
+//
 #define STACK(s)    (stack[(s)&(FORTH_STACK_SZ-1)])
 #define BOOL(f)     ((f) ? TRUE : FALSE)
 #define	POP()		(top=STACK(S--))
 #define	PUSH(v)	    (STACK(++S)=top, top=(XS)(v))
 #define DATA(ip)    (*(XA*)(byte+(XA)(ip)))
 
-void _break_point(char *name) {
-	if (strcmp(name, "find")) return;
+void _break_point(XU PC, char *name) {
+	if (strcmp(name, "clock")) return;
 
-	int i=0;
+	int i=PC;
 }
 
 char *_name(int pc)  {
@@ -63,9 +66,9 @@ void _trc_off() 	{ tOFF--; }
 }
 #define TRACE_WORD() if (!tOFF) {              \
 	char *n = _name(PC);                       \
+	_break_point(PC, n);                       \
 	if (n) {                                   \
 		printf(" %x_%x_%s", STACK(S), top, n); \
-		_break_point(n);                       \
 	}                                          \
 }
 #else // FORTH_TRACE
@@ -86,6 +89,9 @@ void    _trc_off()    {}
 	IP += CELLSZ;        \
 	TRACE_WORD();        \
 	}
+void _clock() {
+    PUSH((XU)clock());
+}
 void _nop() {}              // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
 void _qrx()                 // ( -- c t|f) read a char from terminal input device
@@ -443,7 +449,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 18 */ _rfrom,
 	/* case 19 */ _rat,
 	/* case 20 */ _tor,
-	/* case 21 spat, */  _nop,
+	/* case 21 spat, */  _clock,
 	/* case 22 spsto, */ _nop,
 	/* case 23 */ _drop,
 	/* case 24 */ _dup,

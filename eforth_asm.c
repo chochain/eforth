@@ -305,6 +305,7 @@ int assemble(U8 *rom) {
 	//
 	// tracing instrumentation (borrow 2 opcodes)
 	//
+	int clock   = _CODE("clock",   opSPAT,  opNEXT, 0, 0);
 #if FORTH_TRACE
     int trc_on  = _CODE("trc_on",  opRPAT,  opNEXT, 0, 0);
     int trc_off = _CODE("trc_off", opRPSTO, opNEXT, 0, 0);

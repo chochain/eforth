@@ -8,7 +8,7 @@
 //
 #define ASSEM_DUMP   0
 #define DATA_DUMP    0
-#define FORTH_TRACE  1
+#define FORTH_TRACE  0
 //
 // portable types
 //
@@ -69,13 +69,13 @@ enum {
     opAT,         // 13
     opCSTOR,      // 14
     opCAT,        // 15
-    opRPAT,       // 16   borrow for trc_on
-    opRPSTO,      // 17   borrow for trc_off
+    opRPAT,       // 16   borrowed for trc_on
+    opRPSTO,      // 17   borrowed for trc_off
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
-    opSPAT,       // 21
-    opSPSTO,      // 22
+    opSPAT,       // 21   borrowed for clock
+    opSPSTO,      // 22   
     opDROP,       // 23
     opDUP,        // 24
     opSWAP,       // 25
