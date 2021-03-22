@@ -129,9 +129,8 @@ void _docon()               // ( -- n) push next token onto data stack as consta
 }
 void _dolit()               // ( -- w) push next token as an integer literal
 {
-	XS v = (XS)DATA(IP);	// fetch literal from data
-	TRACE(" %d", v);
-	PUSH(v);				// push onto data stack
+	TRACE(" %d", DATA(IP)); // fetch literal from data
+	PUSH((XS)DATA(IP));		// push onto data stack
 	IP += CELLSZ;			// skip to next instruction
     NEXT();
 }
@@ -317,13 +316,13 @@ void _uless()               // (u1 u2 -- t) unsigned compare top two items
 }
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
-	S64 d = (S64)top;
+	S64 d = (S64)top;       // CC: auto variable uses C stack (should use WP instead)
 	S64 m = (S64)STACK(S);
 	S64 n = (S64)STACK(S - 1);
 	n += m << (CELLSZ<<3);
 	POP();
-	top = (XU)(n / d);
-	STACK(S) = (XU)(n%d);
+	top      = (XU)(n / d); // quotient
+	STACK(S) = (XU)(n % d); // remainder
 }
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
@@ -332,8 +331,8 @@ void _msmod()               // (d n -- r q) signed floored divide of double by s
 	S64 n = (S64)STACK(S - 1);
 	n += m << 32;
 	POP();
-	top = (XS)(n / d);     // mod
-	STACK(S) = (XS)(n%d);  // quotion
+	top      = (XS)(n / d); // quotient
+	STACK(S) = (XS)(n % d); // remainder
 }
 void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotien
 {
@@ -356,7 +355,7 @@ void _umsta()               // (u1 u2 -- ud) unsigned multiply return double pro
 	U64 d = (U64)top;
 	U64 m = (U64)STACK(S);
 	m *= d;
-	top = (XU)(m >> 32);
+	top      = (XU)(m >> 32);
 	STACK(S) = (XU)m;
 }
 void _star()                // (n n -- n) signed multiply, return single product
@@ -368,7 +367,7 @@ void _mstar()               // (n1 n2 -- d) signed multiply, return double produ
 	S64 d = (S64)top;
 	S64 m = (S64)STACK(S);
 	m *= d;
-	top = (XS)(m >> 32);
+	top      = (XS)(m >> 32);
 	STACK(S) = (XS)m;
 }
 void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotion
@@ -378,7 +377,7 @@ void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotio
 	S64 n = (S64)STACK(S - 1);
 	n *= m;
 	POP();
-	top = (XS)(n / d);
+	top      = (XS)(n / d);
 	STACK(S) = (XS)(n % d);
 }
 void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
@@ -402,8 +401,8 @@ void _pstor()               // (n a -- ) add n to content at address a
 }
 void _dstor()               // (d a -- ) store the double to address a
 {
-	DATA(top+4) = STACK(S--);
-	DATA(top)   = STACK(S--);
+	DATA(top+CELLSZ) = STACK(S--);
+	DATA(top)        = STACK(S--);
 	POP();
 }
 void _dat()                 // (a -- d) fetch double from address a
