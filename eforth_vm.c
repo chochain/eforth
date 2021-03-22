@@ -18,9 +18,10 @@ U8* byte = 0;             			 	// linear byte array pointer
 //              |            |
 // ..., S2, S1, S0 <- top -> R0, R1, R2, ...
 //
+#define STACK(s)    (stack[(s)&(FORTH_STACK_SZ-1)])
 #define BOOL(f)     ((f) ? TRUE : FALSE)
-#define	POP()		(top = stack[S--])
-#define	PUSH(v)	    { stack[++S]=top; top=(XS)(v); }
+#define	POP()		(top=STACK(S--))
+#define	PUSH(v)	    (STACK(++S)=top, top=(XS)(v))
 #define DATA(ip)    (*(XA*)(byte+(XA)(ip)))
 
 void _break_point(char *name) {
@@ -63,7 +64,7 @@ void _trc_off() 	{ tOFF--; }
 #define TRACE_WORD() if (!tOFF) {              \
 	char *n = _name(PC);                       \
 	if (n) {                                   \
-		printf(" %x_%x_%s", stack[S], top, n); \
+		printf(" %x_%x_%s", STACK(S), top, n); \
 		_break_point(n);                       \
 	}                                          \
 }
@@ -173,7 +174,7 @@ void _bran()                // ( -- ) branch to address following
 }
 void _store()               // (n a -- ) store into memory location from top of stack
 {
-	DATA(top) = stack[S--];
+	DATA(top) = STACK(S--);
 	POP();
 }
 void _at()                  // (a -- n) fetch from memory address onto top of stack
@@ -182,7 +183,7 @@ void _at()                  // (a -- n) fetch from memory address onto top of st
 }
 void _cstor()               // (c b -- ) store a byte into memory location
 {
-	byte[top] = (U8)stack[S--];
+	byte[top] = (U8)STACK(S--);
 	POP();
 }
 void _cat()                 // (b -- n) fetch a byte from memory location
@@ -208,17 +209,17 @@ void _drop()                // (w -- ) drop top of stack item
 }
 void _dup()                 // (w -- w w) duplicate to of stack
 {
-	stack[++S] = top;
+	STACK(++S) = top;
 }
 void _swap()                // (w1 w2 -- w2 w1) swap top two items on the data stack
 {
 	WP  = (XA)top;          // use WP as temp
-	top = stack[S];
-	stack[S] = (XS)WP;
+	top = STACK(S);
+	STACK(S) = (XS)WP;
 }
 void _over()                // (w1 w2 -- w1 w2 w1) copy second stack item to top
 {
-	PUSH(stack[S - 1]);
+	PUSH(STACK(S - 1));
 }
 void _zless()               // (n -- f) check whether top of stack is negative
 {
@@ -226,30 +227,30 @@ void _zless()               // (n -- f) check whether top of stack is negative
 }
 void _and()                 // (w w -- w) bitwise AND
 {
-	top &= stack[S--];
+	top &= STACK(S--);
 }
 void _or()                  // (w w -- w) bitwise OR
 {
-	top |= stack[S--];
+	top |= STACK(S--);
 }
 void _xor()                 // (w w -- w) bitwise XOR
 {
-	top ^= stack[S--];
+	top ^= STACK(S--);
 }
 void _uplus()               // (w w -- w c) add two numbers, return the sum and carry flag
 {
-	stack[S] += top;
-	top = (XU)stack[S] < (XU)top;
+	STACK(S) += top;
+	top = (XU)STACK(S) < (XU)top;
 }
 void _qdup()                // (w -- w w | 0) dup top of stack if it is not zero
 {
-	if (top) stack[++S] = top;
+	if (top) STACK(++S) = top;
 }
 void _rot()                 // (w1 w2 w3 -- w2 w3 w1) rotate 3rd item to top
 {
-	WP = (XA)stack[S - 1];
-	stack[S - 1] = stack[S];
-	stack[S]     = top;
+	WP = (XA)STACK(S - 1);
+	STACK(S - 1) = STACK(S);
+	STACK(S)     = top;
 	top = (XS)WP;
 }
 void _ddrop()               // (w w --) drop top two items
@@ -264,7 +265,7 @@ void _ddup()                // (w1 w2 -- w1 w2 w1 w2) duplicate top two items
 }
 void _plus()                // (w w -- sum) add top two items
 {
-	top += stack[S--];
+	top += STACK(S--);
 }
 void _inver()               // (w -- w) one's complement
 {
@@ -286,7 +287,7 @@ void _dnega()               // (d -- -d) two's complement of top double
 }
 void _sub()                 // (n1 n2 -- n1-n2) subtraction
 {
-	top = stack[S--] - top;
+	top = STACK(S--) - top;
 }
 void _abs()                 // (n -- n) absolute value of n
 {
@@ -294,91 +295,91 @@ void _abs()                 // (n -- n) absolute value of n
 }
 void _great()               // (n1 n2 -- t) true if n1>n2
 {
-	top = BOOL(stack[S--] > top);
+	top = BOOL(STACK(S--) > top);
 }
 void _less()                // (n1 n2 -- t) true if n1<n2
 {
-	top = BOOL(stack[S--] < top);
+	top = BOOL(STACK(S--) < top);
 }
 void _equal()               // (w w -- t) true if top two items are equal
 {
-	top = BOOL(stack[S--]==top);
+	top = BOOL(STACK(S--)==top);
 }
 void _uless()               // (u1 u2 -- t) unsigned compare top two items
 {
-	top = BOOL((XU)(stack[S--]) < (XU)top);
+	top = BOOL((XU)(STACK(S--)) < (XU)top);
 }
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
 	S64 d = (S64)top;
-	S64 m = (S64)stack[S];
-	S64 n = (S64)stack[S - 1];
+	S64 m = (S64)STACK(S);
+	S64 n = (S64)STACK(S - 1);
 	n += m << (CELLSZ<<3);
 	POP();
 	top = (XU)(n / d);
-	stack[S] = (XU)(n%d);
+	STACK(S) = (XU)(n%d);
 }
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
 	S64 d = (S64)top;
-	S64 m = (S64)stack[S];
-	S64 n = (S64)stack[S - 1];
+	S64 m = (S64)STACK(S);
+	S64 n = (S64)STACK(S - 1);
 	n += m << 32;
 	POP();
 	top = (XS)(n / d);     // mod
-	stack[S] = (XS)(n%d);  // quotion
+	STACK(S) = (XS)(n%d);  // quotion
 }
 void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotien
 {
 	if (top) {
-		WP  = stack[S] / top;
-		stack[S] %= top;
+		WP  = STACK(S) / top;
+		STACK(S) %= top;
 		top = WP;
 	}
 }
 void _mod()                 // (n n -- r) signed divide, returns mod
 {
-	top = (top) ? stack[S--] % top : stack[S--];
+	top = (top) ? STACK(S--) % top : STACK(S--);
 }
 void _slash()               // (n n - q) signed divide, return quotient
 {
-	top = (top) ? stack[S--] / top : (stack[S--], 0);
+	top = (top) ? STACK(S--) / top : (STACK(S--), 0);
 }
 void _umsta()               // (u1 u2 -- ud) unsigned multiply return double product
 {
 	U64 d = (U64)top;
-	U64 m = (U64)stack[S];
+	U64 m = (U64)STACK(S);
 	m *= d;
 	top = (XU)(m >> 32);
-	stack[S] = (XU)m;
+	STACK(S) = (XU)m;
 }
 void _star()                // (n n -- n) signed multiply, return single product
 {
-	top *= stack[S--];
+	top *= STACK(S--);
 }
 void _mstar()               // (n1 n2 -- d) signed multiply, return double product
 {
 	S64 d = (S64)top;
-	S64 m = (S64)stack[S];
+	S64 m = (S64)STACK(S);
 	m *= d;
 	top = (XS)(m >> 32);
-	stack[S] = (XS)m;
+	STACK(S) = (XS)m;
 }
 void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotion
 {
 	S64 d = (S64)top;
-	S64 m = (S64)stack[S];
-	S64 n = (S64)stack[S - 1];
+	S64 m = (S64)STACK(S);
+	S64 n = (S64)STACK(S - 1);
 	n *= m;
 	POP();
 	top = (XS)(n / d);
-	stack[S] = (XS)(n % d);
+	STACK(S) = (XS)(n % d);
 }
 void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 {
 	S64 d = (S64)top;
-	S64 m = (S64)stack[S];
-	S64 n = (S64)stack[S - 1];
+	S64 m = (S64)STACK(S);
+	S64 n = (S64)STACK(S - 1);
 	n *= m;
 	POP();
     POP();
@@ -386,17 +387,17 @@ void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 }
 void _pick()                // (... +n -- ...w) copy nth stack item to top
 {
-	top = stack[S - (U8)top];
+	top = STACK(S - (U8)top);
 }
 void _pstor()               // (n a -- ) add n to content at address a
 {
-	DATA(top) += (XA)stack[S--];
+	DATA(top) += (XA)STACK(S--);
     POP();
 }
 void _dstor()               // (d a -- ) store the double to address a
 {
-	DATA(top+4) = stack[S--];
-	DATA(top)   = stack[S--];
+	DATA(top+4) = STACK(S--);
+	DATA(top)   = STACK(S--);
 	POP();
 }
 void _dat()                 // (a -- d) fetch double from address a
@@ -406,17 +407,17 @@ void _dat()                 // (a -- d) fetch double from address a
 }
 void _count()               // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
-	stack[++S] = top + 1;
+	STACK(++S) = top + 1;
 	top = byte[top];
 }
 void _max()                 // (n1 n2 -- n) return greater of two top stack items
 {
-	if (top < stack[S]) POP();
+	if (top < STACK(S)) POP();
 	else (U8)S--;
 }
 void _min()                 // (n1 n2 -- n) return smaller of two top stack items
 {
-	if (top < stack[S]) (U8)S--;
+	if (top < STACK(S)) (U8)S--;
 	else POP();
 }
 
