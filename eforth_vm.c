@@ -10,8 +10,8 @@ XS  top;                        // ALU (i.e. cached top of stack value)
 //
 // Forth VM core storage
 //
-XA  rack[FORTH_RACK_SZ]   = { 0 };   	// return stack
-XS  stack[FORTH_STACK_SZ] = { 0 };   	// data stack
+XA  rack[FORTH_RACK_SZ]   = { 0 };   	// return stack (assume FORTH_RACK_SZ is power of 2)
+XS  stack[FORTH_STACK_SZ] = { 0 };   	// data stack   (assume FORTH_STACK_SZ is power of 2)
 U8* byte = 0;             			 	// linear byte array pointer
 //
 // data and return stack ops
@@ -21,6 +21,7 @@ U8* byte = 0;             			 	// linear byte array pointer
 //
 // Ting uses 256 and U8 for wrap-around control
 //
+#define RACK(r)     (rack[(r)&(FORTH_RACK_SZ-1)])
 #define STACK(s)    (stack[(s)&(FORTH_STACK_SZ-1)])
 #define BOOL(f)     ((f) ? TRUE : FALSE)
 #define	POP()		(top=STACK(S--))
@@ -137,14 +138,14 @@ void _dolit()               // ( -- w) push next token as an integer literal
 void _dolist()              // ( -- ) push instruction pointer onto return stack and pop
 {
 	TRACE_COLON();
-	rack[++R] = IP;
+	RACK(++R) = IP;
 	IP = WP;
     NEXT();
 }
 void __exit()                // ( -- ) terminate all token lists in colon words
 {
 	TRACE_EXIT();
-	IP = rack[R--];
+	IP = RACK(R--);
     NEXT();
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
@@ -155,8 +156,8 @@ void _execu()               // (a -- ) take execution address from data stack an
 }
 void _donext()              // ( -- ) terminate a FOR-NEXT loop
 {
-	if (rack[R]) {			// check if loop counter > 0
-		rack[R] -= 1;		// decrement loop counter
+	if (RACK(R)) {			// check if loop counter > 0
+		RACK(R) -= 1;		// decrement loop counter
 		IP = DATA(IP);		// branch back to FOR
 	}
 	else {
@@ -197,15 +198,15 @@ void _cat()                 // (b -- n) fetch a byte from memory location
 }
 void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
 {
-	PUSH(rack[R--]);
+	PUSH(RACK(R--));
 }
 void _rat()                 // (-- n) copy a number off the return stack and push onto data stack
 {
-	PUSH(rack[R]);
+	PUSH(RACK(R));
 }
 void _tor()                 // (-- n) pop from data stack and push onto return stack
 {
-	rack[++R] = (XA)top;
+	RACK(++R) = (XA)top;
 	POP();
 }
 void _drop()                // (w -- ) drop top of stack item
