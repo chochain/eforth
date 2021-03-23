@@ -327,7 +327,7 @@ int assemble(U8 *rom) {
         _IF(DROP, DOLIT, 0x5f);
         _THEN(EXIT);
     }
-	int ALIGN = _COLON("ALIGNED", DOLIT, 3, PLUS, DOLIT, 0xfffffffc, AND, EXIT);
+	int ALIGN = _COLON("ALIGNED", trc_off, DOLIT, 3, PLUS, DOLIT, 0xfffffffc, AND, trc_on, EXIT);
 	int HERE  = _COLON("HERE",    vCP, AT, EXIT);                  // top of dictionary
 	int PAD   = _COLON("PAD",     HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
 	                                                               // CC: change to RAM buffer for R/W
@@ -380,11 +380,11 @@ int assemble(U8 *rom) {
         _IF(DOLIT, 0x5f, AND);
         _THEN(EXIT);
     }
-	int DIGTQ = _COLON("DIGIT?",  TOR, TOUPP, DOLIT, 0x30, SUB, DOLIT, 9, OVER, LESS); {
+	int DIGTQ = _COLON("DIGIT?", trc_off, TOR, TOUPP, DOLIT, 0x30, SUB, DOLIT, 9, OVER, LESS); {
         _IF(DOLIT, 7, SUB, DUP, DOLIT, 10, LESS, OR);
-        _THEN(DUP, RFROM, ULESS, EXIT);
+        _THEN(DUP, RFROM, ULESS, trc_on, EXIT);
     }
-	int NUMBQ = _COLON("NUMBER?", vBASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
+	int NUMBQ = _COLON("NUMBER?", trc_off, vBASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
         _IF(HEX, SWAP, ONEP, SWAP, ONEM);
         _THEN(OVER, CAT, DOLIT, 0x2d, EQUAL, TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP); {
             _IF(ONEM); {
@@ -397,7 +397,7 @@ int assemble(U8 *rom) {
             _ELSE(RFROM, RFROM, DDROP, DDROP, DOLIT, 0);
             _THEN(DUP);
         }
-        _THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
+        _THEN(RFROM, DDROP, RFROM, vBASE, STORE, trc_on, EXIT);
     }
 	//
 	// Terminal Output
@@ -451,8 +451,14 @@ int assemble(U8 *rom) {
         _THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);
         _THEN(OVER, RFROM, SUB, EXIT);                   // CC: this line is questionable
     }
-	int PACKS = _COLON("PACK$", DUP, TOR, DDUP, PLUS, DOLIT, 0xfffffffc, AND, DOLIT, 0, SWAP, STORE, DDUP, CSTOR, ONEP, SWAP, CMOVE, RFROM, EXIT);
-	int PARSE = _COLON("PARSE", TOR, TIB, vIN, AT, PLUS, vNTIB, AT, vIN, AT, SUB, RFROM, PARSE0, vIN, PSTOR, EXIT);
+	int PACKS = _COLON("PACK$", trc_off,
+			DUP, TOR, DDUP, PLUS, DOLIT, 0xfffffffc, AND, DOLIT, 0, SWAP, STORE,
+			DDUP, CSTOR, ONEP, SWAP, CMOVE, RFROM,
+			trc_on, EXIT);
+	int PARSE = _COLON("PARSE", trc_off,
+			TOR, TIB, vIN, AT, PLUS, vNTIB, AT, vIN, AT, SUB, RFROM,
+			PARSE0, vIN, PSTOR,
+			trc_on, EXIT);
 	int TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);
 	int WORDD = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
 	int NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, ALIGN, EXIT);
@@ -495,14 +501,14 @@ int assemble(U8 *rom) {
         }
         _THEN(DROP, SWAP, DROP, DUP, EXIT);
     }
-	int ACCEP = _COLON("ACCEPT", OVER, PLUS, OVER); {
+	int ACCEP = _COLON("ACCEPT", trc_off, OVER, PLUS, OVER); {
         _BEGIN(DDUP, XOR);
         _WHILE(KEY, DUP, BLANK, SUB, DOLIT, 0x5f, ULESS); {
             _IF(TAP);
             _ELSE(KTAP);
             _THEN(NOP);
         }
-        _REPEAT(DROP, OVER, SUB, EXIT);
+        _REPEAT(DROP, OVER, SUB, trc_on, EXIT);
     }
 	int EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
 	int QUERY = _COLON("QUERY", TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
@@ -552,11 +558,11 @@ int assemble(U8 *rom) {
         _THEN(NOP);
     }
 	int LBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
-	int DOTOK = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {
+	int DOTOK = _COLON(".OK", trc_off, CR, DOLIT, INTER, vTEVL, AT, EQUAL); {
         _IF(TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
             _DOTQ(" ok>");
         }
-        _THEN(EXIT);
+        _THEN(trc_on, EXIT);
     }
 	int EVAL  = _COLON("EVAL", NOP); {
         _BEGIN(TOKEN, DUP, AT);
