@@ -27,8 +27,8 @@ U8* byte = 0;             			 	// linear byte array pointer
 #define	PUSH(v)	    (STACK(++S)=top, top=(XS)(v))
 #define DATA(ip)    (*(XA*)(byte+(XA)(ip)))
 
-void _break_point(XU PC, char *name) {
-	if (strcmp(name, "clock")) return;
+void _break_point(XU pc, char *name) {
+	if (name && strcmp("EVAL", name)) return;
 
 	int i=PC;
 }
@@ -66,8 +66,8 @@ void _trc_off() 	{ tOFF--; }
 }
 #define TRACE_WORD() if (!tOFF) {              \
 	char *n = _name(PC);                       \
-	_break_point(PC, n);                       \
 	if (n) {                                   \
+		_break_point(PC, n);                   \
 		printf(" %x_%x_%s", STACK(S), top, n); \
 	}                                          \
 }
