@@ -34,9 +34,9 @@ void _break_point(XU pc, char *name) {
 }
 
 char *_name(int pc)  {
-	static U8 buf[32];			        // allocated in memory instead of on C stack
+	static char buf[32];			    // allocated in memory instead of on C stack
 
-	U8 *a = &byte[pc];		    		// pointer to current code pointer
+	U8 *a = &byte[pc];		            // pointer to current code pointer
 	if (*a==opEXIT) return 0;
 	for (a-=CELLSZ; (*a & 0x7f)>0x1f; a-=CELLSZ);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
