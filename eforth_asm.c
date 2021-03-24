@@ -628,7 +628,7 @@ int assemble(U8 *rom) {
 	int TNAME = _COLON(">NAME", vCNTX); {
         _BEGIN(AT, DUP);
         _WHILE(DDUP, NAMET, XOR); {
-            _IF(ONEM);
+            _IF(CELLM);                            // CC: Ting uses ONEM, a bug
             _ELSE(SWAP, DROP, EXIT);
             _THEN(NOP);
         }
