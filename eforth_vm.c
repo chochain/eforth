@@ -27,32 +27,37 @@ U8* byte = 0;             			 	// linear byte array pointer
 #define	POP()		(top=STACK(S--))
 #define	PUSH(v)	    (STACK(++S)=top, top=(XS)(v))
 #define DATA(ip)    (*(XA*)(byte+(XA)(ip)))
+//
+// tracing instrumentation
+//
+int tOFF = 0, tTAB = 0;                 // trace indentation counter
 
+void _trc_on()  	{ tOFF++; }
+void _trc_off() 	{ tOFF--; }
 void _break_point(XU pc, char *name) {
 	if (name && strcmp("EVAL", name)) return;
 
-	int i=PC;
+	int i=pc;
 }
-
-char *_name(int pc)  {
+void TRACE_WORD() {
 	static char buf[32];			    // allocated in memory instead of on C stack
 
-	U8 *a = &byte[pc];		            // pointer to current code pointer
-	if (*a==opEXIT) return 0;
+	if (!tOFF) return;
+
+	U8 *a = &byte[PC];		            // pointer to current code pointer
+	if (*a==opEXIT) return;
 	for (a-=CELLSZ; (*a & 0x7f)>0x1f; a-=CELLSZ);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
 	int  len = (int)*a & 0x1f;          // Forth allows 31 char max
 	memcpy(buf, a+1, len);
 	buf[len] = '\0';
-	return buf;
+
+	printf(" %x_%x_%s", STACK(S), top, buf);
+
+	_break_point(PC, buf);
 }
-//
-// tracing instrumentation
-//
+
 #if FORTH_TRACE
-int tOFF = 0, tTAB = 0;                 // trace indentation counter
-void _trc_on()  	{ tOFF++; }
-void _trc_off() 	{ tOFF--; }
 #define TRACE(s,v)      { if(!tOFF) printf(s,v); }
 #define LOG(s)          TRACE(" %s", s)
 #define TRACE_COLON() if (!tOFF) {             \
@@ -65,21 +70,11 @@ void _trc_off() 	{ tOFF--; }
 	printf(" ;");                              \
 	tTAB--;                                    \
 }
-#define TRACE_WORD() if (!tOFF) {              \
-	char *n = _name(PC);                       \
-	if (n) {                                   \
-		_break_point(PC, n);                   \
-		printf(" %x_%x_%s", STACK(S), top, n); \
-	}                                          \
-}
 #else // FORTH_TRACE
-void    _trc_on()     {}
-void    _trc_off()    {}
 #define TRACE(s,v)
 #define LOG(s)
 #define TRACE_COLON()
 #define TRACE_EXIT()
-#define TRACE_WORD()
 #endif // FORTH_TRACE
 //
 // Forth Virtual Machine (primitive functions)
