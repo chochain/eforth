@@ -306,13 +306,8 @@ int assemble(U8 *rom) {
 	// tracing instrumentation (borrow 2 opcodes)
 	//
 	int clock   = _CODE("clock",   opSPAT,  opNEXT, 0, 0);
-#if FORTH_TRACE
     int trc_on  = _CODE("trc_on",  opRPAT,  opNEXT, 0, 0);
     int trc_off = _CODE("trc_off", opRPSTO, opNEXT, 0, 0);
-#else
-    int trc_on  = NOP;
-    int trc_off = NOP;
-#endif // FORTH_TRACE
 	//
 	// Common Colon Words (in word streams)
 	//
@@ -327,7 +322,7 @@ int assemble(U8 *rom) {
         _IF(DROP, DOLIT, 0x5f);
         _THEN(EXIT);
     }
-	int ALIGN = _COLON("ALIGNED", trc_off, DOLIT, 3, PLUS, DOLIT, 0xfffffffc, AND, trc_on, EXIT);
+	int ALIGN = _COLON("ALIGNED", DOLIT, 3, PLUS, DOLIT, 0xfffffffc, AND, EXIT);
 	int HERE  = _COLON("HERE",    vCP, AT, EXIT);                  // top of dictionary
 	int PAD   = _COLON("PAD",     HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
 	                                                               // CC: change to RAM buffer for R/W
@@ -380,11 +375,11 @@ int assemble(U8 *rom) {
         _IF(DOLIT, 0x5f, AND);
         _THEN(EXIT);
     }
-	int DIGTQ = _COLON("DIGIT?", trc_off, TOR, TOUPP, DOLIT, 0x30, SUB, DOLIT, 9, OVER, LESS); {
+	int DIGTQ = _COLON("DIGIT?", TOR, TOUPP, DOLIT, 0x30, SUB, DOLIT, 9, OVER, LESS); {
         _IF(DOLIT, 7, SUB, DUP, DOLIT, 10, LESS, OR);
-        _THEN(DUP, RFROM, ULESS, trc_on, EXIT);
+        _THEN(DUP, RFROM, ULESS, EXIT);
     }
-	int NUMBQ = _COLON("NUMBER?", trc_off, vBASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
+	int NUMBQ = _COLON("NUMBER?", vBASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
         _IF(HEX, SWAP, ONEP, SWAP, ONEM);
         _THEN(OVER, CAT, DOLIT, 0x2d, EQUAL, TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP); {
             _IF(ONEM); {
@@ -397,7 +392,7 @@ int assemble(U8 *rom) {
             _ELSE(RFROM, RFROM, DDROP, DDROP, DOLIT, 0);
             _THEN(DUP);
         }
-        _THEN(RFROM, DDROP, RFROM, vBASE, STORE, trc_on, EXIT);
+        _THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
     }
 	//
 	// Terminal Output
@@ -419,7 +414,7 @@ int assemble(U8 *rom) {
 	int CR    = _COLON("CR",    DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
 	int DOSTR = _COLON("do$",   RFROM, RAT, RFROM, COUNT, PLUS, ALIGN, TOR, SWAP, TOR, EXIT);
 	int STRQ  = _COLON("$\"|",  DOSTR, EXIT);
-	    DOTQ  = _COLON(".\"|",  trc_off, DOSTR, COUNT, TYPE, trc_on, EXIT);
+	    DOTQ  = _COLON(".\"|",  DOSTR, COUNT, TYPE, EXIT);
 	int DOTR  = _COLON(".R",    TOR, STR, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOTR = _COLON("U.R",   TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOT  = _COLON("U.",    BDIGS, DIGS, EDIGS, SPACE, TYPE, EXIT);
@@ -451,14 +446,14 @@ int assemble(U8 *rom) {
         _THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);
         _THEN(OVER, RFROM, SUB, EXIT);                   // CC: this line is questionable
     }
-	int PACKS = _COLON("PACK$", trc_off,
+	int PACKS = _COLON("PACK$",
 			DUP, TOR, DDUP, PLUS, DOLIT, 0xfffffffc, AND, DOLIT, 0, SWAP, STORE,
 			DDUP, CSTOR, ONEP, SWAP, CMOVE, RFROM,
-			trc_on, EXIT);
-	int PARSE = _COLON("PARSE", trc_off,
+			EXIT);
+	int PARSE = _COLON("PARSE",
 			TOR, TIB, vIN, AT, PLUS, vNTIB, AT, vIN, AT, SUB, RFROM,
 			PARSE0, vIN, PSTOR,
-			trc_on, EXIT);
+			EXIT);
 	int TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);
 	int WORDD = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
 	int NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, ALIGN, EXIT);
@@ -471,18 +466,18 @@ int assemble(U8 *rom) {
         _THEN(NOP);
         _NEXT(DOLIT, 0, EXIT);
     }
-	int FIND = _COLON("find", trc_off, SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
+	int FIND = _COLON("find", SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
         _BEGIN(AT, DUP); {
             _IF(DUP, AT, DOLIT, 0xffffff3f, AND, UPPER, RAT, UPPER, XOR); {
                 _IF(CELLP, DOLIT, 0xffffffff);
                 _ELSE(CELLP, vTEMP, AT, SAMEQ);
                 _THEN(NOP);
             }
-            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, trc_on, EXIT);
+            _ELSE(RFROM, DROP, SWAP, CELLM, SWAP, EXIT);
             _THEN(NOP);
         }
         _WHILE(CELLM, CELLM);
-        _REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, trc_on, EXIT);
+        _REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);
     }
 	int NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
 	//
@@ -501,14 +496,14 @@ int assemble(U8 *rom) {
         }
         _THEN(DROP, SWAP, DROP, DUP, EXIT);
     }
-	int ACCEP = _COLON("ACCEPT", trc_off, OVER, PLUS, OVER); {
+	int ACCEP = _COLON("ACCEPT", OVER, PLUS, OVER); {
         _BEGIN(DDUP, XOR);
         _WHILE(KEY, DUP, BLANK, SUB, DOLIT, 0x5f, ULESS); {
             _IF(TAP);
             _ELSE(KTAP);
             _THEN(NOP);
         }
-        _REPEAT(DROP, OVER, SUB, trc_on, EXIT);
+        _REPEAT(DROP, OVER, SUB, EXIT);
     }
 	int EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
 	int QUERY = _COLON("QUERY", TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
@@ -558,11 +553,11 @@ int assemble(U8 *rom) {
         _THEN(NOP);
     }
 	int LBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
-	int DOTOK = _COLON(".OK", trc_off, CR, DOLIT, INTER, vTEVL, AT, EQUAL); {
+	int DOTOK = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {
         _IF(TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
             _DOTQ(" ok>");
         }
-        _THEN(trc_on, EXIT);
+        _THEN(EXIT);
     }
 	int EVAL  = _COLON("EVAL", NOP); {
         _BEGIN(TOKEN, DUP, AT);
@@ -623,17 +618,23 @@ int assemble(U8 *rom) {
         _FOR(NOP);
         _AFT(CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPE, RFROM);
         _THEN(NOP);
-        _NEXT(DROP, RFROM, vBASE, STORE, EXIT);    // restore BASE
+        _NEXT(DROP, RFROM, vBASE, STORE, EXIT);      // restore BASE
     }
-	int TNAME = _COLON(">NAME", vCNTX); {
-        _BEGIN(AT, DUP);
+/*
+	int TNAME = _COLON(">NAME", vCNTX); {            // scan through the dictionary to find the name
+        _BEGIN(AT, QDUP);                            // this is inefficient, see following
         _WHILE(DDUP, NAMET, XOR); {
-            _IF(CELLM);                            // CC: Ting uses ONEM, a bug
+            _IF(CELLM);                              // fetch previous word, CC: Ting uses ONEM, a bug
             _ELSE(SWAP, DROP, EXIT);
             _THEN(NOP);
         }
         _REPEAT(SWAP, DROP, EXIT);
     }
+*/
+	int TNAME = _COLON(">NAME", NOP); {              // CC: my implementation
+		_BEGIN(CELLM, DUP, CAT, DOLIT, 0x7f, AND, DOLIT, 0x20, LESS);
+		_UNTIL(EXIT);
+	}
 	int DOTID = _COLON(".ID",   COUNT, DOLIT, 0x1f, AND, TYPE, SPACE, EXIT);
 	int WORDS = _COLON("WORDS", CR, vCNTX, DOLIT, 0, vTEMP, STORE); {
         _BEGIN(AT, QDUP);
