@@ -22,8 +22,6 @@ typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
-typedef S32       XS;               // CELL signed
-typedef U32       XU;				// CELL unsigned
 typedef U32       XA;				// Address size
 //
 // capacity and sizing

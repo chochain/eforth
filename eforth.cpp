@@ -27,7 +27,7 @@ extern "C" int  assemble(U8 *rom);
 extern "C" void vm_init(U8 *rom);
 extern "C" void vm_run();
 
-XU data[FORTH_DATA_SZ] = {};           			// 64K forth memory block
+U32 data[FORTH_DATA_SZ] = {};           		// 64K forth memory block
 
 void dump_data(U8* byte, int len) {
 #if DATA_DUMP

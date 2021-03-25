@@ -6,12 +6,12 @@
 //
 XA  PC, IP, WP;                 // PC (program counter), IP (intruction pointer), WP (parameter pointer)
 U8  R, S;                       // return stack index, data stack index
-XS  top;                        // ALU (i.e. cached top of stack value)
+S32 top;                        // ALU (i.e. cached top of stack value)
 //
 // Forth VM core storage
 //
 XA  rack[FORTH_RACK_SZ]   = { 0 };   	// return stack (assume FORTH_RACK_SZ is power of 2)
-XS  stack[FORTH_STACK_SZ] = { 0 };   	// data stack   (assume FORTH_STACK_SZ is power of 2)
+S32 stack[FORTH_STACK_SZ] = { 0 };   	// data stack   (assume FORTH_STACK_SZ is power of 2)
 U8* byte = 0;             			 	// linear byte array pointer
 //
 // data and return stack ops
@@ -25,7 +25,7 @@ U8* byte = 0;             			 	// linear byte array pointer
 #define STACK(s)    (stack[(s)&(FORTH_STACK_SZ-1)])
 #define BOOL(f)     ((f) ? TRUE : FALSE)
 #define	POP()		(top=STACK(S--))
-#define	PUSH(v)	    (STACK(++S)=top, top=(XS)(v))
+#define	PUSH(v)	    (STACK(++S)=top, top=(S32)(v))
 #define DATA(ip)    (*(XA*)(byte+(XA)(ip)))
 //
 // tracing instrumentation
@@ -34,7 +34,7 @@ int tOFF = 0, tTAB = 0;                 // trace indentation counter
 
 void _trc_on()  	{ tOFF++; }
 void _trc_off() 	{ tOFF--; }
-void _break_point(XU pc, char *name) {
+void _break_point(U32 pc, char *name) {
 	if (name && strcmp("EVAL", name)) return;
 
 	int i=pc;
@@ -86,7 +86,7 @@ void TRACE_WORD() {
 	TRACE_WORD();        \
 	}
 void _clock() {
-    PUSH((XU)clock());
+    PUSH((U32)clock());
 }
 void _nop() {}              // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
@@ -126,7 +126,7 @@ void _docon()               // ( -- n) push next token onto data stack as consta
 void _dolit()               // ( -- w) push next token as an integer literal
 {
 	TRACE(" %d", DATA(IP)); // fetch literal from data
-	PUSH((XS)DATA(IP));		// push onto data stack
+	PUSH((S32)DATA(IP));	// push onto data stack
 	IP += CELLSZ;			// skip to next instruction
     NEXT();
 }
@@ -180,7 +180,7 @@ void _store()               // (n a -- ) store into memory location from top of 
 }
 void _at()                  // (a -- n) fetch from memory address onto top of stack
 {
-	top = (XS)DATA(top);
+	top = (S32)DATA(top);
 }
 void _cstor()               // (c b -- ) store a byte into memory location
 {
@@ -189,7 +189,7 @@ void _cstor()               // (c b -- ) store a byte into memory location
 }
 void _cat()                 // (b -- n) fetch a byte from memory location
 {
-	top = (XS)byte[top];
+	top = (S32)byte[top];
 }
 void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
 {
@@ -216,7 +216,7 @@ void _swap()                // (w1 w2 -- w2 w1) swap top two items on the data s
 {
 	WP  = (XA)top;          // use WP as temp
 	top = STACK(S);
-	STACK(S) = (XS)WP;
+	STACK(S) = (S32)WP;
 }
 void _over()                // (w1 w2 -- w1 w2 w1) copy second stack item to top
 {
@@ -241,7 +241,7 @@ void _xor()                 // (w w -- w) bitwise XOR
 void _uplus()               // (w w -- w c) add two numbers, return the sum and carry flag
 {
 	STACK(S) += top;
-	top = (XU)STACK(S) < (XU)top;
+	top = (U32)STACK(S) < (U32)top;
 }
 void _qdup()                // (w -- w w | 0) dup top of stack if it is not zero
 {
@@ -252,7 +252,7 @@ void _rot()                 // (w1 w2 w3 -- w2 w3 w1) rotate 3rd item to top
 	WP = (XA)STACK(S - 1);
 	STACK(S - 1) = STACK(S);
 	STACK(S)     = top;
-	top = (XS)WP;
+	top = (S32)WP;
 }
 void _ddrop()               // (w w --) drop top two items
 {
@@ -308,7 +308,7 @@ void _equal()               // (w w -- t) true if top two items are equal
 }
 void _uless()               // (u1 u2 -- t) unsigned compare top two items
 {
-	top = BOOL((XU)(STACK(S--)) < (XU)top);
+	top = BOOL((U32)(STACK(S--)) < (U32)top);
 }
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
@@ -317,8 +317,8 @@ void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double 
 	S64 n = (S64)STACK(S - 1);
 	n += m << (CELLSZ<<3);
 	POP();
-	top      = (XU)(n / d); // quotient
-	STACK(S) = (XU)(n % d); // remainder
+	top      = (U32)(n / d); // quotient
+	STACK(S) = (U32)(n % d); // remainder
 }
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
@@ -327,8 +327,8 @@ void _msmod()               // (d n -- r q) signed floored divide of double by s
 	S64 n = (S64)STACK(S - 1);
 	n += m << 32;
 	POP();
-	top      = (XS)(n / d); // quotient
-	STACK(S) = (XS)(n % d); // remainder
+	top      = (S32)(n / d); // quotient
+	STACK(S) = (S32)(n % d); // remainder
 }
 void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotien
 {
@@ -351,8 +351,8 @@ void _umsta()               // (u1 u2 -- ud) unsigned multiply return double pro
 	U64 d = (U64)top;
 	U64 m = (U64)STACK(S);
 	m *= d;
-	top      = (XU)(m >> 32);
-	STACK(S) = (XU)m;
+	top      = (U32)(m >> 32);
+	STACK(S) = (U32)m;
 }
 void _star()                // (n n -- n) signed multiply, return single product
 {
@@ -363,8 +363,8 @@ void _mstar()               // (n1 n2 -- d) signed multiply, return double produ
 	S64 d = (S64)top;
 	S64 m = (S64)STACK(S);
 	m *= d;
-	top      = (XS)(m >> 32);
-	STACK(S) = (XS)m;
+	top      = (S32)(m >> 32);
+	STACK(S) = (S32)m;
 }
 void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotion
 {
@@ -373,8 +373,8 @@ void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotio
 	S64 n = (S64)STACK(S - 1);
 	n *= m;
 	POP();
-	top      = (XS)(n / d);
-	STACK(S) = (XS)(n % d);
+	top      = (S32)(n / d);
+	STACK(S) = (S32)(n % d);
 }
 void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 {
@@ -384,7 +384,7 @@ void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 	n *= m;
 	POP();
     POP();
-	top = (XS)(n / d);
+	top = (S32)(n / d);
 }
 void _pick()                // (... +n -- ...w) copy nth stack item to top
 {
