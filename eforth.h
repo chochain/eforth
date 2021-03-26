@@ -2,13 +2,15 @@
 #define __EFORTH_SRC_EFORTH_H
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdint.h>
 //
 // debugging flags
 //
-#define ASSEM_DUMP   0
-#define DATA_DUMP    0
-#define FORTH_TRACE  0
+#define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
+#define DATA_DUMP       0
+#define ASSEM_DUMP      0
+#define FORTH_TRACE     0
 //
 // portable types
 //
