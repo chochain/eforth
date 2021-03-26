@@ -18,12 +18,12 @@ int NOP, TOR;
 XA aRack[ASSEM_RACK_SZ] = { 0 };    // return stack (independent of Forth return stack for modulization)
 U8 *aByte    = 0;                   //
 U8 aR        = 0;                   // return stack index
-XA aP, aThread;                     // pointer to previous word
+XA aPC, aThread;                    // program counter, pointer to previous word
 //
 // stack op macros
 //
 #define SET(d, v)      (*(XA*)(aByte+d)=(v))
-#define DATA(v)        { SET(aP, (v)); aP+=CELLSZ; }
+#define DATA(v)        { SET(aPC, (v)); aPC+=CELLSZ; }
 #define	PUSH(v)        (aRack[++aR] = (XA)(v))
 #define	POP()          (aRack[aR--])
 #define VAR(a, i)      ((a)+CELLSZ*(i))
@@ -38,27 +38,27 @@ void _dump(int b, int u) {
 }
 void _header(int lex, const char *seq) {
 	DATA(aThread);                            // point to previous word
-	_dump(aThread, aP);                       // dump data from previous word to current word
-	aThread = aP;                             // keep pointer to this word
+	_dump(aThread, aPC);                      // dump data from previous word to current word
+	aThread = aPC;                            // keep pointer to this word
 
-	aByte[aP++] = lex;                        // length of word (with optional fIMMED or fCOMPO flags)
+	aByte[aPC++] = lex;                       // length of word (with optional fIMMED or fCOMPO flags)
 	U32 len = lex & 0x1f;                     // Forth allows word max length 31
 	for (U32 i = 0; i < len; i++) {           // memcpy word string
-		aByte[aP++] = seq[i];
+		aByte[aPC++] = seq[i];
 	}
-	while (aP&(CELLSZ-1)) { aByte[aP++]=0; }  // padding cell alignment
+	while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }// padding cell alignment
 
-	DEBUG("%04x: ", aP);
+	DEBUG("%04x: ", aPC);
 	DEBUG("%s", seq);
 }
 int _code(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-	int addr = aP;                            // keep address of current word
+	int addr = aPC;                           // keep address of current word
 	va_list argList;
 	va_start(argList, len);
 	for (; len; len--) {                      // copy bytecodes
 		U8 b = (U8)va_arg(argList, int);
-		aByte[aP++] = b;
+		aByte[aPC++] = b;
 		DEBUG(" %02x", b);
 	}
 	va_end(argList);
@@ -78,7 +78,7 @@ int _code(const char *seg, int len, ...) {
 int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
 	DEBUG(" %s", ":0006");
-	int addr = aP;
+	int addr = aPC;
 	DATA(opENTER);
 	DATACPY(len);
 	return addr;
@@ -86,21 +86,21 @@ int _colon(const char *seg, int len, ...) {
 int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
 	DEBUG(" %s", "i0006");
-	int addr = aP;
+	int addr = aPC;
 	DATA(opENTER);
     DATACPY(len);
 	return addr;
 }
 int _label(int len, ...) {
 	SHOWOP("LABEL");
-	int addr = aP;
+	int addr = aPC;
 	// label has no opcode here
     DATACPY(len);
 	return addr;
 }
 void _begin(int len, ...) {
 	SHOWOP("BEGIN");
-	PUSH(aP);                      // keep current address for looping
+	PUSH(aPC);                     // keep current address for looping
     DATACPY(len);
 }
 void _again(int len, ...) {
@@ -120,7 +120,7 @@ void _while(int len, ...) {
 	DATA(QBRAN);
 	DATA(0);                       // branching address
 	int k = POP();
-	PUSH(aP - CELLSZ);
+	PUSH(aPC - CELLSZ);
 	PUSH(k);
     DATACPY(len);
 }
@@ -128,13 +128,13 @@ void _repeat(int len, ...) {
 	SHOWOP("REPEAT");
 	DATA(BRAN);
 	DATA(POP());
-	SET(POP(), aP);
+	SET(POP(), aPC);
     DATACPY(len);
 }
 void _if(int len, ...) {
 	SHOWOP("IF");
 	DATA(QBRAN);
-	PUSH(aP);                      // keep for ELSE-THEN
+	PUSH(aPC);                     // keep for ELSE-THEN
 	DATA(0);                       // reserved for branching address
     DATACPY(len);
 }
@@ -142,19 +142,19 @@ void _else(int len, ...) {
 	SHOWOP("ELSE");
 	DATA(BRAN);
 	DATA(0);
-	SET(POP(), aP);
-	PUSH(aP - CELLSZ);
+	SET(POP(), aPC);
+	PUSH(aPC - CELLSZ);
     DATACPY(len);
 }
 void _then(int len, ...) {
 	SHOWOP("THEN");
-	SET(POP(), aP);
+	SET(POP(), aPC);
     DATACPY(len);
 }
 void _for(int len, ...) {
 	SHOWOP("FOR");
 	DATA(TOR);
-	PUSH(aP);
+	PUSH(aPC);
     DATACPY(len);
 }
 void _nxt(int len, ...) {          // _next() is multi-defined in vm
@@ -168,18 +168,18 @@ void _aft(int len, ...) {
 	DATA(BRAN);
 	DATA(0);
 	POP();
-	PUSH(aP);
-	PUSH(aP - CELLSZ);
+	PUSH(aPC);
+	PUSH(aPC - CELLSZ);
     DATACPY(len);
 }
-#define STRCPY(op, seq) {                    \
-    DATA(op);                                \
-	int len = strlen(seq);                   \
-	aByte[aP++] = len;                       \
-	for (int i = 0; i < len; i++) {          \
-		aByte[aP++] = seq[i];                \
-	}                                        \
-	while (aP&(CELLSZ-1)) { aByte[aP++]=0; } \
+#define STRCPY(op, seq) {                      \
+    DATA(op);                                  \
+	int len = strlen(seq);                     \
+	aByte[aPC++] = len;                        \
+	for (int i = 0; i < len; i++) {            \
+		aByte[aPC++] = seq[i];                 \
+	}                                          \
+	while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; } \
 	}
 void _DOTQ(const char *seq) {
 	SHOWOP("DOTQ");
@@ -199,7 +199,7 @@ void _ABORTQ(const char *seq) {
 
 int assemble(U8 *rom) {
 	aByte = rom;
-	aP    = FORTH_DIC_ADDR;
+	aPC   = FORTH_DIC_ADDR;
 	aR    = aThread = 0;
     //
 	// Kernel variables (in bytecode streams)
@@ -670,13 +670,13 @@ int assemble(U8 *rom) {
 	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
 	int IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
 
-	int XDIC   = aP;                                    // End of dictionary
+	int XDIC   = aPC;                                   // End of dictionary
 	int sz     = strlen("IMMEDIATE");                   // size of last word
 	int last   = IMMED - (sz + (-sz & (CELLSZ-1)));     // name field of last word
 	//
 	// Setup Boot Vector
 	//
-	aP = FORTH_BOOT_ADDR;
+	aPC = FORTH_BOOT_ADDR;
 	int RESET = _LABEL(opENTER, COLD);
 	//
 	// Forth internal (user) variables
@@ -690,7 +690,7 @@ int assemble(U8 *rom) {
 	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
 	//   tmp     = 0              (scratch pad)
 	//
-	aP = FORTH_UVAR_ADDR;
+	aPC = FORTH_UVAR_ADDR;
 	int USER  = _LABEL(FORTH_TIB_SZ, 0x10, last, XDIC, last, INTER, QUIT, 0);
 
 	return XDIC;
