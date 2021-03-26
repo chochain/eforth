@@ -57,7 +57,7 @@ enum {
     opTXSTO,      // 3
     opDOCON,      // 4
     opDOLIT,      // 5
-    opDOLIST,     // 6
+    opENTER,      // 6
     opEXIT,       // 7
     opEXECU,      // 8
     opDONEXT,     // 9

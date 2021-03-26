@@ -130,7 +130,7 @@ void _dolit()               // ( -- w) push next token as an integer literal
 	IP += CELLSZ;			// skip to next instruction
     NEXT();
 }
-void _dolist()              // ( -- ) push instruction pointer onto return stack and pop
+void _enter()               // ( -- ) push instruction pointer onto return stack and pop, aka DOLIST by Dr. Ting
 {
 	TRACE_COLON();
 	RACK(++R) = IP;
@@ -429,7 +429,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 3 */ _txsto,
 	/* case 4 */ _docon,
 	/* case 5 */ _dolit,
-	/* case 6 */ _dolist,
+	/* case 6 */ _enter,
 	/* case 7 */ __exit,
 	/* case 8 */ _execu,
 	/* case 9 */ _donext,

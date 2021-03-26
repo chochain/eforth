@@ -9,8 +9,9 @@
 //
 // variables to keep branching addresses
 //
-int BRAN, QBRAN, DONXT, ABORTQ;
-int DOTQ, STRQ, TOR, NOP;
+int BRAN, QBRAN, DONXT;
+int DOTQ, STRQ, ABORTQ;
+int NOP, TOR;
 //
 // return stack for branching ops
 //
@@ -88,7 +89,7 @@ int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
 	DEBUG(" %s", ":0006");
 	int addr = aP;
-	DATA(opDOLIST);
+	DATA(opENTER);
 	DATACPY(len);
 	return addr;
 }
@@ -96,7 +97,7 @@ int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
 	DEBUG(" %s", "i0006");
 	int addr = aP;
-	DATA(opDOLIST);
+	DATA(opENTER);
     DATACPY(len);
 	return addr;
 }
@@ -237,14 +238,12 @@ int assemble(U8 *rom) {
 	int TXSTO = _CODE("TX!",     opTXSTO, opNEXT, 0, 0);
 	int DOCON = _CODE("DOCON",   opDOCON, opNEXT, 0, 0);
 	int DOLIT = _CODE("DOLIT",   opDOLIT, opNEXT, 0, 0);
-	int DOLST = _CODE("DOLIST",  opDOLIST,opNEXT, 0, 0);
+	int ENTER = _CODE("ENTER",   opENTER, opNEXT, 0, 0);    // aka DOLIST by Dr. Ting
 	int EXIT  = _CODE("EXIT",    opEXIT,  opNEXT, 0, 0);
 	int EXECU = _CODE("EXECUTE", opEXECU, opNEXT, 0, 0);
-
 	    DONXT = _CODE("DONEXT",  opDONEXT,opNEXT, 0, 0);
 	    QBRAN = _CODE("QBRANCH", opQBRAN, opNEXT, 0, 0);
 	    BRAN  = _CODE("BRANCH",  opBRAN,  opNEXT, 0, 0);
-
 	int STORE = _CODE("!",       opSTORE, opNEXT, 0, 0);
 	int AT    = _CODE("@",       opAT,    opNEXT, 0, 0);
 	int CSTOR = _CODE("C!",      opCSTOR, opNEXT, 0, 0);
@@ -688,7 +687,7 @@ int assemble(U8 *rom) {
 	// Setup Boot Vector
 	//
 	aP = FORTH_BOOT_ADDR;
-	int RESET = _LABEL(opDOLIST, COLD);
+	int RESET = _LABEL(opENTER, COLD);
 	//
 	// Forth internal (user) variables
 	//
