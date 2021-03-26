@@ -1,5 +1,15 @@
 #ifndef __EFORTH_SRC_EFORTH_ASM_H
 #define __EFORTH_SRC_EFORTH_ASM_H
+//
+// tracing/logging macros
+//
+#if ASSEM_DUMP
+#define DEBUG(s, v)     printf(s, v)
+#define SHOWOP(op)      printf("\n%04x: %s\t", aP, op)
+#else  // ASSEM_DUMP
+#define DEBUG(s, v)
+#define SHOWOP(op)
+#endif // ASSEM_DUMP
 
 //
 // variable length parameter handler macros

@@ -27,16 +27,6 @@ XA aP, aThread;                     // pointer to previous word
 #define	PUSH(v)        (aRack[++aR] = (XA)(v))
 #define	POP()          (aRack[aR--])
 #define VAR(a, i)      ((a)+CELLSZ*(i))
-//
-// tracing/logging macros
-//
-#if    ASSEM_DUMP
-#define DEBUG(s, v)     printf(s, v)
-#define SHOWOP(op)      printf("\n%04x: %s\t", aP, op)
-#else  // ASSEM_DUMP
-#define DEBUG(s, v)
-#define SHOWOP(op)
-#endif // ASSEM_DUMP
 
 void _dump(int b, int u) {
 	// dump memory between previous word and this
@@ -304,7 +294,7 @@ int assemble(U8 *rom) {
 	//
 	// tracing instrumentation (borrow 2 opcodes)
 	//
-	int clock   = _CODE("clock",   opSPAT,  opNEXT, 0, 0);
+    int clock   = _CODE("clock",   opSPAT,  opNEXT, 0, 0);
     int trc_on  = _CODE("trc_on",  opRPAT,  opNEXT, 0, 0);
     int trc_off = _CODE("trc_off", opRPSTO, opNEXT, 0, 0);
 	//
