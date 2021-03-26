@@ -5,7 +5,7 @@
 //
 #if ASSEM_DUMP
 #define DEBUG(s, v)     printf(s, v)
-#define SHOWOP(op)      printf("\n%04x: %s\t", aP, op)
+#define SHOWOP(op)      printf("\n%04x: %s\t", aPC, op)
 #else  // ASSEM_DUMP
 #define DEBUG(s, v)
 #define SHOWOP(op)

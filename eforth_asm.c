@@ -196,6 +196,24 @@ void _ABORTQ(const char *seq) {
 	DEBUG("%s", seq);
 	STRCPY(ABORTQ, seq);
 }
+//
+// assembler macros
+//
+#define _CODE(seg, ...)      _code(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
+#define _COLON(seg, ...)     _colon(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
+#define _IMMED(seg, ...)     _immed(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
+#define _LABEL(...)          _label(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _BEGIN(...)          _begin(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _AGAIN(...)          _again(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _UNTIL(...)          _until(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _WHILE(...)          _while(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _REPEAT(...)         _repeat(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _IF(...)             _if(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _ELSE(...)           _else(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _THEN(...)           _then(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _FOR(...)            _for(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
 int assemble(U8 *rom) {
 	aByte = rom;

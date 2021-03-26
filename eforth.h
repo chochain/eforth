@@ -10,7 +10,7 @@
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
 #define DATA_DUMP       0
-#define ASSEM_DUMP      0
+#define ASSEM_DUMP      1
 #define FORTH_TRACE     0
 //
 // portable types
