@@ -30,19 +30,33 @@ U8* byte = 0;             			 	// linear byte array pointer
 //
 // tracing instrumentation
 //
-int tOFF = 0, tTAB = 0;                 // trace indentation counter
+int tTAB = 0, tCNT = 0;		// trace indentation and depth counters
 
-void _trc_on()  	{ tOFF++; }
-void _trc_off() 	{ tOFF--; }
-void _break_point(U32 pc, char *name) {
+void _trc_on()  	{ tCNT++; }
+void _trc_off() 	{ tCNT -= tCNT ? 1 : 0; }
+void _break_point(U32 pc, char *name)
+{
 	if (name && strcmp("EVAL", name)) return;
 
 	int i=pc;
 }
-void TRACE_WORD() {
-	static char buf[32];			    // allocated in memory instead of on C stack
+#define TRACE(s,v)  if(tCNT) PRINTF(s,v)
+#define LOG(s)      TRACE(" %s", s)
+#define TRACE_COLON() if (tCNT) {              \
+    PRINTF("\n");                              \
+	for (int i=0; i<tTAB; i++) PRINTF("  ");   \
+	tTAB++;                                    \
+	PRINTF(":");                               \
+}
+#define TRACE_EXIT()  if (tCNT) {              \
+	PRINTF(" ;");                              \
+	tTAB--;                                    \
+}
+void TRACE_WORD()
+{
+	if (!tCNT) return;
 
-	if (!tOFF) return;
+	static char buf[32];			    // allocated in memory instead of on C stack
 
 	U8 *a = &byte[PC];		            // pointer to current code pointer
 	if (*a==opEXIT) return;
@@ -52,30 +66,10 @@ void TRACE_WORD() {
 	memcpy(buf, a+1, len);
 	buf[len] = '\0';
 
-	printf(" %x_%x_%s", STACK(S), top, buf);
+	PRINTF(" %x_%x_%s", STACK(S), top, buf);
 
 	_break_point(PC, buf);
 }
-
-#if FORTH_TRACE
-#define TRACE(s,v)      { if(!tOFF) printf(s,v); }
-#define LOG(s)          TRACE(" %s", s)
-#define TRACE_COLON() if (!tOFF) {             \
-    printf("\n");                              \
-	for (int i=0; i<tTAB; i++) printf("  ");   \
-	tTAB++;                                    \
-	printf(":");                               \
-}
-#define TRACE_EXIT()  if (!tOFF) {             \
-	printf(" ;");                              \
-	tTAB--;                                    \
-}
-#else // FORTH_TRACE
-#define TRACE(s,v)
-#define LOG(s)
-#define TRACE_COLON()
-#define TRACE_EXIT()
-#endif // FORTH_TRACE
 //
 // Forth Virtual Machine (primitive functions)
 //
@@ -85,7 +79,8 @@ void TRACE_WORD() {
 	IP += CELLSZ;        \
 	TRACE_WORD();        \
 	}
-void _clock() {
+void _clock()
+{
     PUSH((U32)clock());
 }
 void _nop() {}              // ( -- )
@@ -101,12 +96,12 @@ void _txsto()               // (c -- ) send a char to console
 	putchar((U8)top);
 #else  // !FORTH_TRACE
 	switch (top) {
-	case 0xa: printf("<LF>");  break;
-	case 0xd: printf("<CR>");  break;
-	case 0x8: printf("<TAB>"); break;
+	case 0xa: PRINTF("<LF>");  break;
+	case 0xd: PRINTF("<CR>");  break;
+	case 0x8: PRINTF("<TAB>"); break;
 	default:
-		if (tOFF) putchar((U8)top);
-		else      printf("<%c>", (U8)top);
+		if (tCNT) PRINTF("<%c>", (U8)top);
+		else      putchar((U8)top);
 	}
 #endif // !FORTH_TRACE
 	POP();
