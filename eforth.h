@@ -8,6 +8,7 @@
 // debugging flags
 //
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
+#define GETCHAR()       getchar()
 #define DATA_DUMP       0
 #define ASSEM_DUMP      0
 #define FORTH_TRACE     0
@@ -131,7 +132,7 @@ typedef struct {
 	U32 rack[256];         // return stack
 	S32 stack[256];        // data stack
 	U32	data[16000];       // main memory block
-	U8  *byte;             // byte stream pointer to data[]
+	U8  *cdata;            // byte stream pointer to data[]
 } efHeap;
 
 #endif // __EFORTH_SRC_EFORTH_H

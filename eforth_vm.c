@@ -12,7 +12,7 @@ S32 top;                        // ALU (i.e. cached top of stack value)
 //
 XA  rack[FORTH_RACK_SZ]   = { 0 };   	// return stack (assume FORTH_RACK_SZ is power of 2)
 S32 stack[FORTH_STACK_SZ] = { 0 };   	// data stack   (assume FORTH_STACK_SZ is power of 2)
-U8* byte = 0;             			 	// linear byte array pointer
+U8* cdata = 0;             			 	// linear byte array pointer
 //
 // data and return stack ops
 //              S            R
@@ -26,7 +26,7 @@ U8* byte = 0;             			 	// linear byte array pointer
 #define BOOL(f)     ((f) ? TRUE : FALSE)
 #define	POP()		(top=STACK(S--))
 #define	PUSH(v)	    (STACK(++S)=top, top=(S32)(v))
-#define DATA(ip)    (*(XA*)(byte+(XA)(ip)))
+#define DATA(ip)    (*(XA*)(cdata+(XA)(ip)))
 //
 // tracing instrumentation
 //
@@ -58,7 +58,7 @@ void TRACE_WORD()
 
 	static char buf[32];			    // allocated in memory instead of on C stack
 
-	U8 *a = &byte[PC];		            // pointer to current code pointer
+	U8 *a = &cdata[PC];		            // pointer to current code pointer
 	if (*a==opEXIT) return;
 	for (a-=CELLSZ; (*a & 0x7f)>0x1f; a-=CELLSZ);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
@@ -87,13 +87,13 @@ void _nop() {}              // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
 void _qrx()                 // ( -- c t|f) read a char from terminal input device
 {
-	PUSH(getchar());
+	PUSH(GETCHAR());
 	if (top) PUSH(TRUE);
 }
 void _txsto()               // (c -- ) send a char to console
 {
 #if !FORTH_TRACE
-	putchar((U8)top);
+	PRINTF("%c", (U8)top);
 #else  // !FORTH_TRACE
 	switch (top) {
 	case 0xa: PRINTF("<LF>");  break;
@@ -101,7 +101,7 @@ void _txsto()               // (c -- ) send a char to console
 	case 0x8: PRINTF("<TAB>"); break;
 	default:
 		if (tCNT) PRINTF("<%c>", (U8)top);
-		else      putchar((U8)top);
+		else      PRINTF("%c", (U8)top);
 	}
 #endif // !FORTH_TRACE
 	POP();
@@ -179,12 +179,12 @@ void _at()                  // (a -- n) fetch from memory address onto top of st
 }
 void _cstor()               // (c b -- ) store a byte into memory location
 {
-	byte[top] = (U8)STACK(S--);
+	cdata[top] = (U8)STACK(S--);
 	POP();
 }
 void _cat()                 // (b -- n) fetch a byte from memory location
 {
-	top = (S32)byte[top];
+	top = (S32)cdata[top];
 }
 void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
 {
@@ -404,7 +404,7 @@ void _dat()                 // (a -- d) fetch double from address a
 void _count()               // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
 	STACK(++S) = top + 1;
-	top = byte[top];
+	top = cdata[top];
 }
 void _max()                 // (n1 n2 -- n) return greater of two top stack items
 {
@@ -485,13 +485,13 @@ void(*prim[FORTH_PRIMITIVES])() = {
 };
 
 void vm_init(U8 *rom) {
-	byte = rom;
+	cdata = rom;
 	R  = S = PC = IP = top = 0;
 	WP = CELLSZ;
 }
 
 void vm_run() {
 	for (;;) {
-		prim[byte[PC++]]();            // walk bytecode stream
+		prim[cdata[PC++]]();            // walk bytecode stream
 	}
 }
