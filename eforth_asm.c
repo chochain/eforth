@@ -64,16 +64,16 @@ int _code(const char *seg, int len, ...) {
     return addr;
 }
 #define DATACPY(n) {                            \
-        va_list argList;                        \
-        va_start(argList, n);                   \
-        for (; n; n--) {                        \
-            U32 j = va_arg(argList, U32);       \
-            if (j==NOP) continue;               \
-            DATA(j);                            \
-            DEBUG(" %04x", j);                  \
-        }                                       \
-        va_end(argList);                        \
-    }
+    va_list argList;                            \
+	va_start(argList, n);						\
+	for (; n; n--) {							\
+		U32 j = va_arg(argList, U32);			\
+		if (j==NOP) continue;					\
+		DATA(j);								\
+		DEBUG(" %04x", j);						\
+	}											\
+	va_end(argList);							\
+}
 int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
     DEBUG(" %s", ":0006");
@@ -172,14 +172,14 @@ void _aft(int len, ...) {
     DATACPY(len);
 }
 #define STRCPY(op, seq) {                           \
-        DATA(op);                                   \
-        int len = strlen(seq);                      \
-        aByte[aPC++] = len;                         \
-        for (int i = 0; i < len; i++) {             \
-            aByte[aPC++] = seq[i];                  \
-        }                                           \
-        while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }  \
-	}
+	DATA(op);                                       \
+	int len = strlen(seq);							\
+	aByte[aPC++] = len;								\
+	for (int i = 0; i < len; i++) {					\
+		aByte[aPC++] = seq[i];						\
+	}												\
+	while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }		\
+}
 void _DOTQ(const char *seq) {
     SHOWOP("DOTQ");
     DEBUG("%s", seq);
@@ -331,8 +331,7 @@ int assemble(U8 *rom) {
 	int ALIGN = _COLON("ALIGNED", DOLIT, 3, PLUS, DOLIT, 0xfffffffc, AND, EXIT);
 	int HERE  = _COLON("HERE",    vCP, AT, EXIT);                  // top of dictionary
 	int PAD   = _COLON("PAD",     HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
-	// CC: change to RAM buffer for R/W
-	int TIB   = _COLON("TIB",     vTTIB, AT, EXIT);
+	int TIB   = _COLON("TIB",     vTTIB, AT, EXIT);                // CC: change PAD,TIB to RAM buffer for R/W
 	int ATEXE = _COLON("@EXECUTE",AT, QDUP); {
 		_IF(EXECU);
 		_THEN(EXIT);
