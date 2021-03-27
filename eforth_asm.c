@@ -1,4 +1,3 @@
-#include <stdarg.h>
 #include "eforth.h"
 #include "eforth_asm.h"
 //
@@ -29,175 +28,175 @@ XA aPC, aThread;                    // program counter, pointer to previous word
 #define VAR(a, i)      ((a)+CELLSZ*(i))
 
 void _dump(int b, int u) {
-	// dump memory between previous word and this
-	DEBUG("%s", "\n    :");
-	for (int i=b; b && i<u; i+=CELLSZ) {
-		DEBUG(" %08x", *(XA*)(aByte+i));
-	}
-	DEBUG("%c", '\n');
+    // dump memory between previous word and this
+    DEBUG("%s", "\n    :");
+    for (int i=b; b && i<u; i+=CELLSZ) {
+        DEBUG(" %08x", *(XA*)(aByte+i));
+    }
+    DEBUG("%c", '\n');
 }
 void _header(int lex, const char *seq) {
-	DATA(aThread);                            // point to previous word
-	_dump(aThread, aPC);                      // dump data from previous word to current word
-	aThread = aPC;                            // keep pointer to this word
+    DATA(aThread);                            // point to previous word
+    _dump(aThread, aPC);                      // dump data from previous word to current word
+    aThread = aPC;                            // keep pointer to this word
 
-	aByte[aPC++] = lex;                       // length of word (with optional fIMMED or fCOMPO flags)
-	U32 len = lex & 0x1f;                     // Forth allows word max length 31
-	for (U32 i = 0; i < len; i++) {           // memcpy word string
-		aByte[aPC++] = seq[i];
-	}
-	while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }// padding cell alignment
+    aByte[aPC++] = lex;                       // length of word (with optional fIMMED or fCOMPO flags)
+    U32 len = lex & 0x1f;                     // Forth allows word max length 31
+    for (U32 i = 0; i < len; i++) {           // memcpy word string
+        aByte[aPC++] = seq[i];
+    }
+    while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }// padding cell alignment
 
-	DEBUG("%04x: ", aPC);
-	DEBUG("%s", seq);
+    DEBUG("%04x: ", aPC);
+    DEBUG("%s", seq);
 }
 int _code(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-	int addr = aPC;                           // keep address of current word
-	va_list argList;
-	va_start(argList, len);
-	for (; len; len--) {                      // copy bytecodes
-		U8 b = (U8)va_arg(argList, int);
-		aByte[aPC++] = b;
-		DEBUG(" %02x", b);
-	}
-	va_end(argList);
-	return addr;
+    int addr = aPC;                           // keep address of current word
+    va_list argList;
+    va_start(argList, len);
+    for (; len; len--) {                      // copy bytecodes
+        U8 b = (U8)va_arg(argList, int);
+        aByte[aPC++] = b;
+        DEBUG(" %02x", b);
+    }
+    va_end(argList);
+    return addr;
 }
-#define DATACPY(n) {                  \
-	va_list argList;                  \
-	va_start(argList, n);             \
-	for (; n; n--) {                  \
-		U32 j = va_arg(argList, U32); \
-		if (j==NOP) continue;         \
-		DATA(j);                      \
-		DEBUG(" %04x", j);            \
-	}                                 \
-	va_end(argList);                  \
-}
+#define DATACPY(n) {                            \
+        va_list argList;                        \
+        va_start(argList, n);                   \
+        for (; n; n--) {                        \
+            U32 j = va_arg(argList, U32);       \
+            if (j==NOP) continue;               \
+            DATA(j);                            \
+            DEBUG(" %04x", j);                  \
+        }                                       \
+        va_end(argList);                        \
+    }
 int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-	DEBUG(" %s", ":0006");
-	int addr = aPC;
-	DATA(opENTER);
-	DATACPY(len);
-	return addr;
+    DEBUG(" %s", ":0006");
+    int addr = aPC;
+    DATA(opENTER);
+    DATACPY(len);
+    return addr;
 }
 int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
-	DEBUG(" %s", "i0006");
-	int addr = aPC;
-	DATA(opENTER);
+    DEBUG(" %s", "i0006");
+    int addr = aPC;
+    DATA(opENTER);
     DATACPY(len);
-	return addr;
+    return addr;
 }
 int _label(int len, ...) {
-	SHOWOP("LABEL");
-	int addr = aPC;
-	// label has no opcode here
+    SHOWOP("LABEL");
+    int addr = aPC;
+    // label has no opcode here
     DATACPY(len);
-	return addr;
+    return addr;
 }
 void _begin(int len, ...) {
-	SHOWOP("BEGIN");
-	PUSH(aPC);                     // keep current address for looping
+    SHOWOP("BEGIN");
+    PUSH(aPC);                     // keep current address for looping
     DATACPY(len);
 }
 void _again(int len, ...) {
-	SHOWOP("AGAIN");
-	DATA(BRAN);
-	DATA(POP());                   // store return address
+    SHOWOP("AGAIN");
+    DATA(BRAN);
+    DATA(POP());                   // store return address
     DATACPY(len);
 }
 void _until(int len, ...) {
-	SHOWOP("UNTIL");
-	DATA(QBRAN);                   // conditional branch
-	DATA(POP());                   // loop begin address
+    SHOWOP("UNTIL");
+    DATA(QBRAN);                   // conditional branch
+    DATA(POP());                   // loop begin address
     DATACPY(len);
 }
 void _while(int len, ...) {
-	SHOWOP("WHILE");
-	DATA(QBRAN);
-	DATA(0);                       // branching address
-	int k = POP();
-	PUSH(aPC - CELLSZ);
-	PUSH(k);
+    SHOWOP("WHILE");
+    DATA(QBRAN);
+    DATA(0);                       // branching address
+    int k = POP();
+    PUSH(aPC - CELLSZ);
+    PUSH(k);
     DATACPY(len);
 }
 void _repeat(int len, ...) {
-	SHOWOP("REPEAT");
-	DATA(BRAN);
-	DATA(POP());
-	SET(POP(), aPC);
+    SHOWOP("REPEAT");
+    DATA(BRAN);
+    DATA(POP());
+    SET(POP(), aPC);
     DATACPY(len);
 }
 void _if(int len, ...) {
-	SHOWOP("IF");
-	DATA(QBRAN);
-	PUSH(aPC);                     // keep for ELSE-THEN
-	DATA(0);                       // reserved for branching address
+    SHOWOP("IF");
+    DATA(QBRAN);
+    PUSH(aPC);                     // keep for ELSE-THEN
+    DATA(0);                       // reserved for branching address
     DATACPY(len);
 }
 void _else(int len, ...) {
-	SHOWOP("ELSE");
-	DATA(BRAN);
-	DATA(0);
-	SET(POP(), aPC);
-	PUSH(aPC - CELLSZ);
+    SHOWOP("ELSE");
+    DATA(BRAN);
+    DATA(0);
+    SET(POP(), aPC);
+    PUSH(aPC - CELLSZ);
     DATACPY(len);
 }
 void _then(int len, ...) {
-	SHOWOP("THEN");
-	SET(POP(), aPC);
+    SHOWOP("THEN");
+    SET(POP(), aPC);
     DATACPY(len);
 }
 void _for(int len, ...) {
-	SHOWOP("FOR");
-	DATA(TOR);
-	PUSH(aPC);
+    SHOWOP("FOR");
+    DATA(TOR);
+    PUSH(aPC);
     DATACPY(len);
 }
 void _nxt(int len, ...) {          // _next() is multi-defined in vm
-	SHOWOP("NEXT");
-	DATA(DONXT);
-	DATA(POP());
+    SHOWOP("NEXT");
+    DATA(DONXT);
+    DATA(POP());
     DATACPY(len);
 }
 void _aft(int len, ...) {
-	SHOWOP("AFT");
-	DATA(BRAN);
-	DATA(0);
-	POP();
-	PUSH(aPC);
-	PUSH(aPC - CELLSZ);
+    SHOWOP("AFT");
+    DATA(BRAN);
+    DATA(0);
+    POP();
+    PUSH(aPC);
+    PUSH(aPC - CELLSZ);
     DATACPY(len);
 }
-#define STRCPY(op, seq) {                      \
-    DATA(op);                                  \
-	int len = strlen(seq);                     \
-	aByte[aPC++] = len;                        \
-	for (int i = 0; i < len; i++) {            \
-		aByte[aPC++] = seq[i];                 \
-	}                                          \
-	while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; } \
+#define STRCPY(op, seq) {                           \
+        DATA(op);                                   \
+        int len = strlen(seq);                      \
+        aByte[aPC++] = len;                         \
+        for (int i = 0; i < len; i++) {             \
+            aByte[aPC++] = seq[i];                  \
+        }                                           \
+        while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }  \
 	}
 void _DOTQ(const char *seq) {
-	SHOWOP("DOTQ");
-	DEBUG("%s", seq);
-	STRCPY(DOTQ, seq);
+    SHOWOP("DOTQ");
+    DEBUG("%s", seq);
+    STRCPY(DOTQ, seq);
 }
 void _STRQ(const char *seq) {
-	SHOWOP("STRQ");
-	DEBUG("%s", seq);
-	STRCPY(STRQ, seq);
+    SHOWOP("STRQ");
+    DEBUG("%s", seq);
+    STRCPY(STRQ, seq);
 }
 void _ABORTQ(const char *seq) {
-	SHOWOP("ABORTQ");
-	DEBUG("%s", seq);
-	STRCPY(ABORTQ, seq);
+    SHOWOP("ABORTQ");
+    DEBUG("%s", seq);
+    STRCPY(ABORTQ, seq);
 }
 //
-// assembler macros
+// assembler macros (calculate number of parameters by compiler)
 //
 #define _CODE(seg, ...)      _code(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
 #define _COLON(seg, ...)     _colon(seg, _NARG(__VA_ARGS__), __VA_ARGS__)

@@ -32,23 +32,5 @@
           9,  8,  7,  6,  5,  4,  3,  2,  1,  0
 #define _NARG0(...)          _ARG_N(__VA_ARGS__)
 #define _NARG(...)           _NARG0(_, ##__VA_ARGS__, _NUM_N())
-//
-// assembler macros
-//
-#define _CODE(seg, ...)      _code(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
-#define _COLON(seg, ...)     _colon(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
-#define _IMMED(seg, ...)     _immed(seg, _NARG(__VA_ARGS__), __VA_ARGS__)
-#define _LABEL(...)          _label(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _BEGIN(...)          _begin(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _AGAIN(...)          _again(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _UNTIL(...)          _until(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _WHILE(...)          _while(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _REPEAT(...)         _repeat(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _IF(...)             _if(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _ELSE(...)           _else(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _THEN(...)           _then(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _FOR(...)            _for(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
 #endif // __EFORTH_SRC_EFORTH_ASM_H
