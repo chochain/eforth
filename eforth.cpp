@@ -46,7 +46,7 @@ void dump_data(U8* cdata, int len) {
 #endif // DATA_DUMP
 }
 
-int main(int ac, char* av[])
+int main0(int ac, char* av[])
 {
 	U8 *cdata = (U8*)data;
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
