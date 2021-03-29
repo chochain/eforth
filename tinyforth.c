@@ -120,10 +120,10 @@ U8 lookup(U8 *key, U16 *adr) {
 //
 // Find the Keyword in a List
 //
-U8 find(U8 *key, char *lst, U8 *id) {
+U8 find(U8 *key, char *lst, U16 *id) {
     for (U8 n=0, m=*(lst++); n < m; n++, lst += 3) {
         if (lst[0]==key[0] && lst[1]==key[1] && (key[1]==' ' || lst[2]==key[2])) {
-            *id = n;
+            *id = (U16)n;
             return 1;
         }
     }
@@ -135,79 +135,78 @@ U8 find(U8 *key, char *lst, U8 *id) {
 //
 void compile(void) {
     U8  *tkn, *p0 = dptr;
-    U8  tmp8;
-    U16 tmp16;
+    U16 tmp;
 
     /* get the identifier */
     tkn = gettkn();
 
     /* Write the header */
-    tmp16 = IDX(dmax);
+    tmp  = IDX(dmax);
     dmax = dptr;
-    ADDU16(tmp16);
+    ADDU16(tmp);
 	ADDU8(tkn[0]);
     ADDU8(tkn[1]);
 	ADDU8((tkn[1] != ' ') ? tkn[2] : ' ');   // ensure 3-char name
 
     for (;;) {
-        U8 *p;
+        U8 *p, f8;
 
         // dump token
         dump(p0, dptr, 0);
 
         tkn = gettkn();
         p0  = dptr;
-        if (find(tkn, LST_COM, &tmp8)) {
-            if (tmp8==0) {	/* ; */
+        if (find(tkn, LST_COM, &tmp)) {
+            if (tmp==0) {	/* ; */
                 ADDU8(I_RET);
                 break;
             }
-            switch (tmp8) {
+            switch (tmp) {
             case 1:	/* IF */
                 RPUSH(IDX(dptr));
                 ADDU8(PFX_CDJ);
                 ADDU8(0);
                 break;
             case 2:	/* ELS */
-                tmp16 = RPOP();
-                p     = PTR(tmp16);
-                tmp8  = *(p);
-                tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
-                *(p++)    = tmp8 | (tmp16 / 256U);
-                *(p++)    = tmp16 % 256U;
+                tmp   = RPOP();
+                p     = PTR(tmp);
+                f8    = *(p);
+                tmp   = IDX(dptr + 2) - tmp + JMP_SGN;
+                *(p++)    = f8 | (tmp / 256U);
+                *(p++)    = tmp % 256U;
                 RPUSH(IDX(dptr));
                 ADDU8(PFX_UDJ);
                 ADDU8(0);
                 break;
             case 3:	/* THN */
-                tmp16  = RPOP();
-                p      = PTR(tmp16);
-                tmp8   = *(p);
-                tmp16  = IDX(dptr) - tmp16 + JMP_SGN;
-                *(p++) = tmp8 | (tmp16 / 256U);
-                *(p++) = tmp16 % 256U;
+                tmp  = RPOP();
+                p    = PTR(tmp);
+                f8   = *(p);
+                tmp  = IDX(dptr) - tmp + JMP_SGN;
+                *(p++) = f8 | (tmp / 256U);
+                *(p++) = tmp % 256U;
                 break;
             case 4:	/* BGN */
                 RPUSH(IDX(dptr));
                 break;
             case 5:	/* END */
-                tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
-                ADDU8(PFX_CDJ | (tmp16 / 256U));
-                ADDU8(tmp16 % 256U);
+                tmp = RPOP() - IDX(dptr) + JMP_SGN;
+                ADDU8(PFX_CDJ | (tmp / 256U));
+                ADDU8(tmp % 256U);
                 break;
             case 6:	/* WHL */
                 RPUSH(IDX(dptr));
                 dptr += 2;                     // allocate branch addr
                 break;
             case 7:	/* RPT */
-                tmp16 = RPOP();
-                p     = PTR(tmp16);
-                tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
-                *(p++)    = PFX_CDJ | (tmp16 / 256U);
-                *(p++)    = tmp16 % 256U;
-                tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
-                ADDU8(PFX_UDJ | (tmp16 / 256U));
-                ADDU8(tmp16 % 256U);
+                tmp = RPOP();
+                p   = PTR(tmp);
+                tmp = IDX(dptr + 2) - tmp + JMP_SGN;
+                *(p++)    = PFX_CDJ | (tmp / 256U);
+                *(p++)    = tmp % 256U;
+                tmp = RPOP() - IDX(dptr) + JMP_SGN;
+                ADDU8(PFX_UDJ | (tmp / 256U));
+                ADDU8(tmp % 256U);
                 break;
             case 8:	/* DO */
                 RPUSH(IDX(dptr+1));
@@ -215,9 +214,9 @@ void compile(void) {
                 break;
             case 9:	/* LOP */
                 ADDU8(I_LOOP);
-                tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
-                ADDU8(PFX_CDJ | (tmp16 / 256U));
-                ADDU8(tmp16 % 256U);
+                tmp = RPOP() - IDX(dptr) + JMP_SGN;
+                ADDU8(PFX_CDJ | (tmp / 256U));
+                ADDU8(tmp % 256U);
                 ADDU8(I_RDROP2);
                 break;
             case 10:	/* I */
@@ -225,21 +224,22 @@ void compile(void) {
                 break;
             }
         }
-        else if (lookup(tkn, &tmp16)) {
-            tmp16 += 2 + 3 - IDX(dptr) + JMP_SGN;
-            ADDU8(PFX_CALL | (tmp16 / 256U));
-            ADDU8(tmp16 % 256U);
+        else if (lookup(tkn, &tmp)) {
+            tmp += 2 + 3 - IDX(dptr) + JMP_SGN;
+            ADDU8(PFX_CALL | (tmp / 256U));
+            ADDU8(tmp % 256U);
         }
-        else if (find(tkn, LST_PRM, &tmp8)) {
-            ADDU8(PFX_PRM | tmp8);
+        else if (find(tkn, LST_PRM, &tmp)) {
+            ADDU8(PFX_PRM | (U8)tmp);
         }
-        else if (literal(tkn, &tmp16)) {
-            if (tmp16 < 128U) {
-                ADDU8((U8)tmp16);
-            } else {
+        else if (literal(tkn, &tmp)) {
+            if (tmp < 128U) {
+                ADDU8((U8)tmp);
+            }
+			else {
                 ADDU8(I_LIT);
-                ADDU8(tmp16 % 256U);
-                ADDU8(tmp16 / 256U);
+                ADDU8(tmp % 256U);
+                ADDU8(tmp / 256U);
             }
         }
         else /* error */ putmsg("!\n");
@@ -250,12 +250,12 @@ void compile(void) {
 //  Forget Words in the Dictionary
 //
 void forget(void) {
-    U16 tmp16;
-    if (!lookup(gettkn(), &tmp16)) {
+    U16 tmp;
+    if (!lookup(gettkn(), &tmp)) {
         putmsg("??");
         return;
     }
-    U8 *p = PTR(tmp16);
+    U8 *p = PTR(tmp);
     dmax  = PTR(*p + *(p+1) * 256U);
     dptr  = p;
 }
@@ -263,28 +263,25 @@ void forget(void) {
 //  VARIABLE instruction
 //
 void variable(void) {
-    U8 *tkn;
-    U16 tmp16;
-
     /* get an identifier */
-    tkn = gettkn();
+    U8 *tkn = gettkn();
 
     /* Write the header */
-    tmp16 = IDX(dmax);
+    U16 tmp = IDX(dmax);
     dmax = dptr;
-    ADDU16(tmp16);
+    ADDU16(tmp);
     ADDU8(tkn[0]);
 	ADDU8(tkn[1]);
     ADDU8((tkn[1] != ' ') ? tkn[2] : ' ');
 
-    tmp16 = IDX(dptr + 2);
-    if (tmp16 < 128U) {
-        ADDU8((U8)tmp16);
+    tmp = IDX(dptr + 2);
+    if (tmp < 128U) {
+        ADDU8((U8)tmp);
     }
 	else {
-        tmp16 = IDX(dptr + 4);
+        tmp = IDX(dptr + 4);
         ADDU8(I_LIT);
-        ADDU16(tmp16);
+        ADDU16(tmp);
     }
     ADDU8(I_RET);
     ADDU16(0);	/* data area */
@@ -334,10 +331,9 @@ void execute(U16 adrs) {
         }
         else if (ir==I_LIT) {
             /* literal(128-65535) */
-            U16 tmp16;
-            tmp16 = *(pc++);
-            tmp16 += *(pc++) * 256U;
-            PUSH(tmp16);
+            U16 tmp = *(pc++);
+            tmp += *(pc++) * 256U;
+            PUSH(tmp);
         }
         else if (ir==I_RET) {
             /* RET: return */
@@ -506,29 +502,26 @@ int main(void) {
     putmsg("Tiny FORTH\n");
     
     for (;;) {
-        U8 tmp8;
-        U16 tmp16;
-        U8 *tkn;
+        U8 *tkn = gettkn();
 
-        tkn = gettkn();
-
+        U16 tmp;
         /* keyword */
-        if (find(tkn, LST_RUN, &tmp8)) {
-            switch (tmp8) {
+        if (find(tkn, LST_RUN, &tmp)) {
+            switch (tmp) {
             case 0:	/* :   */ compile();     break;
             case 1:	/* VAR */ variable();    break;
             case 2:	/* FGT */ forget();      break;
             case 3: /* BYE */ exit(0);
             }
         }
-        else if (lookup(tkn, &tmp16)) {
-            execute(tmp16 + 2 + 3);
+        else if (lookup(tkn, &tmp)) {
+            execute(tmp + 2 + 3);
         }
-        else if (find(tkn, LST_PRM, &tmp8)) {
-            primitive(tmp8);
+        else if (find(tkn, LST_PRM, &tmp)) {
+            primitive((U8)tmp);
         }
-        else if (literal(tkn, &tmp16)) {
-            PUSH(tmp16);
+        else if (literal(tkn, &tmp)) {
+            PUSH(tmp);
         }
         else {
             /* error */
