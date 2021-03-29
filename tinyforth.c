@@ -44,39 +44,38 @@ void putmsg(char *msg) {
 //
 U8 *gettkn(void) {
     static U8 buf[BUF_SZ] = " ";	/*==" \0\0\0..." */
-    U8 ptr;
+	U8 p;
 
     /* remove leading non-delimiters */
     while (*buf != ' ') {
-        for (ptr = 0; ptr < BUF_SZ - 1; ptr++) buf[ptr] = buf[ptr + 1];
-        buf[ptr] = '\0';
+        for (p=0; p<BUF_SZ-1; p++) buf[p] = buf[p+1];
+        buf[p] = '\0';
     }
     for (;;) {
         /* remove leading delimiters */
         while (*buf==' ') {
-            for (ptr = 0; ptr < BUF_SZ - 1; ptr++) buf[ptr] = buf[ptr + 1];
-            buf[ptr] = '\0';
+            for (p=0; p<BUF_SZ-1; p++) buf[p] = buf[p+1];
+            buf[p] = '\0';
         }
         if (*buf) {
             for (int i=0; i<4; i++) putchr(buf[i]<0x20 ? '_' : buf[i]);
             return buf;
         }
-        
-        for (ptr=0;;) {
+        for (p=0;;) {
             U8 c = getchr();
             if (c=='\n') {
                 putchr('\n');
-                buf[ptr] = ' ';
+                buf[p] = ' ';
                 break;
             }
             else if (c=='\b') {
-                if (ptr==0) continue;
-                buf[--ptr] = '\0';
+                if (p==0) continue;
+                buf[--p] = '\0';
                 putchr(' ');
                 putchr('\b');
             }
             else if (c <= 0x1fU)         {}
-            else if (ptr < BUF_SZ - 1) { buf[ptr++] = c; }
+            else if (p < BUF_SZ-1) { buf[p++] = c; }
             else {
                 putchr('\b');
                 putchr(' ');
@@ -102,10 +101,10 @@ void dump(U8 *p0, U8 *p1, U8 d)
 //
 // Lookup the Keyword from the Dictionary
 //
-char lookup(U8 *key, U16 *adrs) {
-    for (U8 *ptr = dmax; ptr != PTR(0xffffU); ptr = PTR(*ptr + *(ptr+1) * 256U)) {
-        if (ptr[2]==key[0] && ptr[3]==key[1] && (ptr[3]==' ' || ptr[4]==key[2])) {
-            *adrs = IDX(ptr);
+U8 lookup(U8 *key, U16 *adrs) {
+    for (U8 *p=dmax; p != PTR(0xffff); p=PTR(*p + *(p+1) * 256)) {
+        if (p[2]==key[0] && p[3]==key[1] && (p[3]==' ' || p[4]==key[2])) {
+            *adrs = IDX(p);
             return 1;
         }
     }
@@ -114,7 +113,7 @@ char lookup(U8 *key, U16 *adrs) {
 //
 // Find the Keyword in a List
 //
-char find(U8 *key, char *list, U8 *id) {
+U8 find(U8 *key, char *list, U8 *id) {
     for (U8 n=0, m=*(list++); n < m; n++, list += 3) {
         if (list[0]==key[0] && list[1]==key[1] && (key[1]==' ' || list[2]==key[2])) {
             *id = n;
@@ -145,7 +144,7 @@ void compile(void) {
     *(dptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';   // ensure 3-char name
 
     for (;;) {
-        U8 *ptr;
+        U8 *p;
 
         // dump token
         dump(p0, dptr, 0);
@@ -165,22 +164,22 @@ void compile(void) {
                 break;
             case 2:	/* ELS */
                 tmp16 = *(--rsp);
-                ptr = PTR(tmp16);
-                tmp8 = *(ptr);
+                p     = PTR(tmp16);
+                tmp8  = *(p);
                 tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
-                *(ptr++) = tmp8 | (tmp16 / 256U);
-                *(ptr++) = tmp16 % 256U;
-                *(rsp++) = IDX(dptr);
+                *(p++)    = tmp8 | (tmp16 / 256U);
+                *(p++)    = tmp16 % 256U;
+                *(rsp++)  = IDX(dptr);
                 *(dptr++) = PFX_UDJ;
                 dptr++;
                 break;
             case 3:	/* THN */
-                tmp16 = *(--rsp);
-                ptr = PTR(tmp16);
-                tmp8 = *(ptr);
-                tmp16 = IDX(dptr) - tmp16 + JMP_SGN;
-                *(ptr++) = tmp8 | (tmp16 / 256U);
-                *(ptr++) = tmp16 % 256U;
+                tmp16  = *(--rsp);
+                p      = PTR(tmp16);
+                tmp8   = *(p);
+                tmp16  = IDX(dptr) - tmp16 + JMP_SGN;
+                *(p++) = tmp8 | (tmp16 / 256U);
+                *(p++) = tmp16 % 256U;
                 break;
             case 4:	/* BGN */
                 *(rsp++) = IDX(dptr);
@@ -196,16 +195,16 @@ void compile(void) {
                 break;
             case 7:	/* RPT */
                 tmp16 = *(--rsp);
-                ptr = PTR(tmp16);
+                p     = PTR(tmp16);
                 tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
-                *(ptr++) = PFX_CDJ | (tmp16 / 256U);
-                *(ptr++) = tmp16 % 256U;
+                *(p++)    = PFX_CDJ | (tmp16 / 256U);
+                *(p++)    = tmp16 % 256U;
                 tmp16 = *(--rsp) - IDX(dptr) + JMP_SGN;
                 *(dptr++) = PFX_UDJ | (tmp16 / 256U);
                 *(dptr++) = tmp16 % 256U;
                 break;
             case 8:	/* DO */
-                *(rsp++) = IDX(dptr+1);
+                *(rsp++)  = IDX(dptr+1);
                 *(dptr++) = I_P2R2;
                 break;
             case 9:	/* LOP */
@@ -246,19 +245,13 @@ void compile(void) {
 //
 void forget(void) {
     U16 tmp16;
-    U8 *ptr;
-
-    /* get a word */
     if (!lookup(gettkn(), &tmp16)) {
         putmsg("??");
         return;
     }
-
-    ptr = PTR(tmp16);
-    dmax = PTR(*ptr + *(ptr+1) * 256U);
-    dptr = ptr;
-
-    return;
+    U8 *p = PTR(tmp16);
+    dmax  = PTR(*p + *(p+1) * 256U);
+    dptr  = p;
 }
 //
 //  VARIABLE instruction
@@ -282,7 +275,8 @@ void variable(void) {
     tmp16 = IDX(dptr + 2);
     if (tmp16 < 128U) {
         *(dptr++) = (U8)tmp16;
-    } else {
+    }
+	else {
         tmp16 = IDX(dptr + 4);
         *(dptr++) = I_LIT;
         *(dptr++) = tmp16 % 256U;

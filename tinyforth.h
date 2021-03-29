@@ -56,8 +56,8 @@ U8   *gettkn(void);
 //
 // dictionary, string list scanners
 //
-char lookup(U8 *key, U16 *adrs);
-char find(U8 *key, char *list, U8 *id);
+U8 lookup(U8 *key, U16 *adrs);
+U8 find(U8 *key, char *list, U8 *id);
 //
 // Forth VM core functions
 //

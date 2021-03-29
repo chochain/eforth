@@ -57,5 +57,7 @@ int main0(int ac, char* av[])
 	printf("\nceForth v4.0 ROM[%04x]\n", sz);
 	vm_init(cdata);
 	vm_run();
+
+	return 0;
 }
 
