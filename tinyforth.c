@@ -288,9 +288,9 @@ void execute(U16 adr) {
     RPUSH(0xffff);
 
     for (U8 *pc=PTR(adr); pc != PTR(0xffff); ) {
-        U16 a = IDX(pc);                     // current program counter
-        U8 ir = *(pc++);                     // fetch instruction
-        putadr(a); puthex(ir); putchr(' ');
+        U16 a  = IDX(pc);                                 // current program counter
+        U8  ir = *(pc++);                                 // fetch instruction
+        putadr(a); puthex(ir); putchr(' ');               // debug info
 
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
         else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
@@ -301,7 +301,7 @@ void execute(U16 adr) {
             switch (ir & 0xe0) {
             case PFX_UDJ:                                 // 0x80 unconditional jump
                 pc = PTR(a);                              // set jump target
-                putchr('\n');
+                putchr('\n');                             // debug info
                 break;
             case PFX_CDJ:                                 // 0xa0 conditional jump
                 pc = POP() ? pc+1 : PTR(a);               // next or target
@@ -323,91 +323,27 @@ void primitive(U8 ic) {
     U16 x0, x1;
 
     switch (ic) {
-    case 0:	/* DRP */
-        psp++;
-        break;
-    case 1:	/* DUP */
-        x0 = TOS;
-        PUSH(x0);
-        break;
-    case 2:	/* SWP */
-        x1 = POP();
-        x0 = POP();
-        PUSH(x1);
-        PUSH(x0);
-        break;
-    case 3:	/* >R */
-        RPUSH(POP());
-        break;
-    case 4:	/* R> */
-        PUSH(RPOP());
-        break;
-    case 5:	/* + */
-        x0 = POP();
-        TOS += x0;
-        break;
-    case 6:	/* - */
-        x0 = POP();
-        TOS -= x0;
-        break;
-    case 7:	/* * */
-        x0 = POP();
-        TOS *= x0;
-        break;
-    case 8:	/* / */
-        x0 = POP();
-        TOS /= x0;
-        break;
-    case 9:	/* MOD */
-        x0 = POP();
-        TOS %= x0;
-        break;
-    case 10:	/* AND */
-        x0 = POP();
-        TOS &= x0;
-        break;
-    case 11:	/* OR */
-        x0 = POP();
-        TOS |= x0;
-        break;
-    case 12:	/* XOR */
-        x0 = POP();
-        TOS ^= x0;
-        break;
-    case 13:	/* = */
-        x1 = POP();
-        x0 = POP();
-        PUSH(x0==x1);
-        break;
-    case 14:	/* < */
-        x1 = POP();
-        x0 = POP();
-        PUSH(x0 < x1);
-        break;
-    case 15:	/* > */
-        x1 = POP();
-        x0 = POP();
-        PUSH(x0 > x1);
-        break;
-    case 16:	/* <= */
-        x1 = POP();
-        x0 = POP();
-        PUSH(x0 <= x1);
-        break;
-    case 17:	/* >= */
-        x1 = POP();
-        x0 = POP();
-        PUSH(x0 >= x1);
-        break;
-    case 18:	/* <> */
-        x1 = POP();
-        x0 = POP();
-        PUSH(x0 != x1);
-        break;
-    case 19:	/* NOT */
-        TOS = (TOS==0);
-        break;
-    case 20:	/* @ */
+    case 0:  psp++;                      break; // DRP
+    case 1:  PUSH(TOS);                  break; // DUP
+    case 2:  PUSH(POP()); PUSH(POP());   break;	// SWP
+    case 3:  RPUSH(POP());               break; // >R
+    case 4:  PUSH(RPOP());               break; // R>
+    case 5:	 TOS += POP();               break; // +
+    case 6:	 TOS -= POP();               break; // -
+    case 7:	 TOS *= POP();               break; // *
+    case 8:	 TOS /= POP();               break; // /
+    case 9:	 TOS %= POP();               break; // MOD
+    case 10: TOS &= POP();               break;	// AND
+    case 11: TOS |= POP();               break;	// OR
+    case 12: TOS ^= POP();               break; // XOR
+    case 13: PUSH(POP() == POP());       break; // =
+    case 14: PUSH(POP() >= POP());       break; // <
+    case 15: PUSH(POP() <= POP());       break; // >
+    case 16: PUSH(POP() >  POP());       break; // <=
+    case 17: PUSH(POP() <  POP());       break; // >=
+    case 18: PUSH(POP() != POP());       break; // <>
+    case 19: TOS = (TOS==0);             break;	// NOT
+    case 20: /* @ */
         x0 = POP();
         x1 = *(PTR(x0));
         x1 += *(PTR(x0 + 1)) * 256U;
@@ -454,20 +390,32 @@ void primitive(U8 ic) {
     return;
 }
 
+void ok() {
+    if (psp > &(stk[STK_SZ])) {     // check stack overflow
+        putmsg("OVF\n");
+        psp = &(stk[STK_SZ]);
+    }
+    else {                          // stack dump before OK
+        putchr('[');
+        for (U16 *p=&stk[STK_SZ]-1; p>=psp; p--) {
+            putchr(' '); putnum(*p);
+        }
+        putmsg(" ] OK ");
+    }
+}
+
 int main(void) {
     putmsg("Tiny FORTH\n");
     
     for (;;) {
-        U8 *tkn = gettkn();
-
+        U8 *tkn = gettkn();                    // get token fron console
         U16 tmp;
-        /* keyword */
-        if (find(tkn, LST_RUN, &tmp)) {
+        if (find(tkn, LST_RUN, &tmp)) {        // run mode
             switch (tmp) {
-            case 0:	/* :   */ compile();     break;
-            case 1:	/* VAR */ variable();    break;
-            case 2:	/* FGT */ forget();      break;
-            case 3: /* BYE */ exit(0);
+            case 0:	compile();     break;      // : (COLON)
+            case 1:	variable();    break;      // VAR
+            case 2:	forget();      break;      // FGT
+            case 3: exit(0);                   // BYE
             }
         }
         else if (lookup(tkn, &tmp)) {
@@ -484,16 +432,6 @@ int main(void) {
             putmsg("?\n");
             continue;
         }
-        if (psp > &(stk[STK_SZ])) {
-            putmsg("OVF\n");
-            psp = &(stk[STK_SZ]);
-        }
-        else {
-        	putchr('[');
-            for (U16 *p=&stk[STK_SZ]-1; p>=psp; p--) {
-                putchr(' '); putnum(*p);
-            }
-            putmsg(" ] OK ");
-        }
+        ok();
     }
 }
