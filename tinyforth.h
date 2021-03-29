@@ -14,30 +14,6 @@ typedef uint8_t  U8;
 
 #define putchr(c)  putchar(c)
 #define getchr()   getchar()
-#define PTR(n)     (dic + (n))
-#define IDX(p)     ((U16)((U8*)(p) - dic))
-#define TOS        (*psp)
-#define PUSH(v)    (*(--psp)=(U16)(v))
-#define POP()      ((U16)(*(psp++)))
-#define RPUSH(v)   (*(rsp++)=(U16)(v))
-#define RPOP()     ((U16)(*(--rsp)))
-#define PUT8(c)    (*(dptr++)=(U8)(c))
-#define PUT16(n)   do { PUT8((n)&0xff); PUT8((n)>>8); } while(0)
-#define PUTNM(s)   do { PUT8((s)[0]); PUT8((s)[1]); PUT8(((s)[1]!=' ') ? (s)[2] : ' '); } while(0)
-#define GET16(p)   ((U16)*(U8*)(p) + *((U8*)(p)+1)<<8)
-#define JMPSET(idx, p1) do {             \
-    U8  *p = PTR(idx);                   \
-    U8  f8 = *(p);                       \
-    U16 a  = ((U8*)(p1)-p) + JMP_SGN;    \
-    *(p++) = f8 | (a>>8);                \
-    *(p++) = a & 0xff;                   \
-    } while(0)
-#define JMPBCK(idx, j) do {              \
-    U8  *p = PTR(idx);                   \
-    U16 a  = (U16)(p - dptr) + JMP_SGN;  \
-    PUT8((j) | (a>>8));                  \
-    PUT8(a & 0xff);                      \
-    } while(0)
 //
 // length + space delimited 3-char string
 //
@@ -68,6 +44,36 @@ typedef uint8_t  U8;
 #define I_I        (PFX_PRM | 27)
 #define I_P2R2     (PFX_PRM | 28)
 #define BYE        (PFX_PRM | 29)
+//
+// dictionary address<=>pointer translation macros
+//
+#define PTR(n)     (dic + (n))
+#define IDX(p)     ((U16)((U8*)(p) - dic))
+//
+// Forth opcode macros
+//
+#define TOS        (*psp)
+#define PUSH(v)    (*(--psp)=(U16)(v))
+#define POP()      ((U16)(*(psp++)))
+#define RPUSH(v)   (*(rsp++)=(U16)(v))
+#define RPOP()     ((U16)(*(--rsp)))
+#define SET8(c)    (*(dptr++)=(U8)(c))
+#define SET16(n)   do { SET8((n)&0xff); SET8((n)>>8); } while(0)
+#define SETNM(s)   do { SET8((s)[0]); SET8((s)[1]); SET8(((s)[1]!=' ') ? (s)[2] : ' '); } while(0)
+#define GET16(p)   ((U16)*(U8*)(p) + *((U8*)(p)+1)<<8)
+#define JMPSET(idx, p1) do {             \
+    U8  *p = PTR(idx);                   \
+    U8  f8 = *(p);                       \
+    U16 a  = ((U8*)(p1)-p) + JMP_SGN;    \
+    *(p++) = f8 | (a>>8);                \
+    *(p++) = a & 0xff;                   \
+    } while(0)
+#define JMPBCK(idx, j) do {              \
+    U8  *p = PTR(idx);                   \
+    U16 a  = (U16)(p - dptr) + JMP_SGN;  \
+    SET8((j) | (a>>8));                  \
+    SET8(a & 0xff);                      \
+    } while(0)
 //
 // IO functions
 //
