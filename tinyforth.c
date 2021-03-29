@@ -143,10 +143,10 @@ void compile(void) {
     /* Write the header */
     tmp  = IDX(dmax);
     dmax = dptr;
-    ADDU16(tmp);
-	ADDU8(tkn[0]);
-    ADDU8(tkn[1]);
-	ADDU8((tkn[1] != ' ') ? tkn[2] : ' ');   // ensure 3-char name
+    PUT16(tmp);
+	PUT8(tkn[0]);
+    PUT8(tkn[1]);
+	PUT8((tkn[1] != ' ') ? tkn[2] : ' ');   // ensure 3-char name
 
     for (;;) {
         U8 *p, f8;
@@ -158,88 +158,64 @@ void compile(void) {
         p0  = dptr;
         if (find(tkn, LST_COM, &tmp)) {
             if (tmp==0) {	/* ; */
-                ADDU8(I_RET);
+                PUT8(I_RET);
                 break;
             }
             switch (tmp) {
             case 1:	/* IF */
-                RPUSH(IDX(dptr));
-                ADDU8(PFX_CDJ);
-                ADDU8(0);
+                RPUSH(IDX(dptr));               // save current dptr A1
+                PUT16(PFX_CDJ);                 // alloc addr with jmp_flag
                 break;
             case 2:	/* ELS */
-                tmp   = RPOP();
-                p     = PTR(tmp);
-                f8    = *(p);
-                tmp   = IDX(dptr + 2) - tmp + JMP_SGN;
-                *(p++)    = f8 | (tmp / 256U);
-                *(p++)    = tmp % 256U;
-                RPUSH(IDX(dptr));
-                ADDU8(PFX_UDJ);
-                ADDU8(0);
+                JMPSET(RPOP(), dptr+2);         // update A1 with next addr
+                RPUSH(IDX(dptr));               // save current dptr A2
+                PUT16(PFX_UDJ);                 // alloc space with jmp_flag
                 break;
             case 3:	/* THN */
-                tmp  = RPOP();
-                p    = PTR(tmp);
-                f8   = *(p);
-                tmp  = IDX(dptr) - tmp + JMP_SGN;
-                *(p++) = f8 | (tmp / 256U);
-                *(p++) = tmp % 256U;
+                JMPSET(RPOP(), dptr);           // update A2 with current addr
                 break;
             case 4:	/* BGN */
-                RPUSH(IDX(dptr));
+                RPUSH(IDX(dptr));               // save current dptr A1
                 break;
-            case 5:	/* END */
-                tmp = RPOP() - IDX(dptr) + JMP_SGN;
-                ADDU8(PFX_CDJ | (tmp / 256U));
-                ADDU8(tmp % 256U);
+            case 5:	/* UTL */
+                JMPBCK(RPOP(), PFX_CDJ);        // conditional jump back to A1
                 break;
             case 6:	/* WHL */
-                RPUSH(IDX(dptr));
-				ADDU16(0);                     // allocate branch addr
+                RPUSH(IDX(dptr));               // save WHILE dptr A2
+				PUT16(PFX_CDJ);                 // allocate branch addr A2
                 break;
             case 7:	/* RPT */
-                tmp = RPOP();
-                p   = PTR(tmp);
-                tmp = IDX(dptr + 2) - tmp + JMP_SGN;
-                *(p++)    = PFX_CDJ | (tmp / 256U);
-                *(p++)    = tmp % 256U;
-                tmp = RPOP() - IDX(dptr) + JMP_SGN;
-                ADDU8(PFX_UDJ | (tmp / 256U));
-                ADDU8(tmp % 256U);
+                JMPSET(RPOP(), dptr+2);         // update A2 with next addr
+                JMPBCK(RPOP(), PFX_UDJ);        // unconditional jump back to A1
                 break;
             case 8:	/* DO */
-                RPUSH(IDX(dptr+1));
-                ADDU8(I_P2R2);
+                RPUSH(IDX(dptr+1));             // save current addr A1
+                PUT8(I_P2R2);
                 break;
             case 9:	/* LOP */
-                ADDU8(I_LOOP);
-                tmp = RPOP() - IDX(dptr) + JMP_SGN;
-                ADDU8(PFX_CDJ | (tmp / 256U));
-                ADDU8(tmp % 256U);
-                ADDU8(I_RDROP2);
+                PUT8(I_LOOP);
+                JMPBCK(RPOP(), PFX_CDJ);       // conditionally jump back to A1
+                PUT8(I_RDROP2);
                 break;
             case 10:	/* I */
-                ADDU8(I_I);
+                PUT8(I_I);
                 break;
             }
         }
         else if (lookup(tkn, &tmp)) {
-            tmp += 2 + 3 - IDX(dptr) + JMP_SGN;
-            ADDU8(PFX_CALL | (tmp / 256U));
-            ADDU8(tmp % 256U);
+            JMPBCK(2+3, PFX_CALL);            // add word address
         }
         else if (find(tkn, LST_PRM, &tmp)) {
-            ADDU8(PFX_PRM | (U8)tmp);
+            PUT8(PFX_PRM | (U8)tmp);         // add primitive opcode
         }
         else if (literal(tkn, &tmp)) {
             if (tmp < 128U) {
-                ADDU8((U8)tmp);
+                PUT8((U8)tmp);               // 1-byte literal
             }
 			else {
-                ADDU8(I_LIT);
-                ADDU8(tmp % 256U);
-                ADDU8(tmp / 256U);
+                PUT8(I_LIT);                 // 3-byte literal
+                PUT8(tmp % 256U);
+                PUT8(tmp / 256U);
             }
         }
         else /* error */ putmsg("!\n");
@@ -269,22 +245,22 @@ void variable(void) {
     /* Write the header */
     U16 tmp = IDX(dmax);
     dmax = dptr;
-    ADDU16(tmp);
-    ADDU8(tkn[0]);
-	ADDU8(tkn[1]);
-    ADDU8((tkn[1] != ' ') ? tkn[2] : ' ');
+    PUT16(tmp);
+    PUT8(tkn[0]);
+	PUT8(tkn[1]);
+    PUT8((tkn[1] != ' ') ? tkn[2] : ' ');
 
     tmp = IDX(dptr + 2);
     if (tmp < 128U) {
-        ADDU8((U8)tmp);
+        PUT8((U8)tmp);
     }
 	else {
         tmp = IDX(dptr + 4);
-        ADDU8(I_LIT);
-        ADDU16(tmp);
+        PUT8(I_LIT);
+        PUT16(tmp);
     }
-    ADDU8(I_RET);
-    ADDU16(0);	/* data area */
+    PUT8(I_RET);
+    PUT16(0);	/* data area */
 }
 //
 // Process a Literal

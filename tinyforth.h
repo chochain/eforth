@@ -21,13 +21,26 @@ typedef uint8_t  U8;
 #define POP()      ((U16)(*(psp++)))
 #define RPUSH(v)   (*(rsp++)=(U16)(v))
 #define RPOP()     ((U16)(*(--rsp)))
-#define ADDU8(c)   (*(dptr++)=(U8)(c))
-#define ADDU16(n)  do { ADDU8((n)&0xff); ADDU8((n)>>8); } while(0)
+#define PUT8(c)    (*(dptr++)=(U8)(c))
+#define PUT16(n)   do { PUT8((n)&0xff); PUT8((n)>>8); } while(0)
+#define JMPSET(idx, p1) do {             \
+    U8  *p = PTR(idx);                   \
+    U8  f8 = *(p);                       \
+    U16 a  = ((U8*)(p1)-p) + JMP_SGN;    \
+    *(p++) = f8 | (a>>8);                \
+    *(p++) = a & 0xff;                   \
+    } while(0)
+#define JMPBCK(idx, j) do {              \
+    U8  *p = PTR(idx);                   \
+    U16 a  = (U16)(p - dptr) + JMP_SGN;  \
+    PUT8((j) | (a>>8));                  \
+    PUT8(a & 0xff);                      \
+    } while(0)
 //
 // length + space delimited 3-char string
 //
 #define LST_RUN    "\x04" ":  " "VAR" "FGT" "BYE"
-#define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "END" "WHL" "RPT" "DO " "LOP" "I  "
+#define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
 #define LST_PRM    "\x19" \
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
 	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
