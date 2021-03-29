@@ -143,8 +143,8 @@ void compile(void) {
     /* Write the header */
     tmp  = IDX(dmax);
     dmax = dptr;
-    SET16(tmp);
-    SETNM(tkn);         // 3-byte name
+    SET16(dptr, tmp);
+    SETNM(dptr, tkn);         // 3-byte name
 
     for (;;) {
         U8 *p, f8;
@@ -156,18 +156,18 @@ void compile(void) {
         p0  = dptr;
         if (find(tkn, LST_COM, &tmp)) {
             if (tmp==0) {	/* ; */
-                SET8(I_RET);
+                SET8(dptr, I_RET);
                 break;
             }
             switch (tmp) {
             case 1:	/* IF */
                 RPUSH(IDX(dptr));               // save current dptr A1
-                SET16(PFX_CDJ);                 // alloc addr with jmp_flag
+                SET16(dptr, PFX_CDJ);           // alloc addr with jmp_flag
                 break;
             case 2:	/* ELS */
                 JMPSET(RPOP(), dptr+2);         // update A1 with next addr
                 RPUSH(IDX(dptr));               // save current dptr A2
-                SET16(PFX_UDJ);                 // alloc space with jmp_flag
+                SET16(dptr, PFX_UDJ);           // alloc space with jmp_flag
                 break;
             case 3:	/* THN */
                 JMPSET(RPOP(), dptr);           // update A2 with current addr
@@ -179,8 +179,8 @@ void compile(void) {
                 JMPBCK(RPOP(), PFX_CDJ);        // conditional jump back to A1
                 break;
             case 6:	/* WHL */
-                RPUSH(IDX(dptr));               // save WHILE dptr A2
-				SET16(PFX_CDJ);                 // allocate branch addr A2
+                RPUSH(IDX(dptr));               // save WHILE addr A2
+				SET16(dptr, PFX_CDJ);           // allocate branch addr A2 with jmp flag
                 break;
             case 7:	/* RPT */
                 JMPSET(RPOP(), dptr+2);         // update A2 with next addr
@@ -188,35 +188,32 @@ void compile(void) {
                 break;
             case 8:	/* DO */
                 RPUSH(IDX(dptr+1));             // save current addr A1
-                SET8(I_P2R2);
+                SET8(dptr, I_P2R2);
                 break;
             case 9:	/* LOP */
-                SET8(I_LOOP);
-                JMPBCK(RPOP(), PFX_CDJ);       // conditionally jump back to A1
-                SET8(I_RDROP2);
+                SET8(dptr, I_LOOP);
+                JMPBCK(RPOP(), PFX_CDJ);        // conditionally jump back to A1
+                SET8(dptr, I_RDROP2);
                 break;
-            case 10:	/* I */
-                SET8(I_I);
+            case 10: /* I */
+                SET8(dptr, I_I);
                 break;
             }
         }
-        else if (lookup(tkn, &tmp)) {
-            JMPBCK(2+3, PFX_CALL);            // add word address, adr(2), name(3)
-        }
-        else if (find(tkn, LST_PRM, &tmp)) {
-            SET8(PFX_PRM | (U8)tmp);          // add primitive opcode
-        }
+        else if (lookup(tkn, &tmp))        { JMPBCK(2+3, PFX_CALL);         }  // add found word addr, adr(2), name(3)
+        else if (find(tkn, LST_PRM, &tmp)) { SET8(dptr, PFX_PRM | (U8)tmp); }  // add found primitive opcode
         else if (literal(tkn, &tmp)) {
             if (tmp < 128U) {
-                SET8((U8)tmp);                // 1-byte literal
+                SET8(dptr, (U8)tmp);          // 1-byte literal
             }
 			else {
-                SET8(I_LIT);                  // 3-byte literal
-                SET16(tmp);
+                SET8(dptr, I_LIT);            // 3-byte literal
+                SET16(dptr, tmp);
             }
         }
-        else /* error */ putmsg("!\n");
+        else putmsg("!\n");                   // error
     }
+    // debug memory dump
     dump(dic, dptr, ' ');
 }
 //
@@ -242,20 +239,20 @@ void variable(void) {
     U8 *tkn = gettkn();    // get token
     U16 tmp = IDX(dmax);
     dmax = dptr;
-    SET16(tmp);
-    SETNM(tkn);            // 3-byte variable name
+    SET16(dptr, tmp);
+    SETNM(dptr, tkn);      // 3-byte variable name
 
     tmp = IDX(dptr + 2);   // next addr
     if (tmp < 128U) {
-        SET8((U8)tmp);
+        SET8(dptr, (U8)tmp);
     }
 	else {
         tmp = IDX(dptr + 4);
-        SET8(I_LIT);
-        SET16(tmp);
+        SET8(dptr, I_LIT);
+        SET16(dptr, tmp);
     }
-    SET8(I_RET);
-    SET16(0);	           // alloc data area
+    SET8(dptr, I_RET);
+    SET16(dptr, 0);	      // alloc data area
 }
 //
 // Process a Literal
@@ -320,10 +317,8 @@ void execute(U16 adr) {
 //  Execute a Primitive Instruction
 //
 void primitive(U8 ic) {
-    U16 x0, x1;
-
     switch (ic) {
-    case 0:  psp++;                      break; // DRP
+    case 0:  POP();                      break; // DRP
     case 1:  PUSH(TOS);                  break; // DUP
     case 2:  PUSH(POP()); PUSH(POP());   break;	// SWP
     case 3:  RPUSH(POP());               break; // >R
@@ -343,51 +338,20 @@ void primitive(U8 ic) {
     case 17: PUSH(POP() <  POP());       break; // >=
     case 18: PUSH(POP() != POP());       break; // <>
     case 19: TOS = (TOS==0);             break;	// NOT
-    case 20: /* @ */
-        x0 = POP();
-        x1 = *(PTR(x0));
-        x1 += *(PTR(x0 + 1)) * 256U;
-        PUSH(x1);
-        break;
-    case 21:	/* @@ */
-        x0 = POP();
-        x1 = *(PTR(x0));
-        PUSH(x1);
-        break;
-    case 22:	/* ! */
-        x1 = POP();
-        x0 = POP();
-        *(PTR(x1)) = x0 % 256U;
-        *(PTR(x1 + 1)) = x0 / 256U;
-        break;
-    case 23:	/* !! */
-        x1 = POP();
-        x0 = POP();
-        *(PTR(x1)) = (U8)x0;
-        break;
-    case 24:	/* . */
-        putnum(POP());
-        putchr(' ');
-        break;
-    case 25:	/* LOOP */
-        (*(rsp - 2))++;
-        x1 = *(rsp - 2);
-        x0 = *(rsp - 1);
-        PUSH(x0 <= x1);
+    case 20: { U16 *p = PTR(POP()); PUSH(GET16(p)); } break; // @
+    case 21: { U16 *p = PTR(POP()); *p = POP();     } break; // !
+    case 22: { U8  *p = PTR(POP()); PUSH((U16)*p);  } break; // C@
+    case 23: { U8  *p = PTR(POP()); *p = (U8)POP(); } break; // C!
+    case 24: putnum(POP()); putchr(' '); break; // .
+    case 25: {	                                // LOOP
+        (*(rsp-2))++;  // increment counter
+        PUSH(*(rsp-2) >= *(rsp-1));
         putchr('\n');
-        break;
-    case 26:	/* RDROP2 */
-        rsp -= 2;
-        break;
-    case 27:	/* I */
-        PUSH(*(rsp - 2));
-        break;
-    case 28:	/* P2R2 */
-        RPUSH(POP());
-        RPUSH(POP());
-        break;
+    } break;
+    case 26: rsp -= 2;                   break; // RDROP2
+    case 27: PUSH(*(rsp-2));             break; // I
+    case 28: RPUSH(POP()); RPUSH(POP()); break; // P2R2
     }
-    return;
 }
 
 void ok() {
@@ -406,7 +370,6 @@ void ok() {
 
 int main(void) {
     putmsg("Tiny FORTH\n");
-    
     for (;;) {
         U8 *tkn = gettkn();                    // get token fron console
         U16 tmp;
@@ -418,20 +381,13 @@ int main(void) {
             case 3: exit(0);                   // BYE
             }
         }
-        else if (lookup(tkn, &tmp)) {
-            execute(tmp + 2 + 3);
-        }
-        else if (find(tkn, LST_PRM, &tmp)) {
-            primitive((U8)tmp);
-        }
-        else if (literal(tkn, &tmp)) {
-            PUSH(tmp);
-        }
-        else {
-            /* error */
+        else if (lookup(tkn, &tmp))        { execute(tmp + 2 + 3); }   // search word dictionary addr(2), name(3)
+        else if (find(tkn, LST_PRM, &tmp)) { primitive((U8)tmp);   }   // search primitives
+        else if (literal(tkn, &tmp))       { PUSH(tmp);            }   // handle numbers
+        else {                                                         // error
             putmsg("?\n");
             continue;
         }
-        ok();
+        ok();  // stack check and prompt OK
     }
 }
