@@ -4,6 +4,7 @@
   2004/07/04-10,7/29,8/5-6
 */
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 typedef uint16_t U16;
@@ -20,11 +21,14 @@ typedef uint8_t  U8;
 //
 // length + space delimited 3-char string
 //
-#define KEY_RUNMODE         "\x03" ":  " "VAR" "FGT"
+#define KEY_RUNMODE         "\x04" ":  " "VAR" "FGT" "BYE"
 #define KEY_COMPILEMODE     "\x0b" ";  " "IF " "ELS" "THN" "BGN" "END" "WHL" "RPT" "DO " "LOP" "I  "
-#define KEY_PRIMITIVE       "\x19" "DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" "AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" "@  " "@@ " "!  " "!! " ".  "
+#define KEY_PRIMITIVE       "\x19" \
+	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
+	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
+	"@  " "@@ " "!  " "!! " ".  "
 
-#define JMP_FLG             0x1000
+#define JMP_SGN             0x1000
 #define PFX_UDJ             0x80U
 #define PFX_CDJ             0xa0U
 #define PFX_CALL            0xc0U
@@ -36,6 +40,7 @@ typedef uint8_t  U8;
 #define I_RDROP2            (PFX_PRIMITIVE | 26U)
 #define I_I                 (PFX_PRIMITIVE | 27U)
 #define I_P2R2              (PFX_PRIMITIVE | 28U)
+#define BYE                 (PFX_PRIMITIVE | 29U)
 
 static U16  stack[STACK_SIZE];
 static U16  *retstk;
@@ -55,6 +60,7 @@ static void forget(void);
 static void execute(U16 adrs);
 static void primitive(U8 ic);
 static void putnum(U16 num);
+static void puthex(U8 c);
 
 int main(void) {
     /* Initialize the stack and dictionary */
@@ -63,8 +69,7 @@ int main(void) {
     dicptr = dic;
     dicent = V2R(dic, 0xffffU);
 
-    putmsg("Tiny FORTH");
-
+    putmsg("Tiny FORTH\n");
     for (;;) {
         U8 tmp8;
         U16 tmp16;
@@ -78,6 +83,7 @@ int main(void) {
             case 0:	/* :   */ compile();     break;
             case 1:	/* VAR */ variable();    break;
             case 2:	/* FGT */ forget();      break;
+            case 3: /* BYE */ exit(0);
             }
         }
         else if (lookup(tkn, &tmp16)) {
@@ -91,14 +97,20 @@ int main(void) {
         }
         else {
             /* error */
-            putmsg("?");
+            putmsg("?\n");
             continue;
         }
         if (parstk > &(stack[STACK_SIZE])) {
-            putmsg("OVF");
+            putmsg("OVF\n");
             parstk = &(stack[STACK_SIZE]);
         }
-        else putmsg("OK");
+        else {
+        	putchr('[');
+            for (U16 *p=&stack[STACK_SIZE]-1; p>=parstk; p--) {
+                putchr(' '); putnum(*p);
+            }
+            putmsg(" ] OK ");
+        }
     }
 }
 /*
@@ -106,9 +118,6 @@ int main(void) {
 */
 static void putmsg(char *msg) {
     while (*msg != '\0') putchr(*(msg++));
-    putchr('\r');
-    putchr('\n');
-    return;
 }
 /*
   Get a Token
@@ -128,7 +137,10 @@ static U8 *gettkn(void) {
             for (ptr = 0; ptr < BUF_SIZE - 1; ptr++) buf[ptr] = buf[ptr + 1];
             buf[ptr] = '\0';
         }
-        if (*buf) return buf;
+        if (*buf) {
+            for (int i=0; i<4; i++) putchr(buf[i]<0x20 ? '_' : buf[i]);
+            return buf;
+        }
         
         for (ptr=0;;) {
             U8 c = getchr();
@@ -161,7 +173,7 @@ static char literal(U8 *str, U16 *num) {
         U16 n = 0;
         for (str++; *str != ' '; str++) {
             n *= 16;
-            n += *str - (*str<='9' '0' : 'A' - 10);
+            n += *str - (*str<='9' ? '0' : 'A' - 10);
         }
         *num = n;
         return 1;
@@ -201,11 +213,22 @@ static char find(U8 *key, char *list, U8 *id) {
     }
     return 0;
 }
+
+void dump(U8 *p0, U8 *p1, U8 d)
+{
+	U16 n = (U16)(p0 - dic);
+	puthex((U8)(n>>8)); puthex((U8)(n&0xff)); putchr(':');
+	for (; p0<p1; n++, p0++) {
+		if (d && (n&0x3)==0) putchr(d);
+		puthex(*p0);
+	}
+	if (d) putchr('\n');
+}
 /*
   Compile Mode
 */
 static void compile(void) {
-    U8 *tkn;
+    U8  *tkn, *p0 = dicptr;
     U8  tmp8;
     U16 tmp16;
 
@@ -219,14 +242,16 @@ static void compile(void) {
     *(dicptr++) = tmp16 / 256U;
     *(dicptr++) = tkn[0];
     *(dicptr++) = tkn[1];
-    *(dicptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';
+    *(dicptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';   // ensure 3-char name
 
     for (;;) {
         U8 *ptr;
 
-        putmsg(">");    // in compile mode
-        tkn = gettkn();
+        // dump token
+        dump(p0, dicptr, 0);
 
+        tkn = gettkn();
+        p0  = dicptr;
         if (find(tkn, KEY_COMPILEMODE, &tmp8)) {
             if (tmp8==0) {	/* ; */
                 *(dicptr++) = I_RET;
@@ -242,7 +267,7 @@ static void compile(void) {
                 tmp16 = *(--retstk);
                 ptr = V2R(dic, tmp16);
                 tmp8 = *(ptr);
-                tmp16 = R2V(dic, dicptr + 2) - tmp16 + JMP_FLG;
+                tmp16 = R2V(dic, dicptr + 2) - tmp16 + JMP_SGN;
                 *(ptr++) = tmp8 | (tmp16 / 256U);
                 *(ptr++) = tmp16 % 256U;
                 *(retstk++) = R2V(dic, dicptr);
@@ -253,7 +278,7 @@ static void compile(void) {
                 tmp16 = *(--retstk);
                 ptr = V2R(dic, tmp16);
                 tmp8 = *(ptr);
-                tmp16 = R2V(dic, dicptr) - tmp16 + JMP_FLG;
+                tmp16 = R2V(dic, dicptr) - tmp16 + JMP_SGN;
                 *(ptr++) = tmp8 | (tmp16 / 256U);
                 *(ptr++) = tmp16 % 256U;
                 break;
@@ -261,21 +286,21 @@ static void compile(void) {
                 *(retstk++) = R2V(dic, dicptr);
                 break;
             case 5:	/* END */
-                tmp16 = *(--retstk) - R2V(dic, dicptr) + JMP_FLG;
+                tmp16 = *(--retstk) - R2V(dic, dicptr) + JMP_SGN;
                 *(dicptr++) = PFX_CDJ | (tmp16 / 256U);
                 *(dicptr++) = tmp16 % 256U;
                 break;
             case 6:	/* WHL */
                 *(retstk++) = R2V(dic, dicptr);
-                dicptr += 2;
+                dicptr += 2;                     // allocate branch addr
                 break;
             case 7:	/* RPT */
                 tmp16 = *(--retstk);
                 ptr = V2R(dic, tmp16);
-                tmp16 = R2V(dic, dicptr + 2) - tmp16 + JMP_FLG;
+                tmp16 = R2V(dic, dicptr + 2) - tmp16 + JMP_SGN;
                 *(ptr++) = PFX_CDJ | (tmp16 / 256U);
                 *(ptr++) = tmp16 % 256U;
-                tmp16 = *(--retstk) - R2V(dic, dicptr) + JMP_FLG;
+                tmp16 = *(--retstk) - R2V(dic, dicptr) + JMP_SGN;
                 *(dicptr++) = PFX_UDJ | (tmp16 / 256U);
                 *(dicptr++) = tmp16 % 256U;
                 break;
@@ -285,7 +310,7 @@ static void compile(void) {
                 break;
             case 9:	/* LOP */
                 *(dicptr++) = I_LOOP;
-                tmp16 = *(--retstk) - R2V(dic, dicptr) + JMP_FLG;
+                tmp16 = *(--retstk) - R2V(dic, dicptr) + JMP_SGN;
                 *(dicptr++) = PFX_CDJ | (tmp16 / 256U);
                 *(dicptr++) = tmp16 % 256U;
                 *(dicptr++) = I_RDROP2;
@@ -296,7 +321,7 @@ static void compile(void) {
             }
         }
         else if (lookup(tkn, &tmp16)) {
-            tmp16 += 2 + 3 - R2V(dic, dicptr) + JMP_FLG;
+            tmp16 += 2 + 3 - R2V(dic, dicptr) + JMP_SGN;
             *(dicptr++) = PFX_CALL | (tmp16 / 256U);
             *(dicptr++) = tmp16 % 256U;
         }
@@ -312,8 +337,9 @@ static void compile(void) {
                 *(dicptr++) = tmp16 / 256U;
             }
         }
-        else /* error */ putmsg("!");
+        else /* error */ putmsg("!\n");
     }
+    dump(dic, dicptr, ' ');
 }
 /*
   VARIABLE instruction
@@ -376,9 +402,12 @@ static void execute(U16 adrs) {
     *(retstk++) = 0xffffU;
 
     for (pc = V2R(dic, adrs); pc != V2R(dic, 0xffffU); ) {
-        U8 ir;	/* instruction register */
+        U8  ir;	/* instruction register */
+        U16 n = (U16)(pc - dic);
 
+        puthex((U8)(n>>8)); puthex((U8)(n&0xff)); putchr(':');
         ir = *(pc++);
+        puthex(ir); putchr(' ');
 
         if ((ir & 0x80U)==0) {
             /* literal(0-127) */
@@ -397,18 +426,19 @@ static void execute(U16 adrs) {
         }
         else if ((ir & 0xe0U)==PFX_UDJ) {
             /* UDJ: unconditional direct jump */
-            pc = V2R(dic, R2V(dic, pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_FLG);
+            pc = V2R(dic, R2V(dic, pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);  // JMP_SGN ensure backward jump
+            putchr('\n');
         }
         else if ((ir & 0xe0U)==PFX_CDJ) {
             /* CDJ: conditional direct jump */
-            pc += (*(parstk++))
+            pc = *(parstk++)
                 ? pc+1
-                : V2R(dic, R2V(dic, pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_FLG);
+                : V2R(dic, R2V(dic, pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
         }
         else if ((ir & 0xe0U)==PFX_CALL) {
             /* CALL: subroutine call */
             *(retstk++) = R2V(dic, pc+1);
-            pc = V2R(dic, R2V(dic, pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_FLG);
+            pc = V2R(dic, R2V(dic, pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
         }
         else primitive(ir & 0x1fU);             /* primitive functions */
     }
@@ -537,6 +567,7 @@ static void primitive(U8 ic) {
         x1 = *(retstk - 2);
         x0 = *(retstk - 1);
         *(--parstk) = (x0 <= x1);
+        putchr('\n');
         break;
     case 26:	/* RDROP2 */
         retstk -= 2;
@@ -557,6 +588,10 @@ static void primitive(U8 ic) {
 static void putnum(U16 num) {
     if (num / (U16)10 != 0) putnum(num / (U16)10);
     putchr((char)(num % (U16)10) + '0');
-    return;
+}
+static void puthex(U8 c) {
+    U8 h = c>>4, l = c&0xf;
+    putchr(h>9 ? 'A'+h-10 : '0'+h);
+    putchr(l>9 ? 'A'+l-10 : '0'+l);
 }
 
