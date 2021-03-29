@@ -23,6 +23,8 @@ typedef uint8_t  U8;
 #define RPOP()     ((U16)(*(--rsp)))
 #define PUT8(c)    (*(dptr++)=(U8)(c))
 #define PUT16(n)   do { PUT8((n)&0xff); PUT8((n)>>8); } while(0)
+#define PUTNM(s)   do { PUT8((s)[0]); PUT8((s)[1]); PUT8(((s)[1]!=' ') ? (s)[2] : ' '); } while(0)
+#define GET16(p)   ((U16)*(U8*)(p) + *((U8*)(p)+1)<<8)
 #define JMPSET(idx, p1) do {             \
     U8  *p = PTR(idx);                   \
     U8  f8 = *(p);                       \

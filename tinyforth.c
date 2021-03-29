@@ -144,9 +144,7 @@ void compile(void) {
     tmp  = IDX(dmax);
     dmax = dptr;
     PUT16(tmp);
-	PUT8(tkn[0]);
-    PUT8(tkn[1]);
-	PUT8((tkn[1] != ' ') ? tkn[2] : ' ');   // ensure 3-char name
+    PUTNM(tkn);         // 3-byte name
 
     for (;;) {
         U8 *p, f8;
@@ -203,19 +201,18 @@ void compile(void) {
             }
         }
         else if (lookup(tkn, &tmp)) {
-            JMPBCK(2+3, PFX_CALL);            // add word address
+            JMPBCK(2+3, PFX_CALL);            // add word address, adr(2), name(3)
         }
         else if (find(tkn, LST_PRM, &tmp)) {
-            PUT8(PFX_PRM | (U8)tmp);         // add primitive opcode
+            PUT8(PFX_PRM | (U8)tmp);          // add primitive opcode
         }
         else if (literal(tkn, &tmp)) {
             if (tmp < 128U) {
-                PUT8((U8)tmp);               // 1-byte literal
+                PUT8((U8)tmp);                // 1-byte literal
             }
 			else {
-                PUT8(I_LIT);                 // 3-byte literal
-                PUT8(tmp % 256U);
-                PUT8(tmp / 256U);
+                PUT8(I_LIT);                  // 3-byte literal
+                PUT16(tmp);
             }
         }
         else /* error */ putmsg("!\n");
@@ -231,26 +228,24 @@ void forget(void) {
         putmsg("??");
         return;
     }
-    U8 *p = PTR(tmp);
-    dmax  = PTR(*p + *(p+1) * 256U);
+    //
+    // word found, rollback dptr
+    //
+    U8 *p = PTR(tmp);       // address of word
+    dmax  = PTR(GET16(p));  
     dptr  = p;
 }
 //
 //  VARIABLE instruction
 //
 void variable(void) {
-    /* get an identifier */
-    U8 *tkn = gettkn();
-
-    /* Write the header */
+    U8 *tkn = gettkn();    // get token
     U16 tmp = IDX(dmax);
     dmax = dptr;
     PUT16(tmp);
-    PUT8(tkn[0]);
-	PUT8(tkn[1]);
-    PUT8((tkn[1] != ' ') ? tkn[2] : ' ');
+    PUTNM(tkn);            // 3-byte variable name
 
-    tmp = IDX(dptr + 2);
+    tmp = IDX(dptr + 2);   // next addr
     if (tmp < 128U) {
         PUT8((U8)tmp);
     }
@@ -260,7 +255,7 @@ void variable(void) {
         PUT16(tmp);
     }
     PUT8(I_RET);
-    PUT16(0);	/* data area */
+    PUT16(0);	           // alloc data area
 }
 //
 // Process a Literal
@@ -289,17 +284,13 @@ char literal(U8 *str, U16 *num) {
 //
 //  Virtual Code Execution
 //
-void execute(U16 adrs) {
-    U8 *pc;
+void execute(U16 adr) {
     RPUSH(0xffff);
 
-    for (pc = PTR(adrs); pc != PTR(0xffffU); ) {
-        U8  ir;	/* instruction register */
-        U16 n = (U16)(pc - dic);
-
-        putadr(n);
-        ir = *(pc++);
-        puthex(ir); putchr(' ');
+    for (U8 *pc=PTR(adr); pc != PTR(0xffff); ) {
+        U16 a = IDX(pc);                     // current program counter
+        U8 ir = *(pc++);                     // fetch instruction
+        putadr(a); puthex(ir); putchr(' ');
 
         if ((ir & 0x80U)==0) {
             /* literal(0-127) */
@@ -332,9 +323,30 @@ void execute(U16 adrs) {
             pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
         }
         else primitive(ir & 0x1fU);             /* primitive functions */
+/*
+        if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
+        else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
+        else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
+        else if (ir & 0xe0) {                             // test branching flags
+            switch (ir & 0xe0) {
+            case PFX_UDJ:                                 // unconditional jump
+                pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);  // JMP_SGN ensure backward jump
+                putchr('\n');
+                break;
+            case PFX_CDJ:                                 // conditional jump
+                pc = POP()
+                    ? pc+1
+                    : PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
+                break;
+            case PFX_CALL:                                // word CALL
+                RPUSH(IDX(pc+1));
+                pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
+                break;
+            }
+        }
+        else primitive(ir & 0x1f);                        // primitive functions
+*/
     }
-
-    return;
 }
 //
 //  Execute a Primitive Instruction
