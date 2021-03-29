@@ -16,6 +16,8 @@ typedef uint8_t  U8;
 #define getchr()   getchar()
 #define PTR(n)     (dic + (n))
 #define IDX(p)     ((U16)((U8*)(p) - dic))
+#define PUSH(v)    (*(--psp)=(U16)(v))
+#define POP()      ((U16)(*(psp++)))
 //
 // length + space delimited 3-char string
 //
@@ -57,8 +59,8 @@ U8   *gettkn(void);
 //
 // dictionary, string list scanners
 //
-U8 lookup(U8 *key, U16 *adrs);
-U8 find(U8 *key, char *list, U8 *id);
+U8 lookup(U8 *key, U16 *adr);
+U8 find(U8 *key, char *lst, U8 *id);
 //
 // Forth VM core functions
 //

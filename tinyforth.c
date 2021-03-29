@@ -25,7 +25,7 @@ void putnum(U16 n)
 {
 	U16 t = n/10;
     if (t != 0) putnum(t);
-    putchr((char)(n % 10) + '0');
+    putchr('0' + (n%10));
 }
 //
 // print a 8-bit hex
@@ -108,10 +108,10 @@ void dump(U8 *p0, U8 *p1, U8 d)
 //
 // Lookup the Keyword from the Dictionary
 //
-U8 lookup(U8 *key, U16 *adrs) {
+U8 lookup(U8 *key, U16 *adr) {
     for (U8 *p=dmax; p != PTR(0xffff); p=PTR(*p + *(p+1) * 256)) {
         if (p[2]==key[0] && p[3]==key[1] && (p[3]==' ' || p[4]==key[2])) {
-            *adrs = IDX(p);
+            *adr = IDX(p);
             return 1;
         }
     }
@@ -120,9 +120,9 @@ U8 lookup(U8 *key, U16 *adrs) {
 //
 // Find the Keyword in a List
 //
-U8 find(U8 *key, char *list, U8 *id) {
-    for (U8 n=0, m=*(list++); n < m; n++, list += 3) {
-        if (list[0]==key[0] && list[1]==key[1] && (key[1]==' ' || list[2]==key[2])) {
+U8 find(U8 *key, char *lst, U8 *id) {
+    for (U8 n=0, m=*(lst++); n < m; n++, lst += 3) {
+        if (lst[0]==key[0] && lst[1]==key[1] && (key[1]==' ' || lst[2]==key[2])) {
             *id = n;
             return 1;
         }
@@ -336,14 +336,14 @@ void execute(U16 adrs) {
 
         if ((ir & 0x80U)==0) {
             /* literal(0-127) */
-            *(--psp) = ir;
+            PUSH(ir);
         }
         else if (ir==I_LIT) {
             /* literal(128-65535) */
             U16 tmp16;
             tmp16 = *(pc++);
             tmp16 += *(pc++) * 256U;
-            *(--psp) = tmp16;
+            PUSH(tmp16);
         }
         else if (ir==I_RET) {
             /* RET: return */
@@ -356,7 +356,7 @@ void execute(U16 adrs) {
         }
         else if ((ir & 0xe0U)==PFX_CDJ) {
             /* CDJ: conditional direct jump */
-            pc = *(psp++)
+            pc = POP()
                 ? pc+1
                 : PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
         }
@@ -382,127 +382,127 @@ void primitive(U8 ic) {
         break;
     case 1:	/* DUP */
         x0 = *psp;
-        *(--psp) = x0;
+        PUSH(x0);
         break;
     case 2:	/* SWP */
-        x1 = *(psp++);
-        x0 = *(psp++);
-        *(--psp) = x1;
-        *(--psp) = x0;
+        x1 = POP();
+        x0 = POP();
+        PUSH(x1);
+        PUSH(x0);
         break;
     case 3:	/* >R */
-        *(rsp++) = *(psp++);
+        *(rsp++) = POP();
         break;
     case 4:	/* R> */
-        *(--psp) = *(--rsp);
+        PUSH(*(--rsp));
         break;
     case 5:	/* + */
-        x0 = *(psp++);
+        x0 = POP();
         *psp += x0;
         break;
     case 6:	/* - */
-        x0 = *(psp++);
+        x0 = POP();
         *psp -= x0;
         break;
     case 7:	/* * */
-        x0 = *(psp++);
+        x0 = POP();
         *psp *= x0;
         break;
     case 8:	/* / */
-        x0 = *(psp++);
+        x0 = POP();
         *psp /= x0;
         break;
     case 9:	/* MOD */
-        x0 = *(psp++);
+        x0 = POP();
         *psp %= x0;
         break;
     case 10:	/* AND */
-        x0 = *(psp++);
+        x0 = POP();
         *psp &= x0;
         break;
     case 11:	/* OR */
-        x0 = *(psp++);
+        x0 = POP();
         *psp |= x0;
         break;
     case 12:	/* XOR */
-        x0 = *(psp++);
+        x0 = POP();
         *psp ^= x0;
         break;
     case 13:	/* = */
-        x1 = *(psp++);
-        x0 = *(psp++);
-        *(--psp) = (x0==x1);
+        x1 = POP();
+        x0 = POP();
+        PUSH(x0==x1);
         break;
     case 14:	/* < */
-        x1 = *(psp++);
-        x0 = *(psp++);
-        *(--psp) = (x0 < x1);
+        x1 = POP();
+        x0 = POP();
+        PUSH(x0 < x1);
         break;
     case 15:	/* > */
-        x1 = *(psp++);
-        x0 = *(psp++);
-        *(--psp) = (x0 > x1);
+        x1 = POP();
+        x0 = POP();
+        PUSH(x0 > x1);
         break;
     case 16:	/* <= */
-        x1 = *(psp++);
-        x0 = *(psp++);
-        *(--psp) = (x0 <= x1);
+        x1 = POP();
+        x0 = POP();
+        PUSH(x0 <= x1);
         break;
     case 17:	/* >= */
-        x1 = *(psp++);
-        x0 = *(psp++);
-        *(--psp) = (x0 >= x1);
+        x1 = POP();
+        x0 = POP();
+        PUSH(x0 >= x1);
         break;
     case 18:	/* <> */
-        x1 = *(psp++);
-        x0 = *(psp++);
-        *(--psp) = (x0 != x1);
+        x1 = POP();
+        x0 = POP();
+        PUSH(x0 != x1);
         break;
     case 19:	/* NOT */
         *psp = (*psp==0);
         break;
     case 20:	/* @ */
-        x0 = *(psp++);
+        x0 = POP();
         x1 = *(PTR(x0));
         x1 += *(PTR(x0 + 1)) * 256U;
-        *(--psp) = x1;
+        PUSH(x1);
         break;
     case 21:	/* @@ */
-        x0 = *(psp++);
+        x0 = POP();
         x1 = *(PTR(x0));
-        *(--psp) = x1;
+        PUSH(x1);
         break;
     case 22:	/* ! */
-        x1 = *(psp++);
-        x0 = *(psp++);
+        x1 = POP();
+        x0 = POP();
         *(PTR(x1)) = x0 % 256U;
         *(PTR(x1 + 1)) = x0 / 256U;
         break;
     case 23:	/* !! */
-        x1 = *(psp++);
-        x0 = *(psp++);
+        x1 = POP();
+        x0 = POP();
         *(PTR(x1)) = (U8)x0;
         break;
     case 24:	/* . */
-        putnum(*(psp++));
+        putnum(POP());
         putchr(' ');
         break;
     case 25:	/* LOOP */
         (*(rsp - 2))++;
         x1 = *(rsp - 2);
         x0 = *(rsp - 1);
-        *(--psp) = (x0 <= x1);
+        PUSH(x0 <= x1);
         putchr('\n');
         break;
     case 26:	/* RDROP2 */
         rsp -= 2;
         break;
     case 27:	/* I */
-        *(--psp) = *(rsp - 2);
+        PUSH(*(rsp - 2));
         break;
     case 28:	/* P2R2 */
-        *(rsp++) = *(psp++);
-        *(rsp++) = *(psp++);
+        *(rsp++) = POP();
+        *(rsp++) = POP();
         break;
     }
     return;
@@ -534,7 +534,7 @@ int main(void) {
             primitive(tmp8);
         }
         else if (literal(tkn, &tmp16)) {
-            *(--psp) = tmp16;
+            PUSH(tmp16);
         }
         else {
             /* error */
