@@ -27,50 +27,64 @@ typedef uint8_t  U8;
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
 	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
 	"@  " "@@ " "!  " "!! " ".  "
-
+//
+// branch flags
+//
 #define JMP_SGN    0x1000
 #define PFX_UDJ    0x80
 #define PFX_CDJ    0xa0
 #define PFX_CALL   0xc0
 #define PFX_PRM    0xe0
-
+//
+// alloc for 2 extra opcode, borrow 2 blocks (2*256 bytes) from offset field
+//
 #define I_LIT      0xff
 #define I_RET      0xfe
+//
+// append 5 more opcode to the end of primitives
+//
 #define I_LOOP     (PFX_PRM | 25)
 #define I_RDROP2   (PFX_PRM | 26)
 #define I_I        (PFX_PRM | 27)
 #define I_P2R2     (PFX_PRM | 28)
 #define BYE        (PFX_PRM | 29)
-
-static U16  stk[STK_SZ];
-static U16  *rsp;
-static U16  *psp;
-static U8   dic[DIC_SZ];
-static U8   *dptr;
-static U8   *dmax;
-
-static void putmsg(char *msg);
-static void putnum(U16 num);
-static void puthex(U8 c);
-static U8   *gettkn(void);
-
-static char literal(U8 *str, U16 *num);
-static char lookup(U8 *key, U16 *adrs);
-static char find(U8 *key, char *list, U8 *id);
-static void compile(void);
-static void variable(void);
-static void forget(void);
-static void execute(U16 adrs);
-static void primitive(U8 ic);
+//
+// alloc, initilize stack pointers
+//
+U16  stk[STK_SZ];
+U16  *rsp  = &stk[0];            // return stack pointer
+U16  *psp  = &stk[STK_SZ];       // parameter stack pointer
+//
+// alloc, initilze dictionary pointers
+//
+U8   dic[DIC_SZ];
+U8   *dptr = dic;                // dictionary pointer
+U8   *dmax = PTR(0xffff);        // end of dictionary
+//
+// IO functions
+//
+void putmsg(char *msg);
+void putnum(U16 num);
+void puthex(U8 c);
+U8   *gettkn(void);
+//
+// dictionary, string list scanners
+//
+char lookup(U8 *key, U16 *adrs);
+char find(U8 *key, char *list, U8 *id);
+//
+// Forth VM core functions
+//
+char literal(U8 *str, U16 *num);
+void compile(void);
+void variable(void);
+void forget(void);
+void execute(U16 adrs);
+void primitive(U8 ic);
 
 int main(void) {
-    /* Initialize the stack and dictionary */
-    rsp = &(stk[0]);
-    psp = &(stk[STK_SZ]);
-    dptr = dic;
-    dmax = PTR(0xffffU);
-
     putmsg("Tiny FORTH\n");
+    
     for (;;) {
         U8 tmp8;
         U16 tmp16;
@@ -117,13 +131,13 @@ int main(void) {
 /*
   Put a message
 */
-static void putmsg(char *msg) {
+void putmsg(char *msg) {
     while (*msg != '\0') putchr(*(msg++));
 }
 /*
   Get a Token
 */
-static U8 *gettkn(void) {
+U8 *gettkn(void) {
     static U8 buf[BUF_SZ] = " ";	/*==" \0\0\0..." */
     U8 ptr;
 
@@ -169,7 +183,7 @@ static U8 *gettkn(void) {
 /*
   Process a Literal
 */
-static char literal(U8 *str, U16 *num) {
+char literal(U8 *str, U16 *num) {
     if (*str=='$') {
         U16 n = 0;
         for (str++; *str != ' '; str++) {
@@ -193,7 +207,7 @@ static char literal(U8 *str, U16 *num) {
 /*
   Lookup the Keyword from the Dictionary
 */
-static char lookup(U8 *key, U16 *adrs) {
+char lookup(U8 *key, U16 *adrs) {
     for (U8 *ptr = dmax; ptr != PTR(0xffffU); ptr = PTR(*ptr + *(ptr+1) * 256U)) {
         if (ptr[2]==key[0] && ptr[3]==key[1] && (ptr[3]==' ' || ptr[4]==key[2])) {
             *adrs = IDX(ptr);
@@ -205,7 +219,7 @@ static char lookup(U8 *key, U16 *adrs) {
 /*
   Find the Keyword in a List
 */
-static char find(U8 *key, char *list, U8 *id) {
+char find(U8 *key, char *list, U8 *id) {
     for (U8 n=0, m=*(list++); n < m; n++, list += 3) {
         if (list[0]==key[0] && list[1]==key[1] && (key[1]==' ' || list[2]==key[2])) {
             *id = n;
@@ -228,7 +242,7 @@ void dump(U8 *p0, U8 *p1, U8 d)
 /*
   Compile Mode
 */
-static void compile(void) {
+void compile(void) {
     U8  *tkn, *p0 = dptr;
     U8  tmp8;
     U16 tmp16;
@@ -345,7 +359,7 @@ static void compile(void) {
 /*
   VARIABLE instruction
 */
-static void variable(void) {
+void variable(void) {
     U8 *tkn;
     U16 tmp16;
 
@@ -379,7 +393,7 @@ static void variable(void) {
 /*
   Forget Words in the Dictionary
 */
-static void forget(void) {
+void forget(void) {
     U16 tmp16;
     U8 *ptr;
 
@@ -398,7 +412,7 @@ static void forget(void) {
 /*
   Virtual Code Execution
 */
-static void execute(U16 adrs) {
+void execute(U16 adrs) {
     U8 *pc;
     *(rsp++) = 0xffffU;
 
@@ -449,7 +463,7 @@ static void execute(U16 adrs) {
 /*
   Execute a Primitive Instruction
 */
-static void primitive(U8 ic) {
+void primitive(U8 ic) {
     U16 x0, x1;
 
     switch (ic) {
@@ -586,11 +600,11 @@ static void primitive(U8 ic) {
 /*
   Put a Number
 */
-static void putnum(U16 num) {
+void putnum(U16 num) {
     if (num / (U16)10 != 0) putnum(num / (U16)10);
     putchr((char)(num % (U16)10) + '0');
 }
-static void puthex(U8 c) {
+void puthex(U8 c) {
     U8 h = c>>4, l = c&0xf;
     putchr(h>9 ? 'A'+h-10 : '0'+h);
     putchr(l>9 ? 'A'+l-10 : '0'+l);
