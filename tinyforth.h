@@ -16,8 +16,11 @@ typedef uint8_t  U8;
 #define getchr()   getchar()
 #define PTR(n)     (dic + (n))
 #define IDX(p)     ((U16)((U8*)(p) - dic))
+#define TOS        (*psp)
 #define PUSH(v)    (*(--psp)=(U16)(v))
 #define POP()      ((U16)(*(psp++)))
+#define RPUSH(v)   (*(rsp++)=(U16)(v))
+#define RPOP()     ((U16)(*(--rsp)))
 //
 // length + space delimited 3-char string
 //

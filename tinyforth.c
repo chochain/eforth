@@ -165,23 +165,23 @@ void compile(void) {
             }
             switch (tmp8) {
             case 1:	/* IF */
-                *(rsp++) = IDX(dptr);
+                RPUSH(IDX(dptr));
                 *(dptr++) = PFX_CDJ;
                 dptr++;
                 break;
             case 2:	/* ELS */
-                tmp16 = *(--rsp);
+                tmp16 = RPOP();
                 p     = PTR(tmp16);
                 tmp8  = *(p);
                 tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
                 *(p++)    = tmp8 | (tmp16 / 256U);
                 *(p++)    = tmp16 % 256U;
-                *(rsp++)  = IDX(dptr);
+                RPUSH(IDX(dptr));
                 *(dptr++) = PFX_UDJ;
                 dptr++;
                 break;
             case 3:	/* THN */
-                tmp16  = *(--rsp);
+                tmp16  = RPOP();
                 p      = PTR(tmp16);
                 tmp8   = *(p);
                 tmp16  = IDX(dptr) - tmp16 + JMP_SGN;
@@ -189,34 +189,34 @@ void compile(void) {
                 *(p++) = tmp16 % 256U;
                 break;
             case 4:	/* BGN */
-                *(rsp++) = IDX(dptr);
+                RPUSH(IDX(dptr));
                 break;
             case 5:	/* END */
-                tmp16 = *(--rsp) - IDX(dptr) + JMP_SGN;
+                tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
                 *(dptr++) = PFX_CDJ | (tmp16 / 256U);
                 *(dptr++) = tmp16 % 256U;
                 break;
             case 6:	/* WHL */
-                *(rsp++) = IDX(dptr);
+                RPUSH(IDX(dptr));
                 dptr += 2;                     // allocate branch addr
                 break;
             case 7:	/* RPT */
-                tmp16 = *(--rsp);
+                tmp16 = RPOP();
                 p     = PTR(tmp16);
                 tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
                 *(p++)    = PFX_CDJ | (tmp16 / 256U);
                 *(p++)    = tmp16 % 256U;
-                tmp16 = *(--rsp) - IDX(dptr) + JMP_SGN;
+                tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
                 *(dptr++) = PFX_UDJ | (tmp16 / 256U);
                 *(dptr++) = tmp16 % 256U;
                 break;
             case 8:	/* DO */
-                *(rsp++)  = IDX(dptr+1);
+                RPUSH(IDX(dptr+1));
                 *(dptr++) = I_P2R2;
                 break;
             case 9:	/* LOP */
                 *(dptr++) = I_LOOP;
-                tmp16 = *(--rsp) - IDX(dptr) + JMP_SGN;
+                tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
                 *(dptr++) = PFX_CDJ | (tmp16 / 256U);
                 *(dptr++) = tmp16 % 256U;
                 *(dptr++) = I_RDROP2;
@@ -324,7 +324,7 @@ char literal(U8 *str, U16 *num) {
 //
 void execute(U16 adrs) {
     U8 *pc;
-    *(rsp++) = 0xffffU;
+    RPUSH(0xffff);
 
     for (pc = PTR(adrs); pc != PTR(0xffffU); ) {
         U8  ir;	/* instruction register */
@@ -347,7 +347,7 @@ void execute(U16 adrs) {
         }
         else if (ir==I_RET) {
             /* RET: return */
-            pc = PTR(*(--rsp));
+            pc = PTR(RPOP());
         }
         else if ((ir & 0xe0U)==PFX_UDJ) {
             /* UDJ: unconditional direct jump */
@@ -362,7 +362,7 @@ void execute(U16 adrs) {
         }
         else if ((ir & 0xe0U)==PFX_CALL) {
             /* CALL: subroutine call */
-            *(rsp++) = IDX(pc+1);
+            RPUSH(IDX(pc+1));
             pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
         }
         else primitive(ir & 0x1fU);             /* primitive functions */
@@ -381,7 +381,7 @@ void primitive(U8 ic) {
         psp++;
         break;
     case 1:	/* DUP */
-        x0 = *psp;
+        x0 = TOS;
         PUSH(x0);
         break;
     case 2:	/* SWP */
@@ -391,42 +391,42 @@ void primitive(U8 ic) {
         PUSH(x0);
         break;
     case 3:	/* >R */
-        *(rsp++) = POP();
+        RPUSH(POP());
         break;
     case 4:	/* R> */
-        PUSH(*(--rsp));
+        PUSH(RPOP());
         break;
     case 5:	/* + */
         x0 = POP();
-        *psp += x0;
+        TOS += x0;
         break;
     case 6:	/* - */
         x0 = POP();
-        *psp -= x0;
+        TOS -= x0;
         break;
     case 7:	/* * */
         x0 = POP();
-        *psp *= x0;
+        TOS *= x0;
         break;
     case 8:	/* / */
         x0 = POP();
-        *psp /= x0;
+        TOS /= x0;
         break;
     case 9:	/* MOD */
         x0 = POP();
-        *psp %= x0;
+        TOS %= x0;
         break;
     case 10:	/* AND */
         x0 = POP();
-        *psp &= x0;
+        TOS &= x0;
         break;
     case 11:	/* OR */
         x0 = POP();
-        *psp |= x0;
+        TOS |= x0;
         break;
     case 12:	/* XOR */
         x0 = POP();
-        *psp ^= x0;
+        TOS ^= x0;
         break;
     case 13:	/* = */
         x1 = POP();
@@ -459,7 +459,7 @@ void primitive(U8 ic) {
         PUSH(x0 != x1);
         break;
     case 19:	/* NOT */
-        *psp = (*psp==0);
+        TOS = (TOS==0);
         break;
     case 20:	/* @ */
         x0 = POP();
@@ -501,8 +501,8 @@ void primitive(U8 ic) {
         PUSH(*(rsp - 2));
         break;
     case 28:	/* P2R2 */
-        *(rsp++) = POP();
-        *(rsp++) = POP();
+        RPUSH(POP());
+        RPUSH(POP());
         break;
     }
     return;
