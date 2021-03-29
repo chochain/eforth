@@ -19,19 +19,26 @@ U8   *dmax = PTR(0xffff);        // end of dictionary
 //
 // IO functions ============================================================================
 //
-//  Put a Number
+//  put a 16-bit integer
 //
-void putnum(U16 num) {
-    if (num / (U16)10 != 0) putnum(num / (U16)10);
-    putchr((char)(num % (U16)10) + '0');
+void putnum(U16 n)
+{
+	U16 t = n/10;
+    if (t != 0) putnum(t);
+    putchr((char)(n % 10) + '0');
 }
 //
 // print a 8-bit hex
 //
-void puthex(U8 c) {
+void puthex(U8 c)
+{
     U8 h = c>>4, l = c&0xf;
     putchr(h>9 ? 'A'+h-10 : '0'+h);
     putchr(l>9 ? 'A'+l-10 : '0'+l);
+}
+void putadr(U16 a)
+{
+	puthex((U8)(a>>8)); puthex((U8)(a&0xff)); putchr(':');
 }
 //
 //  Put a message
@@ -90,7 +97,7 @@ U8 *gettkn(void) {
 void dump(U8 *p0, U8 *p1, U8 d)
 {
 	U16 n = (U16)(p0 - dic);
-	puthex((U8)(n>>8)); puthex((U8)(n&0xff)); putchr(':');
+	putadr(n);
 	for (; p0<p1; n++, p0++) {
 		if (d && (n&0x3)==0) putchr(d);
 		puthex(*p0);
@@ -323,7 +330,7 @@ void execute(U16 adrs) {
         U8  ir;	/* instruction register */
         U16 n = (U16)(pc - dic);
 
-        puthex((U8)(n>>8)); puthex((U8)(n&0xff)); putchr(':');
+        putadr(n);
         ir = *(pc++);
         puthex(ir); putchr(' ');
 

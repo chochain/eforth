@@ -50,8 +50,9 @@ typedef uint8_t  U8;
 // IO functions
 //
 void putmsg(char *msg);
-void putnum(U16 num);
+void putnum(U16 n);
 void puthex(U8 c);
+void putadr(U16 a);
 U8   *gettkn(void);
 //
 // dictionary, string list scanners
