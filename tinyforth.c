@@ -196,7 +196,7 @@ void compile(void) {
                 break;
             case 6:	/* WHL */
                 RPUSH(IDX(dptr));
-                dptr += 2;                     // allocate branch addr
+				ADDU16(0);                     // allocate branch addr
                 break;
             case 7:	/* RPT */
                 tmp = RPOP();
