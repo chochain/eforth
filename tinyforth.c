@@ -3,140 +3,45 @@
   T. NAKAGAWA
   2004/07/04-10,7/29,8/5-6
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-typedef uint16_t U16;
-typedef uint8_t  U8;
-
-#define BUF_SZ     10       /* 8 - 255    */
-#define STK_SZ     (64)     /* 8 - 65536  */
-#define DIC_SZ     (512)    /* 8 - 8*1024 */
-
-#define putchr(c)  putchar(c)
-#define getchr()   getchar()
-#define PTR(n)     (dic + (n))
-#define IDX(p)     ((U16)((U8*)(p) - dic))
+#include "tinyforth.h"
 //
-// length + space delimited 3-char string
-//
-#define LST_RUN    "\x04" ":  " "VAR" "FGT" "BYE"
-#define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "END" "WHL" "RPT" "DO " "LOP" "I  "
-#define LST_PRM    "\x19" \
-	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
-	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
-	"@  " "@@ " "!  " "!! " ".  "
-//
-// branch flags
-//
-#define JMP_SGN    0x1000
-#define PFX_UDJ    0x80
-#define PFX_CDJ    0xa0
-#define PFX_CALL   0xc0
-#define PFX_PRM    0xe0
-//
-// alloc for 2 extra opcode, borrow 2 blocks (2*256 bytes) from offset field
-//
-#define I_LIT      0xff
-#define I_RET      0xfe
-//
-// append 5 more opcode to the end of primitives
-//
-#define I_LOOP     (PFX_PRM | 25)
-#define I_RDROP2   (PFX_PRM | 26)
-#define I_I        (PFX_PRM | 27)
-#define I_P2R2     (PFX_PRM | 28)
-#define BYE        (PFX_PRM | 29)
-//
-// alloc, initilize stack pointers
+// allocate, initialize stack pointers
 //
 U16  stk[STK_SZ];
 U16  *rsp  = &stk[0];            // return stack pointer
 U16  *psp  = &stk[STK_SZ];       // parameter stack pointer
 //
-// alloc, initilze dictionary pointers
+// allocate, initialize dictionary pointers
 //
 U8   dic[DIC_SZ];
 U8   *dptr = dic;                // dictionary pointer
 U8   *dmax = PTR(0xffff);        // end of dictionary
 //
-// IO functions
+// IO functions ============================================================================
 //
-void putmsg(char *msg);
-void putnum(U16 num);
-void puthex(U8 c);
-U8   *gettkn(void);
+//  Put a Number
 //
-// dictionary, string list scanners
-//
-char lookup(U8 *key, U16 *adrs);
-char find(U8 *key, char *list, U8 *id);
-//
-// Forth VM core functions
-//
-char literal(U8 *str, U16 *num);
-void compile(void);
-void variable(void);
-void forget(void);
-void execute(U16 adrs);
-void primitive(U8 ic);
-
-int main(void) {
-    putmsg("Tiny FORTH\n");
-    
-    for (;;) {
-        U8 tmp8;
-        U16 tmp16;
-        U8 *tkn;
-
-        tkn = gettkn();
-
-        /* keyword */
-        if (find(tkn, LST_RUN, &tmp8)) {
-            switch (tmp8) {
-            case 0:	/* :   */ compile();     break;
-            case 1:	/* VAR */ variable();    break;
-            case 2:	/* FGT */ forget();      break;
-            case 3: /* BYE */ exit(0);
-            }
-        }
-        else if (lookup(tkn, &tmp16)) {
-            execute(tmp16 + 2 + 3);
-        }
-        else if (find(tkn, LST_PRM, &tmp8)) {
-            primitive(tmp8);
-        }
-        else if (literal(tkn, &tmp16)) {
-            *(--psp) = tmp16;
-        }
-        else {
-            /* error */
-            putmsg("?\n");
-            continue;
-        }
-        if (psp > &(stk[STK_SZ])) {
-            putmsg("OVF\n");
-            psp = &(stk[STK_SZ]);
-        }
-        else {
-        	putchr('[');
-            for (U16 *p=&stk[STK_SZ]-1; p>=psp; p--) {
-                putchr(' '); putnum(*p);
-            }
-            putmsg(" ] OK ");
-        }
-    }
+void putnum(U16 num) {
+    if (num / (U16)10 != 0) putnum(num / (U16)10);
+    putchr((char)(num % (U16)10) + '0');
 }
-/*
-  Put a message
-*/
+//
+// print a 8-bit hex
+//
+void puthex(U8 c) {
+    U8 h = c>>4, l = c&0xf;
+    putchr(h>9 ? 'A'+h-10 : '0'+h);
+    putchr(l>9 ? 'A'+l-10 : '0'+l);
+}
+//
+//  Put a message
+//
 void putmsg(char *msg) {
     while (*msg != '\0') putchr(*(msg++));
 }
-/*
-  Get a Token
-*/
+//
+//  Get a Token
+//
 U8 *gettkn(void) {
     static U8 buf[BUF_SZ] = " ";	/*==" \0\0\0..." */
     U8 ptr;
@@ -180,55 +85,9 @@ U8 *gettkn(void) {
         }
     }
 }
-/*
-  Process a Literal
-*/
-char literal(U8 *str, U16 *num) {
-    if (*str=='$') {
-        U16 n = 0;
-        for (str++; *str != ' '; str++) {
-            n *= 16;
-            n += *str - (*str<='9' ? '0' : 'A' - 10);
-        }
-        *num = n;
-        return 1;
-    }
-    if ('0' <= *str && *str <= '9') {
-        U16 n = 0;
-        for (; *str != ' '; str++) {
-            n *= 10;
-            n += *str - '0';
-        }
-        *num = n;
-        return 1;
-    }
-    return 0;
-}
-/*
-  Lookup the Keyword from the Dictionary
-*/
-char lookup(U8 *key, U16 *adrs) {
-    for (U8 *ptr = dmax; ptr != PTR(0xffffU); ptr = PTR(*ptr + *(ptr+1) * 256U)) {
-        if (ptr[2]==key[0] && ptr[3]==key[1] && (ptr[3]==' ' || ptr[4]==key[2])) {
-            *adrs = IDX(ptr);
-            return 1;
-        }
-    }
-    return 0;
-}
-/*
-  Find the Keyword in a List
-*/
-char find(U8 *key, char *list, U8 *id) {
-    for (U8 n=0, m=*(list++); n < m; n++, list += 3) {
-        if (list[0]==key[0] && list[1]==key[1] && (key[1]==' ' || list[2]==key[2])) {
-            *id = n;
-            return 1;
-        }
-    }
-    return 0;
-}
-
+//
+// memory dumper with delimiter option
+// 
 void dump(U8 *p0, U8 *p1, U8 d)
 {
 	U16 n = (U16)(p0 - dic);
@@ -239,9 +98,35 @@ void dump(U8 *p0, U8 *p1, U8 d)
 	}
 	if (d) putchr('\n');
 }
-/*
-  Compile Mode
-*/
+
+//
+// Lookup the Keyword from the Dictionary
+//
+char lookup(U8 *key, U16 *adrs) {
+    for (U8 *ptr = dmax; ptr != PTR(0xffffU); ptr = PTR(*ptr + *(ptr+1) * 256U)) {
+        if (ptr[2]==key[0] && ptr[3]==key[1] && (ptr[3]==' ' || ptr[4]==key[2])) {
+            *adrs = IDX(ptr);
+            return 1;
+        }
+    }
+    return 0;
+}
+//
+// Find the Keyword in a List
+//
+char find(U8 *key, char *list, U8 *id) {
+    for (U8 n=0, m=*(list++); n < m; n++, list += 3) {
+        if (list[0]==key[0] && list[1]==key[1] && (key[1]==' ' || list[2]==key[2])) {
+            *id = n;
+            return 1;
+        }
+    }
+    return 0;
+}
+//= Forth VM core ======================================================================
+//
+//  Compile Mode
+//
 void compile(void) {
     U8  *tkn, *p0 = dptr;
     U8  tmp8;
@@ -356,9 +241,28 @@ void compile(void) {
     }
     dump(dic, dptr, ' ');
 }
-/*
-  VARIABLE instruction
-*/
+//
+//  Forget Words in the Dictionary
+//
+void forget(void) {
+    U16 tmp16;
+    U8 *ptr;
+
+    /* get a word */
+    if (!lookup(gettkn(), &tmp16)) {
+        putmsg("??");
+        return;
+    }
+
+    ptr = PTR(tmp16);
+    dmax = PTR(*ptr + *(ptr+1) * 256U);
+    dptr = ptr;
+
+    return;
+}
+//
+//  VARIABLE instruction
+//
 void variable(void) {
     U8 *tkn;
     U16 tmp16;
@@ -390,28 +294,33 @@ void variable(void) {
 
     return;
 }
-/*
-  Forget Words in the Dictionary
-*/
-void forget(void) {
-    U16 tmp16;
-    U8 *ptr;
-
-    /* get a word */
-    if (!lookup(gettkn(), &tmp16)) {
-        putmsg("??");
-        return;
+//
+// Process a Literal
+//
+char literal(U8 *str, U16 *num) {
+    if (*str=='$') {
+        U16 n = 0;
+        for (str++; *str != ' '; str++) {
+            n *= 16;
+            n += *str - (*str<='9' ? '0' : 'A' - 10);
+        }
+        *num = n;
+        return 1;
     }
-
-    ptr = PTR(tmp16);
-    dmax = PTR(*ptr + *(ptr+1) * 256U);
-    dptr = ptr;
-
-    return;
+    if ('0' <= *str && *str <= '9') {
+        U16 n = 0;
+        for (; *str != ' '; str++) {
+            n *= 10;
+            n += *str - '0';
+        }
+        *num = n;
+        return 1;
+    }
+    return 0;
 }
-/*
-  Virtual Code Execution
-*/
+//
+//  Virtual Code Execution
+//
 void execute(U16 adrs) {
     U8 *pc;
     *(rsp++) = 0xffffU;
@@ -460,9 +369,9 @@ void execute(U16 adrs) {
 
     return;
 }
-/*
-  Execute a Primitive Instruction
-*/
+//
+//  Execute a Primitive Instruction
+//
 void primitive(U8 ic) {
     U16 x0, x1;
 
@@ -597,16 +506,50 @@ void primitive(U8 ic) {
     }
     return;
 }
-/*
-  Put a Number
-*/
-void putnum(U16 num) {
-    if (num / (U16)10 != 0) putnum(num / (U16)10);
-    putchr((char)(num % (U16)10) + '0');
-}
-void puthex(U8 c) {
-    U8 h = c>>4, l = c&0xf;
-    putchr(h>9 ? 'A'+h-10 : '0'+h);
-    putchr(l>9 ? 'A'+l-10 : '0'+l);
-}
 
+int main(void) {
+    putmsg("Tiny FORTH\n");
+    
+    for (;;) {
+        U8 tmp8;
+        U16 tmp16;
+        U8 *tkn;
+
+        tkn = gettkn();
+
+        /* keyword */
+        if (find(tkn, LST_RUN, &tmp8)) {
+            switch (tmp8) {
+            case 0:	/* :   */ compile();     break;
+            case 1:	/* VAR */ variable();    break;
+            case 2:	/* FGT */ forget();      break;
+            case 3: /* BYE */ exit(0);
+            }
+        }
+        else if (lookup(tkn, &tmp16)) {
+            execute(tmp16 + 2 + 3);
+        }
+        else if (find(tkn, LST_PRM, &tmp8)) {
+            primitive(tmp8);
+        }
+        else if (literal(tkn, &tmp16)) {
+            *(--psp) = tmp16;
+        }
+        else {
+            /* error */
+            putmsg("?\n");
+            continue;
+        }
+        if (psp > &(stk[STK_SZ])) {
+            putmsg("OVF\n");
+            psp = &(stk[STK_SZ]);
+        }
+        else {
+        	putchr('[');
+            for (U16 *p=&stk[STK_SZ]-1; p>=psp; p--) {
+                putchr(' '); putnum(*p);
+            }
+            putmsg(" ] OK ");
+        }
+    }
+}
