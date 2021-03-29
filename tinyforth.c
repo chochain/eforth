@@ -292,60 +292,28 @@ void execute(U16 adr) {
         U8 ir = *(pc++);                     // fetch instruction
         putadr(a); puthex(ir); putchr(' ');
 
-        if ((ir & 0x80U)==0) {
-            /* literal(0-127) */
-            PUSH(ir);
-        }
-        else if (ir==I_LIT) {
-            /* literal(128-65535) */
-            U16 tmp = *(pc++);
-            tmp += *(pc++) * 256U;
-            PUSH(tmp);
-        }
-        else if (ir==I_RET) {
-            /* RET: return */
-            pc = PTR(RPOP());
-        }
-        else if ((ir & 0xe0U)==PFX_UDJ) {
-            /* UDJ: unconditional direct jump */
-            pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);  // JMP_SGN ensure backward jump
-            putchr('\n');
-        }
-        else if ((ir & 0xe0U)==PFX_CDJ) {
-            /* CDJ: conditional direct jump */
-            pc = POP()
-                ? pc+1
-                : PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
-        }
-        else if ((ir & 0xe0U)==PFX_CALL) {
-            /* CALL: subroutine call */
-            RPUSH(IDX(pc+1));
-            pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
-        }
-        else primitive(ir & 0x1fU);             /* primitive functions */
-/*
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
         else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
         else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
-        else if (ir & 0xe0) {                             // test branching flags
+        else {
+            U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
+            a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_SGN; // JMP_SGN ensure 2's complement (for backward jump)
             switch (ir & 0xe0) {
-            case PFX_UDJ:                                 // unconditional jump
-                pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);  // JMP_SGN ensure backward jump
+            case PFX_UDJ:                                 // 0x80 unconditional jump
+                pc = PTR(a);                              // set jump target
                 putchr('\n');
                 break;
-            case PFX_CDJ:                                 // conditional jump
-                pc = POP()
-                    ? pc+1
-                    : PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
+            case PFX_CDJ:                                 // 0xa0 conditional jump
+                pc = POP() ? pc+1 : PTR(a);               // next or target
                 break;
-            case PFX_CALL:                                // word CALL
-                RPUSH(IDX(pc+1));
-                pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
+            case PFX_CALL:                                // 0xd0 word call
+                RPUSH(IDX(pc+1));                         // keep next as return address
+                pc = PTR(a);
                 break;
+            case PFX_PRM:                                 // 0xe0 primitive
+                primitive(op);                            // call primitve function with opcode
             }
         }
-        else primitive(ir & 0x1f);                        // primitive functions
-*/
     }
 }
 //
