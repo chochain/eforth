@@ -42,15 +42,18 @@ typedef uint8_t  U8;
 #define I_P2R2     (PFX_PRM | 28)
 #define BYE        (PFX_PRM | 29)
 
-static U16  stack[STK_SZ];
-static U16  *retstk;
-static U16  *parstk;
+static U16  stk[STK_SZ];
+static U16  *rsp;
+static U16  *psp;
 static U8   dic[DIC_SZ];
-static U8   *dicptr;
-static U8   *dicent;
+static U8   *dptr;
+static U8   *dmax;
 
 static void putmsg(char *msg);
+static void putnum(U16 num);
+static void puthex(U8 c);
 static U8   *gettkn(void);
+
 static char literal(U8 *str, U16 *num);
 static char lookup(U8 *key, U16 *adrs);
 static char find(U8 *key, char *list, U8 *id);
@@ -59,15 +62,13 @@ static void variable(void);
 static void forget(void);
 static void execute(U16 adrs);
 static void primitive(U8 ic);
-static void putnum(U16 num);
-static void puthex(U8 c);
 
 int main(void) {
     /* Initialize the stack and dictionary */
-    retstk = &(stack[0]);
-    parstk = &(stack[STK_SZ]);
-    dicptr = dic;
-    dicent = PTR(0xffffU);
+    rsp = &(stk[0]);
+    psp = &(stk[STK_SZ]);
+    dptr = dic;
+    dmax = PTR(0xffffU);
 
     putmsg("Tiny FORTH\n");
     for (;;) {
@@ -93,20 +94,20 @@ int main(void) {
             primitive(tmp8);
         }
         else if (literal(tkn, &tmp16)) {
-            *(--parstk) = tmp16;
+            *(--psp) = tmp16;
         }
         else {
             /* error */
             putmsg("?\n");
             continue;
         }
-        if (parstk > &(stack[STK_SZ])) {
+        if (psp > &(stk[STK_SZ])) {
             putmsg("OVF\n");
-            parstk = &(stack[STK_SZ]);
+            psp = &(stk[STK_SZ]);
         }
         else {
         	putchr('[');
-            for (U16 *p=&stack[STK_SZ]-1; p>=parstk; p--) {
+            for (U16 *p=&stk[STK_SZ]-1; p>=psp; p--) {
                 putchr(' '); putnum(*p);
             }
             putmsg(" ] OK ");
@@ -193,7 +194,7 @@ static char literal(U8 *str, U16 *num) {
   Lookup the Keyword from the Dictionary
 */
 static char lookup(U8 *key, U16 *adrs) {
-    for (U8 *ptr = dicent; ptr != PTR(0xffffU); ptr = PTR(*ptr + *(ptr+1) * 256U)) {
+    for (U8 *ptr = dmax; ptr != PTR(0xffffU); ptr = PTR(*ptr + *(ptr+1) * 256U)) {
         if (ptr[2]==key[0] && ptr[3]==key[1] && (ptr[3]==' ' || ptr[4]==key[2])) {
             *adrs = IDX(ptr);
             return 1;
@@ -228,7 +229,7 @@ void dump(U8 *p0, U8 *p1, U8 d)
   Compile Mode
 */
 static void compile(void) {
-    U8  *tkn, *p0 = dicptr;
+    U8  *tkn, *p0 = dptr;
     U8  tmp8;
     U16 tmp16;
 
@@ -236,110 +237,110 @@ static void compile(void) {
     tkn = gettkn();
 
     /* Write the header */
-    tmp16 = IDX(dicent);
-    dicent = dicptr;
-    *(dicptr++) = tmp16 % 256U;
-    *(dicptr++) = tmp16 / 256U;
-    *(dicptr++) = tkn[0];
-    *(dicptr++) = tkn[1];
-    *(dicptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';   // ensure 3-char name
+    tmp16 = IDX(dmax);
+    dmax = dptr;
+    *(dptr++) = tmp16 % 256U;
+    *(dptr++) = tmp16 / 256U;
+    *(dptr++) = tkn[0];
+    *(dptr++) = tkn[1];
+    *(dptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';   // ensure 3-char name
 
     for (;;) {
         U8 *ptr;
 
         // dump token
-        dump(p0, dicptr, 0);
+        dump(p0, dptr, 0);
 
         tkn = gettkn();
-        p0  = dicptr;
+        p0  = dptr;
         if (find(tkn, LST_COM, &tmp8)) {
             if (tmp8==0) {	/* ; */
-                *(dicptr++) = I_RET;
+                *(dptr++) = I_RET;
                 break;
             }
             switch (tmp8) {
             case 1:	/* IF */
-                *(retstk++) = IDX(dicptr);
-                *(dicptr++) = PFX_CDJ;
-                dicptr++;
+                *(rsp++) = IDX(dptr);
+                *(dptr++) = PFX_CDJ;
+                dptr++;
                 break;
             case 2:	/* ELS */
-                tmp16 = *(--retstk);
+                tmp16 = *(--rsp);
                 ptr = PTR(tmp16);
                 tmp8 = *(ptr);
-                tmp16 = IDX(dicptr + 2) - tmp16 + JMP_SGN;
+                tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
                 *(ptr++) = tmp8 | (tmp16 / 256U);
                 *(ptr++) = tmp16 % 256U;
-                *(retstk++) = IDX(dicptr);
-                *(dicptr++) = PFX_UDJ;
-                dicptr++;
+                *(rsp++) = IDX(dptr);
+                *(dptr++) = PFX_UDJ;
+                dptr++;
                 break;
             case 3:	/* THN */
-                tmp16 = *(--retstk);
+                tmp16 = *(--rsp);
                 ptr = PTR(tmp16);
                 tmp8 = *(ptr);
-                tmp16 = IDX(dicptr) - tmp16 + JMP_SGN;
+                tmp16 = IDX(dptr) - tmp16 + JMP_SGN;
                 *(ptr++) = tmp8 | (tmp16 / 256U);
                 *(ptr++) = tmp16 % 256U;
                 break;
             case 4:	/* BGN */
-                *(retstk++) = IDX(dicptr);
+                *(rsp++) = IDX(dptr);
                 break;
             case 5:	/* END */
-                tmp16 = *(--retstk) - IDX(dicptr) + JMP_SGN;
-                *(dicptr++) = PFX_CDJ | (tmp16 / 256U);
-                *(dicptr++) = tmp16 % 256U;
+                tmp16 = *(--rsp) - IDX(dptr) + JMP_SGN;
+                *(dptr++) = PFX_CDJ | (tmp16 / 256U);
+                *(dptr++) = tmp16 % 256U;
                 break;
             case 6:	/* WHL */
-                *(retstk++) = IDX(dicptr);
-                dicptr += 2;                     // allocate branch addr
+                *(rsp++) = IDX(dptr);
+                dptr += 2;                     // allocate branch addr
                 break;
             case 7:	/* RPT */
-                tmp16 = *(--retstk);
+                tmp16 = *(--rsp);
                 ptr = PTR(tmp16);
-                tmp16 = IDX(dicptr + 2) - tmp16 + JMP_SGN;
+                tmp16 = IDX(dptr + 2) - tmp16 + JMP_SGN;
                 *(ptr++) = PFX_CDJ | (tmp16 / 256U);
                 *(ptr++) = tmp16 % 256U;
-                tmp16 = *(--retstk) - IDX(dicptr) + JMP_SGN;
-                *(dicptr++) = PFX_UDJ | (tmp16 / 256U);
-                *(dicptr++) = tmp16 % 256U;
+                tmp16 = *(--rsp) - IDX(dptr) + JMP_SGN;
+                *(dptr++) = PFX_UDJ | (tmp16 / 256U);
+                *(dptr++) = tmp16 % 256U;
                 break;
             case 8:	/* DO */
-                *(retstk++) = IDX(dicptr+1);
-                *(dicptr++) = I_P2R2;
+                *(rsp++) = IDX(dptr+1);
+                *(dptr++) = I_P2R2;
                 break;
             case 9:	/* LOP */
-                *(dicptr++) = I_LOOP;
-                tmp16 = *(--retstk) - IDX(dicptr) + JMP_SGN;
-                *(dicptr++) = PFX_CDJ | (tmp16 / 256U);
-                *(dicptr++) = tmp16 % 256U;
-                *(dicptr++) = I_RDROP2;
+                *(dptr++) = I_LOOP;
+                tmp16 = *(--rsp) - IDX(dptr) + JMP_SGN;
+                *(dptr++) = PFX_CDJ | (tmp16 / 256U);
+                *(dptr++) = tmp16 % 256U;
+                *(dptr++) = I_RDROP2;
                 break;
             case 10:	/* I */
-                *(dicptr++) = I_I;
+                *(dptr++) = I_I;
                 break;
             }
         }
         else if (lookup(tkn, &tmp16)) {
-            tmp16 += 2 + 3 - IDX(dicptr) + JMP_SGN;
-            *(dicptr++) = PFX_CALL | (tmp16 / 256U);
-            *(dicptr++) = tmp16 % 256U;
+            tmp16 += 2 + 3 - IDX(dptr) + JMP_SGN;
+            *(dptr++) = PFX_CALL | (tmp16 / 256U);
+            *(dptr++) = tmp16 % 256U;
         }
         else if (find(tkn, LST_PRM, &tmp8)) {
-            *(dicptr++) = PFX_PRM | tmp8;
+            *(dptr++) = PFX_PRM | tmp8;
         }
         else if (literal(tkn, &tmp16)) {
             if (tmp16 < 128U) {
-                *(dicptr++) = (U8)tmp16;
+                *(dptr++) = (U8)tmp16;
             } else {
-                *(dicptr++) = I_LIT;
-                *(dicptr++) = tmp16 % 256U;
-                *(dicptr++) = tmp16 / 256U;
+                *(dptr++) = I_LIT;
+                *(dptr++) = tmp16 % 256U;
+                *(dptr++) = tmp16 / 256U;
             }
         }
         else /* error */ putmsg("!\n");
     }
-    dump(dic, dicptr, ' ');
+    dump(dic, dptr, ' ');
 }
 /*
   VARIABLE instruction
@@ -352,26 +353,26 @@ static void variable(void) {
     tkn = gettkn();
 
     /* Write the header */
-    tmp16 = IDX(dicent);
-    dicent = dicptr;
-    *(dicptr++) = tmp16 % 256U;
-    *(dicptr++) = tmp16 / 256U;
-    *(dicptr++) = tkn[0];
-    *(dicptr++) = tkn[1];
-    *(dicptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';
+    tmp16 = IDX(dmax);
+    dmax = dptr;
+    *(dptr++) = tmp16 % 256U;
+    *(dptr++) = tmp16 / 256U;
+    *(dptr++) = tkn[0];
+    *(dptr++) = tkn[1];
+    *(dptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';
 
-    tmp16 = IDX(dicptr + 2);
+    tmp16 = IDX(dptr + 2);
     if (tmp16 < 128U) {
-        *(dicptr++) = (U8)tmp16;
+        *(dptr++) = (U8)tmp16;
     } else {
-        tmp16 = IDX(dicptr + 4);
-        *(dicptr++) = I_LIT;
-        *(dicptr++) = tmp16 % 256U;
-        *(dicptr++) = tmp16 / 256U;
+        tmp16 = IDX(dptr + 4);
+        *(dptr++) = I_LIT;
+        *(dptr++) = tmp16 % 256U;
+        *(dptr++) = tmp16 / 256U;
     }
-    *(dicptr++) = I_RET;
-    *(dicptr++) = 0;	/* data area */
-    *(dicptr++) = 0;	/* data area */
+    *(dptr++) = I_RET;
+    *(dptr++) = 0;	/* data area */
+    *(dptr++) = 0;	/* data area */
 
     return;
 }
@@ -389,8 +390,8 @@ static void forget(void) {
     }
 
     ptr = PTR(tmp16);
-    dicent = PTR(*ptr + *(ptr+1) * 256U);
-    dicptr = ptr;
+    dmax = PTR(*ptr + *(ptr+1) * 256U);
+    dptr = ptr;
 
     return;
 }
@@ -399,7 +400,7 @@ static void forget(void) {
 */
 static void execute(U16 adrs) {
     U8 *pc;
-    *(retstk++) = 0xffffU;
+    *(rsp++) = 0xffffU;
 
     for (pc = PTR(adrs); pc != PTR(0xffffU); ) {
         U8  ir;	/* instruction register */
@@ -411,18 +412,18 @@ static void execute(U16 adrs) {
 
         if ((ir & 0x80U)==0) {
             /* literal(0-127) */
-            *(--parstk) = ir;
+            *(--psp) = ir;
         }
         else if (ir==I_LIT) {
             /* literal(128-65535) */
             U16 tmp16;
             tmp16 = *(pc++);
             tmp16 += *(pc++) * 256U;
-            *(--parstk) = tmp16;
+            *(--psp) = tmp16;
         }
         else if (ir==I_RET) {
             /* RET: return */
-            pc = PTR(*(--retstk));
+            pc = PTR(*(--rsp));
         }
         else if ((ir & 0xe0U)==PFX_UDJ) {
             /* UDJ: unconditional direct jump */
@@ -431,13 +432,13 @@ static void execute(U16 adrs) {
         }
         else if ((ir & 0xe0U)==PFX_CDJ) {
             /* CDJ: conditional direct jump */
-            pc = *(parstk++)
+            pc = *(psp++)
                 ? pc+1
                 : PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
         }
         else if ((ir & 0xe0U)==PFX_CALL) {
             /* CALL: subroutine call */
-            *(retstk++) = IDX(pc+1);
+            *(rsp++) = IDX(pc+1);
             pc = PTR(IDX(pc-1) + (ir & 0x1fU) * 256U + *pc - JMP_SGN);
         }
         else primitive(ir & 0x1fU);             /* primitive functions */
@@ -453,131 +454,131 @@ static void primitive(U8 ic) {
 
     switch (ic) {
     case 0:	/* DRP */
-        parstk++;
+        psp++;
         break;
     case 1:	/* DUP */
-        x0 = *parstk;
-        *(--parstk) = x0;
+        x0 = *psp;
+        *(--psp) = x0;
         break;
     case 2:	/* SWP */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
-        *(--parstk) = x1;
-        *(--parstk) = x0;
+        x1 = *(psp++);
+        x0 = *(psp++);
+        *(--psp) = x1;
+        *(--psp) = x0;
         break;
     case 3:	/* >R */
-        *(retstk++) = *(parstk++);
+        *(rsp++) = *(psp++);
         break;
     case 4:	/* R> */
-        *(--parstk) = *(--retstk);
+        *(--psp) = *(--rsp);
         break;
     case 5:	/* + */
-        x0 = *(parstk++);
-        *parstk += x0;
+        x0 = *(psp++);
+        *psp += x0;
         break;
     case 6:	/* - */
-        x0 = *(parstk++);
-        *parstk -= x0;
+        x0 = *(psp++);
+        *psp -= x0;
         break;
     case 7:	/* * */
-        x0 = *(parstk++);
-        *parstk *= x0;
+        x0 = *(psp++);
+        *psp *= x0;
         break;
     case 8:	/* / */
-        x0 = *(parstk++);
-        *parstk /= x0;
+        x0 = *(psp++);
+        *psp /= x0;
         break;
     case 9:	/* MOD */
-        x0 = *(parstk++);
-        *parstk %= x0;
+        x0 = *(psp++);
+        *psp %= x0;
         break;
     case 10:	/* AND */
-        x0 = *(parstk++);
-        *parstk &= x0;
+        x0 = *(psp++);
+        *psp &= x0;
         break;
     case 11:	/* OR */
-        x0 = *(parstk++);
-        *parstk |= x0;
+        x0 = *(psp++);
+        *psp |= x0;
         break;
     case 12:	/* XOR */
-        x0 = *(parstk++);
-        *parstk ^= x0;
+        x0 = *(psp++);
+        *psp ^= x0;
         break;
     case 13:	/* = */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
-        *(--parstk) = (x0==x1);
+        x1 = *(psp++);
+        x0 = *(psp++);
+        *(--psp) = (x0==x1);
         break;
     case 14:	/* < */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
-        *(--parstk) = (x0 < x1);
+        x1 = *(psp++);
+        x0 = *(psp++);
+        *(--psp) = (x0 < x1);
         break;
     case 15:	/* > */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
-        *(--parstk) = (x0 > x1);
+        x1 = *(psp++);
+        x0 = *(psp++);
+        *(--psp) = (x0 > x1);
         break;
     case 16:	/* <= */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
-        *(--parstk) = (x0 <= x1);
+        x1 = *(psp++);
+        x0 = *(psp++);
+        *(--psp) = (x0 <= x1);
         break;
     case 17:	/* >= */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
-        *(--parstk) = (x0 >= x1);
+        x1 = *(psp++);
+        x0 = *(psp++);
+        *(--psp) = (x0 >= x1);
         break;
     case 18:	/* <> */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
-        *(--parstk) = (x0 != x1);
+        x1 = *(psp++);
+        x0 = *(psp++);
+        *(--psp) = (x0 != x1);
         break;
     case 19:	/* NOT */
-        *parstk = (*parstk==0);
+        *psp = (*psp==0);
         break;
     case 20:	/* @ */
-        x0 = *(parstk++);
+        x0 = *(psp++);
         x1 = *(PTR(x0));
         x1 += *(PTR(x0 + 1)) * 256U;
-        *(--parstk) = x1;
+        *(--psp) = x1;
         break;
     case 21:	/* @@ */
-        x0 = *(parstk++);
+        x0 = *(psp++);
         x1 = *(PTR(x0));
-        *(--parstk) = x1;
+        *(--psp) = x1;
         break;
     case 22:	/* ! */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
+        x1 = *(psp++);
+        x0 = *(psp++);
         *(PTR(x1)) = x0 % 256U;
         *(PTR(x1 + 1)) = x0 / 256U;
         break;
     case 23:	/* !! */
-        x1 = *(parstk++);
-        x0 = *(parstk++);
+        x1 = *(psp++);
+        x0 = *(psp++);
         *(PTR(x1)) = (U8)x0;
         break;
     case 24:	/* . */
-        putnum(*(parstk++));
+        putnum(*(psp++));
         putchr(' ');
         break;
     case 25:	/* LOOP */
-        (*(retstk - 2))++;
-        x1 = *(retstk - 2);
-        x0 = *(retstk - 1);
-        *(--parstk) = (x0 <= x1);
+        (*(rsp - 2))++;
+        x1 = *(rsp - 2);
+        x0 = *(rsp - 1);
+        *(--psp) = (x0 <= x1);
         putchr('\n');
         break;
     case 26:	/* RDROP2 */
-        retstk -= 2;
+        rsp -= 2;
         break;
     case 27:	/* I */
-        *(--parstk) = *(retstk - 2);
+        *(--psp) = *(rsp - 2);
         break;
     case 28:	/* P2R2 */
-        *(retstk++) = *(parstk++);
-        *(retstk++) = *(parstk++);
+        *(rsp++) = *(psp++);
+        *(rsp++) = *(psp++);
         break;
     }
     return;
