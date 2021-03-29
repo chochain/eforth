@@ -21,6 +21,8 @@ typedef uint8_t  U8;
 #define POP()      ((U16)(*(psp++)))
 #define RPUSH(v)   (*(rsp++)=(U16)(v))
 #define RPOP()     ((U16)(*(--rsp)))
+#define ADDU8(c)   (*(dptr++)=(U8)(c))
+#define ADDU16(n)  do { ADDU8((n)&0xff); ADDU8((n)>>8); } while(0)
 //
 // length + space delimited 3-char string
 //

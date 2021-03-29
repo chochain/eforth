@@ -144,11 +144,10 @@ void compile(void) {
     /* Write the header */
     tmp16 = IDX(dmax);
     dmax = dptr;
-    *(dptr++) = tmp16 % 256U;
-    *(dptr++) = tmp16 / 256U;
-    *(dptr++) = tkn[0];
-    *(dptr++) = tkn[1];
-    *(dptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';   // ensure 3-char name
+    ADDU16(tmp16);
+	ADDU8(tkn[0]);
+    ADDU8(tkn[1]);
+	ADDU8((tkn[1] != ' ') ? tkn[2] : ' ');   // ensure 3-char name
 
     for (;;) {
         U8 *p;
@@ -160,14 +159,14 @@ void compile(void) {
         p0  = dptr;
         if (find(tkn, LST_COM, &tmp8)) {
             if (tmp8==0) {	/* ; */
-                *(dptr++) = I_RET;
+                ADDU8(I_RET);
                 break;
             }
             switch (tmp8) {
             case 1:	/* IF */
                 RPUSH(IDX(dptr));
-                *(dptr++) = PFX_CDJ;
-                dptr++;
+                ADDU8(PFX_CDJ);
+                ADDU8(0);
                 break;
             case 2:	/* ELS */
                 tmp16 = RPOP();
@@ -177,8 +176,8 @@ void compile(void) {
                 *(p++)    = tmp8 | (tmp16 / 256U);
                 *(p++)    = tmp16 % 256U;
                 RPUSH(IDX(dptr));
-                *(dptr++) = PFX_UDJ;
-                dptr++;
+                ADDU8(PFX_UDJ);
+                ADDU8(0);
                 break;
             case 3:	/* THN */
                 tmp16  = RPOP();
@@ -193,8 +192,8 @@ void compile(void) {
                 break;
             case 5:	/* END */
                 tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
-                *(dptr++) = PFX_CDJ | (tmp16 / 256U);
-                *(dptr++) = tmp16 % 256U;
+                ADDU8(PFX_CDJ | (tmp16 / 256U));
+                ADDU8(tmp16 % 256U);
                 break;
             case 6:	/* WHL */
                 RPUSH(IDX(dptr));
@@ -207,40 +206,40 @@ void compile(void) {
                 *(p++)    = PFX_CDJ | (tmp16 / 256U);
                 *(p++)    = tmp16 % 256U;
                 tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
-                *(dptr++) = PFX_UDJ | (tmp16 / 256U);
-                *(dptr++) = tmp16 % 256U;
+                ADDU8(PFX_UDJ | (tmp16 / 256U));
+                ADDU8(tmp16 % 256U);
                 break;
             case 8:	/* DO */
                 RPUSH(IDX(dptr+1));
-                *(dptr++) = I_P2R2;
+                ADDU8(I_P2R2);
                 break;
             case 9:	/* LOP */
-                *(dptr++) = I_LOOP;
+                ADDU8(I_LOOP);
                 tmp16 = RPOP() - IDX(dptr) + JMP_SGN;
-                *(dptr++) = PFX_CDJ | (tmp16 / 256U);
-                *(dptr++) = tmp16 % 256U;
-                *(dptr++) = I_RDROP2;
+                ADDU8(PFX_CDJ | (tmp16 / 256U));
+                ADDU8(tmp16 % 256U);
+                ADDU8(I_RDROP2);
                 break;
             case 10:	/* I */
-                *(dptr++) = I_I;
+                ADDU8(I_I);
                 break;
             }
         }
         else if (lookup(tkn, &tmp16)) {
             tmp16 += 2 + 3 - IDX(dptr) + JMP_SGN;
-            *(dptr++) = PFX_CALL | (tmp16 / 256U);
-            *(dptr++) = tmp16 % 256U;
+            ADDU8(PFX_CALL | (tmp16 / 256U));
+            ADDU8(tmp16 % 256U);
         }
         else if (find(tkn, LST_PRM, &tmp8)) {
-            *(dptr++) = PFX_PRM | tmp8;
+            ADDU8(PFX_PRM | tmp8);
         }
         else if (literal(tkn, &tmp16)) {
             if (tmp16 < 128U) {
-                *(dptr++) = (U8)tmp16;
+                ADDU8((U8)tmp16);
             } else {
-                *(dptr++) = I_LIT;
-                *(dptr++) = tmp16 % 256U;
-                *(dptr++) = tmp16 / 256U;
+                ADDU8(I_LIT);
+                ADDU8(tmp16 % 256U);
+                ADDU8(tmp16 / 256U);
             }
         }
         else /* error */ putmsg("!\n");
@@ -273,27 +272,22 @@ void variable(void) {
     /* Write the header */
     tmp16 = IDX(dmax);
     dmax = dptr;
-    *(dptr++) = tmp16 % 256U;
-    *(dptr++) = tmp16 / 256U;
-    *(dptr++) = tkn[0];
-    *(dptr++) = tkn[1];
-    *(dptr++) = (tkn[1] != ' ') ? tkn[2] : ' ';
+    ADDU16(tmp16);
+    ADDU8(tkn[0]);
+	ADDU8(tkn[1]);
+    ADDU8((tkn[1] != ' ') ? tkn[2] : ' ');
 
     tmp16 = IDX(dptr + 2);
     if (tmp16 < 128U) {
-        *(dptr++) = (U8)tmp16;
+        ADDU8((U8)tmp16);
     }
 	else {
         tmp16 = IDX(dptr + 4);
-        *(dptr++) = I_LIT;
-        *(dptr++) = tmp16 % 256U;
-        *(dptr++) = tmp16 / 256U;
+        ADDU8(I_LIT);
+        ADDU16(tmp16);
     }
-    *(dptr++) = I_RET;
-    *(dptr++) = 0;	/* data area */
-    *(dptr++) = 0;	/* data area */
-
-    return;
+    ADDU8(I_RET);
+    ADDU16(0);	/* data area */
 }
 //
 // Process a Literal
