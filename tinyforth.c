@@ -96,7 +96,7 @@ U8 *gettkn(void) {
 // 
 void dump(U8 *p0, U8 *p1, U8 d)
 {
-	U16 n = (U16)(p0 - dic);
+	U16 n = IDX(p0);
 	putadr(n);
 	for (; p0<p1; n++, p0++) {
 		if (d && (n&0x3)==0) putchr(d);
@@ -109,7 +109,7 @@ void dump(U8 *p0, U8 *p1, U8 d)
 // Lookup the Keyword from the Dictionary
 //
 U8 lookup(U8 *key, U16 *adr) {
-    for (U8 *p=dmax; p != PTR(0xffff); p=PTR(*p + *(p+1) * 256)) {
+    for (U8 *p=dmax; p != PTR(0xffff); p=PTR(GET16(p))) {
         if (p[2]==key[0] && p[3]==key[1] && (p[3]==' ' || p[4]==key[2])) {
             *adr = IDX(p);
             return 1;
@@ -134,22 +134,15 @@ U8 find(U8 *key, char *lst, U16 *id) {
 //  Compile Mode
 //
 void compile(void) {
-    U8  *tkn, *p0 = dptr;
-    U16 tmp;
-
-    /* get the identifier */
-    tkn = gettkn();
-
-    /* Write the header */
-    tmp  = IDX(dmax);
+    U8  *tkn = gettkn();
+    U8  *p0  = dptr;
+    U16 tmp  = IDX(dmax);
+    
     dmax = dptr;
     SET16(dptr, tmp);
     SETNM(dptr, tkn);         // 3-byte name
 
     for (;;) {
-        U8 *p, f8;
-
-        // dump token
         dump(p0, dptr, 0);
 
         tkn = gettkn();
@@ -181,7 +174,7 @@ void compile(void) {
             case 6:	/* WHL */
                 RPUSH(IDX(dptr));               // save WHILE addr A2
 				SET16(dptr, PFX_CDJ);           // allocate branch addr A2 with jmp flag
-                break;
+                break;// add found primitive opcode
             case 7:	/* RPT */
                 JMPSET(RPOP(), dptr+2);         // update A2 with next addr
                 JMPBCK(RPOP(), PFX_UDJ);        // unconditional jump back to A1
@@ -200,21 +193,25 @@ void compile(void) {
                 break;
             }
         }
-        else if (lookup(tkn, &tmp))        { JMPBCK(2+3, PFX_CALL);         }  // add found word addr, adr(2), name(3)
-        else if (find(tkn, LST_PRM, &tmp)) { SET8(dptr, PFX_PRM | (U8)tmp); }  // add found primitive opcode
+        else if (lookup(tkn, &tmp)) {           // scan dictionary
+        	JMPBCK(2+3, PFX_CALL);              // add found word addr, adr(2), name(3)
+        }
+        else if (find(tkn, LST_PRM, &tmp)) {    // scan primitives
+        	SET8(dptr, PFX_PRM | (U8)tmp);      // add found primitive opcode
+        }
         else if (literal(tkn, &tmp)) {
             if (tmp < 128U) {
-                SET8(dptr, (U8)tmp);          // 1-byte literal
+                SET8(dptr, (U8)tmp);            // 1-byte literal
             }
 			else {
-                SET8(dptr, I_LIT);            // 3-byte literal
+                SET8(dptr, I_LIT);              // 3-byte literal
                 SET16(dptr, tmp);
             }
         }
-        else putmsg("!\n");                   // error
+        else putmsg("!\n");                     // error
     }
     // debug memory dump
-    dump(dic, dptr, ' ');
+    dump(dmax, dptr, ' ');
 }
 //
 //  Forget Words in the Dictionary
@@ -238,6 +235,7 @@ void forget(void) {
 void variable(void) {
     U8 *tkn = gettkn();    // get token
     U16 tmp = IDX(dmax);
+    
     dmax = dptr;
     SET16(dptr, tmp);
     SETNM(dptr, tkn);      // 3-byte variable name
@@ -338,8 +336,14 @@ void primitive(U8 ic) {
     case 17: PUSH(POP() <  POP());       break; // >=
     case 18: PUSH(POP() != POP());       break; // <>
     case 19: TOS = (TOS==0);             break;	// NOT
-    case 20: { U16 *p = PTR(POP()); PUSH(GET16(p)); } break; // @
-    case 21: { U16 *p = PTR(POP()); *p = POP();     } break; // !
+    case 20: {                                  // @
+    	U8 *p = PTR(POP());
+    	PUSH(GET16(p));
+    } break;
+    case 21: {                                   // !
+    	U8 *p = PTR(POP());
+    	*(U16*)p = POP();
+    } break;
     case 22: { U8  *p = PTR(POP()); PUSH((U16)*p);  } break; // C@
     case 23: { U8  *p = PTR(POP()); *p = (U8)POP(); } break; // C!
     case 24: putnum(POP()); putchr(' '); break; // .
@@ -371,7 +375,7 @@ void ok() {
 int main(void) {
     putmsg("Tiny FORTH\n");
     for (;;) {
-        U8 *tkn = gettkn();                    // get token fron console
+        U8 *tkn = gettkn();                    // get token from console
         U16 tmp;
         if (find(tkn, LST_RUN, &tmp)) {        // run mode
             switch (tmp) {
@@ -381,9 +385,15 @@ int main(void) {
             case 3: exit(0);                   // BYE
             }
         }
-        else if (lookup(tkn, &tmp))        { execute(tmp + 2 + 3); }   // search word dictionary addr(2), name(3)
-        else if (find(tkn, LST_PRM, &tmp)) { primitive((U8)tmp);   }   // search primitives
-        else if (literal(tkn, &tmp))       { PUSH(tmp);            }   // handle numbers
+        else if (lookup(tkn, &tmp)) {          // search word dictionary addr(2), name(3)
+        	execute(tmp + 2 + 3);
+        }
+        else if (find(tkn, LST_PRM, &tmp)) {   // search primitives
+        	primitive((U8)tmp);
+        }
+        else if (literal(tkn, &tmp)) {         // handle numbers
+        	PUSH(tmp);
+        }
         else {                                                         // error
             putmsg("?\n");
             continue;

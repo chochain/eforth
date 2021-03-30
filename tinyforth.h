@@ -60,7 +60,7 @@ typedef uint8_t  U8;
 #define SET8(p, c)  (*((p)++)=(U8)(c))
 #define SET16(p, n) do { SET8(p, (n)&0xff); SET8(p, (n)>>8); } while(0)
 #define SETNM(p, s) do { SET8(p, (s)[0]); SET8(p, (s)[1]); SET8(p, ((s)[1]!=' ') ? (s)[2] : ' '); } while(0)
-#define GET16(p)    ((U16)*(U8*)(p) + *((U8*)(p)+1)<<8)
+#define GET16(p)    ((U16)*((U8*)(p)) + ((U16)(*((U8*)(p)+1))<<8))
 #define JMPSET(idx, p1) do {             \
     U8  *p = PTR(idx);                   \
     U8  f8 = *(p);                       \
