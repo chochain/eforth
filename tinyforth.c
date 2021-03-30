@@ -155,12 +155,12 @@ void compile(void) {
             switch (tmp) {
             case 1:	/* IF */
                 RPUSH(IDX(dptr));               // save current dptr A1
-                SET16(dptr, PFX_CDJ);           // alloc addr with jmp_flag
+                JMP000(dptr, PFX_CDJ);          // alloc addr with jmp_flag
                 break;
             case 2:	/* ELS */
                 JMPSET(RPOP(), dptr+2);         // update A1 with next addr
                 RPUSH(IDX(dptr));               // save current dptr A2
-                SET16(dptr, PFX_UDJ);           // alloc space with jmp_flag
+                JMP000(dptr, PFX_UDJ);          // alloc space with jmp_flag
                 break;
             case 3:	/* THN */
                 JMPSET(RPOP(), dptr);           // update A2 with current addr
@@ -173,7 +173,7 @@ void compile(void) {
                 break;
             case 6:	/* WHL */
                 RPUSH(IDX(dptr));               // save WHILE addr A2
-				SET16(dptr, PFX_CDJ);           // allocate branch addr A2 with jmp flag
+				JMP000(dptr, PFX_CDJ);          // allocate branch addr A2 with jmp flag
                 break;// add found primitive opcode
             case 7:	/* RPT */
                 JMPSET(RPOP(), dptr+2);         // update A2 with next addr
@@ -197,7 +197,7 @@ void compile(void) {
         	JMPBCK(2+3, PFX_CALL);              // add found word addr, adr(2), name(3)
         }
         else if (find(tkn, LST_PRM, &tmp)) {    // scan primitives
-        	SET8(dptr, PFX_PRM | (U8)tmp);      // add found primitive opcode
+        	SET8(dptr, PFX_PRM | (U8)tmp); // add found primitive opcode
         }
         else if (literal(tkn, &tmp)) {
             if (tmp < 128U) {
@@ -336,16 +336,10 @@ void primitive(U8 ic) {
     case 17: PUSH(POP() <  POP());       break; // >=
     case 18: PUSH(POP() != POP());       break; // <>
     case 19: TOS = (TOS==0);             break;	// NOT
-    case 20: {                                  // @
-    	U8 *p = PTR(POP());
-    	PUSH(GET16(p));
-    } break;
-    case 21: {                                   // !
-    	U8 *p = PTR(POP());
-    	*(U16*)p = POP();
-    } break;
-    case 22: { U8  *p = PTR(POP()); PUSH((U16)*p);  } break; // C@
-    case 23: { U8  *p = PTR(POP()); *p = (U8)POP(); } break; // C!
+    case 20: { U8 *p = PTR(POP()); PUSH(GET16(p));  } break; // @
+    case 21: { U8 *p = PTR(POP()); SET16(p, POP()); } break; // !
+    case 22: { U8 *p = PTR(POP()); PUSH((U16)*p);   } break; // C@
+    case 23: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
     case 24: putnum(POP()); putchr(' '); break; // .
     case 25: {	                                // LOOP
         (*(rsp-2))++;  // increment counter

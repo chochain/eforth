@@ -58,21 +58,20 @@ typedef uint8_t  U8;
 #define RPUSH(v)    (*(rsp++)=(U16)(v))
 #define RPOP()      ((U16)(*(--rsp)))
 #define SET8(p, c)  (*((p)++)=(U8)(c))
-#define SET16(p, n) do { SET8(p, (n)&0xff); SET8(p, (n)>>8); } while(0)
+#define SET16(p, n) do { SET8(p, (n)>>8); SET8(p, (n)&0xff); } while(0)
 #define SETNM(p, s) do { SET8(p, (s)[0]); SET8(p, (s)[1]); SET8(p, ((s)[1]!=' ') ? (s)[2] : ' '); } while(0)
-#define GET16(p)    ((U16)*((U8*)(p)) + ((U16)(*((U8*)(p)+1))<<8))
+#define GET16(p)    (((U16)*((U8*)(p))<<8) + *((U8*)(p)+1))
+#define JMP000(p,j) SET16(p, (j)<<8)
 #define JMPSET(idx, p1) do {             \
     U8  *p = PTR(idx);                   \
     U8  f8 = *(p);                       \
-    U16 a  = ((U8*)(p1)-p) + JMP_SGN;    \
-    *(p++) = f8 | (a>>8);                \
-    *(p++) = a & 0xff;                   \
+    U16 a  = ((U8*)(p1) - p) + JMP_SGN;  \
+    SET16(p, (a | (U16)f8<<8));          \
     } while(0)
-#define JMPBCK(idx, j) do {              \
+#define JMPBCK(idx, f) do {              \
     U8  *p = PTR(idx);                   \
     U16 a  = (U16)(p - dptr) + JMP_SGN;  \
-    SET8(dptr, (j) | (a>>8));            \
-    SET8(dptr, a & 0xff);                \
+    SET16(dptr, a | (f<<8));             \
     } while(0)
 //
 // IO functions
