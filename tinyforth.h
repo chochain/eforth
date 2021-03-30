@@ -12,8 +12,10 @@ typedef uint8_t  U8;
 #define STK_SZ     (64)     /* 8 - 65536  */
 #define DIC_SZ     (512)    /* 8 - 8*1024 */
 
-#define putchr(c)  putchar(c)
 #define getchr()   getchar()
+#define putchr(c)  putchar(c)
+#define d_chr(c)   putchar(c)
+#define d_nib(n)   d_chr((n) + ((n)>9 ? 'A'-10 : '0'))
 //
 // length + space delimited 3-char string
 //

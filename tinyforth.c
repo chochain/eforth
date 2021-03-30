@@ -17,35 +17,21 @@ U8   dic[DIC_SZ];
 U8   *dptr = dic;                // dictionary pointer
 U8   *dmax = PTR(0xffff);        // end of dictionary
 //
+// debug instrumentation
+//
+void d_hex(U8 c)       { d_nib(c>>4); d_nib(c&0xf); }
+void d_adr(U16 a)      { d_hex((U8)(a>>8)); d_hex((U8)(a&0xff)); d_chr(':'); }
+//
 // IO functions ============================================================================
 //
 //  put a 16-bit integer
 //
-void putnum(U16 n)
-{
+void putnum(U16 n)     {
 	U16 t = n/10;
     if (t) putnum(t);
     putchr('0' + (n - t*10));
 }
-//
-// print a 8-bit hex
-//
-void puthex(U8 c)
-{
-    U8 n0 = c>>4, n1 = c&0xf;
-    putchr(n0 + (n0>9 ? 'A'-10 : '0'));
-    putchr(n1 + (n1>9 ? 'A'-10 : '0'));
-}
-void putadr(U16 a)
-{
-	puthex((U8)(a>>8)); puthex((U8)(a&0xff)); putchr(':');
-}
-//
-//  Put a message
-//
-void putmsg(char *msg) {
-    while (*msg) putchr(*(msg++));
-}
+void putmsg(char *msg) { while (*msg) putchr(*(msg++)); }
 //
 //  Get a Token
 //
@@ -63,7 +49,7 @@ U8 *gettkn(void) {
             buf[p] = '\0';
         }
         if (*buf) {           // debug output
-            for (int i=0; i<4; i++) putchr(buf[i]<0x20 ? '_' : buf[i]);
+            for (int i=0; i<4; i++) d_chr(buf[i]<0x20 ? '_' : buf[i]);
             return buf;
         }
         for (p=0;;) {
@@ -79,7 +65,7 @@ U8 *gettkn(void) {
                 putchr(' ');
                 putchr('\b');
             }
-            else if (c <= 0x1fU)         {}
+            else if (c <= 0x1f)    {}
             else if (p < BUF_SZ-1) { buf[p++] = c; }
             else {
                 putchr('\b');
@@ -95,12 +81,12 @@ U8 *gettkn(void) {
 void dump(U8 *p0, U8 *p1, U8 d)
 {
 	U16 n = IDX(p0);
-	putadr(n);
+	d_adr(n);
 	for (; p0<p1; n++, p0++) {
-		if (d && (n&0x3)==0) putchr(d);
-		puthex(*p0);
+		if (d && (n&0x3)==0) d_chr(d);
+		d_hex(*p0);
 	}
-	if (d) putchr('\n');
+	if (d) d_chr('\n');
 }
 
 //
@@ -283,7 +269,7 @@ void execute(U16 adr) {
     for (U8 *pc=PTR(adr); pc != PTR(0xffff); ) {
         U16 a  = IDX(pc);                                 // current program counter
         U8  ir = *(pc++);                                 // fetch instruction
-        putadr(a); puthex(ir); putchr(' ');               // debug info
+        d_adr(a); d_hex(ir); d_chr(' ');                  // debug info
 
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
         else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
@@ -294,7 +280,7 @@ void execute(U16 adr) {
             switch (ir & 0xe0) {
             case PFX_UDJ:                                 // 0x80 unconditional jump
                 pc = PTR(a);                              // set jump target
-                putchr('\n');                             // debug info
+                d_chr('\n');                              // debug info
                 break;
             case PFX_CDJ:                                 // 0xa0 conditional jump
                 pc = POP() ? pc+1 : PTR(a);               // next or target
@@ -342,7 +328,7 @@ void primitive(U8 op) {
     case 25: {	                                // LOOP
         (*(rsp-2))++;               // counter+1
         PUSH(*(rsp-2) >= *(rsp-1)); // range check
-        putchr('\n');
+        d_chr('\n');                // debug info
     } break;
     case 26: RPOP(); RPOP();             break; // RD2
     case 27: PUSH(*(rsp-2));             break; // I
