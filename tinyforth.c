@@ -302,7 +302,11 @@ void primitive(U8 op) {
     switch (op) {
     case 0:  POP();                      break; // DRP
     case 1:  PUSH(TOS);                  break; // DUP
-    case 2:  PUSH(POP()); PUSH(POP());   break;	// SWP
+    case 2:  {                                  // SWP
+        U16 x = TOS1;
+        TOS1  = TOS;
+        TOS   = x;
+    } break;
     case 3:  RPUSH(POP());               break; // >R
     case 4:  PUSH(RPOP());               break; // R>
     case 5:	 TOS += POP();               break; // +
@@ -313,26 +317,27 @@ void primitive(U8 op) {
     case 10: TOS &= POP();               break;	// AND
     case 11: TOS |= POP();               break;	// OR
     case 12: TOS ^= POP();               break; // XOR
-    case 13: PUSH(POP() == POP());       break; // =
-    case 14: PUSH(POP() >= POP());       break; // <
-    case 15: PUSH(POP() <= POP());       break; // >
-    case 16: PUSH(POP() >  POP());       break; // <=
-    case 17: PUSH(POP() <  POP());       break; // >=
-    case 18: PUSH(POP() != POP());       break; // <>
+    case 13: TOS = POP()==TOS;           break; // =
+    case 14: TOS = POP()> TOS;           break; // <
+    case 15: TOS = POP()< TOS;           break; // >
+    case 16: TOS = POP()>=TOS;           break; // <=
+    case 17: TOS = POP()<=TOS;           break; // >=
+    case 18: TOS = POP()!=TOS;           break; // <>
     case 19: TOS = (TOS==0);             break;	// NOT
     case 20: { U8 *p = PTR(POP()); PUSH(GET16(p));  } break; // @
     case 21: { U8 *p = PTR(POP()); SET16(p, POP()); } break; // !
     case 22: { U8 *p = PTR(POP()); PUSH((U16)*p);   } break; // C@
     case 23: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
     case 24: putnum(POP()); putchr(' '); break; // .
-    case 25: {	                                // LOOP
+    case 25: PUSH(TOS1);                 break; // OVR
+    case 26: {	                                // LOOP
         (*(rsp-2))++;               // counter+1
         PUSH(*(rsp-2) >= *(rsp-1)); // range check
         d_chr('\n');                // debug info
     } break;
-    case 26: RPOP(); RPOP();             break; // RD2
-    case 27: PUSH(*(rsp-2));             break; // I
-    case 28: RPUSH(POP()); RPUSH(POP()); break; // P2R2
+    case 27: RPOP(); RPOP();             break; // RD2
+    case 28: PUSH(*(rsp-2));             break; // I
+    case 29: RPUSH(POP()); RPUSH(POP()); break; // P2R2
     }
 }
 
@@ -341,7 +346,7 @@ void ok() {
         putmsg("OVF\n");
         psp = &(stk[STK_SZ]);
     }
-    else {                          // stack dump before OK
+    else {                          // dump stack then prompt OK
         putchr('[');
         for (U16 *p=&stk[STK_SZ]-1; p>=psp; p--) {
             putchr(' '); putnum(*p);

@@ -21,10 +21,10 @@ typedef uint8_t  U8;
 //
 #define LST_RUN    "\x04" ":  " "VAR" "FGT" "BYE"
 #define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
-#define LST_PRM    "\x19" \
+#define LST_PRM    "\x1a" \
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
 	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
-	"@  " "!  " "C@ " "C! " ".  "
+	"@  " "!  " "C@ " "C! " ".  " "OVR"
 //
 // branch flags
 //
@@ -39,13 +39,12 @@ typedef uint8_t  U8;
 #define I_LIT      0xff
 #define I_RET      0xfe
 //
-// append 5 more opcode to the end of primitives
+// opcodes for loop control
 //
-#define I_LOOP     (PFX_PRM | 25)
-#define I_RD2      (PFX_PRM | 26)
-#define I_I        (PFX_PRM | 27)
-#define I_P2R2     (PFX_PRM | 28)
-#define BYE        (PFX_PRM | 29)
+#define I_LOOP     (PFX_PRM | 26)
+#define I_RD2      (PFX_PRM | 27)
+#define I_I        (PFX_PRM | 28)
+#define I_P2R2     (PFX_PRM | 29)
 //
 // dictionary address<=>pointer translation macros
 //
@@ -55,6 +54,7 @@ typedef uint8_t  U8;
 // Forth stack opcode macros
 //
 #define TOS         (*psp)
+#define TOS1        (*(psp+1))
 #define PUSH(v)     (*(--psp)=(U16)(v))
 #define POP()       (*(psp++))
 #define RPUSH(v)    (*(rsp++)=(U16)(v))
