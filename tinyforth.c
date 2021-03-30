@@ -186,7 +186,7 @@ void compile(void) {
             case 9:	/* LOP */
                 SET8(dptr, I_LOOP);
                 JMPBCK(RPOP(), PFX_CDJ);        // conditionally jump back to A1
-                SET8(dptr, I_RDROP2);
+                SET8(dptr, I_RD2);
                 break;
             case 10: /* I */
                 SET8(dptr, I_I);
@@ -342,11 +342,11 @@ void primitive(U8 ic) {
     case 23: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
     case 24: putnum(POP()); putchr(' '); break; // .
     case 25: {	                                // LOOP
-        (*(rsp-2))++;  // increment counter
-        PUSH(*(rsp-2) >= *(rsp-1));
+        (*(rsp-2))++;               // counter+1
+        PUSH(*(rsp-2) >= *(rsp-1)); // range check
         putchr('\n');
     } break;
-    case 26: rsp -= 2;                   break; // RDROP2
+    case 26: RPOP(); RPOP();             break; // RD2
     case 27: PUSH(*(rsp-2));             break; // I
     case 28: RPUSH(POP()); RPUSH(POP()); break; // P2R2
     }

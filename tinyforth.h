@@ -40,7 +40,7 @@ typedef uint8_t  U8;
 // append 5 more opcode to the end of primitives
 //
 #define I_LOOP     (PFX_PRM | 25)
-#define I_RDROP2   (PFX_PRM | 26)
+#define I_RD2      (PFX_PRM | 26)
 #define I_I        (PFX_PRM | 27)
 #define I_P2R2     (PFX_PRM | 28)
 #define BYE        (PFX_PRM | 29)
@@ -58,7 +58,7 @@ typedef uint8_t  U8;
 #define RPUSH(v)    (*(rsp++)=(U16)(v))
 #define RPOP()      ((U16)(*(--rsp)))
 #define SET8(p, c)  (*((p)++)=(U8)(c))
-#define SET16(p, n) do { SET8(p, (n)>>8); SET8(p, (n)&0xff); } while(0)
+#define SET16(p, n) do { U16 x=(n); SET8(p, (x)>>8); SET8(p, (x)&0xff); } while(0)
 #define SETNM(p, s) do { SET8(p, (s)[0]); SET8(p, (s)[1]); SET8(p, ((s)[1]!=' ') ? (s)[2] : ' '); } while(0)
 #define GET16(p)    (((U16)*((U8*)(p))<<8) + *((U8*)(p)+1))
 #define JMP000(p,j) SET16(p, (j)<<8)
