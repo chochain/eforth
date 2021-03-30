@@ -56,9 +56,9 @@ typedef uint8_t  U8;
 //
 #define TOS         (*psp)
 #define PUSH(v)     (*(--psp)=(U16)(v))
-#define POP()       ((U16)(*(psp++)))
+#define POP()       (*(psp++))
 #define RPUSH(v)    (*(rsp++)=(U16)(v))
-#define RPOP()      ((U16)(*(--rsp)))
+#define RPOP()      (*(--rsp))
 //
 // memory access opcodes
 //
@@ -90,8 +90,6 @@ typedef uint8_t  U8;
 //
 void putmsg(char *msg);
 void putnum(U16 n);
-void puthex(U8 c);
-void putadr(U16 a);
 U8   *gettkn(void);
 //
 // dictionary, string list scanners
