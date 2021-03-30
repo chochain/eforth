@@ -290,7 +290,7 @@ void execute(U16 adr) {
         else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
         else {
             U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
-            a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_SGN; // JMP_SGN ensure 2's complement (for backward jump)
+            a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_BIT; // JMP_BIT ensure 2's complement (for backward jump)
             switch (ir & 0xe0) {
             case PFX_UDJ:                                 // 0x80 unconditional jump
                 pc = PTR(a);                              // set jump target
