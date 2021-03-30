@@ -92,7 +92,7 @@ U8 find(U8 *key, char *lst, U16 *id);
 void compile(void);
 void variable(void);
 void forget(void);
-char literal(U8 *str, U16 *num);
+U8   literal(U8 *str, U16 *num);
 void execute(U16 adrs);
 void primitive(U8 ic);
 

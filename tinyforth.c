@@ -24,17 +24,17 @@ U8   *dmax = PTR(0xffff);        // end of dictionary
 void putnum(U16 n)
 {
 	U16 t = n/10;
-    if (t != 0) putnum(t);
-    putchr('0' + (n%10));
+    if (t) putnum(t);
+    putchr('0' + (n - t*10));
 }
 //
 // print a 8-bit hex
 //
 void puthex(U8 c)
 {
-    U8 h = c>>4, l = c&0xf;
-    putchr(h>9 ? 'A'+h-10 : '0'+h);
-    putchr(l>9 ? 'A'+l-10 : '0'+l);
+    U8 n0 = c>>4, n1 = c&0xf;
+    putchr(n0 + (n0>9 ? 'A'-10 : '0'));
+    putchr(n1 + (n1>9 ? 'A'-10 : '0'));
 }
 void putadr(U16 a)
 {
@@ -44,7 +44,7 @@ void putadr(U16 a)
 //  Put a message
 //
 void putmsg(char *msg) {
-    while (*msg != '\0') putchr(*(msg++));
+    while (*msg) putchr(*(msg++));
 }
 //
 //  Get a Token
@@ -53,18 +53,16 @@ U8 *gettkn(void) {
     static U8 buf[BUF_SZ] = " ";	/*==" \0\0\0..." */
 	U8 p;
 
-    /* remove leading non-delimiters */
-    while (*buf != ' ') {
+    while (*buf != ' ') {     // remove leading non-delimiters
         for (p=0; p<BUF_SZ-1; p++) buf[p] = buf[p+1];
         buf[p] = '\0';
     }
-    for (;;) {
-        /* remove leading delimiters */
+    for (;;) {                // remove leading delimiters
         while (*buf==' ') {
             for (p=0; p<BUF_SZ-1; p++) buf[p] = buf[p+1];
             buf[p] = '\0';
         }
-        if (*buf) {
+        if (*buf) {           // debug output
             for (int i=0; i<4; i++) putchr(buf[i]<0x20 ? '_' : buf[i]);
             return buf;
         }
@@ -139,7 +137,7 @@ void compile(void) {
     U16 tmp  = IDX(dmax);
     
     dmax = dptr;
-    SET16(dptr, tmp);
+    SET16(dptr, tmp);         // link to previous word
     SETNM(dptr, tkn);         // 3-byte name
 
     for (;;) {
@@ -197,10 +195,10 @@ void compile(void) {
         	JMPBCK(2+3, PFX_CALL);              // add found word addr, adr(2), name(3)
         }
         else if (find(tkn, LST_PRM, &tmp)) {    // scan primitives
-        	SET8(dptr, PFX_PRM | (U8)tmp); // add found primitive opcode
+        	SET8(dptr, PFX_PRM | (U8)tmp);      // add found primitive opcode
         }
         else if (literal(tkn, &tmp)) {
-            if (tmp < 128U) {
+            if (tmp < 128) {
                 SET8(dptr, (U8)tmp);            // 1-byte literal
             }
 			else {
@@ -233,29 +231,29 @@ void forget(void) {
 //  VARIABLE instruction
 //
 void variable(void) {
-    U8 *tkn = gettkn();    // get token
+    U8 *tkn = gettkn();        // get token
     U16 tmp = IDX(dmax);
     
     dmax = dptr;
-    SET16(dptr, tmp);
-    SETNM(dptr, tkn);      // 3-byte variable name
+    SET16(dptr, tmp);          // link addr of previous word
+    SETNM(dptr, tkn);          // 3-byte variable name
 
-    tmp = IDX(dptr + 2);   // next addr
-    if (tmp < 128U) {
+    tmp = IDX(dptr + 2);       // next addr
+    if (tmp < 128) {           // 1-byte immediate
         SET8(dptr, (U8)tmp);
     }
 	else {
-        tmp = IDX(dptr + 4);
+        tmp = IDX(dptr + 4);   // alloc LIT(1)+storage_addr(2)+RET(1)
         SET8(dptr, I_LIT);
         SET16(dptr, tmp);
     }
     SET8(dptr, I_RET);
-    SET16(dptr, 0);	      // alloc data area
+    SET16(dptr, 0);	           // actual storage area
 }
 //
 // Process a Literal
 //
-char literal(U8 *str, U16 *num) {
+U8 literal(U8 *str, U16 *num) {
     if (*str=='$') {
         U16 n = 0;
         for (str++; *str != ' '; str++) {
@@ -314,8 +312,8 @@ void execute(U16 adr) {
 //
 //  Execute a Primitive Instruction
 //
-void primitive(U8 ic) {
-    switch (ic) {
+void primitive(U8 op) {
+    switch (op) {
     case 0:  POP();                      break; // DRP
     case 1:  PUSH(TOS);                  break; // DUP
     case 2:  PUSH(POP()); PUSH(POP());   break;	// SWP
