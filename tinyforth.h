@@ -26,7 +26,7 @@ typedef int16_t    S16;
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
 	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
     "@  " "!  " "C@ " "C! " ".  " 
-#define LST_EXT    "\x05" "OVR" "INV" "DMP" "SAV" "LD " "LED" "DLY"
+#define LST_EXT    "\x07" "OVR" "INV" "DMP" "SAV" "LD " "DLY" "LED"
 //
 // ============================================================================================
 // Opcode formats

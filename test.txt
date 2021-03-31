@@ -38,4 +38,7 @@ yy
 5
 zz
 .
+0
+64
+DMP
 BYE

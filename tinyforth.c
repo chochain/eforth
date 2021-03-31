@@ -84,10 +84,9 @@ void dump(U8 *p0, U8 *p1, U8 d)
 	U16 n = IDX(p0);
 	d_adr(n);
 	for (; p0<p1; n++, p0++) {
-		if (d && (n&0x3)==0) d_chr(d);
+		if (d && (n&0x3)==0)  d_chr(d);
 		d_hex(*p0);
 	}
-	if (d) d_chr('\n');
 }
 
 //
@@ -128,7 +127,7 @@ void compile(void) {
     SETNM(dptr, tkn);         // 3-byte name
 
     for (;;) {
-        dump(p0, dptr, 0);
+        dump(p0, dptr, 0); putchr('\n');
 
         tkn = gettkn();
         p0  = dptr;
@@ -181,6 +180,10 @@ void compile(void) {
         else if (lookup(tkn, &tmp)) {           // scan dictionary
         	JMPBCK(2+3, PFX_CALL);              // add found word addr, adr(2), name(3)
         }
+        else if (find(tkn, LST_EXT, &tmp)) {    // extended opcodes
+            SET8(dptr, I_EXT);
+            SET8(dptr, (U8)tmp);                // supports extra 256 opcodes
+        }
         else if (find(tkn, LST_PRM, &tmp)) {    // scan primitives
         	SET8(dptr, PFX_PRM | (U8)tmp);      // add found primitive opcode
         }
@@ -196,7 +199,7 @@ void compile(void) {
         else putmsg("!\n");                     // error
     }
     // debug memory dump
-    dump(dmax, dptr, ' ');
+    dump(dmax, dptr, ' '); putchr('\n');
 }
 //
 //  Forget Words in the Dictionary
@@ -275,10 +278,7 @@ void execute(U16 adr) {
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
         else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
         else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
-        else if (ir==I_EXT) {                             // EXT
-            ir = *(pc++);                                 // fetch extended opcode
-            extended(ir);
-        }   // 3-byte literal
+        else if (ir==I_EXT) { extended(*pc++);        }   // EXT extended opcodes
         else {
             U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
             a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_BIT; // JMP_BIT ensure 2's complement (for backward jump)
@@ -327,7 +327,7 @@ void primitive(U8 op) {
     case 15: TOS = POP()< TOS;           break; // >
     case 16: TOS = POP()>=TOS;           break; // <=
     case 17: TOS = POP()<=TOS;           break; // >=
-    case 18: TOS = POP()!=TOS;           break; // <>
+    case 18: TOS = POP()!=TOS;           break; // <>POP()
     case 19: TOS = (TOS==0);             break;	// NOT
     case 20: { U8 *p = PTR(POP()); PUSH(GET16(p));  } break; // @
     case 21: { U8 *p = PTR(POP()); SET16(p, POP()); } break; // !
@@ -348,8 +348,33 @@ void primitive(U8 op) {
     }
 }
 
+void _show_dic(U16 idx, U16 sz)
+{
+    U8 *p = PTR(idx & 0xfff0);           // 16-byte aligned
+    sz &= 0xfff0;                        // 16-byte aligned
+    putchr('\n');
+    for (int i=0; i<sz; i+=0x20) {
+        dump(p, p+0x20, ' ');
+        putchr(' ');
+        for (int j=0; j<0x20; j++, p++) {    // print and advance to next byte
+            U8 c = *p & 0x7f;
+            putchr((c==0x7f||c<0x20) ? '_' : c);
+        }
+        putchr('\n');
+    }
+}
+
 void extended(U8 op)
 {
+    switch (op) {
+    case 0:  PUSH(TOS1);                 break; // OVR
+    case 1:  TOS = -TOS;                 break; // INV
+    case 2:  _show_dic(POP(), POP());    break; // DMP
+    case 3:  /* platform spec */         break; // SAV
+    case 4:  /* platform spec */         break; // LD
+    case 5:  /* platform spec */         break; // DLY
+    case 6:  /* platform spec */         break; // LED
+    }
 }
 
 void ok() {
@@ -357,7 +382,7 @@ void ok() {
         putmsg("OVF\n");
         psp = (S16*)&(stk[STK_SZ]);
     }
-    else {                          // dump stack then prompt OK
+    else {                                // dump stack then prompt OK
         putchr('[');
         for (S16 *p=(S16*)&stk[STK_SZ]-1; p>=psp; p--) {
             putchr(' '); putnum(*p);
@@ -381,6 +406,9 @@ int main(void) {
         }
         else if (lookup(tkn, &tmp)) {          // search word dictionary addr(2), name(3)
         	execute(tmp + 2 + 3);
+        }
+        else if (find(tkn, LST_EXT, &tmp)) {   // search extended primitives
+        	extended((U8)tmp);
         }
         else if (find(tkn, LST_PRM, &tmp)) {   // search primitives
         	primitive((U8)tmp);
