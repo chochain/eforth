@@ -9,7 +9,7 @@
 //
 U16  stk[STK_SZ];
 U16  *rsp  = &stk[0];            // return stack pointer
-U16  *psp  = &stk[STK_SZ];       // parameter stack pointer
+S16  *psp  = (S16*)&stk[STK_SZ]; // parameter stack pointer
 //
 // allocate, initialize dictionary pointers
 //
@@ -318,35 +318,36 @@ void primitive(U8 op) {
     case 10: TOS &= POP();               break;	// AND
     case 11: TOS |= POP();               break;	// OR
     case 12: TOS ^= POP();               break; // XOR
-    case 13: TOS = POP()==TOS;           break; // =
-    case 14: TOS = POP()> TOS;           break; // <
-    case 15: TOS = POP()< TOS;           break; // >
-    case 16: TOS = POP()>=TOS;           break; // <=
-    case 17: TOS = POP()<=TOS;           break; // >=
-    case 18: TOS = POP()!=TOS;           break; // <>
+    case 13: { U8 *p = PTR(POP()); PUSH(GET16(p));  } break; // @
+    case 14: { U8 *p = PTR(POP()); SET16(p, POP()); } break; // !
+    case 15: { U8 *p = PTR(POP()); PUSH((U16)*p);   } break; // C@
+    case 16: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
+    case 17: putnum(POP()); putchr(' '); break; // .
+    case 18: PUSH(TOS1);                 break; // OVR
     case 19: TOS = (TOS==0);             break;	// NOT
-    case 20: { U8 *p = PTR(POP()); PUSH(GET16(p));  } break; // @
-    case 21: { U8 *p = PTR(POP()); SET16(p, POP()); } break; // !
-    case 22: { U8 *p = PTR(POP()); PUSH((U16)*p);   } break; // C@
-    case 23: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
-    case 24: putnum(POP()); putchr(' '); break; // .
-    case 25: PUSH(TOS1);                 break; // OVR
-    case 26: TOS *= -1;                  break; // NEG
-    case 27: {	                                // LOOP
+    case 20: TOS = POP()==TOS;           break; // =
+    case 21: TOS = POP()> TOS;           break; // <
+    case 22: TOS = POP()< TOS;           break; // >
+    case 23: TOS = POP()>=TOS;           break; // <=
+    case 24: TOS = POP()<=TOS;           break; // >=
+    case 25: TOS = POP()!=TOS;           break; // <>
+    case 26: {	                                // LOOP
         (*(rsp-2))++;               // counter+1
         PUSH(*(rsp-2) >= *(rsp-1)); // range check
         d_chr('\n');                // debug info
     } break;
-    case 28: RPOP(); RPOP();             break; // RD2
-    case 29: PUSH(*(rsp-2));             break; // I
-    case 30: RPUSH(POP()); RPUSH(POP()); break; // P2R2
+    case 27: RPOP(); RPOP();             break; // RD2
+    case 28: PUSH(*(rsp-2));             break; // I
+    case 29: RPUSH(POP()); RPUSH(POP()); break; // P2R2
+    case 30: /* used by I_LIT */         break;
+    case 31: /* used by I_RET */         break;
     }
 }
 
 void ok() {
-    if (psp > &(stk[STK_SZ])) {     // check stack overflow
+    if (psp > (S16*)&(stk[STK_SZ])) {     // check stack overflow
         putmsg("OVF\n");
-        psp = &(stk[STK_SZ]);
+        psp = (S16*)&(stk[STK_SZ]);
     }
     else {                          // dump stack then prompt OK
         putchr('[');

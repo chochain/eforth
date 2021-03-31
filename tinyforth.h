@@ -5,9 +5,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef uint8_t  U8;
-typedef uint16_t U16;
-typedef int16_t  S16;
+typedef uint8_t    U8;
+typedef uint16_t   U16;
+typedef int16_t    S16;
 
 #define BUF_SZ     10       /* 8 - 255    */
 #define STK_SZ     (64)     /* 8 - 65536  */
@@ -22,50 +22,58 @@ typedef int16_t  S16;
 //
 #define LST_RUN    "\x04" ":  " "VAR" "FGT" "BYE"
 #define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
-#define LST_PRM    "\x1b" \
+#define LST_PRM    "\x1a"                                       \
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
-	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
-	"@  " "!  " "C@ " "C! " ".  " "OVR" "NEG"
+	"AND" "OR " "XOR" "@  " "!  " "C@ " "C! " ".  " "OVR" "NOT" \
+    "=  " "<  " ">  " "<= " ">= " "<> "
 //
-// branch flags
+// ============================================================================================
+// Opcode formats
+//     primitive:  111c cccc                      (32 primitive)
+//     branching:  1BBa aaaa aaaa aaaa            (+- 12-bit address)
+//     1-byte lit: 0nnn nnnn                      (0..127)
+//     3-byte lit: 1111 1111 nnnn nnnn nnnn nnnn
+// ============================================================================================
 //
-#define JMP_BIT    0x1000
-#define PFX_UDJ    0x80
-#define PFX_CDJ    0xa0
-#define PFX_CALL   0xc0
-#define PFX_PRM    0xe0
+// branch flags (1BBx)
 //
-// alloc for 2 extra opcode, borrow 2 blocks (2*256 bytes) from offset field
-//
-#define I_LIT      0xff
-#define I_RET      0xfe
+#define JMP_BIT    0x1000          /* 0001 0000 0000 0000 12-bit offset */
+#define PFX_UDJ    0x80            /* 1000 0000 */
+#define PFX_CDJ    0xa0            /* 1010 0000 */
+#define PFX_CALL   0xc0            /* 1100 0000 */
+#define PFX_PRM    0xe0            /* 1110 0000 */
 //
 // opcodes for loop control
 //
-#define I_LOOP     (PFX_PRM | 27)
-#define I_RD2      (PFX_PRM | 28)
-#define I_I        (PFX_PRM | 29)
-#define I_P2R2     (PFX_PRM | 30)
+#define I_LOOP     (PFX_PRM | 26)  /* 1a 1111 1011 */
+#define I_RD2      (PFX_PRM | 27)  /* 1b 1111 1100 */
+#define I_I        (PFX_PRM | 28)  /* 1c 1111 1101 */
+#define I_P2R2     (PFX_PRM | 29)  /* 1d 1111 1110 */
+//
+// borrow 2 opcodes for LOOP control, i.e. also occupied last 2*256-byte branching offset field
+//
+#define I_RET      0xfe            /* 1e 11110 1110 */
+#define I_LIT      0xff            /* 1f 11111 1111 */
 //
 // dictionary address<=>pointer translation macros
 //
-#define PTR(n)     (dic + (n))
+#define PTR(n)     (dic + (U16)(n))
 #define IDX(p)     ((U16)((U8*)(p) - dic))
 //
 // Forth stack opcode macros
 //
-#define TOS         (*psp)
-#define TOS1        (*(psp+1))
-#define PUSH(v)     (*(--psp)=(U16)(v))
-#define POP()       ((S16)*(psp++))
-#define RPUSH(v)    (*(rsp++)=(U16)(v))
-#define RPOP()      (*(--rsp))
+#define TOS        (*psp)
+#define TOS1       (*(psp+1))
+#define PUSH(v)    (*(--psp)=(S16)(v))
+#define POP()      (*(psp++))
+#define RPUSH(v)   (*(rsp++)=(U16)(v))
+#define RPOP()     (*(--rsp))
 //
 // memory access opcodes
 //
-#define SET8(p, c)  (*((p)++)=(U8)(c))
-#define SET16(p, n) do { U16 x=(n); SET8(p, (x)>>8); SET8(p, (x)&0xff); } while(0)
-#define GET16(p)    (((U16)*((U8*)(p))<<8) + *((U8*)(p)+1))
+#define SET8(p, c) (*((p)++)=(U8)(c))
+#define SET16(p, n) do { U16 x=(U16)(n); SET8(p, (x)>>8); SET8(p, (x)&0xff); } while(0)
+#define GET16(p)   (((U16)*((U8*)(p))<<8) + *((U8*)(p)+1))
 #define SETNM(p, s) do {                   \
     SET8(p, (s)[0]);                       \
     SET8(p, (s)[1]);                       \
