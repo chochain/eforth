@@ -275,6 +275,10 @@ void execute(U16 adr) {
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
         else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
         else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
+        else if (ir==I_EXT) {                             // EXT
+            ir = *(pc++);                                 // fetch extended opcode
+            extended(ir);
+        }   // 3-byte literal
         else {
             U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
             a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_BIT; // JMP_BIT ensure 2's complement (for backward jump)
@@ -318,30 +322,34 @@ void primitive(U8 op) {
     case 10: TOS &= POP();               break;	// AND
     case 11: TOS |= POP();               break;	// OR
     case 12: TOS ^= POP();               break; // XOR
-    case 13: { U8 *p = PTR(POP()); PUSH(GET16(p));  } break; // @
-    case 14: { U8 *p = PTR(POP()); SET16(p, POP()); } break; // !
-    case 15: { U8 *p = PTR(POP()); PUSH((U16)*p);   } break; // C@
-    case 16: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
-    case 17: putnum(POP()); putchr(' '); break; // .
-    case 18: PUSH(TOS1);                 break; // OVR
+    case 13: TOS = POP()==TOS;           break; // =
+    case 14: TOS = POP()> TOS;           break; // <
+    case 15: TOS = POP()< TOS;           break; // >
+    case 16: TOS = POP()>=TOS;           break; // <=
+    case 17: TOS = POP()<=TOS;           break; // >=
+    case 18: TOS = POP()!=TOS;           break; // <>
     case 19: TOS = (TOS==0);             break;	// NOT
-    case 20: TOS = POP()==TOS;           break; // =
-    case 21: TOS = POP()> TOS;           break; // <
-    case 22: TOS = POP()< TOS;           break; // >
-    case 23: TOS = POP()>=TOS;           break; // <=
-    case 24: TOS = POP()<=TOS;           break; // >=
-    case 25: TOS = POP()!=TOS;           break; // <>
-    case 26: {	                                // LOOP
+    case 20: { U8 *p = PTR(POP()); PUSH(GET16(p));  } break; // @
+    case 21: { U8 *p = PTR(POP()); SET16(p, POP()); } break; // !
+    case 22: { U8 *p = PTR(POP()); PUSH((U16)*p);   } break; // C@
+    case 23: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
+    case 24: putnum(POP()); putchr(' '); break; // .
+    case 25: {	                                // LOOP
         (*(rsp-2))++;               // counter+1
         PUSH(*(rsp-2) >= *(rsp-1)); // range check
         d_chr('\n');                // debug info
     } break;
-    case 27: RPOP(); RPOP();             break; // RD2
-    case 28: PUSH(*(rsp-2));             break; // I
-    case 29: RPUSH(POP()); RPUSH(POP()); break; // P2R2
+    case 26: RPOP(); RPOP();             break; // RD2
+    case 27: PUSH(*(rsp-2));             break; // I
+    case 28: RPUSH(POP()); RPUSH(POP()); break; // P2R2
+    case 29: /* used by I_EXT */         break;
     case 30: /* used by I_LIT */         break;
     case 31: /* used by I_RET */         break;
     }
+}
+
+void extended(U8 op)
+{
 }
 
 void ok() {

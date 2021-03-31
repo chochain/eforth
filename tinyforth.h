@@ -22,10 +22,11 @@ typedef int16_t    S16;
 //
 #define LST_RUN    "\x04" ":  " "VAR" "FGT" "BYE"
 #define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
-#define LST_PRM    "\x1a"                                       \
+#define LST_PRM    "\x19"                                       \
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
-	"AND" "OR " "XOR" "@  " "!  " "C@ " "C! " ".  " "OVR" "NOT" \
-    "=  " "<  " ">  " "<= " ">= " "<> "
+	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
+    "@  " "!  " "C@ " "C! " ".  " 
+#define LST_EXT    "\x05" "OVR" "INV" "DMP" "SAV" "LD " "LED" "DLY"
 //
 // ============================================================================================
 // Opcode formats
@@ -45,15 +46,16 @@ typedef int16_t    S16;
 //
 // opcodes for loop control
 //
-#define I_LOOP     (PFX_PRM | 26)  /* 1a 1111 1011 */
-#define I_RD2      (PFX_PRM | 27)  /* 1b 1111 1100 */
-#define I_I        (PFX_PRM | 28)  /* 1c 1111 1101 */
-#define I_P2R2     (PFX_PRM | 29)  /* 1d 1111 1110 */
+#define I_LOOP     (PFX_PRM | 25)  /* 19 1111 1001 */
+#define I_RD2      (PFX_PRM | 26)  /* 1a 1111 1010 */
+#define I_I        (PFX_PRM | 27)  /* 1b 1111 1011 */
+#define I_P2R2     (PFX_PRM | 28)  /* 1c 1111 1100 */
 //
-// borrow 2 opcodes for LOOP control, i.e. also occupied last 2*256-byte branching offset field
+// borrow 3 opcodes, i.e. also occupied last 3*256-byte branching offset field
 //
-#define I_RET      0xfe            /* 1e 11110 1110 */
-#define I_LIT      0xff            /* 1f 11111 1111 */
+#define I_EXT      0xfd            /* 1d 1111 1101 */
+#define I_RET      0xfe            /* 1e 1111 1110 */
+#define I_LIT      0xff            /* 1f 1111 1111 */
 //
 // dictionary address<=>pointer translation macros
 //
@@ -112,7 +114,8 @@ void compile(void);
 void variable(void);
 void forget(void);
 U8   literal(U8 *str, U16 *num);
-void execute(U16 adrs);
-void primitive(U8 ic);
+void execute(U16 adr);
+void primitive(U8 op);
+void extended(U8 op);
 
 #endif // __GOOF_SRC_TINYFORTH_H
