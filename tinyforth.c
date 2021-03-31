@@ -26,7 +26,8 @@ void d_adr(U16 a)      { d_hex((U8)(a>>8)); d_hex((U8)(a&0xff)); d_chr(':'); }
 //
 //  put a 16-bit integer
 //
-void putnum(U16 n)     {
+void putnum(S16 n) {
+	if (n<0) { n=-n; putchr('-'); }
 	U16 t = n/10;
     if (t) putnum(t);
     putchr('0' + (n - t*10));
@@ -65,7 +66,7 @@ U8 *gettkn(void) {
                 putchr(' ');
                 putchr('\b');
             }
-            else if (c <= 0x1f)    {}
+            else if (c <= 0x1f) {}
             else if (p < BUF_SZ-1) { buf[p++] = c; }
             else {
                 putchr('\b');
@@ -330,14 +331,15 @@ void primitive(U8 op) {
     case 23: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
     case 24: putnum(POP()); putchr(' '); break; // .
     case 25: PUSH(TOS1);                 break; // OVR
-    case 26: {	                                // LOOP
+    case 26: TOS *= -1;                  break; // NEG
+    case 27: {	                                // LOOP
         (*(rsp-2))++;               // counter+1
         PUSH(*(rsp-2) >= *(rsp-1)); // range check
         d_chr('\n');                // debug info
     } break;
-    case 27: RPOP(); RPOP();             break; // RD2
-    case 28: PUSH(*(rsp-2));             break; // I
-    case 29: RPUSH(POP()); RPUSH(POP()); break; // P2R2
+    case 28: RPOP(); RPOP();             break; // RD2
+    case 29: PUSH(*(rsp-2));             break; // I
+    case 30: RPUSH(POP()); RPUSH(POP()); break; // P2R2
     }
 }
 
@@ -348,7 +350,7 @@ void ok() {
     }
     else {                          // dump stack then prompt OK
         putchr('[');
-        for (U16 *p=&stk[STK_SZ]-1; p>=psp; p--) {
+        for (S16 *p=(S16*)&stk[STK_SZ]-1; p>=psp; p--) {
             putchr(' '); putnum(*p);
         }
         putmsg(" ] OK ");

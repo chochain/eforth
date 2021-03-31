@@ -5,8 +5,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef uint16_t U16;
 typedef uint8_t  U8;
+typedef uint16_t U16;
+typedef int16_t  S16;
 
 #define BUF_SZ     10       /* 8 - 255    */
 #define STK_SZ     (64)     /* 8 - 65536  */
@@ -21,10 +22,10 @@ typedef uint8_t  U8;
 //
 #define LST_RUN    "\x04" ":  " "VAR" "FGT" "BYE"
 #define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
-#define LST_PRM    "\x1a" \
+#define LST_PRM    "\x1b" \
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
 	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
-	"@  " "!  " "C@ " "C! " ".  " "OVR"
+	"@  " "!  " "C@ " "C! " ".  " "OVR" "NEG"
 //
 // branch flags
 //
@@ -41,10 +42,10 @@ typedef uint8_t  U8;
 //
 // opcodes for loop control
 //
-#define I_LOOP     (PFX_PRM | 26)
-#define I_RD2      (PFX_PRM | 27)
-#define I_I        (PFX_PRM | 28)
-#define I_P2R2     (PFX_PRM | 29)
+#define I_LOOP     (PFX_PRM | 27)
+#define I_RD2      (PFX_PRM | 28)
+#define I_I        (PFX_PRM | 29)
+#define I_P2R2     (PFX_PRM | 30)
 //
 // dictionary address<=>pointer translation macros
 //
@@ -56,7 +57,7 @@ typedef uint8_t  U8;
 #define TOS         (*psp)
 #define TOS1        (*(psp+1))
 #define PUSH(v)     (*(--psp)=(U16)(v))
-#define POP()       (*(psp++))
+#define POP()       ((S16)*(psp++))
 #define RPUSH(v)    (*(rsp++)=(U16)(v))
 #define RPOP()      (*(--rsp))
 //
@@ -89,7 +90,7 @@ typedef uint8_t  U8;
 // IO functions
 //
 void putmsg(char *msg);
-void putnum(U16 n);
+void putnum(S16 n);
 U8   *gettkn(void);
 //
 // dictionary, string list scanners
