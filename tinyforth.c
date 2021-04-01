@@ -369,11 +369,10 @@ void extended(U8 op)
     switch (op) {
     case 0:  PUSH(TOS1);                 break; // OVR
     case 1:  TOS = -TOS;                 break; // INV
-    case 2:  _show_dic(POP(), POP());    break; // DMP
-    case 3:  /* platform spec */         break; // SAV
-    case 4:  /* platform spec */         break; // LD
-    case 5:  /* platform spec */         break; // DLY
-    case 6:  /* platform spec */         break; // LED
+    case 2:  /* platform spec */         break; // SAV
+    case 3:  /* platform spec */         break; // LD
+    case 4:  /* platform spec */         break; // DLY
+    case 5:  /* platform spec */         break; // LED
     }
 }
 
@@ -401,7 +400,9 @@ int main(void) {
             case 0:	compile();     break;      // : (COLON)
             case 1:	variable();    break;      // VAR
             case 2:	forget();      break;      // FGT
-            case 3: exit(0);                   // BYE
+			case 3:
+				_show_dic(POP(),POP()); break; // DMP
+            case 4: exit(0);                   // BYE
             }
         }
         else if (lookup(tkn, &tmp)) {          // search word dictionary addr(2), name(3)

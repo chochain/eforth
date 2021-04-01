@@ -20,13 +20,13 @@ typedef int16_t    S16;
 //
 // length + space delimited 3-char string
 //
-#define LST_RUN    "\x04" ":  " "VAR" "FGT" "BYE"
+#define LST_RUN    "\x05" ":  " "VAR" "FGT" "DMP" "BYE"
 #define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
 #define LST_PRM    "\x19"                                       \
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
 	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
     "@  " "!  " "C@ " "C! " ".  " 
-#define LST_EXT    "\x07" "OVR" "INV" "DMP" "SAV" "LD " "DLY" "LED"
+#define LST_EXT    "\x06" "OVR" "INV" "SAV" "LD " "DLY" "LED"
 //
 // ============================================================================================
 // Opcode formats
