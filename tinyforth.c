@@ -367,12 +367,13 @@ void _show_dic(U16 idx, U16 sz)
 void extended(U8 op)
 {
     switch (op) {
-    case 0:  PUSH(TOS1);                 break; // OVR
-    case 1:  TOS = -TOS;                 break; // INV
-    case 2:  /* platform spec */         break; // SAV
-    case 3:  /* platform spec */         break; // LD
-    case 4:  /* platform spec */         break; // DLY
-    case 5:  /* platform spec */         break; // LED
+    case 0:  PUSH(IDX(dptr));            break; // HRE
+    case 1:  PUSH(TOS1);                 break; // OVR
+    case 2:  TOS = -TOS;                 break; // INV
+    case 3:  /* platform spec */         break; // SAV
+    case 4:  /* platform spec */         break; // LD
+    case 5:  /* platform spec */         break; // DLY
+    case 6:  /* platform spec */         break; // LED
     }
 }
 
