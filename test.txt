@@ -16,6 +16,11 @@ I
 .
 LOP
 ;
+VAR
+x
+4
+CEL
+ALO
 :
 zz
 BGN
@@ -28,6 +33,7 @@ DUP
 RPT
 DRP
 ;
+WRD
 1
 xx
 0
@@ -38,6 +44,13 @@ yy
 5
 zz
 .
+x
+4
+CEL
++
+127
+SWP
+!
 0
 64
 DMP
