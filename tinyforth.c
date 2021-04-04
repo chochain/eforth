@@ -17,12 +17,16 @@ U8   dic[DIC_SZ];
 U8   *dptr = dic;                // dictionary pointer
 U8   *dmax = PTR(0xffff);        // end of dictionary
 //
-// debug instrumentation
+// tracing instrumentation
 //
+void d_chr(char c)     { putchr(c); }
+void d_nib(U8 n)       { d_chr((n) + ((n)>9 ? 'A'-10 : '0')); }
 void d_hex(U8 c)       { d_nib(c>>4); d_nib(c&0xf); }
-void d_adr(U16 a)      { d_hex((U8)(a>>8)); d_hex((U8)(a&0xff)); d_chr(':'); }
+void d_adr(U16 a)      { d_nib((U8)(a>>8)&0xff); d_hex((U8)(a&0xff)); d_chr(':'); }
 //
 // IO functions ============================================================================
+//
+void putmsg(char *msg) { while (*msg) putchr(*(msg++)); }
 //
 //  put a 16-bit integer
 //
@@ -32,49 +36,61 @@ void putnum(S16 n) {
     if (t) putnum(t);
     putchr('0' + (n - t*10));
 }
-void putmsg(char *msg) { while (*msg) putchr(*(msg++)); }
+//
+// Process a Literal
+//
+U8 getnum(U8 *str, U16 *num) {
+    U8  neg = 0;
+    S16 n   = 0;
+    if (*str=='$') {
+        for (str++; *str != ' '; str++) {
+            n *= 16;
+            n += *str - (*str<='9' ? '0' : 'A' - 10);
+        }
+        *num = n;
+        return 1;
+    }
+    if (*str=='-') { str++; neg=1; }
+    if ('0' <= *str && *str <= '9') {
+        U16 n = 0;
+        for (; *str != ' '; str++) {
+            n *= 10;
+            n += *str - '0';
+        }
+        *num = neg ? -n : n;
+        return 1;
+    }
+    return 0;
+}
 //
 //  Get a Token
 //
 U8 *gettkn(void) {
-    static U8 buf[BUF_SZ] = " ";	/*==" \0\0\0..." */
-	U8 p;
+    static U8 buf[BUF_SZ];
+    U8 *p = buf;
+    for (;;) {
+        U8 c = getchr();
+        if (c==' ' || c=='\r' || c=='\n') {  // split on space and RETURN
+            if (p > buf) break;              // skip empty token
+        }
+        else if (c=='\b' && p > buf) {       // backspace
+            *(--p) = ' ';
+            putchr(' ');
+            putchr('\b');
+        }
+        else if ((p - buf) >= (BUF_SZ-1)) {
+            putmsg("BUF\n");
+            break;
+        }
+        else *p++ = c;
+    }
+    *p = *(p+1) = ' ';                       // terminate input string
 
-    while (*buf != ' ') {     // remove leading non-delimiters
-        for (p=0; p<BUF_SZ-1; p++) buf[p] = buf[p+1];
-        buf[p] = '\0';
-    }
-    for (;;) {                // remove leading delimiters
-        while (*buf==' ') {
-            for (p=0; p<BUF_SZ-1; p++) buf[p] = buf[p+1];
-            buf[p] = '\0';
-        }
-        if (*buf) {           // debug output
-            for (int i=0; i<4; i++) d_chr(buf[i]<0x20 ? '_' : buf[i]);
-            return buf;
-        }
-        for (p=0;;) {
-            U8 c = getchr();
-            if (c=='\n') {
-                putchr('\n');
-                buf[p] = ' ';
-                break;
-            }
-            else if (c=='\b') {
-                if (p==0) continue;
-                buf[--p] = '\0';
-                putchr(' ');
-                putchr('\b');
-            }
-            else if (c <= 0x1f) {}
-            else if (p < BUF_SZ-1) { buf[p++] = c; }
-            else {
-                putchr('\b');
-                putchr(' ');
-                putchr('\b');
-            }
-        }
-    }
+    // debug info
+    d_chr('\n');
+    for (U8 i=0; i<4; i++) d_chr(buf[i]<0x20 ? '_' : buf[i]);
+     
+    return buf;
 }
 //
 // memory dumper with delimiter option
@@ -88,11 +104,29 @@ void dump(U8 *p0, U8 *p1, U8 d)
 		d_hex(*p0);
 	}
 }
-
+//
+// show  a section of dictionary memory
+//
+void showdic(U16 idx, U16 sz)            // idx: dictionary offset, sz: bytes
+{
+    U8 *p = PTR(idx & 0xfff0);           // 16-byte aligned
+    sz &= 0xfff0;                        // 16-byte aligned
+    putchr('\n');
+    for (U8 i=0; i<sz; i+=0x20) {
+        dump(p, p+0x20, ' ');
+        putchr(' ');
+        for (U8 j=0; j<0x20; j++, p++) {    // print and advance to next byte
+            U8 c = *p & 0x7f;
+            putchr((c==0x7f||c<0x20) ? '_' : c);
+        }
+        putchr('\n');
+    }
+}
 //
 // Lookup the Keyword from the Dictionary
 //
-U8 lookup(U8 *key, U16 *adr) {
+U8 lookup(U8 *key, U16 *adr)
+{
     for (U8 *p=dmax; p != PTR(0xffff); p=PTR(GET16(p))) {
         if (p[2]==key[0] && p[3]==key[1] && (p[3]==' ' || p[4]==key[2])) {
             *adr = IDX(p);
@@ -104,7 +138,8 @@ U8 lookup(U8 *key, U16 *adr) {
 //
 // Find the Keyword in a List
 //
-U8 find(U8 *key, char *lst, U16 *id) {
+U8 find(U8 *key, const char *lst, U16 *id)
+{
     for (U8 n=0, m=*(lst++); n < m; n++, lst += 3) {
         if (lst[0]==key[0] && lst[1]==key[1] && (key[1]==' ' || lst[2]==key[2])) {
             *id = (U16)n;
@@ -113,110 +148,64 @@ U8 find(U8 *key, char *lst, U16 *id) {
     }
     return 0;
 }
-//= Forth VM core ======================================================================
 //
-//  Compile Mode
+// token handler
 //
-void compile(void) {
-    U8  *tkn = gettkn();
-    U8  *p0  = dptr;
-    U16 tmp  = IDX(dmax);
+U8 parse_token(U8 *tkn, U16 *rst, U8 run)
+{
+    if (find(tkn, run ? LST_CMD : LST_JMP, rst)) return TKN_EXE;  // run, compile mode
+    if (lookup(tkn, rst))        return TKN_DIC; // search word dictionary addr(2), name(3)
+    if (find(tkn, LST_EXT, rst)) return TKN_EXT; // search extended words
+    if (find(tkn, LST_PRM, rst)) return TKN_PRM; // search primitives
+    if (getnum(tkn, rst))        return TKN_NUM; // parse as number literal
     
-    dmax = dptr;
-    SET16(dptr, tmp);         // link to previous word
-    SETNM(dptr, tkn);         // 3-byte name
-
-    for (;;) {
-        dump(p0, dptr, 0); putchr('\n');
-
-        tkn = gettkn();
-        p0  = dptr;
-        if (find(tkn, LST_COM, &tmp)) {
-            if (tmp==0) {	/* ; */
-                SET8(dptr, I_RET);
-                break;
-            }
-            switch (tmp) {
-            case 1:	/* IF */
-                RPUSH(IDX(dptr));               // save current dptr A1
-                JMP000(dptr, PFX_CDJ);          // alloc addr with jmp_flag
-                break;
-            case 2:	/* ELS */
-                JMPSET(RPOP(), dptr+2);         // update A1 with next addr
-                RPUSH(IDX(dptr));               // save current dptr A2
-                JMP000(dptr, PFX_UDJ);          // alloc space with jmp_flag
-                break;
-            case 3:	/* THN */
-                JMPSET(RPOP(), dptr);           // update A2 with current addr
-                break;
-            case 4:	/* BGN */
-                RPUSH(IDX(dptr));               // save current dptr A1
-                break;
-            case 5:	/* UTL */
-                JMPBCK(RPOP(), PFX_CDJ);        // conditional jump back to A1
-                break;
-            case 6:	/* WHL */
-                RPUSH(IDX(dptr));               // save WHILE addr A2
-				JMP000(dptr, PFX_CDJ);          // allocate branch addr A2 with jmp flag
-                break;// add found primitive opcode
-            case 7:	/* RPT */
-                JMPSET(RPOP(), dptr+2);         // update A2 with next addr
-                JMPBCK(RPOP(), PFX_UDJ);        // unconditional jump back to A1
-                break;
-            case 8:	/* DO */
-                RPUSH(IDX(dptr+1));             // save current addr A1
-                SET8(dptr, I_P2R2);
-                break;
-            case 9:	/* LOP */
-                SET8(dptr, I_LOOP);
-                JMPBCK(RPOP(), PFX_CDJ);        // conditionally jump back to A1
-                SET8(dptr, I_RD2);
-                break;
-            case 10: /* I */
-                SET8(dptr, I_I);
-                break;
-            }
-        }
-        else if (lookup(tkn, &tmp)) {           // scan dictionary
-        	JMPBCK(2+3, PFX_CALL);              // add found word addr, adr(2), name(3)
-        }
-        else if (find(tkn, LST_EXT, &tmp)) {    // extended opcodes
-            SET8(dptr, I_EXT);
-            SET8(dptr, (U8)tmp);                // supports extra 256 opcodes
-        }
-        else if (find(tkn, LST_PRM, &tmp)) {    // scan primitives
-        	SET8(dptr, PFX_PRM | (U8)tmp);      // add found primitive opcode
-        }
-        else if (literal(tkn, &tmp)) {
-            if (tmp < 128) {
-                SET8(dptr, (U8)tmp);            // 1-byte literal
-            }
-			else {
-                SET8(dptr, I_LIT);              // 3-byte literal
-                SET16(dptr, tmp);
-            }
-        }
-        else putmsg("!\n");                     // error
-    }
-    // debug memory dump
-    dump(dmax, dptr, ' '); putchr('\n');
+    return TKN_ERR;
 }
+//  Forth Compiler =====================================================================
 //
-//  Forget Words in the Dictionary
-//
-void forget(void) {
-    U16 tmp;
-    if (!lookup(gettkn(), &tmp)) {
-        putmsg("??");
-        return;
+void _do_branch(U8 op)
+{
+    switch (op) {
+    case 1:	/* IF */
+        RPUSH(IDX(dptr));               // save current dptr A1
+        JMP000(dptr, PFX_CDJ);          // alloc addr with jmp_flag
+        break;
+    case 2:	/* ELS */
+        JMPSET(RPOP(), dptr+2);         // update A1 with next addr
+        RPUSH(IDX(dptr));               // save current dptr A2
+        JMP000(dptr, PFX_UDJ);          // alloc space with jmp_flag
+        break;
+    case 3:	/* THN */
+        JMPSET(RPOP(), dptr);           // update A2 with current addr
+        break;
+    case 4:	/* BGN */
+        RPUSH(IDX(dptr));               // save current dptr A1
+        break;
+    case 5:	/* UTL */
+        JMPBCK(RPOP(), PFX_CDJ);        // conditional jump back to A1
+        break;
+    case 6:	/* WHL */
+        RPUSH(IDX(dptr));               // save WHILE addr A2
+        JMP000(dptr, PFX_CDJ);          // allocate branch addr A2 with jmp flag
+        break;// add found primitive opcode
+    case 7:	/* RPT */
+        JMPSET(RPOP(), dptr+2);         // update A2 with next addr
+        JMPBCK(RPOP(), PFX_UDJ);        // unconditional jump back to A1
+        break;
+    case 8:	/* DO */
+        RPUSH(IDX(dptr+1));             // save current addr A1
+        SET8(dptr, I_P2R2);
+        break;
+    case 9:	/* LOP */
+        SET8(dptr, I_LOOP);
+        JMPBCK(RPOP(), PFX_CDJ);        // conditionally jump back to A1
+        SET8(dptr, I_RD2);
+        break;
+    case 10: /* I */
+        SET8(dptr, I_I);
+        break;
     }
-    //
-    // word found, rollback dptr
-    //
-    U8 *p = PTR(tmp);       // address of word
-    dmax  = PTR(GET16(p));  
-    dptr  = p;
-}
+}    
 //
 //  VARIABLE instruction
 //
@@ -241,64 +230,73 @@ void variable(void) {
     SET16(dptr, 0);	           // actual storage area
 }
 //
-// Process a Literal
+// create word on dictionary
 //
-U8 literal(U8 *str, U16 *num) {
-    if (*str=='$') {
-        U16 n = 0;
-        for (str++; *str != ' '; str++) {
-            n *= 16;
-            n += *str - (*str<='9' ? '0' : 'A' - 10);
-        }
-        *num = n;
-        return 1;
-    }
-    if ('0' <= *str && *str <= '9') {
-        U16 n = 0;
-        for (; *str != ' '; str++) {
-            n *= 10;
-            n += *str - '0';
-        }
-        *num = n;
-        return 1;
-    }
-    return 0;
-}
-//
-//  Virtual Code Execution
-//
-void execute(U16 adr) {
-    RPUSH(0xffff);
+void compile(void)
+{
+    U8  *tkn = gettkn();
+    U8  *p0  = dptr;
+    U16 tmp  = IDX(dmax);
+    
+    dmax = dptr;
+    SET16(dptr, tmp);         // link to previous word
+    SETNM(dptr, tkn);         // 3-byte name
 
-    for (U8 *pc=PTR(adr); pc != PTR(0xffff); ) {
-        U16 a  = IDX(pc);                                 // current program counter
-        U8  ir = *(pc++);                                 // fetch instruction
-        d_adr(a); d_hex(ir); d_chr(' ');                  // debug info
+    for (; tkn;) {
+        dump(p0, dptr, 0);
 
-        if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
-        else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
-        else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
-        else if (ir==I_EXT) { extended(*pc++);        }   // EXT extended opcodes
-        else {
-            U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
-            a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_BIT; // JMP_BIT ensure 2's complement (for backward jump)
-            switch (ir & 0xe0) {
-            case PFX_UDJ:                                 // 0x80 unconditional jump
-                pc = PTR(a);                              // set jump target
-                d_chr('\n');                              // debug info
-                break;
-            case PFX_CDJ:                                 // 0xa0 conditional jump
-                pc = POP() ? pc+1 : PTR(a);               // next or target
-                break;
-            case PFX_CALL:                                // 0xd0 word call
-                RPUSH(IDX(pc+1));                         // keep next as return address
-                pc = PTR(a);
-                break;
-            case PFX_PRM:                                 // 0xe0 primitive
-                primitive(op);                            // call primitve function with opcode
+        tkn = gettkn();
+        p0  = dptr;
+        switch(parse_token(tkn, &tmp, 0)) {
+        case TKN_EXE:
+            if (tmp==0) {	/* ; */
+                SET8(dptr, I_RET);
+                tkn = NULL;
             }
+            else _do_branch(tmp);
+            break;
+        case TKN_DIC:
+        	JMPBCK(2+3, PFX_CALL);              // add found word addr, adr(2), name(3)
+            break;
+        case TKN_EXT:
+            SET8(dptr, I_EXT);                  // extended opcodes
+            SET8(dptr, (U8)tmp);                // supports extra 256 opcodes
+            break;
+        case TKN_PRM:
+        	SET8(dptr, PFX_PRM | (U8)tmp);      // add found primitive opcode
+            break;
+        case TKN_NUM:
+            if (tmp < 128) {
+                SET8(dptr, (U8)tmp);            // 1-byte literal
+            }
+			else {
+                SET8(dptr, I_LIT);              // 3-byte literal
+                SET16(dptr, tmp);
+            }
+            break;
+        default: putmsg("!\n");                 // error
         }
     }
+    // debug memory dump
+    dump(dmax, dptr, ' ');
+}
+//= Forth VM core ======================================================================
+//
+//
+//  Forget Words in the Dictionary
+//
+void forget(void) {
+    U16 tmp;
+    if (!lookup(gettkn(), &tmp)) {
+        putmsg("??");
+        return;
+    }
+    //
+    // word found, rollback dptr
+    //
+    U8 *p = PTR(tmp);       // address of word
+    dmax  = PTR(GET16(p));  
+    dptr  = p;
 }
 //
 //  Execute a Primitive Instruction
@@ -342,41 +340,14 @@ void primitive(U8 op) {
     case 26: RPOP(); RPOP();             break; // RD2
     case 27: PUSH(*(rsp-2));             break; // I
     case 28: RPUSH(POP()); RPUSH(POP()); break; // P2R2
-    case 29: /* used by I_EXT */         break;
+    case 29: /* used by I_RET */         break;
     case 30: /* used by I_LIT */         break;
-    case 31: /* used by I_RET */         break;
+    case 31: /* used by I_EXT */         break;
     }
 }
-
-void _show_dic(U16 idx, U16 sz)
-{
-    U8 *p = PTR(idx & 0xfff0);           // 16-byte aligned
-    sz &= 0xfff0;                        // 16-byte aligned
-    putchr('\n');
-    for (int i=0; i<sz; i+=0x20) {
-        dump(p, p+0x20, ' ');
-        putchr(' ');
-        for (int j=0; j<0x20; j++, p++) {    // print and advance to next byte
-            U8 c = *p & 0x7f;
-            putchr((c==0x7f||c<0x20) ? '_' : c);
-        }
-        putchr('\n');
-    }
-}
-
-void extended(U8 op)
-{
-    switch (op) {
-    case 0:  PUSH(IDX(dptr));            break; // HRE
-    case 1:  PUSH(TOS1);                 break; // OVR
-    case 2:  TOS = -TOS;                 break; // INV
-    case 3:  /* platform spec */         break; // SAV
-    case 4:  /* platform spec */         break; // LD
-    case 5:  /* platform spec */         break; // DLY
-    case 6:  /* platform spec */         break; // LED
-    }
-}
-
+//
+// show stack elements and OK prompt
+//
 void ok() {
     if (psp > (S16*)&(stk[STK_SZ])) {     // check stack overflow
         putmsg("OVF\n");
@@ -390,38 +361,100 @@ void ok() {
         putmsg(" ] OK ");
     }
 }
+//
+//  Virtual Code Execution
+//
+void execute(U16 adr) {
+    RPUSH(0xffff);
+    for (U8 *pc=PTR(adr); pc != PTR(0xffff); ) {
+        U16 a  = IDX(pc);                                 // current program counter
+        U8  ir = *(pc++);                                 // fetch instruction
+        
+        d_adr(a); d_hex(ir); d_chr(' ');                  // debug info
 
-int main(void) {
+        if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
+        else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
+        else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
+        else if (ir==I_EXT) { extended(*pc++);        }   // EXT extended opcodes
+        else {
+            U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
+            a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_BIT; // JMP_BIT ensure 2's complement (for backward jump)
+            switch (ir & 0xe0) {
+            case PFX_UDJ:                                 // 0x80 unconditional jump
+                pc = PTR(a);                              // set jump target
+                d_chr('\n');                              // debug info
+                break;
+            case PFX_CDJ:                                 // 0xa0 conditional jump
+                pc = POP() ? pc+1 : PTR(a);               // next or target
+                break;
+            case PFX_CALL:                                // 0xd0 word call
+                RPUSH(IDX(pc+1));                         // keep next as return address
+                pc = PTR(a);
+                break;
+            case PFX_PRM:                                 // 0xe0 primitive
+                primitive(op);                            // call primitve function with opcode
+                break;
+            }
+        }
+    }
+}
+//
+// extended primitive words
+//
+void words()
+{
+    U8 n = 0;
+    for (U8 *p=dmax; p!=PTR(0xffff); p=PTR(GET16(p)), n++) {
+        if (n%8==0) d_chr('\n');
+#if EXE_TRACE
+        d_adr(IDX(p));                                        // optionally show address
+#endif 
+        d_chr(p[2]); d_chr(p[3]); d_chr(p[4]); d_chr(' ');    // 3-char name + space
+    }
+}
+
+void save() {}
+void load() {}
+
+void extended(U8 op)
+{
+    switch (op) {
+    case 0:  PUSH(IDX(dptr));              break; // HRE
+    case 1:  PUSH(IDX(dmax));              break; // CP
+    case 2:  PUSH(TOS1);                   break; // OVR
+    case 3:  TOS = -TOS;                   break; // INV
+    case 4:  PUSH(POP()*sizeof(U16));      break; // CEL
+    case 5:  dptr += POP();                break; // ALO
+    case 6:  words();                      break; // WRD
+    case 7:  save();                       break; // SAV
+    case 8:  load();                       break; // LD
+    }
+}
+
+int main(int argc, char **argv) {
     putmsg("Tiny FORTH\n");
     for (;;) {
         U8 *tkn = gettkn();                    // get token from console
         U16 tmp;
-        if (find(tkn, LST_RUN, &tmp)) {        // run mode
+        switch (parse_token(tkn, &tmp, 1)) {
+        case TKN_EXE:
             switch (tmp) {
-            case 0:	compile();     break;      // : (COLON)
-            case 1:	variable();    break;      // VAR
-            case 2:	forget();      break;      // FGT
-			case 3:
-				_show_dic(POP(),POP()); break; // DMP
-            case 4: exit(0);                   // BYE
+            case 0:	compile();              break; // : (COLON)
+            case 1:	variable();             break; // VAR
+            case 2:	forget();               break; // FGT
+			case 3: showdic(POP(), POP());  break; // DMP
+            case 4: exit(0);                       // BYE
             }
-        }
-        else if (lookup(tkn, &tmp)) {          // search word dictionary addr(2), name(3)
-        	execute(tmp + 2 + 3);
-        }
-        else if (find(tkn, LST_EXT, &tmp)) {   // search extended primitives
-        	extended((U8)tmp);
-        }
-        else if (find(tkn, LST_PRM, &tmp)) {   // search primitives
-        	primitive((U8)tmp);
-        }
-        else if (literal(tkn, &tmp)) {         // handle numbers
-        	PUSH(tmp);
-        }
-        else {                                                         // error
+            break;
+        case TKN_DIC: execute(tmp + 2 + 3); break;
+        case TKN_EXT: extended((U8)tmp);    break;
+        case TKN_PRM: primitive((U8)tmp);   break;
+        case TKN_NUM: PUSH(tmp);            break;
+        default:
             putmsg("?\n");
             continue;
         }
         ok();  // stack check and prompt OK
     }
+    return 0;
 }

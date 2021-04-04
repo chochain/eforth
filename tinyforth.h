@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#define EXE_TRACE  1
+
 typedef uint8_t    U8;
 typedef uint16_t   U16;
 typedef int16_t    S16;
@@ -15,18 +17,27 @@ typedef int16_t    S16;
 
 #define getchr()   getchar()
 #define putchr(c)  putchar(c)
-#define d_chr(c)   putchar(c)
-#define d_nib(n)   d_chr((n) + ((n)>9 ? 'A'-10 : '0'))
 //
 // length + space delimited 3-char string
 //
-#define LST_RUN    "\x05" ":  " "VAR" "FGT" "DMP" "BYE"
-#define LST_COM    "\x0b" ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
-#define LST_PRM    "\x19"                                       \
+enum {
+    TKN_EXE = 1,
+    TKN_DIC,
+    TKN_EXT,
+    TKN_PRM,
+    TKN_NUM,
+    TKN_ERR
+};
+#define LST_CMD    "\x05" \
+    ":  " "VAR" "FGT" "DMP" "BYE"
+#define LST_JMP    "\x0b" \
+    ";  " "IF " "ELS" "THN" "BGN" "UTL" "WHL" "RPT" "DO " "LOP" "I  "
+#define LST_PRM    "\x19" \
 	"DRP" "DUP" "SWP" ">R " "R> " "+  " "-  " "*  " "/  " "MOD" \
 	"AND" "OR " "XOR" "=  " "<  " ">  " "<= " ">= " "<> " "NOT" \
     "@  " "!  " "C@ " "C! " ".  " 
-#define LST_EXT    "\x07" "HRE" "OVR" "INV" "SAV" "LD " "DLY" "LED"
+#define LST_EXT    "\x09" \
+    "HRE" "CP " "OVR" "INV" "CEL" "ALO" "WRD" "SAV" "LD "
 //
 // ============================================================================================
 // Opcode formats
@@ -44,18 +55,15 @@ typedef int16_t    S16;
 #define PFX_CALL   0xc0            /* 1100 0000 */
 #define PFX_PRM    0xe0            /* 1110 0000 */
 //
-// opcodes for loop control
+// opcodes for loop control, literal, and extensions
 //
 #define I_LOOP     (PFX_PRM | 25)  /* 19 1111 1001 */
 #define I_RD2      (PFX_PRM | 26)  /* 1a 1111 1010 */
 #define I_I        (PFX_PRM | 27)  /* 1b 1111 1011 */
 #define I_P2R2     (PFX_PRM | 28)  /* 1c 1111 1100 */
-//
-// borrow 3 opcodes, i.e. also occupied last 3*256-byte branching offset field
-//
-#define I_EXT      0xfd            /* 1d 1111 1101 */
-#define I_RET      0xfe            /* 1e 1111 1110 */
-#define I_LIT      0xff            /* 1f 1111 1111 */
+#define I_RET      (PFX_PRM | 29)  /* 1d 1111 1101 */
+#define I_LIT      (PFX_PRM | 30)  /* 1e 1111 1110 */
+#define I_EXT      (PFX_PRM | 31)  /* 1f 1111 1111 */
 //
 // dictionary address<=>pointer translation macros
 //
@@ -73,9 +81,9 @@ typedef int16_t    S16;
 //
 // memory access opcodes
 //
-#define SET8(p, c) (*((p)++)=(U8)(c))
+#define SET8(p, c)  (*(U8*)(p)++=(U8)(c))
 #define SET16(p, n) do { U16 x=(U16)(n); SET8(p, (x)>>8); SET8(p, (x)&0xff); } while(0)
-#define GET16(p)   (((U16)*((U8*)(p))<<8) + *((U8*)(p)+1))
+#define GET16(p)    (((U16)*((U8*)(p))<<8) + *((U8*)(p)+1))
 #define SETNM(p, s) do {                   \
     SET8(p, (s)[0]);                       \
     SET8(p, (s)[1]);                       \
@@ -101,21 +109,24 @@ typedef int16_t    S16;
 //
 void putmsg(char *msg);
 void putnum(S16 n);
+U8   getnum(U8 *str, U16 *num);
 U8   *gettkn(void);
 //
 // dictionary, string list scanners
 //
 U8 lookup(U8 *key, U16 *adr);
-U8 find(U8 *key, char *lst, U16 *id);
+U8 find(U8 *key, const char *lst, U16 *id);
+//
+// For compiler functions
+//
+void variable(void);
+void compile(void);
 //
 // Forth VM core functions
 //
-void compile(void);
-void variable(void);
 void forget(void);
-U8   literal(U8 *str, U16 *num);
-void execute(U16 adr);
 void primitive(U8 op);
+void execute(U16 adr);
 void extended(U8 op);
 
 #endif // __GOOF_SRC_TINYFORTH_H
