@@ -340,10 +340,10 @@ void primitive(U8 op) {
     case 26: RPOP(); RPOP();             break; // RD2
     case 27: PUSH(*(rsp-2));             break; // I
     case 28: RPUSH(POP()); RPUSH(POP()); break; // P2R2
-    // Note: the following 3 opcode changes pc
-    case 29: pc = PTR(RPOP());           break; // RET
-    case 30: PUSH(GET16(pc)); pc+=2;     break; // LIT, i.e. 3-byte literal
-    case 31: extended(*pc++);            break; // EXT
+    // the following 3 opcodes changes pc, so are done at one level up
+    case 29: /* used by I_RET */         break;
+    case 30: /* used by I_LIT */         break;
+    case 31: /* used by I_EXT */         break;
     }
 }
 //
@@ -373,7 +373,10 @@ void execute(U16 adr) {
         
         d_adr(a); d_hex(ir); d_chr(' ');                  // debug info
 
-        if ((ir & 0x80)==0) { PUSH(ir); }                 // 1-byte literal
+        if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
+        else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
+        else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
+        else if (ir==I_EXT) { extended(*pc++);        }   // EXT extended opcodes
         else {
             U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
             a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_BIT; // JMP_BIT ensure 2's complement (for backward jump)
