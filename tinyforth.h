@@ -11,7 +11,7 @@ typedef uint8_t    U8;
 typedef uint16_t   U16;
 typedef int16_t    S16;
 
-#define BUF_SZ     10       /* 8 - 255    */
+#define BUF_SZ     80       /* 8 - 255    */
 #define STK_SZ     (64)     /* 8 - 65536  */
 #define DIC_SZ     (512)    /* 8 - 8*1024 */
 

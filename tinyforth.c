@@ -63,15 +63,19 @@ U8 getnum(U8 *str, U16 *num) {
     return 0;
 }
 //
-//  Get a Token
 //
-U8 *gettkn(void) {
-    static U8 buf[BUF_SZ];
+//
+void _console_input(U8 *buf)
+{
     U8 *p = buf;
     for (;;) {
         U8 c = getchr();
-        if (c==' ' || c=='\r' || c=='\n') {  // split on space and RETURN
-            if (p > buf) break;              // skip empty token
+        if (c=='\r' || c=='\n') {            // split on RETURN
+            if (p > buf) {
+                *p     = ' ';                // terminate input string
+                *(p+1) = '\n';
+                break;                       // skip empty token
+            }
         }
         else if (c=='\b' && p > buf) {       // backspace
             *(--p) = ' ';
@@ -80,17 +84,33 @@ U8 *gettkn(void) {
         }
         else if ((p - buf) >= (BUF_SZ-1)) {
             putmsg("BUF\n");
+            *p = '\n';
             break;
         }
         else *p++ = c;
     }
-    *p = *(p+1) = ' ';                       // terminate input string
+}    
+//
+//  Get a Token
+//
+U8 *gettkn(void)
+{
+    static U8 buf[BUF_SZ], *bptr = buf;
+
+    if (bptr==buf) _console_input(buf);    // buffer empty, read from console
+
+    U8 *p0 = bptr;
+    U8 sz  = 0;
+    while (*bptr++!=' ') sz++;             // advance to next word
+
+    if (*bptr=='\r' || *bptr=='\n') bptr = buf;
 
     // debug info
     d_chr('\n');
-    for (U8 i=0; i<4; i++) d_chr(buf[i]<0x20 ? '_' : buf[i]);
-     
-    return buf;
+    for (U8 i=0; i<4; i++) {
+    	d_chr(i<sz ? (*(p0+i)<0x20 ? '_' : *(p0+i)) : ' ');
+    }
+    return p0;
 }
 //
 // memory dumper with delimiter option
