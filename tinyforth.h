@@ -12,7 +12,7 @@ typedef uint8_t    U8;
 typedef uint16_t   U16;
 typedef int16_t    S16;
 
-#define BUF_SZ     80       /* 8 - 255    */
+#define TIB_SZ     80       /* 8 - 255    */
 #define STK_SZ     (64)     /* 8 - 65536  */
 #define DIC_SZ     (512)    /* 8 - 8*1024 */
 
@@ -21,6 +21,7 @@ typedef int16_t    S16;
 
 typedef struct task {
     struct task *next;
+    U8          *pc;             // program counter
     S16         *sp;             // parameter stack pointer
     U16         *rp;             // return stack pointer
     U16         stk[STK_SZ];

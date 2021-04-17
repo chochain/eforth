@@ -1,8 +1,10 @@
 /*
-  Tiny FORTH
-  T. NAKAGAWA
-  2004/07/04-10,7/29,8/5-6
-*/
+ * Tiny FORTH
+ * 2004-07 T. NAKAGAWA: original
+ * 2004-08 T. NAKAGAWA: update
+ * 2021-03 CC Lee: rewrite with comments; support Arduino Nano; add buffer handler
+ * 2021-04 CC Lee: add multi-tasking
+ */
 #include "tinyforth.h"
 //
 // allocate, initialize dictionary pointers
@@ -37,7 +39,7 @@ void putnum(S16 n) {
 U8 getnum(U8 *str, U16 *num) {
     U8  neg = 0;
     S16 n   = 0;
-    if (*str=='$') {
+    if (*str=='$') {                          // handle Hex
         for (str++; *str != ' '; str++) {
             n *= 16;
             n += *str - (*str<='9' ? '0' : 'A' - 10);
@@ -45,8 +47,8 @@ U8 getnum(U8 *str, U16 *num) {
         *num = n;
         return 1;
     }
-    if (*str=='-') { str++; neg=1; }
-    if ('0' <= *str && *str <= '9') {
+    if (*str=='-') { str++; neg=1; }          // negative number
+    if ('0' <= *str && *str <= '9') {         // handle Decimal
         U16 n = 0;
         for (; *str != ' '; str++) {
             n *= 10;
@@ -58,27 +60,27 @@ U8 getnum(U8 *str, U16 *num) {
     return 0;
 }
 //
+// take input string from console (max TIB_SZ bytes)
 //
-//
-void _console_input(U8 *buf)
+void _console_input(U8 *tib)
 {
-    U8 *p = buf;
+    U8 *p = tib;
     for (;;) {
         U8 c = getchr();
         if (c=='\r' || c=='\n') {            // split on RETURN
-            if (p > buf) {
+            if (p > tib) {
                 *p     = ' ';                // terminate input string
                 *(p+1) = '\n';
                 break;                       // skip empty token
             }
         }
-        else if (c=='\b' && p > buf) {       // backspace
+        else if (c=='\b' && p > tib) {       // backspace
             *(--p) = ' ';
             putchr(' ');
             putchr('\b');
         }
-        else if ((p - buf) >= (BUF_SZ-1)) {  // prevent buffer overrun
-            putmsg("BUF\n");
+        else if ((p - tib) >= (TIB_SZ-1)) {  // prevent buffer overrun
+            putmsg("TIB\n");
             *p = '\n';
             break;
         }
@@ -86,20 +88,20 @@ void _console_input(U8 *buf)
     }
 }    
 //
-//  Get a Token
+//  Get a Token from input buffer
 //
 U8 *gettkn(void)
 {
-    static U8 buf[BUF_SZ], *bptr = buf;
+    static U8 tib[TIB_SZ], *bptr = tib;
 
-    if (bptr==buf) _console_input(buf);    // buffer empty, read from console
+    if (bptr==tib) _console_input(tib);    // buffer empty, read from console
 
     U8 *p0 = bptr;
     U8 sz  = 0;
     while (*bptr++!=' ') sz++;             // advance to next word
     while (*bptr==' ')   bptr++;           // skip blanks
 
-    if (*bptr=='\r' || *bptr=='\n') bptr = buf;
+    if (*bptr=='\r' || *bptr=='\n') bptr = tib;
 
 #if ASM_TRACE
     // debug info
@@ -382,36 +384,37 @@ void ok() {
     }
 }
 //
-//  Virtual Code Execution
+//  Virtual Code Execution (atomic)
 //
 void execute(U16 adr) {
     RPUSH(0xffff);
-    for (U8 *pc=PTR(adr); pc != PTR(0xffff); ) {
-        U16 a  = IDX(pc);                                 // current program counter
-        U8  ir = *(pc++);                                 // fetch instruction
+    for (tp->pc=PTR(adr); tp->pc!=PTR(0xffff); ) {
+        U16 a  = IDX(tp->pc);                             // current execution address
+        U8  ir = *(tp->pc++);                             // fetch instruction
 
 #if EXE_TRACE
-        d_adr(a); d_hex(ir); d_chr(' ');                  // debug info
+        d_adr(a); d_hex(ir); d_chr(' ');                  // trace addr:opcode
 #endif // EXE_TRACE
         
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
-        else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
-        else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
-        else if (ir==I_EXT) { extended(*pc++);        }   // EXT extended opcodes
+        else if (ir==I_LIT) { PUSH(GET16(tp->pc)); tp->pc+=2; }   // 3-byte literal
+        else if (ir==I_RET) { tp->pc = PTR(RPOP());   }   // RET
+        else if (ir==I_EXT) { extended(*tp->pc++);    }   // EXT extended opcodes
         else {
             U8 op = ir & 0x1f;                            // opcode or top 5-bit of offset
-            a = IDX(pc-1) + ((U16)op<<8) + *pc - JMP_BIT; // JMP_BIT ensure 2's complement (for backward jump)
+            a = IDX(tp->pc-1) +
+                ((U16)op<<8) + *tp->pc - JMP_BIT;         // JMP_BIT ensure 2's complement (for backward jump)
             switch (ir & 0xe0) {
             case PFX_UDJ:                                 // 0x80 unconditional jump
-                pc = PTR(a);                              // set jump target
+                tp->pc = PTR(a);                          // set jump target
                 d_chr('\n');                              // debug info
                 break;
             case PFX_CDJ:                                 // 0xa0 conditional jump
-                pc = POP() ? pc+1 : PTR(a);               // next or target
+                tp->pc = POP() ? tp->pc+1 : PTR(a);       // next or target
                 break;
             case PFX_CALL:                                // 0xd0 word call
-                RPUSH(IDX(pc+1));                         // keep next as return address
-                pc = PTR(a);
+                RPUSH(IDX(tp->pc+1));                     // keep next as return address
+                tp->pc = PTR(a);
                 break;
             case PFX_PRM:                                 // 0xe0 primitive
                 primitive(op);                            // call primitve function with opcode
