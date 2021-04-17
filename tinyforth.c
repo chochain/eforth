@@ -279,7 +279,7 @@ void compile(void)
             else _do_branch(tmp);
             break;
         case TKN_DIC:
-        	JMPBCK(2+3, PFX_CALL);              // add found word addr, adr(2), name(3)
+        	JMPBCK(tmp+2+3, PFX_CALL);          // add found word addr + adr(2) + name(3)
             break;
         case TKN_EXT:
             SET8(dptr, I_EXT);                  // extended opcodes
