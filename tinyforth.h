@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#define EXE_TRACE  1
+#define ASM_TRACE  1
+#define EXE_TRACE  0
 
 typedef uint8_t    U8;
 typedef uint16_t   U16;

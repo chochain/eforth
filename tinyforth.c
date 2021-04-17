@@ -82,7 +82,7 @@ void _console_input(U8 *buf)
             putchr(' ');
             putchr('\b');
         }
-        else if ((p - buf) >= (BUF_SZ-1)) {
+        else if ((p - buf) >= (BUF_SZ-1)) {  // prevent buffer overrun
             putmsg("BUF\n");
             *p = '\n';
             break;
@@ -106,13 +106,13 @@ U8 *gettkn(void)
 
     if (*bptr=='\r' || *bptr=='\n') bptr = buf;
 
-#if EXE_TRACE
+#if ASM_TRACE
     // debug info
     d_chr('\n');
     for (U8 i=0; i<4; i++) {
     	d_chr(i<sz ? (*(p0+i)<0x20 ? '_' : *(p0+i)) : ' ');
     }
-#endif // EXE_TRACE
+#endif // ASM_TRACE
     return p0;
 }
 //
@@ -393,9 +393,11 @@ void execute(U16 adr) {
     for (U8 *pc=PTR(adr); pc != PTR(0xffff); ) {
         U16 a  = IDX(pc);                                 // current program counter
         U8  ir = *(pc++);                                 // fetch instruction
-        
-        d_adr(a); d_hex(ir); d_chr(' ');                  // debug info
 
+#if EXE_TRACE
+        d_adr(a); d_hex(ir); d_chr(' ');                  // debug info
+#endif // EXE_TRACE
+        
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
         else if (ir==I_LIT) { PUSH(GET16(pc)); pc+=2; }   // 3-byte literal
         else if (ir==I_RET) { pc = PTR(RPOP());       }   // RET
@@ -430,9 +432,9 @@ void words()
     U8 n = 0;
     for (U8 *p=dmax; p!=PTR(0xffff); p=PTR(GET16(p)), n++) {
         if (n%8==0) d_chr('\n');
-#if EXE_TRACE
+#if ASM_TRACE
         d_adr(IDX(p));                                        // optionally show address
-#endif 
+#endif // ASM_TRACE
         d_chr(p[2]); d_chr(p[3]); d_chr(p[4]); d_chr(' ');    // 3-char name + space
     }
 }
