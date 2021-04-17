@@ -1,0 +1,13 @@
+48
+: xx IF 9 ELS 8 THN ;
+: yy DO I . LOP ;
+VAR x 4 CEL ALO
+: zz BGN DUP WHL DUP . 1 - RPT DRP ;
+WRD
+1 xx .
+0 xx .
+5 1 yy
+5 zz
+x 4 CEL + 127 SWP !
+0 64 DMP
+BYE

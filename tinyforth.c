@@ -432,9 +432,9 @@ void words()
     U8 n = 0;
     for (U8 *p=dmax; p!=PTR(0xffff); p=PTR(GET16(p)), n++) {
         if (n%8==0) d_chr('\n');
-#if ASM_TRACE
+#if EXE_TRACE
         d_adr(IDX(p));                                        // optionally show address
-#endif // ASM_TRACE
+#endif // EXE_TRACE
         d_chr(p[2]); d_chr(p[3]); d_chr(p[4]); d_chr(' ');    // 3-char name + space
     }
 }
