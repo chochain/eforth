@@ -102,14 +102,17 @@ U8 *gettkn(void)
     U8 *p0 = bptr;
     U8 sz  = 0;
     while (*bptr++!=' ') sz++;             // advance to next word
+    while (*bptr==' ')   bptr++;           // skip blanks
 
     if (*bptr=='\r' || *bptr=='\n') bptr = buf;
 
+#if EXE_TRACE
     // debug info
     d_chr('\n');
     for (U8 i=0; i<4; i++) {
     	d_chr(i<sz ? (*(p0+i)<0x20 ? '_' : *(p0+i)) : ' ');
     }
+#endif // EXE_TRACE
     return p0;
 }
 //
@@ -453,9 +456,10 @@ void extended(U8 op)
 }
 
 int main(int argc, char **argv) {
+	setvbuf(stdout, NULL, _IONBF, 0);		       // autoflush (turn STDOUT buffering off)
     putmsg("Tiny FORTH\n");
     for (;;) {
-        U8 *tkn = gettkn();                    // get token from console
+        U8 *tkn = gettkn();                        // get token from console
         U16 tmp;
         switch (parse_token(tkn, &tmp, 1)) {
         case TKN_EXE:
