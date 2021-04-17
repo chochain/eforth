@@ -18,6 +18,13 @@ typedef int16_t    S16;
 
 #define getchr()   getchar()
 #define putchr(c)  putchar(c)
+
+typedef struct task {
+    struct task *next;
+    S16         *sp;             // parameter stack pointer
+    U16         *rp;             // return stack pointer
+    U16         stk[STK_SZ];
+} Task;
 //
 // length + space delimited 3-char string
 //
@@ -68,17 +75,17 @@ enum {
 //
 // dictionary address<=>pointer translation macros
 //
-#define PTR(n)     (dic + (U16)(n))
-#define IDX(p)     ((U16)((U8*)(p) - dic))
+#define PTR(n)     (_dic + (U16)(n))
+#define IDX(p)     ((U16)((U8*)(p) - _dic))
 //
 // Forth stack opcode macros
 //
-#define TOS        (*psp)
-#define TOS1       (*(psp+1))
-#define PUSH(v)    (*(--psp)=(S16)(v))
-#define POP()      (*(psp++))
-#define RPUSH(v)   (*(rsp++)=(U16)(v))
-#define RPOP()     (*(--rsp))
+#define TOS        (*tp->sp)
+#define TOS1       (*(tp->sp+1))
+#define PUSH(v)    (*(--tp->sp)=(S16)(v))
+#define POP()      (*(tp->sp++))
+#define RPUSH(v)   (*(tp->rp++)=(U16)(v))
+#define RPOP()     (*(--tp->rp))
 //
 // memory access opcodes
 //

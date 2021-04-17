@@ -5,17 +5,12 @@
 */
 #include "tinyforth.h"
 //
-// allocate, initialize stack pointers
-//
-U16  stk[STK_SZ];
-U16  *rsp  = &stk[0];            // return stack pointer
-S16  *psp  = (S16*)&stk[STK_SZ]; // parameter stack pointer
-//
 // allocate, initialize dictionary pointers
 //
-U8   dic[DIC_SZ];
-U8   *dptr = dic;                // dictionary pointer
-U8   *dmax = PTR(0xffff);        // end of dictionary
+U8   _dic[DIC_SZ];
+U8   *dptr = _dic;                                 // dictionary pointer
+U8   *dmax = PTR(0xffff);                          // end of dictionary
+Task *tp;                                          // current task pointer
 //
 // tracing instrumentation
 //
@@ -356,12 +351,12 @@ void primitive(U8 op) {
     case 23: { U8 *p = PTR(POP()); *p = (U8)POP();  } break; // C!
     case 24: putnum(POP()); putchr(' '); break; // .
     case 25: {	                                // LOOP
-        (*(rsp-2))++;               // counter+1
-        PUSH(*(rsp-2) >= *(rsp-1)); // range check
-        d_chr('\n');                // debug info
+        (*(tp->rp-2))++;                  // counter+1
+        PUSH(*(tp->rp-2) >= *(tp->rp-1)); // range check
+        d_chr('\n');                      // debug info
     } break;
     case 26: RPOP(); RPOP();             break; // RD2
-    case 27: PUSH(*(rsp-2));             break; // I
+    case 27: PUSH(*(tp->rp-2));          break; // I
     case 28: RPUSH(POP()); RPUSH(POP()); break; // P2R2
     // the following 3 opcodes changes pc, so are done at one level up
     case 29: /* used by I_RET */         break;
@@ -373,13 +368,14 @@ void primitive(U8 op) {
 // show stack elements and OK prompt
 //
 void ok() {
-    if (psp > (S16*)&(stk[STK_SZ])) {     // check stack overflow
+    S16 *s0 = (S16*)&tp->stk[STK_SZ];          // stack[0]
+    if (tp->sp > s0) {                         // check stack overflow
         putmsg("OVF\n");
-        psp = (S16*)&(stk[STK_SZ]);
+        tp->sp = s0;
     }
-    else {                                // dump stack then prompt OK
+    else {                                      // dump stack then prompt OK
         putchr('[');
-        for (S16 *p=(S16*)&stk[STK_SZ]-1; p>=psp; p--) {
+        for (S16 *p=s0-1; p >= tp->sp; p--) {
             putchr(' '); putnum(*p);
         }
         putmsg(" ] OK ");
@@ -457,9 +453,18 @@ void extended(U8 op)
     }
 }
 
-int main(int argc, char **argv) {
+void setup()
+{
+    tp     = (Task*)&_dic[DIC_SZ - sizeof(Task)];  // allocate user space
+    tp->rp = &tp->stk[0];                          // rstack[0]
+    tp->sp = (S16*)&tp->stk[STK_SZ];               // stack[0]
+    
 	setvbuf(stdout, NULL, _IONBF, 0);		       // autoflush (turn STDOUT buffering off)
     putmsg("Tiny FORTH\n");
+}
+
+int main(int argc, char **argv) {
+    setup();
     for (;;) {
         U8 *tkn = gettkn();                        // get token from console
         U16 tmp;
