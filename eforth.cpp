@@ -30,7 +30,7 @@ extern "C" void vm_run();
 U32 data[FORTH_DATA_SZ] = {};           		// 64K forth memory block
 
 void dump_data(U8* cdata, int len) {
-#if DATA_DUMP
+#if EXE_TRACE
     for (int p=0; p<len; p+=0x20) {
         PRINTF("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
@@ -43,10 +43,10 @@ void dump_data(U8* cdata, int len) {
             PRINTF("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
         }
     }
-#endif // DATA_DUMP
+#endif // EXE_TRACE
 }
 
-int main0(int ac, char* av[])
+int main(int ac, char* av[])
 {
 	U8 *cdata = (U8*)data;
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
