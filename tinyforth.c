@@ -355,7 +355,9 @@ void primitive(U8 op) {
     case 25: {	                                // LOOP
         (*(tp->rp-2))++;                  // counter+1
         PUSH(*(tp->rp-2) >= *(tp->rp-1)); // range check
-        d_chr('\n');                      // debug info
+#if EXE_TRACE
+        d_chr('\n');                      // trace info
+#endif // EXE_TRACE
     } break;
     case 26: RPOP(); RPOP();             break; // RD2
     case 27: PUSH(*(tp->rp-2));          break; // I
@@ -370,7 +372,7 @@ void primitive(U8 op) {
 // show stack elements and OK prompt
 //
 void ok() {
-    S16 *s0 = (S16*)&tp->stk[STK_SZ];          // stack[0]
+    S16 *s0 = (S16*)&tp->s[STK_SZ];            // stack[0]
     if (tp->sp > s0) {                         // check stack overflow
         putmsg("OVF\n");
         tp->sp = s0;
@@ -391,10 +393,10 @@ void execute(U16 adr) {
     for (tp->pc=PTR(adr); tp->pc!=PTR(0xffff); ) {
         U16 a  = IDX(tp->pc);                             // current execution address
         U8  ir = *(tp->pc++);                             // fetch instruction
-
+        
 #if EXE_TRACE
         d_adr(a); d_hex(ir); d_chr(' ');                  // trace addr:opcode
-#endif // EXE_TRACE
+#endif //EXE_TRACE
         
         if ((ir & 0x80)==0) { PUSH(ir);               }   // 1-byte literal
         else if (ir==I_LIT) { PUSH(GET16(tp->pc)); tp->pc+=2; }   // 3-byte literal
@@ -407,7 +409,9 @@ void execute(U16 adr) {
             switch (ir & 0xe0) {
             case PFX_UDJ:                                 // 0x80 unconditional jump
                 tp->pc = PTR(a);                          // set jump target
+#if EXE_TRACE
                 d_chr('\n');                              // debug info
+#endif // EXE_TRACE
                 break;
             case PFX_CDJ:                                 // 0xa0 conditional jump
                 tp->pc = POP() ? tp->pc+1 : PTR(a);       // next or target
@@ -437,10 +441,14 @@ void words()
         d_chr(p[2]); d_chr(p[3]); d_chr(p[4]); d_chr(' ');    // 3-char name + space
     }
 }
-
+//
+// block device (EEPROM) management
+//
 void save() {}
 void load() {}
-
+//
+// extended dictionary words
+//
 void extended(U8 op)
 {
     switch (op) {
@@ -459,8 +467,8 @@ void extended(U8 op)
 void setup()
 {
     tp     = (Task*)&_dic[DIC_SZ - sizeof(Task)];  // allocate user space
-    tp->rp = &tp->stk[0];                          // rstack[0]
-    tp->sp = (S16*)&tp->stk[STK_SZ];               // stack[0]
+    tp->rp = &tp->s[0];                            // rstack[0]
+    tp->sp = (S16*)&tp->s[STK_SZ];                 // stack[0]
     
 	setvbuf(stdout, NULL, _IONBF, 0);		       // autoflush (turn STDOUT buffering off)
     putmsg("Tiny FORTH\n");

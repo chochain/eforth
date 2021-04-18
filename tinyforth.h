@@ -24,7 +24,7 @@ typedef struct task {
     U8          *pc;             // program counter
     S16         *sp;             // parameter stack pointer
     U16         *rp;             // return stack pointer
-    U16         stk[STK_SZ];
+    U16         s[STK_SZ];
 } Task;
 //
 // length + space delimited 3-char string
@@ -80,6 +80,9 @@ enum {
 #define IDX(p)     ((U16)((U8*)(p) - _dic))
 //
 // Forth stack opcode macros
+//
+// s[0,1,.......,STK_SZ-1,STK_SZ]
+//  [*rp--->             <---sp*]
 //
 #define TOS        (*tp->sp)
 #define TOS1       (*(tp->sp+1))
