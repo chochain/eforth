@@ -4,14 +4,15 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
+
+#define EFORTH_16BIT    1
 //
 // debugging flags
 //
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
-#define DATA_DUMP       0
-#define ASSEM_DUMP      1
-#define FORTH_TRACE     0
+#define ASM_TRACE       1
+#define EXE_TRACE       1
 //
 // portable types
 //
@@ -25,11 +26,16 @@ typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
-typedef U32       XA;				// Address size
+#if EFORTH_16BIT
+typedef U16       XA;				// Address size
+#define CELLSZ		     2
+#else
+typedef U32       XA;
+#define CELLSZ		     4
+#endif // EFORTH_16BIT
 //
 // capacity and sizing
 //
-#define CELLSZ		     4
 #define FORTH_PRIMITIVES 64
 #define FORTH_RACK_SZ    64
 #define FORTH_STACK_SZ   64

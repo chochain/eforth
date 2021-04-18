@@ -3,13 +3,13 @@
 //
 // tracing/logging macros
 //
-#if ASSEM_DUMP
+#if ASM_TRACE
 #define DEBUG(s, v)     printf(s, v)
 #define SHOWOP(op)      printf("\n%04x: %s\t", aPC, op)
-#else  // ASSEM_DUMP
+#else  // ASM_TRACE
 #define DEBUG(s, v)
 #define SHOWOP(op)
-#endif // ASSEM_DUMP
+#endif // ASM_TRACE
 
 //
 // variable length parameter handler macros
