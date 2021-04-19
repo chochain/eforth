@@ -60,6 +60,7 @@ void TRACE_WORD()
 
 	static char buf[32];			    // allocated in memory instead of on C stack
 
+	//PRINTF(" (pc=%x, ip=%x, R=%x)", PC, IP, RACK(R));
 	U8 *a = &cdata[PC];		            // pointer to current code pointer
 	if (!PC || *a--==opEXIT) return;
 	for (; (*a & 0x7f)>0x1f; a--);      // retract pointer to word name (ASCII range: 0x20~0x7f)
@@ -78,7 +79,7 @@ void TRACE_WORD()
 void _next()                // advance instruction pointer
 {
 	PC = CELL(IP);          // fetch instruction address
-	IP += sizeof(XA);
+	IP += sizeof(XA);       // advance, except control flow instructions
 }
 void _nop() { _next(); }    // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
@@ -113,8 +114,6 @@ void _dovar()               // ( -- a) return address of a variable
 }
 void _docon()               // ( -- n) push next token onto data stack as constant
 {
-    U8 *p = &cdata[PC];
-    S16 v = CELL(PC+1);
 	PUSH(CELL(++PC));       // fetch next byte (skip opDOCON opcode)
     _next();
 }
@@ -128,19 +127,19 @@ void _dolit()               // ( -- w) push next token as an integer literal
 void _enter()               // ( -- ) push instruction pointer onto return stack and pop, aka DOLIST by Dr. Ting
 {
 	TRACE_COLON();
-	RPUSH(IP);
+	RPUSH(IP);              // keep return address
 	IP = PC+sizeof(XA);     // advance to next instruction
     _next();
 }
 void __exit()               // ( -- ) terminate all token lists in colon words
 {
 	TRACE_EXIT();
-	IP = RPOP();
+	IP = RPOP();            // pop return address
     _next();
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
 {
-	PC = (XA)top;           // fetch instruction pointer
+	IP = (XA)top;           // fetch instruction pointer
 	POP();
     _next();
 }
@@ -246,7 +245,7 @@ void _or()                  // (w w -- w) bitwise OR
 void _xor()                 // (w w -- w) bitwise XOR
 {
 	top ^= STACK(S--);
-    _next();
+	_next();
 }
 void _uplus()               // (w w -- w c) add two numbers, return the sum and carry flag
 {
@@ -303,8 +302,8 @@ void _dnega()               // (d -- -d) two's complement of top double
 	PUSH(1);
 	STACK(S) += top;        // _uplus()
 	top = (U16)STACK(S) < (U16)top;
-	PUSH(RPOP());           //	_rfrom()
-	top += STACK(S--);      //	_plus()
+	PUSH(RPOP());           // _rfrom()
+	top += STACK(S--);      // _plus()
     _next();
 }
 void _sub()                 // (n1 n2 -- n1-n2) subtraction
@@ -546,6 +545,9 @@ void vm_init(U8 *rom) {
 void vm_run() {
 	tCNT++;                         // enable execution tracer
 	for (int i=0; i<10000; i++) {
+	    U8 *p = &cdata[PC];
+	    XA pc = PC;
+	    XA ip = IP;
 	    TRACE_WORD();               // tracing stack and word name
 		prim[cdata[PC]]();          // walk bytecode stream
 	}

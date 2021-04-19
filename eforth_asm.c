@@ -235,6 +235,12 @@ int assemble(U8 *rom) {
 	XA vTABRT= _CODE("'ABORT",  opDOCON, VAR(ua,6), 0);
 	XA vTEMP = _CODE("tmp",     opDOCON, VAR(ua,7), 0);
 	//
+	// common constants and variable spec
+	//
+	XA BLANK = _CODE("BL",      opDOCON, 0x20,      0);
+	XA CELL  = _CODE("CELL",    opDOCON, CELLSZ,    0);
+	XA DOVAR = _CODE("DOVAR",   opDOVAR  );
+	//
 	// Kernel dictionary (primitive proxies)
 	//
        NOP   = _CODE("NOP",     opNOP    );
@@ -296,16 +302,6 @@ int assemble(U8 *rom) {
 	XA COUNT = _CODE("COUNT",   opCOUNT  );
 	XA MAX   = _CODE("MAX",     opMAX    );
 	XA MIN   = _CODE("MIN",     opMIN    );
-
-	XA BLANK = _CODE("BL",      opDOCON, 0x20,   0);
-	XA CELL  = _CODE("CELL",    opDOCON, CELLSZ, 0);
-	XA CELLP = _CODE("CELL+",   opDOCON, CELLSZ, 0, opPLUS);
-	XA CELLM = _CODE("CELL-",   opDOCON, CELLSZ, 0, opSUB );
-	XA CELLS = _CODE("CELLS",   opDOCON, CELLSZ, 0, opSTAR);
-	XA CELLD = _CODE("CELL/",   opDOCON, CELLSZ, 0, opSLASH);
-	XA ONEP  = _CODE("1+",      opDOCON, 1,      0, opPLUS);
-	XA ONEM  = _CODE("1-",      opDOCON, 1,      0, opSUB );
-	XA DOVAR = _CODE("DOVAR",   opDOVAR);
 	//
 	// tracing instrumentation (borrow 2 opcodes)
 	//
@@ -316,6 +312,12 @@ int assemble(U8 *rom) {
 	// Common Colon Words (in word streams)
 	//
 	U8 *dic1  = aByte+aPC;
+	XA ONEP  = _COLON("1+",    DOLIT, 1, PLUS, EXIT);
+	XA ONEM  = _COLON("1-",    DOLIT, 1, SUB,  EXIT);
+	XA CELLP = _COLON("CELL+", CELL,  PLUS,  EXIT);
+	XA CELLM = _COLON("CELL-", CELL,  SUB,   EXIT);
+	XA CELLS = _COLON("CELLS", CELL,  STAR,  EXIT);
+	XA CELLD = _COLON("CELL/", CELL,  SLASH, EXIT);
 	XA QKEY  = _COLON("?KEY",  QRX, EXIT);
 	XA KEY   = _COLON("KEY",   NOP); {
 		_BEGIN(QKEY);
@@ -652,8 +654,9 @@ int assemble(U8 *rom) {
 		_IF(CELLM, DUP, vCP, STORE, AT, DUP, vCNTX, STORE, vLAST, STORE, DROP, EXIT);
 		_THEN(ERROR);
 	}
+	//XA COLD  = _COLON("COLD", DOLIT, 0x1, CELLP, ONEP, EXIT);
 	XA COLD  = _COLON("COLD", CR); { _DOTQ("eForth16 in C v4.0"); }
-	XA DOTQ1 = _LABEL(CR, QUIT);
+	XA DOTQ1 = _LABEL(CR, QUIT);  // QUIT is the main query loop
 	//
 	// Structure Compiler
 	//
