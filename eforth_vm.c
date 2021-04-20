@@ -62,8 +62,8 @@ void TRACE_WORD()
 
 	//PRINTF(" (pc=%x, ip=%x, R=%x)", PC, IP, RACK(R));
 	U8 *a = &cdata[PC];		            // pointer to current code pointer
-	if (!PC || *a--==opEXIT) return;
-	for (; (*a & 0x7f)>0x1f; a--);      // retract pointer to word name (ASCII range: 0x20~0x7f)
+	if (!PC || *a==opEXIT) return;
+	for (--a; (*a & 0x7f)>0x1f; a--);   // retract pointer to word name (ASCII range: 0x20~0x7f)
 
 	int  len = (int)*a & 0x1f;          // Forth allows 31 char max
 	memcpy(buf, a+1, len);
@@ -139,9 +139,8 @@ void __exit()               // ( -- ) terminate all token lists in colon words
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
 {
-	IP = (XA)top;           // fetch instruction pointer
+	PC = (XA)top;           // fetch program counter
 	POP();
-    _next();
 }
 void _donext()              // ( -- ) terminate a FOR-NEXT loop
 {
@@ -543,11 +542,7 @@ void vm_init(U8 *rom) {
 }
 
 void vm_run() {
-	tCNT++;                         // enable execution tracer
-	for (int i=0; i<10000; i++) {
-	    U8 *p = &cdata[PC];
-	    XA pc = PC;
-	    XA ip = IP;
+	for (int i=0; i<20000; i++) {
 	    TRACE_WORD();               // tracing stack and word name
 		prim[cdata[PC]]();          // walk bytecode stream
 	}
