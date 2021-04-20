@@ -139,7 +139,8 @@ void __exit()               // ( -- ) terminate all token lists in colon words
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
 {
-	IP = POP();             // fetch instruction pointer
+	IP = (XA)top;           // fetch instruction pointer
+	POP();
     _next();
 }
 void _donext()              // ( -- ) terminate a FOR-NEXT loop

@@ -462,10 +462,7 @@ int assemble(U8 *rom) {
         }
 		_THEN(OVER, RFROM, SUB, EXIT);
 	}
-	XA PACKS = _COLON("PACK$",
-                       DUP, TOR, DDUP, PLUS, DOLIT, 0xfffc, AND, DOLIT, 0, SWAP, STORE,  // align+'\0'
-					   DDUP, CSTOR, ONEP, SWAP, CMOVE, RFROM,
-					   EXIT);
+	XA PACKS = _COLON("PACK$", DUP, TOR, DDUP, CSTOR, ONEP, SWAP, CMOVE, RFROM, EXIT);
 	XA PARSE = _COLON("PARSE",
 					   TOR, TIB, vIN, AT, PLUS, vNTIB, AT, vIN, AT, SUB, RFROM,
 					   PARSE0, vIN, PSTOR,
@@ -576,12 +573,12 @@ int assemble(U8 *rom) {
 		_THEN(EXIT);
 	}
 	XA EVAL  = _COLON("EVAL", NOP); {
-		_BEGIN(TOKEN, DUP, AT);
-		_WHILE(vTEVL, ATEXE);
+		_BEGIN(TOKEN, DUP, CAT);  // check token length
+		_WHILE(vTEVL, ATEXE);     // @EXECUTE token
 		_REPEAT(DROP, DOTOK, EXIT);
 	}
 	XA QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, LBRAC); {
-		_BEGIN(QUERY, EVAL);     // main query-eval loop
+		_BEGIN(QUERY, EVAL);      // main query-eval loop
 		_AGAIN(NOP);
 	}
 	//
