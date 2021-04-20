@@ -29,15 +29,25 @@ XA aPC, aThread;                    // program counter, pointer to previous word
 
 void _dump(int b, int u) {
     // dump memory between previous word and this
-    DEBUG("%s", "\n    :");
-    for (int i=b; i<u; i+=CELLSZ) {
-        DEBUG(" %04x", *(XA*)(aByte+i));
+    DEBUG("%s", "\n    : ");
+    DEBUG("%04x", *(XA*)(aByte+b));
+    for (int i=b+sizeof(XA); i<u; i+=sizeof(XA)) {
+        if ((i+1)<u) DEBUG(" %04x", *(XA*)(aByte+i));
+        else         DEBUG(" %02x", *(aByte+i));
     }
     DEBUG("%c", '\n');
 }
+void _rdump()
+{
+	DEBUG("%cR[", ' ');
+	for (int i=1; i<=aR; i++) {
+        DEBUG(" %04x", aRack[i]);
+	}
+	DEBUG("%c]", ' ');
+}
 void _header(int lex, const char *seq) {
+    if (aThread) _dump(aThread-sizeof(XA), aPC);         // dump data from previous word to current word
     STORE(aThread);                           // point to previous word
-    if (aThread) _dump(aThread-sizeof(XA), aPC-sizeof(XA));  // dump data from previous word to current word
     aThread = aPC;                            // keep pointer to this word
 
     aByte[aPC++] = lex;                       // length of word (with optional fIMMED or fCOMPO flags)
@@ -65,16 +75,17 @@ int _code(const char *seg, int len, ...) {
     va_list argList;                            \
 	va_start(argList, n);						\
 	for (; n; n--) {							\
-		U32 j = va_arg(argList, U32);			\
-		if (j==NOP) continue;					\
+		XA j = (XA)va_arg(argList, int);        \
+		/*if (j==NOP) continue;	*/				\
 		STORE(j);								\
 		DEBUG(" %04x", j);						\
 	}											\
 	va_end(argList);							\
+	_rdump();                                   \
 }
 int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
-    DEBUG(" %s", ":0006");
+    DEBUG(" %s", ":06");
     int addr = aPC;
     STORE(opENTER);
     DATACPY(len);
@@ -82,7 +93,7 @@ int _colon(const char *seg, int len, ...) {
 }
 int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
-    DEBUG(" %s", "i0006");
+    DEBUG(" %s", "i06");
     int addr = aPC;
     STORE(opENTER);
     DATACPY(len);
@@ -102,7 +113,7 @@ void _begin(int len, ...) {
 }
 void _again(int len, ...) {
     SHOWOP("AGAIN");
-    STORE(BRAN);
+    STORE(BRAN);                    // unconditional branch
     STORE(RPOP());                  // store return address
     DATACPY(len);
 }
@@ -128,46 +139,46 @@ void _repeat(int len, ...) {
     SET(RPOP(), aPC);
     DATACPY(len);
 }
-void _if(int len, ...) {
+void _if(int len, ...) {           // IF-THEN, IF-ELSE-THEN
     SHOWOP("IF");
-	STORE(QBRAN);
-    RPUSH(aPC);                    // keep for ELSE-THEN
-    STORE(0);                      // reserved for branching address
+	STORE(QBRAN);                  // conditional branch
+    RPUSH(aPC);                    // keep A0 address on return stack for ELSE or THEN
+    STORE(0);                      // reserve branching address (A0)
     DATACPY(len);
 }
 void _else(int len, ...) {
     SHOWOP("ELSE");
-    STORE(BRAN);
-    STORE(0);
-    SET(RPOP(), aPC);
-    RPUSH(aPC - CELLSZ);
+    STORE(BRAN);                   // unconditional branch
+    STORE(0);                      // reserve branching address (A1)
+    SET(RPOP(), aPC);              // backfill A0 branching address
+    RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for THEN
     DATACPY(len);
 }
 void _then(int len, ...) {
     SHOWOP("THEN");
-    SET(RPOP(), aPC);
+    SET(RPOP(), aPC);              // backfill branching address (A0) or (A1)
     DATACPY(len);
 }
-void _for(int len, ...) {
-    SHOWOP("FOR");
-    STORE(TOR);
-    RPUSH(aPC);
+void _for(int len, ...) {          // FOR-NEXT
+    SHOWOP("FOR");                 // FOR-(first)-AFT-(2nd,...)-THEN-(every)-NEXT
+    STORE(TOR);                    // put loop counter on return stack
+    RPUSH(aPC);                    // keep 1st loop repeat address A0
+    DATACPY(len);
+}
+void _aft(int len, ...) {          // code between FOR-AFT run only once
+    SHOWOP("AFT");
+    STORE(BRAN);                   // unconditional branch
+    STORE(0);                      // forward jump address (A1)
+    RPOP();                        // pop-off A0 (FOR-AFT once only)
+    RPUSH(aPC);                    // keep repeat address on return stack
+    RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for AFT-THEN
     DATACPY(len);
 }
 void _nxt(int len, ...) {          // _next() is multi-defined in vm
     SHOWOP("NEXT");
-    STORE(DONXT);
-    STORE(RPOP());
-    DATACPY(len);
-}
-void _aft(int len, ...) {
-    SHOWOP("AFT");
-    STORE(BRAN);
-    STORE(0);
-    RPOP();
-    RPUSH(aPC);
-    RPUSH(aPC - CELLSZ);
-    DATACPY(len);
+    STORE(DONXT);                  // check loop counter (on return stack)
+    STORE(RPOP());                 // add A0 (FOR-NEXT) or 
+    DATACPY(len);                  // A1 to repeat loop (conditional branch by DONXT)
 }
 #define STRCPY(op, seq) {                           \
 	STORE(op);                                      \
@@ -219,7 +230,6 @@ int assemble(U8 *rom) {
 	// Kernel variables (in bytecode streams)
 	// TIB_ADDR = 0x80
 	//
-	U8 *dic0 = aByte+aPC;
 	XA ta    = FORTH_TVAR_ADDR;
 	XA vHLD  = _CODE("HLD",     opDOCON, VAR(ta,0), 0);
 	XA vSPAN = _CODE("SPAN",    opDOCON, VAR(ta,1), 0);
@@ -241,7 +251,7 @@ int assemble(U8 *rom) {
 	XA CELL  = _CODE("CELL",    opDOCON, CELLSZ,    0);
 	XA DOVAR = _CODE("DOVAR",   opDOVAR  );
 	//
-	// Kernel dictionary (primitive proxies)
+	// Kernel dictionary (primitive words)
 	//
        NOP   = _CODE("NOP",     opNOP    );
 	XA BYE   = _CODE("BYE",     opBYE    );
@@ -311,7 +321,6 @@ int assemble(U8 *rom) {
 	//
 	// Common Colon Words (in word streams)
 	//
-	U8 *dic1  = aByte+aPC;
 	XA ONEP  = _COLON("1+",    DOLIT, 1, PLUS, EXIT);
 	XA ONEM  = _COLON("1-",    DOLIT, 1, SUB,  EXIT);
 	XA CELLP = _COLON("CELL+", CELL,  PLUS,  EXIT);
@@ -355,7 +364,7 @@ int assemble(U8 *rom) {
 		_NEXT(DDROP, EXIT);
 	}
 	//
-	// Number Conversions
+	// Number Conversions and formatting
 	//
 	XA DIGIT = _COLON("DIGIT",   DOLIT, 9, OVER, LESS, DOLIT, 7, AND, PLUS, DOLIT, 0x30, PLUS, EXIT);
 	XA EXTRC = _COLON("EXTRACT", DOLIT, 0, SWAP, UMMOD, SWAP, DIGIT, EXIT);
@@ -431,28 +440,30 @@ int assemble(U8 *rom) {
 	//
 	// Parser
     //
-	XA PARSE0= _COLON("(parse)", vTEMP, CSTOR, OVER, TOR, DUP); {
-		_IF(ONEM, vTEMP, CAT, BLANK, EQUAL); {
+	XA PARSE0= _COLON("(parse)", vTEMP, CSTOR, OVER, TOR, DUP); {  // delimiter kept in vTEMP
+		_IF(ONEM, vTEMP, CAT, BLANK, EQUAL); {                     // check <SPC>
 			_IF(NOP); {
-				_FOR(BLANK, OVER, CAT, SUB, ZLESS, INVER);
-				_WHILE(ONEP);
-				_NEXT(RFROM, DROP, DOLIT, 0, DUP, EXIT);
-				_THEN(RFROM);
-			}
-			_THEN(OVER, SWAP);
-			_FOR(vTEMP, CAT, OVER, CAT, SUB, vTEMP, CAT, BLANK, EQUAL); {
-				_IF(ZLESS);
-				_THEN(NOP);
-			}
-			_WHILE(ONEP);
-			_NEXT(DUP, TOR);
-		}
-		_ELSE(RFROM, DROP, DUP, ONEP, TOR);
-		_THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);
-		_THEN(OVER, RFROM, SUB, EXIT);                   // CC: this line is questionable
+                // a FOR..WHILE..NEXT..THEN construct =~ for {..break..}
+				_FOR(BLANK, OVER, CAT, SUB, ZLESS, INVER);    // 
+                _WHILE(ONEP);                                 // break to THEN if is char, or next char
+                _NEXT(RFROM, DROP, DOLIT, 0, DUP, EXIT);      // no break, (R>, DROP to rm loop counter)
+                _THEN(RFROM);                                 // populate A0, i.e. break comes here, rm counter
+            }
+            _THEN(OVER, SWAP);                                // advance until next space found
+            // a FOR..WHILE..NEXT..ELSE..THEN construct =~ DO..LEAVE..+LOOP
+            _FOR(vTEMP, CAT, OVER, CAT, SUB, vTEMP, CAT, BLANK, EQUAL); {
+                _IF(ZLESS);
+                _THEN(NOP);
+            }
+            _WHILE(ONEP);                                     // break (if char <= space) to ELSE 
+            _NEXT(DUP, TOR);                                  // no break, if counter < limit loop back to FOR
+            _ELSE(RFROM, DROP, DUP, ONEP, TOR);               // R>, DROP to rm loop counter
+            _THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);        // put token length on stack
+        }
+		_THEN(OVER, RFROM, SUB, EXIT);
 	}
 	XA PACKS = _COLON("PACK$",
-					   DUP, TOR, DDUP, PLUS, DOLIT, 0xfffc, AND, DOLIT, 0, SWAP, STORE,
+                       DUP, TOR, DDUP, PLUS, DOLIT, 0xfffc, AND, DOLIT, 0, SWAP, STORE,  // align+'\0'
 					   DDUP, CSTOR, ONEP, SWAP, CMOVE, RFROM,
 					   EXIT);
 	XA PARSE = _COLON("PARSE",
@@ -492,23 +503,23 @@ int assemble(U8 *rom) {
 		_IF(DOLIT, 8, EMIT, ONEM, BLANK, EMIT, DOLIT, 8, EMIT);
 		_THEN(EXIT);
 	}
-	XA TAP   = _COLON("TAP", DUP, EMIT, OVER, CSTOR, ONEP, EXIT);
-	XA KTAP  = _COLON("kTAP", DUP, DOLIT, 0xd, XOR, OVER, DOLIT, 0xa, XOR, AND); {
-		_IF(DOLIT, 8, XOR); {
-			_IF(BLANK, TAP);
+	XA TAP   = _COLON("TAP", DUP, EMIT, OVER, CSTOR, ONEP, EXIT);                  // store new char to TIB
+	XA KTAP  = _COLON("kTAP", DUP, DOLIT, 0xd, XOR, OVER, DOLIT, 0xa, XOR, AND); { // check <CR><LF>
+		_IF(DOLIT, 8, XOR); {                                                      // check <TAB>
+			_IF(BLANK, TAP);                                                       // check BLANK
 			_ELSE(HATH);
 			_THEN(EXIT);
 		}
 		_THEN(DROP, SWAP, DROP, DUP, EXIT);
 	}
-	XA ACCEP = _COLON("ACCEPT", OVER, PLUS, OVER); {
-		_BEGIN(DDUP, XOR);
+	XA ACCEP = _COLON("ACCEPT", OVER, PLUS, OVER); {            // accquire token from console 
+		_BEGIN(DDUP, XOR);                                      // loop through input stream
 		_WHILE(KEY, DUP, BLANK, SUB, DOLIT, 0x5f, ULESS); {
-			_IF(TAP);
-			_ELSE(KTAP);
+			_IF(TAP);                                           // store new char into TIB
+			_ELSE(KTAP);                                        // check if done
 			_THEN(NOP);
 		}
-		_REPEAT(DROP, OVER, SUB, EXIT);
+		_REPEAT(DROP, OVER, SUB, EXIT);                         // keep token length in #TIB
 	}
 	XA EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
 	XA QUERY = _COLON("QUERY", TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
@@ -516,7 +527,7 @@ int assemble(U8 *rom) {
 	// Text Interpreter
 	//
 	/* QUIT Forth main interpreter loop
-	   QUERY/ACCEPT - start the interpreter loop <-----------<------.
+	   QUERY/TIB/ACCEPT - start the interpreter loop <-------<------.
 	   TOKEN/PARSE - get a space delimited word                      \
 	   @EXECUTE - attempt to look up that word in the dictionary      \
 	   NAME?/find - was the word found?                                ^
@@ -548,10 +559,10 @@ int assemble(U8 *rom) {
 	}
 	XA ERROR = _COLON("ERROR", SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
 	XA INTER = _COLON("$INTERPRET", NAMEQ, QDUP); {
-		_IF(CAT, DOLIT, fCOMPO, AND);
-		_ABORTQ(" compile only");
-	}
-	XA INTER0= _LABEL(EXECU, EXIT); {
+		_IF(CAT, DOLIT, fCOMPO, AND); {
+            _ABORTQ(" compile only");
+            _LABEL(EXECU, EXIT);
+        }
 		_THEN(NUMBQ);          // continue from INTER
 		_IF(EXIT);
 		_ELSE(ERROR);
@@ -570,7 +581,7 @@ int assemble(U8 *rom) {
 		_REPEAT(DROP, DOTOK, EXIT);
 	}
 	XA QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, LBRAC); {
-		_BEGIN(QUERY, EVAL);
+		_BEGIN(QUERY, EVAL);     // main query-eval loop
 		_AGAIN(NOP);
 	}
 	//
@@ -637,7 +648,7 @@ int assemble(U8 *rom) {
 	}
 	*/
 	XA TNAME = _COLON(">NAME", NOP); {              // CC: my implementation
-		_BEGIN(CELLM, DUP, CAT, DOLIT, 0x7f, AND, DOLIT, 0x20, LESS);
+		_BEGIN(ONEM, DUP, CAT, DOLIT, 0x7f, AND, DOLIT, 0x20, LESS);
 		_UNTIL(EXIT);
 	}
 	XA DOTID = _COLON(".ID",   COUNT, DOLIT, 0x1f, AND, TYPE, SPACE, EXIT);

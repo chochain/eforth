@@ -69,7 +69,7 @@ void TRACE_WORD()
 	memcpy(buf, a+1, len);
 	buf[len] = '\0';
 
-	PRINTF(" %x_%x_%s", STACK(S), top, buf);
+	PRINTF(" %x_%x_%x_%s", STACK(S-1), STACK(S), top, buf);
 
 	_break_point(PC, buf);
 }
@@ -139,8 +139,7 @@ void __exit()               // ( -- ) terminate all token lists in colon words
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
 {
-	IP = (XA)top;           // fetch instruction pointer
-	POP();
+	IP = POP();             // fetch instruction pointer
     _next();
 }
 void _donext()              // ( -- ) terminate a FOR-NEXT loop
