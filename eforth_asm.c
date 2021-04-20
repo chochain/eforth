@@ -76,7 +76,7 @@ int _code(const char *seg, int len, ...) {
 	va_start(argList, n);						\
 	for (; n; n--) {							\
 		XA j = (XA)va_arg(argList, int);        \
-		/*if (j==NOP) continue;	*/				\
+		if (j==NOP) continue;                   \
 		STORE(j);								\
 		DEBUG(" %04x", j);						\
 	}											\
@@ -384,29 +384,31 @@ int assemble(U8 *rom) {
 	XA STR   = _COLON("str",     DUP, TOR, ABS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXIT);
 	XA HEX   = _COLON("HEX",     DOLIT, 16, vBASE, STORE, EXIT);
 	XA DECIM = _COLON("DECIMAL", DOLIT, 10, vBASE, STORE, EXIT);
-	XA UPPER = _COLON("wupper",  DOLIT, 0x5f5f5f5f, AND, EXIT);
-	XA TOUPP = _COLON(">upper",  DUP, DOLIT, 0x61, DOLIT, 0x7b, WITHI); {
+	XA UPPER = _COLON("wupper",  DOLIT, 0x5f5f, AND, EXIT);
+	XA TOUPP = _COLON(">upper",  DUP, DOLIT, 0x61, DOLIT, 0x7b, WITHI); { // [a-z] only?
 		_IF(DOLIT, 0x5f, AND);
 		_THEN(EXIT);
 	}
 	XA DIGTQ = _COLON("DIGIT?", TOR, TOUPP, DOLIT, 0x30, SUB, DOLIT, 9, OVER, LESS); {
-		_IF(DOLIT, 7, SUB, DUP, DOLIT, 10, LESS, OR);
-		_THEN(DUP, RFROM, ULESS, EXIT);
+		_IF(DOLIT, 7, SUB, DUP, DOLIT, 10, LESS, OR);           // handle hex number
+		_THEN(DUP, RFROM, ULESS, EXIT);                         // handle decimal number
 	}
-	XA NUMBQ = _COLON("NUMBER?", vBASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
-		_IF(HEX, SWAP, ONEP, SWAP, ONEM);
-		_THEN(OVER, CAT, DOLIT, 0x2d, EQUAL, TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP); {
-			_IF(ONEM); {
-				_FOR(DUP, TOR, CAT, vBASE, AT, DIGTQ);
-				_WHILE(SWAP, vBASE, AT, STAR, PLUS, RFROM, ONEP);
-				_NEXT(DROP, RAT);
-				_IF(NEGAT);
-				_THEN(SWAP);
-			}
-			_ELSE(RFROM, RFROM, DDROP, DDROP, DOLIT, 0);
+	XA NUMBQ = _COLON("NUMBER?", vBASE, AT, TOR,DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
+		_IF(HEX, SWAP, ONEP, SWAP, ONEM);                       // leading with $ (i.e. 0x24)
+		_THEN(OVER, CAT, DOLIT, 0x2d, EQUAL,                    // handle negative sign (i.e. 0x2d)
+              TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP);
+		_IF(ONEM); {
+            // a FOR..WHILE..NEXT..IF..THEN construct =~ for {..break..}
+            _FOR(DUP, TOR, CAT, vBASE, AT, DIGTQ);                    
+			_WHILE(SWAP, vBASE, AT, STAR, PLUS, RFROM, ONEP);   // if digit, xBASE, else break to ELSE
+            _NEXT(DROP, RAT); {                                 // whether negative number
+                _IF(NEGAT);
+			    _THEN(SWAP);
+            }
+  			_ELSE(RFROM, RFROM, DDROP, DDROP, DOLIT, 0);
 			_THEN(DUP);
-		}
-		_THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
+         }
+  		 _THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
 	}
 	//
 	// Terminal Output
@@ -455,7 +457,7 @@ int assemble(U8 *rom) {
                 _IF(ZLESS);
                 _THEN(NOP);
             }
-            _WHILE(ONEP);                                     // break (if char <= space) to ELSE 
+            _WHILE(ONEP);                                     // if (char <= space) break to ELSE 
             _NEXT(DUP, TOR);                                  // no break, if counter < limit loop back to FOR
             _ELSE(RFROM, DROP, DUP, ONEP, TOR);               // R>, DROP to rm loop counter
             _THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);        // put token length on stack
@@ -467,11 +469,11 @@ int assemble(U8 *rom) {
 					   TOR, TIB, vIN, AT, PLUS, vNTIB, AT, vIN, AT, SUB, RFROM,
 					   PARSE0, vIN, PSTOR,
 					   EXIT);
-	XA TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);
+	XA TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);  // put token at HERE
 	XA WORDD = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
 	XA NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, EXIT);
-	XA SAMEQ = _COLON("SAME?", DOLIT, 0x1f, AND, CELLD); {
-		_FOR(NOP);
+	XA SAMEQ = _COLON("SAME?", CELLD); {                      // (a1 a2 n - a1 a2 f) compare n/CELLSZ CELLS
+		_FOR(NOP);   // vvvvvvvvvvv CC: CELLS, PLUS is expensive, use CELL+ instead
 		_AFT(OVER, RAT, CELLS, PLUS, AT, UPPER, OVER, RAT, CELLS, PLUS, AT, UPPER, SUB, QDUP); {
 			_IF(RFROM, DROP, EXIT);
 			_THEN(NOP);
@@ -479,18 +481,18 @@ int assemble(U8 *rom) {
 		_THEN(NOP);
 		_NEXT(DOLIT, 0, EXIT);
 	}
-	XA FIND = _COLON("find", SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {
-		_BEGIN(AT, DUP); {
-			_IF(DUP, AT, DOLIT, 0xff3f, AND, UPPER, RAT, UPPER, XOR); {
-				_IF(CELLP, DOLIT, 0xffff);
-				_ELSE(CELLP, vTEMP, AT, SAMEQ);
+	XA FIND = _COLON("find", SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {  // fetch 1st cell
+		_BEGIN(AT, DUP); {                                                               // 0000 = end of dic
+			_IF(DUP, AT, DOLIT, 0xff3f, AND, UPPER, RAT, UPPER, XOR); {                  // compare upper-cased
+				_IF(CELLP, DOLIT, 0xffff);                                               // different
+				_ELSE(CELLP, vTEMP, CAT, SAMEQ);                                         // compare word length
 				_THEN(NOP);
 			}
 			_ELSE(RFROM, DROP, SWAP, CELLM, SWAP, EXIT);
 			_THEN(NOP);
 		}
 		_WHILE(CELLM, CELLM);
-		_REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);
+		_REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);           // word found, get name field
 	}
 	XA NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
 	//
@@ -555,12 +557,12 @@ int assemble(U8 *rom) {
 		_THEN(DOSTR, DROP, EXIT);
 	}
 	XA ERROR = _COLON("ERROR", SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
-	XA INTER = _COLON("$INTERPRET", NAMEQ, QDUP); {
-		_IF(CAT, DOLIT, fCOMPO, AND); {
+	XA INTER = _COLON("$INTERPRET", NAMEQ, QDUP); {  // scan dictionary for word
+		_IF(CAT, DOLIT, fCOMPO, AND); {  // if it is compile only word
             _ABORTQ(" compile only");
             _LABEL(EXECU, EXIT);
         }
-		_THEN(NUMBQ);          // continue from INTER
+		_THEN(NUMBQ);                    // word name not found, check if it is a number
 		_IF(EXIT);
 		_ELSE(ERROR);
 		_THEN(NOP);
@@ -573,8 +575,8 @@ int assemble(U8 *rom) {
 		_THEN(EXIT);
 	}
 	XA EVAL  = _COLON("EVAL", NOP); {
-		_BEGIN(TOKEN, DUP, CAT);  // check token length
-		_WHILE(vTEVL, ATEXE);     // @EXECUTE token
+		_BEGIN(TOKEN, DUP, CAT);  // fetch token length
+		_WHILE(vTEVL, ATEXE);
 		_REPEAT(DROP, DOTOK, EXIT);
 	}
 	XA QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, LBRAC); {
