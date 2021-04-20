@@ -12,7 +12,7 @@
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
 #define ASM_TRACE       1
-#define EXE_TRACE       1
+#define EXE_TRACE       0
 //
 // portable types
 //
@@ -39,7 +39,7 @@ typedef U32       XA;
 #define FORTH_PRIMITIVES 64
 #define FORTH_RACK_SZ    64
 #define FORTH_STACK_SZ   64
-#define FORTH_DATA_SZ    0x8000
+#define FORTH_MEM_SZ     0x2000
 #define ASSEM_RACK_SZ    64
 //
 // logic and stack op macros (processor dependent)

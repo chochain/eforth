@@ -542,7 +542,7 @@ void vm_init(U8 *rom) {
 }
 
 void vm_run() {
-	for (int i=0; i<20000; i++) {
+	for (;;) {
 	    TRACE_WORD();               // tracing stack and word name
 		prim[cdata[PC]]();          // walk bytecode stream
 	}

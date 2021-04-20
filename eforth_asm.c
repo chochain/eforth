@@ -665,7 +665,7 @@ int assemble(U8 *rom) {
 		_THEN(ERROR);
 	}
 	//XA COLD  = _COLON("COLD", DOLIT, 0x1, CELLP, ONEP, EXIT);
-	XA COLD  = _COLON("COLD", CR); { _DOTQ("eForth16 in C v4.0"); }
+	XA COLD  = _COLON("COLD", CR); { _DOTQ("eForth16 v1.0"); }
 	XA DOTQ1 = _LABEL(CR, QUIT);  // QUIT is the main query loop
 	//
 	// Structure Compiler
