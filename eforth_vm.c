@@ -25,9 +25,9 @@ U8  *cdata;             		// linear byte array pointer
 #define STACK(s)    (stack[s])
 #define RACK(r)     (stack[FORTH_STACK_SZ-(r)])
 #define RPUSH(a)    (RACK(++R)=(S16)a)
-#define RPOP()      ((XA)RACK(R--))
+#define RPOP()      ((XA)RACK(R ? R-- : R))
 #define	PUSH(v)	    (STACK(++S)=top, top=(S16)(v))
-#define	POP()		(top=STACK(S--))
+#define	POP()		(top=STACK(S ? S-- : S))
 //
 // tracing instrumentation
 //
