@@ -12,7 +12,7 @@
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
 #define ASM_TRACE       1
-#define EXE_TRACE       1
+#define EXE_TRACE       0
 //
 // portable types
 //
