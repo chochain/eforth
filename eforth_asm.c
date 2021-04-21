@@ -472,27 +472,32 @@ int assemble(U8 *rom) {
 	XA TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);  // put token at HERE
 	XA WORDD = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
 	XA NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, EXIT);
-	XA SAMEQ = _COLON("SAME?", CELLD); {                      // (a1 a2 n - a1 a2 f) compare n/CELLSZ CELLS
-		_FOR(NOP);   // vvvvvvvvvvv CC: CELLS, PLUS is expensive, use CELL+ instead
-		_AFT(OVER, RAT, CELLS, PLUS, AT, UPPER, OVER, RAT, CELLS, PLUS, AT, UPPER, SUB, QDUP); {
-			_IF(RFROM, DROP, EXIT);
-			_THEN(NOP);
-		}
-		_THEN(NOP);
-		_NEXT(DOLIT, 0, EXIT);
+	XA SAMEQ = _COLON("SAME?", NOP); {               // (a1 a2 n - a1 a2 f) compare n byte-by-byte
+        _FOR(DDUP);
+        _AFT(DUP, CAT, TOR, ONEP, SWAP,                                 // *a1++
+             DUP, CAT, TOR, ONEP, SWAP, RFROM, RFROM, SUB, QDUP); {     // *a2++
+            _IF(RFROM, DROP, TOR, DDROP, RFROM, EXIT);                  // pop off loop counter and pointers
+            _THEN(NOP);
+        }
+        _THEN(NOP);
+        _NEXT(DDROP, DOLIT, 0, EXIT);
 	}
-	XA FIND = _COLON("find", SWAP, DUP, AT, vTEMP, STORE, DUP, AT, TOR, CELLP, SWAP); {  // fetch 1st cell
+	XA FIND = _COLON("find", SWAP, DUP, CAT, vTEMP, STORE,                               // keep length in temp
+                     DUP, AT, TOR, CELLP, SWAP); {                                       // fetch 1st cell
 		_BEGIN(AT, DUP); {                                                               // 0000 = end of dic
-			_IF(DUP, AT, DOLIT, 0xff3f, AND, UPPER, RAT, UPPER, XOR); {                  // compare upper-cased
-				_IF(CELLP, DOLIT, 0xffff);                                               // different
-				_ELSE(CELLP, vTEMP, CAT, SAMEQ);                                         // compare word length
+			_IF(DUP, AT, DOLIT, 0xff3f, AND, RAT, XOR); {                                // compare 2-byte
+				_IF(CELLP, DOLIT, 0xffff);                                               // miss, try next word
+				_ELSE(CELLP, vTEMP, AT, ONEM, DUP); {    // -1, since 1st byte has been compared
+                    _IF(SAMEQ);                          // compare strings if larger than 2 bytes
+                    _THEN(NOP);
+                }
 				_THEN(NOP);
 			}
 			_ELSE(RFROM, DROP, SWAP, CELLM, SWAP, EXIT);
 			_THEN(NOP);
 		}
-		_WHILE(CELLM, CELLM);
-		_REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);           // word found, get name field
+		_WHILE(CELLM, CELLM);                                             // get thread field to previous word
+		_REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);  // word found, get name field
 	}
 	XA NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
 	//
