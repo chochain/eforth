@@ -37,19 +37,20 @@ typedef U32       XA;
 // capacity and sizing
 //
 #define FORTH_PRIMITIVES 64
-#define FORTH_RACK_SZ    64
-#define FORTH_STACK_SZ   64
+#define FORTH_TIB_SZ     0x40
+#define FORTH_STACK_SZ   0x50
+#define FORTH_RACK_SZ    0x50
 #define FORTH_MEM_SZ     0x2000
-#define ASSEM_RACK_SZ    64
 //
 // logic and stack op macros (processor dependent)
 //
 #define FORTH_BOOT_ADDR  0x0
-#define FORTH_TVAR_ADDR  0x80
-#define FORTH_UVAR_ADDR  0x90
-#define FORTH_DIC_ADDR   0x200
-#define FORTH_TIB_ADDR   0x100
-#define FORTH_TIB_SZ     0x100
+#define FORTH_TVAR_ADDR  0x6
+#define FORTH_UVAR_ADDR  0x10
+#define FORTH_TIB_ADDR   0x20
+#define FORTH_RACK_ADDR  (FORTH_TIB_ADDR+FORTH_TIB_SZ)
+#define FORTH_STACK_ADDR (FORTH_RACK_ADDR+FORTH_RACK_SZ)
+#define FORTH_DIC_ADDR   (FORTH_STACK_ADDR+FORTH_STACK_SZ)
 //
 // TRUE cannot use 1 because NOT(ffffffff)==0 while NOT(1)==ffffffff
 // which does not need boolean op (i.e. in C)

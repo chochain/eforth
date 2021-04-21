@@ -23,11 +23,11 @@
 #include <stdio.h>
 #include "eforth.h"
 
-extern "C" int  assemble(U8 *rom);
-extern "C" void vm_init(U8 *rom);
+extern "C" int  assemble(U8 *cdata, XA *rack);
+extern "C" void vm_init(U8 *cdata, XA *rack, S16 *stack);
 extern "C" void vm_run();
 
-static U8 _mem[FORTH_MEM_SZ] = {};        		// default 8K forth memory block
+static U8 _mem[FORTH_MEM_SZ];        		  // default 8K forth memory block
 
 void dump_data(U8* cdata, int len) {
 #if ASM_TRACE
@@ -57,13 +57,16 @@ void dump_data(U8* cdata, int len) {
 
 int main(int ac, char* av[])
 {
-	U8 *cdata = _mem;
+	U8  *cdata = _mem;
+    XA  *rack  = (XA*)&_mem[FORTH_RACK_ADDR];
+    S16 *stack = (S16*)&_mem[FORTH_STACK_ADDR];
+                                                   
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
 
-	int sz  = assemble(cdata);
+	int sz  = assemble(cdata, rack);
 	dump_data(cdata, sz);
 
-	vm_init(cdata);
+	vm_init(cdata, rack, stack);
 	vm_run();
 
 	return 0;

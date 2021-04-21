@@ -14,10 +14,10 @@ XA NOP, TOR;
 //
 // return stack for branching ops
 //
-XA aRack[ASSEM_RACK_SZ] = { 0 };    // return stack (independent of Forth return stack for modulization)
-U8 *aByte    = 0;                   //
-U8 aR        = 0;                   // return stack index
-XA aPC, aThread;                    // program counter, pointer to previous word
+XA *aRack;          // return stack (independent of Forth return stack for modulization)
+U8 *aByte;          //
+U8 aR;              // return stack index
+XA aPC, aThread;    // program counter, pointer to previous word
 //
 // stack op macros
 //
@@ -222,13 +222,13 @@ void _ABORTQ(const char *seq) {
 #define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
-int assemble(U8 *rom) {
-	aByte = rom;
+int assemble(U8 *cdata, XA *rack) {
+	aByte = cdata;
+    aRack = rack;
 	aPC   = FORTH_DIC_ADDR;
 	aR    = aThread = 0;
 	//
 	// Kernel variables (in bytecode streams)
-	// TIB_ADDR = 0x80
 	//
 	XA ta    = FORTH_TVAR_ADDR;
 	XA vHLD  = _CODE("HLD",     opDOCON, VAR(ta,0), 0);

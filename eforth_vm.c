@@ -10,9 +10,9 @@ S16 top;                        // ALU (i.e. cached top of stack value)
 //
 // Forth VM core storage
 //
-XA  rack[FORTH_RACK_SZ]   = { 0 };   	// return stack (assume FORTH_RACK_SZ is power of 2)
-S16 stack[FORTH_STACK_SZ] = { 0 };   	// data stack   (assume FORTH_STACK_SZ is power of 2)
-U8* cdata = 0;             			 	// linear byte array pointer
+XA  *rack;   	                // return stack (assume FORTH_RACK_SZ is power of 2)
+S16 *stack;   	                // data stack   (assume FORTH_STACK_SZ is power of 2)
+U8  *cdata;             		// linear byte array pointer
 //
 // data and return stack ops
 //  R                   S
@@ -536,13 +536,16 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 63 */ _min,
 };
 
-void vm_init(U8 *rom) {
-	cdata = rom;
+void vm_init(U8 *cdata0, XA *rack0, S16 *stack0) {
+	cdata = cdata0;
+    rack  = rack0;
+    stack = stack0;
+    
 	R  = S = PC = IP = top = 0;
 }
 
 void vm_run() {
-    //tCNT++;                       // execution tracing
+    //tCNT++;                         // execution tracing
 	for (;;) {
 	    TRACE_WORD();               // tracing stack and word name
 		prim[cdata[PC]]();          // walk bytecode stream

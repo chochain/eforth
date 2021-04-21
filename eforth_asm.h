@@ -6,7 +6,7 @@
 #if ASM_TRACE
 #define DEBUG(s, v)     printf(s, v)
 #define SHOWOP(op)      printf("\n%04x: %s\t", aPC, op)
-#else  // ASM_TRACE
+#else
 #define DEBUG(s, v)
 #define SHOWOP(op)
 #endif // ASM_TRACE
