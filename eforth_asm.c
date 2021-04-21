@@ -23,8 +23,9 @@ XA aPC, aThread;    // program counter, pointer to previous word
 //
 #define SET(d, v)      (*(XA*)(aByte+d)=(XA)(v))
 #define STORE(v)       { SET(aPC, (v)); aPC+=CELLSZ; }
-#define	RPUSH(v)       (aRack[++aR] = (XA)(v))
-#define	RPOP()         (aRack[aR--])
+#define RACK(r)        (aRack[FORTH_STACK_SZ-(r)])
+#define	RPUSH(v)       (RACK(++aR) = (XA)(v))
+#define	RPOP()         (RACK(aR--))
 #define VAR(a, i)      ((a)+CELLSZ*(i))
 
 void _dump(int b, int u) {
@@ -222,10 +223,10 @@ void _ABORTQ(const char *seq) {
 #define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
-int assemble(U8 *cdata, XA *rack) {
+int assemble(U8 *cdata, U8 *stack) {
 	aByte = cdata;
-    aRack = rack;
 	aPC   = FORTH_DIC_ADDR;
+    aRack = (XA*)stack;
 	aR    = aThread = 0;
 	//
 	// Kernel variables (in bytecode streams)

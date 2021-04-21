@@ -38,8 +38,7 @@ typedef U32       XA;
 //
 #define FORTH_PRIMITIVES 64
 #define FORTH_TIB_SZ     0x40
-#define FORTH_STACK_SZ   0x50
-#define FORTH_RACK_SZ    0x50
+#define FORTH_STACK_SZ   0x40
 #define FORTH_MEM_SZ     0x2000
 //
 // logic and stack op macros (processor dependent)
@@ -48,8 +47,7 @@ typedef U32       XA;
 #define FORTH_TVAR_ADDR  0x6
 #define FORTH_UVAR_ADDR  0x10
 #define FORTH_TIB_ADDR   0x20
-#define FORTH_RACK_ADDR  (FORTH_TIB_ADDR+FORTH_TIB_SZ)
-#define FORTH_STACK_ADDR (FORTH_RACK_ADDR+FORTH_RACK_SZ)
+#define FORTH_STACK_ADDR (FORTH_TIB_ADDR+FORTH_TIB_SZ)
 #define FORTH_DIC_ADDR   (FORTH_STACK_ADDR+FORTH_STACK_SZ)
 //
 // TRUE cannot use 1 because NOT(ffffffff)==0 while NOT(1)==ffffffff

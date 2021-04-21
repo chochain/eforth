@@ -10,8 +10,7 @@ S16 top;                        // ALU (i.e. cached top of stack value)
 //
 // Forth VM core storage
 //
-XA  *rack;   	                // return stack (assume FORTH_RACK_SZ is power of 2)
-S16 *stack;   	                // data stack   (assume FORTH_STACK_SZ is power of 2)
+S16 *stack;   	                // stack used by stack and rack
 U8  *cdata;             		// linear byte array pointer
 //
 // data and return stack ops
@@ -23,10 +22,10 @@ U8  *cdata;             		// linear byte array pointer
 //
 #define BOOL(f)     ((f) ? TRUE : FALSE)
 #define CELL(ip)    (*(XA*)(cdata+(XA)(ip)))
-#define RACK(r)     (rack[(r)&(FORTH_RACK_SZ-1)])
-#define STACK(s)    (stack[(s)&(FORTH_STACK_SZ-1)])
-#define RPUSH(a)    (RACK(++R)=(XA)a)
-#define RPOP()      (RACK(R--))
+#define STACK(s)    (stack[s])
+#define RACK(r)     (stack[FORTH_STACK_SZ-(r)])
+#define RPUSH(a)    (RACK(++R)=(S16)a)
+#define RPOP()      ((XA)RACK(R--))
 #define	PUSH(v)	    (STACK(++S)=top, top=(S16)(v))
 #define	POP()		(top=STACK(S--))
 //
@@ -536,12 +535,11 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 63 */ _min,
 };
 
-void vm_init(U8 *cdata0, XA *rack0, S16 *stack0) {
+void vm_init(U8 *cdata0, U8 *stack0) {
 	cdata = cdata0;
-    rack  = rack0;
-    stack = stack0;
+    stack = (S16*)stack0;
     
-	R  = S = PC = IP = top = 0;
+	R = S = PC = IP = top = 0;
 }
 
 void vm_run() {

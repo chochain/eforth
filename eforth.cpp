@@ -23,8 +23,8 @@
 #include <stdio.h>
 #include "eforth.h"
 
-extern "C" int  assemble(U8 *cdata, XA *rack);
-extern "C" void vm_init(U8 *cdata, XA *rack, S16 *stack);
+extern "C" int  assemble(U8 *cdata, U8 *stack);
+extern "C" void vm_init(U8 *cdata, U8 *stack);
 extern "C" void vm_run();
 
 static U8 _mem[FORTH_MEM_SZ];        		  // default 8K forth memory block
@@ -45,7 +45,7 @@ void dump_data(U8* cdata, int len) {
     }
     printf("\nPrimitives = %d", FORTH_PRIMITIVES);
     printf(", ADDRSZ, CELLSZ = (%d, %d)", (int)sizeof(XA), CELLSZ);
-    printf(", RACKSZ, STACKSZ= (%d, %d)", FORTH_RACK_SZ, FORTH_STACK_SZ);
+    printf(", STACKSZ= %d", FORTH_STACK_SZ);
     printf("\nHEAP = x%x", FORTH_MEM_SZ);
     printf("\n  BOOT_ADDR    x%04x", FORTH_BOOT_ADDR);
     printf("\n  USER_ADDR,SZ x%04x, %4x", FORTH_TVAR_ADDR, FORTH_TIB_ADDR-FORTH_TVAR_ADDR);
@@ -58,15 +58,14 @@ void dump_data(U8* cdata, int len) {
 int main(int ac, char* av[])
 {
 	U8  *cdata = _mem;
-    XA  *rack  = (XA*)&_mem[FORTH_RACK_ADDR];
-    S16 *stack = (S16*)&_mem[FORTH_STACK_ADDR];
+    U8  *stack = &_mem[FORTH_STACK_ADDR];
                                                    
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
 
-	int sz  = assemble(cdata, rack);
+	int sz  = assemble(cdata, stack);
 	dump_data(cdata, sz);
 
-	vm_init(cdata, rack, stack);
+	vm_init(cdata, stack);
 	vm_run();
 
 	return 0;
