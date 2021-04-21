@@ -14,18 +14,19 @@ XA NOP, TOR;
 //
 // return stack for branching ops
 //
-XA *aRack;          // return stack (independent of Forth return stack for modulization)
-U8 *aByte;          //
+XA *aRack;          // return stack (4 cells used only, can be independent of Forth return stack)
+U8 *aByte;          // heap
 U8 aR;              // return stack index
 XA aPC, aThread;    // program counter, pointer to previous word
 //
 // stack op macros
 //
 #define SET(d, v)      (*(XA*)(aByte+d)=(XA)(v))
+#define BSET(d, c)     (*(aByte+d)=(U8)(c))
 #define STORE(v)       { SET(aPC, (v)); aPC+=CELLSZ; }
 #define RACK(r)        (aRack[FORTH_STACK_SZ-(r)])
 #define	RPUSH(v)       (RACK(++aR) = (XA)(v))
-#define	RPOP()         (RACK(aR--))
+#define	RPOP()         (RACK(aR ? aR-- : aR))
 #define VAR(a, i)      ((a)+CELLSZ*(i))
 
 void _dump(int b, int u) {
@@ -47,14 +48,17 @@ void _rdump()
 	DEBUG("%c]", ' ');
 }
 void _header(int lex, const char *seq) {
-    if (aThread) _dump(aThread-sizeof(XA), aPC);         // dump data from previous word to current word
+    if (aThread) {
+    	if (aPC >= FORTH_TIB_ADDR) DEBUG("HEAP %s", "max!");
+    	_dump(aThread-sizeof(XA), aPC);         // dump data from previous word to current word
+    }
     STORE(aThread);                           // point to previous word
     aThread = aPC;                            // keep pointer to this word
 
-    aByte[aPC++] = lex;                       // length of word (with optional fIMMED or fCOMPO flags)
+    BSET(aPC++, lex);                         // length of word (with optional fIMMED or fCOMPO flags)
     U32 len = lex & 0x1f;                     // Forth allows word max length 31
     for (U32 i = 0; i < len; i++) {           // memcpy word string
-        aByte[aPC++] = seq[i];
+        BSET(aPC++, seq[i]);
     }
     DEBUG("%04x: ", aPC);
     DEBUG("%s", seq);
@@ -66,7 +70,7 @@ int _code(const char *seg, int len, ...) {
     va_start(argList, len);
     for (; len; len--) {                      // copy bytecodes
         U8 b = (U8)va_arg(argList, int);
-        aByte[aPC++] = b;
+        BSET(aPC++, b);
         DEBUG(" %02x", b);
     }
     va_end(argList);
@@ -184,9 +188,9 @@ void _nxt(int len, ...) {          // _next() is multi-defined in vm
 #define STRCPY(op, seq) {                           \
 	STORE(op);                                      \
 	int len = strlen(seq);							\
-	aByte[aPC++] = len;								\
+	BSET(aPC++, len);                               \
 	for (int i = 0; i < len; i++) {					\
-		aByte[aPC++] = seq[i];						\
+		BSET(aPC++, seq[i]);                        \
 	}												\
 }
 void _DOTQ(const char *seq) {
@@ -229,13 +233,15 @@ int assemble(U8 *cdata, U8 *stack) {
     aRack = (XA*)stack;
 	aR    = aThread = 0;
 	//
-	// Kernel variables (in bytecode streams)
+	// Kernel constants
 	//
+	aPC = FORTH_DIC_ADDR;
 	XA ta    = FORTH_TVAR_ADDR;
 	XA vHLD  = _CODE("HLD",     opDOCON, VAR(ta,0), 0);
 	XA vSPAN = _CODE("SPAN",    opDOCON, VAR(ta,1), 0);
 	XA vIN   = _CODE(">IN",     opDOCON, VAR(ta,2), 0);
 	XA vNTIB = _CODE("#TIB",    opDOCON, VAR(ta,3), 0);
+
 	XA ua    = FORTH_UVAR_ADDR;
 	XA vTTIB = _CODE("'TIB",    opDOCON, VAR(ua,0), 0);
 	XA vBASE = _CODE("BASE",    opDOCON, VAR(ua,1), 0);
@@ -322,30 +328,15 @@ int assemble(U8 *cdata, U8 *stack) {
 	//
 	// Common Colon Words (in word streams)
 	//
+	XA HERE  = _COLON("HERE",  vCP, AT, EXIT);                  // top of dictionary
+	XA PAD   = _COLON("PAD",   HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
 	XA ONEP  = _COLON("1+",    DOLIT, 1, PLUS, EXIT);
 	XA ONEM  = _COLON("1-",    DOLIT, 1, SUB,  EXIT);
 	XA CELLP = _COLON("CELL+", CELL,  PLUS,  EXIT);
 	XA CELLM = _COLON("CELL-", CELL,  SUB,   EXIT);
 	XA CELLS = _COLON("CELLS", CELL,  STAR,  EXIT);
 	XA CELLD = _COLON("CELL/", CELL,  SLASH, EXIT);
-	XA QKEY  = _COLON("?KEY",  QRX, EXIT);
-	XA KEY   = _COLON("KEY",   NOP); {
-		_BEGIN(QKEY);
-		_UNTIL(EXIT);
-	}
-	XA EMIT  = _COLON("EMIT",    TXSTO, EXIT);
 	XA WITHI = _COLON("WITHIN",  OVER, SUB, TOR, SUB, RFROM, ULESS, EXIT);
-	XA TCHAR = _COLON(">CHAR",   DOLIT, 0x7f, AND, DUP, DOLIT, 0x7f, BLANK, WITHI); {
-		_IF(DROP, DOLIT, 0x5f);
-		_THEN(EXIT);
-	}
-	XA HERE  = _COLON("HERE",    vCP, AT, EXIT);                  // top of dictionary
-	XA PAD   = _COLON("PAD",     HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
-	XA TIB   = _COLON("TIB",     vTTIB, AT, EXIT);                // CC: change PAD,TIB to RAM buffer for R/W
-	XA ATEXE = _COLON("@EXECUTE", AT, QDUP); {
-		_IF(EXECU);
-		_THEN(EXIT);
-	}
 	XA CMOVE = _COLON("CMOVE", NOP); {
 		_FOR(NOP);
 		_AFT(OVER, CAT, OVER, CSTOR, TOR, ONEP, RFROM, ONEP);
@@ -367,6 +358,8 @@ int assemble(U8 *cdata, U8 *stack) {
 	//
 	// Number Conversions and formatting
 	//
+	XA HEX   = _COLON("HEX",     DOLIT, 16, vBASE, STORE, EXIT);
+	XA DECIM = _COLON("DECIMAL", DOLIT, 10, vBASE, STORE, EXIT);
 	XA DIGIT = _COLON("DIGIT",   DOLIT, 9, OVER, LESS, DOLIT, 7, AND, PLUS, DOLIT, 0x30, PLUS, EXIT);
 	XA EXTRC = _COLON("EXTRACT", DOLIT, 0, SWAP, UMMOD, SWAP, DIGIT, EXIT);
 	XA BDIGS = _COLON("<#",      PAD, vHLD, STORE, EXIT);
@@ -377,16 +370,14 @@ int assemble(U8 *cdata, U8 *stack) {
 		_WHILE(NOP);
 		_REPEAT(EXIT);
 	}
-	XA SIGN  = _COLON("SIGN",    ZLESS); {
+	XA SIGN  = _COLON("SIGN",   ZLESS); {
 		_IF(DOLIT, 0x2d, HOLD);
 		_THEN(EXIT);
 	}
-	XA EDIGS = _COLON("#>",      DROP, vHLD, AT, PAD, OVER, SUB, EXIT);
-	XA STR   = _COLON("str",     DUP, TOR, ABS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXIT);
-	XA HEX   = _COLON("HEX",     DOLIT, 16, vBASE, STORE, EXIT);
-	XA DECIM = _COLON("DECIMAL", DOLIT, 10, vBASE, STORE, EXIT);
-	XA UPPER = _COLON("wupper",  DOLIT, 0x5f5f, AND, EXIT);
-	XA TOUPP = _COLON(">upper",  DUP, DOLIT, 0x61, DOLIT, 0x7b, WITHI); { // [a-z] only?
+	XA EDIGS = _COLON("#>",     DROP, vHLD, AT, PAD, OVER, SUB, EXIT);
+	XA STR   = _COLON("str",    DUP, TOR, ABS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXIT);
+	XA UPPER = _COLON("wupper", DOLIT, 0x5f5f, AND, EXIT);
+	XA TOUPP = _COLON(">upper", DUP, DOLIT, 0x61, DOLIT, 0x7b, WITHI); { // [a-z] only?
 		_IF(DOLIT, 0x5f, AND);
 		_THEN(EXIT);
 	}
@@ -412,14 +403,29 @@ int assemble(U8 *cdata, U8 *stack) {
   		 _THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
 	}
 	//
-	// Terminal Output
+	// Console I/O
 	//
+	XA TIB   = _COLON("TIB",   vTTIB, AT, EXIT);
+	XA QKEY  = _COLON("?KEY",  QRX, EXIT);
+	XA KEY   = _COLON("KEY",   NOP); {
+		_BEGIN(QKEY);
+		_UNTIL(EXIT);
+	}
+	XA EMIT  = _COLON("EMIT",  TXSTO, EXIT);
+	XA HATH  = _COLON("^H", TOR, OVER, RFROM, SWAP, OVER, XOR); {
+		_IF(DOLIT, 8, EMIT, ONEM, BLANK, EMIT, DOLIT, 8, EMIT);
+		_THEN(EXIT);
+	}
 	XA SPACE = _COLON("SPACE", BLANK, EMIT, EXIT);
 	XA CHARS = _COLON("CHARS", SWAP, DOLIT, 0, MAX); {
 		_FOR(NOP);
 		_AFT(DUP, EMIT);
 		_THEN(NOP);
 		_NEXT(DROP, EXIT);
+	}
+	XA TCHAR = _COLON(">CHAR", DOLIT, 0x7f, AND, DUP, DOLIT, 0x7f, BLANK, WITHI); {
+		_IF(DROP, DOLIT, 0x5f);
+		_THEN(EXIT);
 	}
 	XA SPACS = _COLON("SPACES", BLANK, CHARS, EXIT);
 	XA TYPE  = _COLON("TYPE", NOP); {
@@ -502,12 +508,8 @@ int assemble(U8 *cdata, U8 *stack) {
 	}
 	XA NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
 	//
-	// Terminal Input
+	// Interpreter Input String handler
 	//
-	XA HATH  = _COLON("^H", TOR, OVER, RFROM, SWAP, OVER, XOR); {
-		_IF(DOLIT, 8, EMIT, ONEM, BLANK, EMIT, DOLIT, 8, EMIT);
-		_THEN(EXIT);
-	}
 	XA TAP   = _COLON("TAP", DUP, EMIT, OVER, CSTOR, ONEP, EXIT);                  // store new char to TIB
 	XA KTAP  = _COLON("kTAP", DUP, DOLIT, 0xd, XOR, OVER, DOLIT, 0xa, XOR, AND); { // check <CR><LF>
 		_IF(DOLIT, 8, XOR); {                                                      // check <TAB>
@@ -557,6 +559,10 @@ int assemble(U8 *cdata, U8 *stack) {
     	   \-No:                                                      /
 	        \-An Error has occurred, prXA out an error message >---->
 	*/
+	XA ATEXE = _COLON("@EXECUTE", AT, QDUP); {
+		_IF(EXECU);
+		_THEN(EXIT);
+	}
 	XA ABORT  = _COLON("ABORT", vTABRT, ATEXE);
 	   ABORTQ = _COLON("abort\"", NOP); {
 		_IF(DOSTR, COUNT, TYPE, ABORT);
@@ -564,11 +570,11 @@ int assemble(U8 *cdata, U8 *stack) {
 	}
 	XA ERROR = _COLON("ERROR", SPACE, COUNT, TYPE, DOLIT, 0x3f, EMIT, DOLIT, 0x1b, EMIT, CR, ABORT);
 	XA INTER = _COLON("$INTERPRET", NAMEQ, QDUP); {  // scan dictionary for word
-		_IF(CAT, DOLIT, fCOMPO, AND); {  // if it is compile only word
+		_IF(CAT, DOLIT, fCOMPO, AND); {              // if it is compile only word
             _ABORTQ(" compile only");
             _LABEL(EXECU, EXIT);
         }
-		_THEN(NUMBQ);                    // word name not found, check if it is a number
+		_THEN(NUMBQ);                                // word name not found, check if it is a number
 		_IF(EXIT);
 		_ELSE(ERROR);
 		_THEN(NOP);
@@ -590,7 +596,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_AGAIN(NOP);
 	}
 	//
-	// Colon Word Compiler
+	// meta-compiler
 	//
 	XA COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);
 	XA LITER = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
@@ -635,24 +641,13 @@ int assemble(U8 *cdata, U8 *stack) {
 		_THEN(NOP);
 		_NEXT(EXIT);
 	}
-	XA DUMP  = _COLON("DUMP", vBASE, AT, TOR, HEX, DOLIT, 0x1f, PLUS, DOLIT, 0x20, SLASH); {              // 
+	XA DUMP  = _COLON("DUMP", vBASE, AT, TOR, HEX, DOLIT, 0x1f, PLUS, DOLIT, 0x20, SLASH); {
 		_FOR(NOP);
 		_AFT(CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPE, RFROM);
 		_THEN(NOP);
 		_NEXT(DROP, RFROM, vBASE, STORE, EXIT);      // restore BASE
 	}
-	/*
-	XA TNAME = _COLON(">NAME", vCNTX); {            // scan through the dictionary to find the name
-		_BEGIN(AT, QDUP);                            // this is inefficient, see following
-		_WHILE(DDUP, NAMET, XOR); {
-			_IF(CELLM);                              // fetch previous word, CC: Ting uses ONEM, a bug
-			_ELSE(SWAP, DROP, EXIT);
-			_THEN(NOP);
-		}
-		_REPEAT(SWAP, DROP, EXIT);
-	}
-	*/
-	XA TNAME = _COLON(">NAME", NOP); {              // CC: my implementation
+	XA TNAME = _COLON(">NAME", NOP); {
 		_BEGIN(ONEM, DUP, CAT, DOLIT, 0x7f, AND, DOLIT, 0x20, LESS);
 		_UNTIL(EXIT);
 	}
@@ -670,9 +665,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_IF(CELLM, DUP, vCP, STORE, AT, DUP, vCNTX, STORE, vLAST, STORE, DROP, EXIT);
 		_THEN(ERROR);
 	}
-	//XA COLD  = _COLON("COLD", DOLIT, 0x1, CELLP, ONEP, EXIT);
-	XA COLD  = _COLON("COLD", CR); { _DOTQ("eForth16 v1.0"); }
-	XA DOTQ1 = _LABEL(CR, QUIT);  // QUIT is the main query loop
+	XA COLD   = _COLON("COLD", CR, QUIT);              // QUIT is the main query loop
 	//
 	// Structure Compiler
 	//

@@ -43,15 +43,16 @@ void dump_data(U8* cdata, int len) {
             printf("%c", c ? ((c>0x1f && c<0x7f) ? c : '_') : '.');
         }
     }
-    printf("\nPrimitives = %d", FORTH_PRIMITIVES);
-    printf(", ADDRSZ, CELLSZ = (%d, %d)", (int)sizeof(XA), CELLSZ);
-    printf(", STACKSZ= %d", FORTH_STACK_SZ);
+    printf("\nPrimitives=%d", FORTH_PRIMITIVES);
+    printf(", ADDRSZ, CELLSZ=(%d, %d)", (int)sizeof(XA), CELLSZ);
+    printf(", STACKSZ=%d", FORTH_STACK_SZ);
     printf("\nHEAP = x%x", FORTH_MEM_SZ);
     printf("\n  BOOT_ADDR    x%04x", FORTH_BOOT_ADDR);
     printf("\n  USER_ADDR,SZ x%04x, %4x", FORTH_TVAR_ADDR, FORTH_TIB_ADDR-FORTH_TVAR_ADDR);
     printf("\n  TIB_ADDR,SZ  x%04x, %4x", FORTH_TIB_ADDR, FORTH_TIB_SZ);
     printf("\n  DIC_ADDR,SZ  x%04x, %4x", FORTH_DIC_ADDR, FORTH_MEM_SZ-FORTH_DIC_ADDR);
     printf("\n  DIC_TOP      x%04x", len);
+    printf("\neForth16 v1.0");
 #endif // ASM_TRACE
 }
 
