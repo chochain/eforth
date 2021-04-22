@@ -43,15 +43,14 @@ void dump_data(U8* cdata, int len) {
             printf("%c", c ? ((c>0x1f && c<0x7f) ? c : '_') : '.');
         }
     }
-    printf("\nPrimitives=%d", FORTH_PRIMITIVES);
-    printf(", ADDRSZ, CELLSZ=(%d, %d)", (int)sizeof(XA), CELLSZ);
-    printf(", STACKSZ=%d", FORTH_STACK_SZ);
+    printf("\nPrimitives=%d, Addr=%d-bit, CELL=%d", FORTH_PRIMITIVES, (int)sizeof(XA)*8, CELLSZ);
     printf("\nHEAP = x%x", FORTH_MEM_SZ);
-    printf("\n  BOOT_ADDR    x%04x", FORTH_BOOT_ADDR);
-    printf("\n  USER_ADDR,SZ x%04x, %4x", FORTH_TVAR_ADDR, FORTH_TIB_ADDR-FORTH_TVAR_ADDR);
-    printf("\n  TIB_ADDR,SZ  x%04x, %4x", FORTH_TIB_ADDR, FORTH_TIB_SZ);
-    printf("\n  DIC_ADDR,SZ  x%04x, %4x", FORTH_DIC_ADDR, FORTH_MEM_SZ-FORTH_DIC_ADDR);
-    printf("\n  DIC_TOP      x%04x", len);
+    printf("\n  BOOT x%04x", FORTH_BOOT_ADDR);
+    printf("\n  USER x%04x+%04x", FORTH_TVAR_ADDR, FORTH_TIB_ADDR-FORTH_TVAR_ADDR);
+    printf("\n  TIB  x%04x+%04x", FORTH_TIB_ADDR, FORTH_TIB_SZ);
+    printf("\n  STK  x%04x+%04x", FORTH_STACK_ADDR, FORTH_STACK_SZ*CELLSZ);
+    printf("\n  DIC  x%04x+%04x", FORTH_DIC_ADDR, FORTH_MEM_SZ-FORTH_DIC_ADDR);
+    printf("\n  HERE x%04x", len);
     printf("\neForth16 v1.0");
 #endif // ASM_TRACE
 }
@@ -67,7 +66,7 @@ int main(int ac, char* av[])
 	dump_data(cdata, sz);
 
 	vm_init(cdata, stack);
-	vm_run();
+	//vm_run();
 
 	return 0;
 }

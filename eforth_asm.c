@@ -319,6 +319,7 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA COUNT = _CODE("COUNT",   opCOUNT  );
 	XA MAX   = _CODE("MAX",     opMAX    );
 	XA MIN   = _CODE("MIN",     opMIN    );
+	// HERE=0x343
 	//
 	// tracing instrumentation (borrow 2 opcodes)
 	//
@@ -355,6 +356,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_THEN(NOP);
 		_NEXT(DDROP, EXIT);
 	}
+	// HERE=x046b
 	//
 	// Number Conversions and formatting
 	//
@@ -402,6 +404,7 @@ int assemble(U8 *cdata, U8 *stack) {
          }
   		 _THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
 	}
+	// HERE=0x671
 	//
 	// Console I/O
 	//
@@ -412,6 +415,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_UNTIL(EXIT);
 	}
 	XA EMIT  = _COLON("EMIT",  TXSTO, EXIT);
+	XA CR    = _COLON("CR",   DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
 	XA HATH  = _COLON("^H", TOR, OVER, RFROM, SWAP, OVER, XOR); {
 		_IF(DOLIT, 8, EMIT, ONEM, BLANK, EMIT, DOLIT, 8, EMIT);
 		_THEN(EXIT);
@@ -434,7 +438,6 @@ int assemble(U8 *cdata, U8 *stack) {
 		_THEN(NOP);
 		_NEXT(DROP, EXIT);
 	}
-	XA CR    = _COLON("CR",   DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
 	XA DOSTR = _COLON("do$",  RFROM, RAT, RFROM, COUNT, PLUS, TOR, SWAP, TOR, EXIT);
 	XA STRQ  = _COLON("$\"|", DOSTR, EXIT);
 	   DOTQ  = _COLON(".\"|", DOSTR, COUNT, TYPE, EXIT);
@@ -446,6 +449,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_THEN(STR, SPACE, TYPE, EXIT);
 	}
 	XA QUEST = _COLON("?", AT, DOT, EXIT);
+	// HERE=0x819
 	//
 	// Parser
     //
@@ -507,6 +511,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);  // word found, get name field
 	}
 	XA NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
+	// HERE=0xa17
 	//
 	// Interpreter Input String handler
 	//
@@ -530,6 +535,7 @@ int assemble(U8 *cdata, U8 *stack) {
 	}
 	XA EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
 	XA QUERY = _COLON("QUERY", TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
+	// HERE=0xae0
 	//
 	// Text Interpreter
 	//
@@ -595,6 +601,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_BEGIN(QUERY, EVAL);      // main query-eval loop
 		_AGAIN(NOP);
 	}
+	// HERE=0xc0e
 	//
 	// meta-compiler
 	//
@@ -632,6 +639,7 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
 	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXIT);
 	XA SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
+	// HERE=0xd7e
 	//
 	// Debugging Tools
 	//
@@ -666,8 +674,9 @@ int assemble(U8 *cdata, U8 *stack) {
 		_THEN(ERROR);
 	}
 	XA COLD   = _COLON("COLD", CR, QUIT);              // QUIT is the main query loop
+	// HERE=0xeaf
 	//
-	// Structure Compiler
+	// Compiler - branching instructions
 	//
 	XA iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
 	XA iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
@@ -695,6 +704,7 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	XA ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
 	XA IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
+	// HERE=0x108e
 
 	int XDIC  = aPC;                                   // End of dictionary
 	int sz    = strlen("IMMEDIATE");                   // size of last word

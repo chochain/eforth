@@ -63,6 +63,7 @@ enum {
     opBYE,        // 1
     opQRX,        // 2
     opTXSTO,      // 3
+    
     opDOCON,      // 4
     opDOLIT,      // 5
     opENTER,      // 6
@@ -71,6 +72,7 @@ enum {
     opDONEXT,     // 9
     opQBRAN,      // 10
     opBRAN,       // 11
+    
     opSTORE,      // 12
     opAT,         // 13
     opCSTOR,      // 14
@@ -81,30 +83,36 @@ enum {
     opRAT,        // 19
     opTOR,        // 20
     opSPAT,       // 21   borrowed for clock
-    opSPSTO,      // 22   
+    opSPSTO,      // 22
+    
     opDROP,       // 23
     opDUP,        // 24
     opSWAP,       // 25
     opOVER,       // 26
+    
     opZLESS,      // 27
     opAND,        // 28
     opOR,         // 29
     opXOR,        // 30
+    
     opUPLUS,      // 31
     opNEXT,       // 32
     opQDUP,       // 33
     opROT,        // 34
     opDDROP,      // 35
     opDDUP,       // 36
+    
     opPLUS,       // 37
     opINVER,      // 38
     opNEGAT,      // 39
     opDNEGA,      // 40
     opSUB,        // 41
     opABS,        // 42
+    
     opEQUAL,      // 43
     opULESS,      // 44
     opLESS,       // 45
+    
     opUMMOD,      // 46
     opMSMOD,      // 47
     opSLMOD,      // 48
