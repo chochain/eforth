@@ -12,7 +12,7 @@
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
 #define ASM_TRACE       1
-#define EXE_TRACE       0
+#define EXE_TRACE       1
 //
 // portable types
 //
@@ -37,9 +37,10 @@ typedef U32       XA;
 // capacity and sizing
 //
 #define FORTH_PRIMITIVES 64
+#define FORTH_MEM_SZ     0x2000
 #define FORTH_STACK_SZ   0x40
 #define FORTH_TIB_SZ     0x40
-#define FORTH_MEM_SZ     0x2000
+#define FORTH_PAD_SZ     0x20
 //
 // logic and stack op macros (processor dependent)
 //
@@ -82,8 +83,8 @@ enum {
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
-    opSPAT,       // 21   borrowed for clock
-    opSPSTO,      // 22
+    opONEP,       // 21 Dr. Ting' opPSPAT
+    opONEM,       // 22 Dr. Ting's opSPSTO
     
     opDROP,       // 23
     opDUP,        // 24
@@ -112,9 +113,9 @@ enum {
     opEQUAL,      // 43
     opULESS,      // 44
     opLESS,       // 45
-    
     opUMMOD,      // 46
     opMSMOD,      // 47
+    
     opSLMOD,      // 48
     opMOD,        // 49
     opSLASH,      // 50

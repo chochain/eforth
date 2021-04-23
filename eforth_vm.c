@@ -120,14 +120,14 @@ void _dolit()               // ( -- w) push next token as an integer literal
 {
 	TRACE(" %d", CELL(IP)); // fetch literal from data
 	PUSH(CELL(IP));	        // push onto data stack
-	IP += CELLSZ;			// skip to next instruction
+	IP += CELLSZ;		    // skip the data cell to next instruction
     _next();
 }
 void _enter()               // ( -- ) push instruction pointer onto return stack and pop, aka DOLIST by Dr. Ting
 {
 	TRACE_COLON();
 	RPUSH(IP);              // keep return address
-	IP = PC+sizeof(XA);     // advance to next instruction
+	IP = ++PC;              // skip the opcode (06), advance to next instruction
     _next();
 }
 void __exit()               // ( -- ) terminate all token lists in colon words
@@ -201,6 +201,16 @@ void _tor()                 // (-- n) pop from data stack and push onto return s
 {
 	RPUSH(top);
 	POP();
+    _next();
+}
+void _onep()
+{
+    top++;
+    _next();
+}
+void _onem()
+{
+    top--;
     _next();
 }
 void _drop()                // (w -- ) drop top of stack item
@@ -311,7 +321,8 @@ void _sub()                 // (n1 n2 -- n1-n2) subtraction
 }
 void _abs()                 // (n -- n) absolute value of n
 {
-	if (top < 0) top = -top;
+	U16 m = top>>15;
+    top = (top + m) ^ m;    // no branching
     _next();
 }
 void _great()               // (n1 n2 -- t) true if n1>n2
@@ -336,32 +347,28 @@ void _uless()               // (u1 u2 -- t) unsigned compare top two items
 }
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
-	S32 d = (S32)top;       // CC: auto variable uses C stack 
-	S32 m = (S32)STACK(S);
-	S32 n = (S32)STACK(S - 1);
-	n += m << (CELLSZ<<3);
+	U32 d = (U32)top;       // CC: auto variable uses C stack 
+	U32 m = ((U32)STACK(S)<<16) + STACK(S-1);
 	POP();
-	top      = (U16)(n / d); // quotient
-	STACK(S) = (U16)(n % d); // remainder
+	STACK(S) = (S16)(m % d); // remainder
+	top      = (S16)(m / d); // quotient
     _next();
 }
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
 	S32 d = (S32)top;
-	S32 m = (S32)STACK(S);
-	S32 n = (S32)STACK(S - 1);
-	n += m << 16;
+	S32 m = ((S32)STACK(S)<<16) + STACK(S-1);
 	POP();
-	top      = (S16)(n / d); // quotient
-	STACK(S) = (S16)(n % d); // remainder
+	STACK(S) = (S16)(m % d); // remainder
+	top      = (S16)(m / d); // quotient
     _next();
 }
-void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotien
+void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotient
 {
 	if (top) {
-		S16 tmp = STACK(S) / top;
+		S16 tmp  = STACK(S) / top;
 		STACK(S) %= top;
-		top = tmp;
+		top      = tmp;
 	}
     _next();
 }
@@ -377,11 +384,9 @@ void _slash()               // (n n - q) signed divide, return quotient
 }
 void _umsta()               // (u1 u2 -- ud) unsigned multiply return double product
 {
-	U64 d = (U64)top;
-	U64 m = (U64)STACK(S);
-	m *= d;
-	top      = (U32)(m >> 32);
-	STACK(S) = (U32)m;
+	U32 m    = (U32)STACK(S) * top;
+	STACK(S) = (U16)(m & 0xffff);
+	top      = (U16)(m >> 16);
     _next();
 }
 void _star()                // (n n -- n) signed multiply, return single product
@@ -391,33 +396,27 @@ void _star()                // (n n -- n) signed multiply, return single product
 }
 void _mstar()               // (n1 n2 -- d) signed multiply, return double product
 {
-	S32 d = (S32)top;
-	S32 m = (S32)STACK(S);
-	m *= d;
+	S32 m    = (S32)STACK(S) * top;
+	STACK(S) = (S16)(m&0xffff);
 	top      = (S16)(m >> 16);
-	STACK(S) = (S16)m;
     _next();
 }
-void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotion
+void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotient
 {
-	S32 d = (S32)top;
-	S32 m = (S32)STACK(S);
-	S32 n = (S32)STACK(S - 1);
-	n *= m;
+	S32 m = (S32)STACK(S-1) * STACK(S);
+	S16 d = top;
 	POP();
-	top      = (S16)(n / d);
-	STACK(S) = (S16)(n % d);
+	STACK(S) = (S16)(m % d);
+	top      = (S16)(m / d);
     _next();
 }
 void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 {
-	S32 d = (S32)top;
-	S32 m = (S32)STACK(S);
-	S32 n = (S32)STACK(S - 1);
-	n *= m;
+	S32 m = (S32)STACK(S-1) * STACK(S);
+    S16 d = top;
 	POP();
     POP();
-	top = (S16)(n / d);
+	top = (S16)(m / d);
     _next();
 }
 void _pick()                // (... +n -- ...w) copy nth stack item to top
@@ -490,8 +489,8 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 18 */ _rfrom,
 	/* case 19 */ _rat,
 	/* case 20 */ _tor,
-	/* case 21 spat, */  _clock,
-	/* case 22 spsto, */ _nop,
+	/* case 21 spat, */  _onep,
+	/* case 22 spsto, */ _onem,
 	/* case 23 */ _drop,
 	/* case 24 */ _dup,
 	/* case 25 */ _swap,
@@ -543,7 +542,9 @@ void vm_init(U8 *cdata0, U8 *stack0) {
 }
 
 void vm_run() {
-    //tCNT++;                         // execution tracing
+#if EXE_TRACE
+    tCNT++;                         // execution tracing
+#endif // EXE_TRACE
 	for (;;) {
 	    TRACE_WORD();               // tracing stack and word name
 		prim[cdata[PC]]();          // walk bytecode stream

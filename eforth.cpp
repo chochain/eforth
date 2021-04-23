@@ -66,7 +66,7 @@ int main(int ac, char* av[])
 	dump_data(cdata, sz);
 
 	vm_init(cdata, stack);
-	//vm_run();
+	vm_run();
 
 	return 0;
 }
