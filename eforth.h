@@ -12,7 +12,7 @@
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
 #define ASM_TRACE       1
-#define EXE_TRACE       1
+#define EXE_TRACE       0
 //
 // portable types
 //
@@ -109,14 +109,14 @@ enum {
     opDNEGA,      // 40
     opSUB,        // 41
     opABS,        // 42
-    
     opEQUAL,      // 43
     opULESS,      // 44
     opLESS,       // 45
+    
     opUMMOD,      // 46
     opMSMOD,      // 47
-    
     opSLMOD,      // 48
+    
     opMOD,        // 49
     opSLASH,      // 50
     opUMSTA,      // 51
@@ -136,7 +136,7 @@ enum {
 
 typedef struct {
 	U8  R, S;              // return stack index, data stack index
-	U32 P, IP, WP;         // P (program counter), IP (intruction pointer), WP (parameter pointer)
+	U32 P, IP;             // P (program counter), IP (intruction pointer), WP (parameter pointer)
 	U32 thread;            // pointer to previous word
 	S32 top0;              // stack top value (cache)
 	void (*vtbl[])();      // opcode vtable

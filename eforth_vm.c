@@ -348,7 +348,7 @@ void _uless()               // (u1 u2 -- t) unsigned compare top two items
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
 	U32 d = (U32)top;       // CC: auto variable uses C stack 
-	U32 m = ((U32)STACK(S)<<16) + STACK(S-1);
+	U32 m = ((U32)STACK(S)<<16) + (U16)STACK(S-1);
 	POP();
 	STACK(S) = (S16)(m % d); // remainder
 	top      = (S16)(m / d); // quotient
