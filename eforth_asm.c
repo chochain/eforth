@@ -23,10 +23,9 @@ XA aPC, aThread;    // program counter, pointer to previous word
 //
 #define SET(d, v)      (*(XA*)(aByte+d)=(XA)(v))
 #define BSET(d, c)     (*(aByte+d)=(U8)(c))
-#define STORE(v)       { SET(aPC, (v)); aPC+=CELLSZ; }
-#define RACK(r)        (aRack[FORTH_STACK_SZ-(r)])
-#define	RPUSH(v)       (RACK(++aR) = (XA)(v))
-#define	RPOP()         (RACK(aR ? aR-- : aR))
+#define STORE(v)       do { SET(aPC, (v)); aPC+=CELLSZ; } while(0)
+#define	RPUSH(v)       (aRack[++aR] = (XA)(v))
+#define	RPOP()         (aRack[aR ? aR-- : aR])
 #define VAR(a, i)      ((a)+CELLSZ*(i))
 
 void _dump(int b, int u) {
@@ -49,7 +48,8 @@ void _rdump()
 }
 void _header(int lex, const char *seq) {
     if (aThread) {
-    	if (aPC >= FORTH_TIB_ADDR) DEBUG("HEAP %s", "max!");
+    	if (aPC >= (FORTH_MEM_SZ-FORTH_DIC_ADDR))
+    		DEBUG("HEAP %s", "max!");
     	_dump(aThread-sizeof(XA), aPC);         // dump data from previous word to current word
     }
     STORE(aThread);                           // point to previous word
@@ -76,7 +76,7 @@ int _code(const char *seg, int len, ...) {
     va_end(argList);
     return addr;
 }
-#define DATACPY(n) {                            \
+#define CELLCPY(n) {                            \
     va_list argList;                            \
 	va_start(argList, n);						\
 	for (; n; n--) {							\
@@ -92,41 +92,41 @@ int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
     DEBUG(" %s", ":06");
     int addr = aPC;
-    STORE(opENTER);
-    DATACPY(len);
+    BSET(aPC++, opENTER);
+    CELLCPY(len);
     return addr;
 }
 int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
     DEBUG(" %s", "i06");
     int addr = aPC;
-    STORE(opENTER);
-    DATACPY(len);
+    BSET(aPC++, opENTER);
+    CELLCPY(len);
     return addr;
 }
 int _label(int len, ...) {
     SHOWOP("LABEL");
     int addr = aPC;
     // label has no opcode here
-    DATACPY(len);
+    CELLCPY(len);
     return addr;
 }
 void _begin(int len, ...) {
     SHOWOP("BEGIN");
     RPUSH(aPC);                     // keep current address for looping
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _again(int len, ...) {
     SHOWOP("AGAIN");
     STORE(BRAN);                    // unconditional branch
     STORE(RPOP());                  // store return address
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _until(int len, ...) {
     SHOWOP("UNTIL");
     STORE(QBRAN);                   // conditional branch
     STORE(RPOP());                  // loop begin address
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _while(int len, ...) {
     SHOWOP("WHILE");
@@ -135,21 +135,21 @@ void _while(int len, ...) {
     int k = RPOP();
     RPUSH(aPC - CELLSZ);
     RPUSH(k);
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _repeat(int len, ...) {
     SHOWOP("REPEAT");
     STORE(BRAN);
     STORE(RPOP());
     SET(RPOP(), aPC);
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _if(int len, ...) {           // IF-THEN, IF-ELSE-THEN
     SHOWOP("IF");
 	STORE(QBRAN);                  // conditional branch
     RPUSH(aPC);                    // keep A0 address on return stack for ELSE or THEN
     STORE(0);                      // reserve branching address (A0)
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _else(int len, ...) {
     SHOWOP("ELSE");
@@ -157,18 +157,18 @@ void _else(int len, ...) {
     STORE(0);                      // reserve branching address (A1)
     SET(RPOP(), aPC);              // backfill A0 branching address
     RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for THEN
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _then(int len, ...) {
     SHOWOP("THEN");
     SET(RPOP(), aPC);              // backfill branching address (A0) or (A1)
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _for(int len, ...) {          // FOR-NEXT
     SHOWOP("FOR");                 // FOR-(first)-AFT-(2nd,...)-THEN-(every)-NEXT
     STORE(TOR);                    // put loop counter on return stack
     RPUSH(aPC);                    // keep 1st loop repeat address A0
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _aft(int len, ...) {          // code between FOR-AFT run only once
     SHOWOP("AFT");
@@ -177,13 +177,13 @@ void _aft(int len, ...) {          // code between FOR-AFT run only once
     RPOP();                        // pop-off A0 (FOR-AFT once only)
     RPUSH(aPC);                    // keep repeat address on return stack
     RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for AFT-THEN
-    DATACPY(len);
+    CELLCPY(len);
 }
 void _nxt(int len, ...) {          // _next() is multi-defined in vm
     SHOWOP("NEXT");
     STORE(DONXT);                  // check loop counter (on return stack)
     STORE(RPOP());                 // add A0 (FOR-NEXT) or 
-    DATACPY(len);                  // A1 to repeat loop (conditional branch by DONXT)
+    CELLCPY(len);                  // A1 to repeat loop (conditional branch by DONXT)
 }
 #define STRCPY(op, seq) {                           \
 	STORE(op);                                      \
@@ -229,7 +229,6 @@ void _ABORTQ(const char *seq) {
 
 int assemble(U8 *cdata, U8 *stack) {
 	aByte = cdata;
-	aPC   = FORTH_DIC_ADDR;
     aRack = (XA*)stack;
 	aR    = aThread = 0;
 	//
@@ -279,6 +278,8 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA RFROM = _CODE("R>",      opRFROM  );
 	XA RAT   = _CODE("R@",      opRAT    );
 	   TOR   = _CODE(">R",      opTOR    );
+    XA ONEP  = _CODE("1+",      opONEP   );
+    XA ONEM  = _CODE("1-",      opONEM   );
 	XA DROP  = _CODE("DROP",    opDROP   );
 	XA DUP   = _CODE("DUP",     opDUP    );
 	XA SWAP  = _CODE("SWAP",    opSWAP   );
@@ -303,7 +304,7 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA ULESS = _CODE("U<",      opULESS  );
 	XA LESS  = _CODE("<",       opLESS   );
 	XA UMMOD = _CODE("UM/MOD",  opUMMOD  );
-	XA MSMOD = _CODE("M/MOD",   opMSMOD  );
+    XA MSMOD = _CODE("M/MOD",   opMSMOD  );
 	XA SLMOD = _CODE("/MOD",    opSLMOD  );
 	XA MOD   = _CODE("MOD",     opMOD    );
 	XA SLASH = _CODE("/",       opSLASH  );
@@ -323,16 +324,13 @@ int assemble(U8 *cdata, U8 *stack) {
 	//
 	// tracing instrumentation (borrow 2 opcodes)
 	//
-	XA clock   = _CODE("clock",   opSPAT);
 	XA trc_on  = _CODE("trc_on",  opRPAT);
 	XA trc_off = _CODE("trc_off", opRPSTO);
 	//
 	// Common Colon Words (in word streams)
 	//
-	XA HERE  = _COLON("HERE",  vCP, AT, EXIT);                  // top of dictionary
-	XA PAD   = _COLON("PAD",   HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
-	XA ONEP  = _COLON("1+",    DOLIT, 1, PLUS, EXIT);
-	XA ONEM  = _COLON("1-",    DOLIT, 1, SUB,  EXIT);
+	XA HERE  = _COLON("HERE",  vCP, AT, EXIT);                          // top of dictionary
+	XA PAD   = _COLON("PAD",   HERE, DOLIT, FORTH_PAD_SZ, PLUS, EXIT);  // use HERE for output buffer
 	XA CELLP = _COLON("CELL+", CELL,  PLUS,  EXIT);
 	XA CELLM = _COLON("CELL-", CELL,  SUB,   EXIT);
 	XA CELLS = _COLON("CELLS", CELL,  STAR,  EXIT);
@@ -384,11 +382,12 @@ int assemble(U8 *cdata, U8 *stack) {
 		_THEN(EXIT);
 	}
 	XA DIGTQ = _COLON("DIGIT?", TOR, TOUPP, DOLIT, 0x30, SUB, DOLIT, 9, OVER, LESS); {
-		_IF(DOLIT, 7, SUB, DUP, DOLIT, 10, LESS, OR);           // handle hex number
+		_IF(DOLIT, 7, SUB, DUP, DOLIT, 10, LESS, OR);           // handle base > 10
 		_THEN(DUP, RFROM, ULESS, EXIT);                         // handle decimal number
 	}
-	XA NUMBQ = _COLON("NUMBER?", vBASE, AT, TOR,DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
-		_IF(HEX, SWAP, ONEP, SWAP, ONEM);                       // leading with $ (i.e. 0x24)
+	XA NUMBQ = _COLON("NUMBER?", vBASE, AT, TOR, DOLIT, 0, OVER, COUNT,
+                      OVER, CAT, DOLIT, 0x24, EQUAL); {         // handle leading $ (i.e. 0x24)
+		_IF(HEX, SWAP, ONEP, SWAP, ONEM);
 		_THEN(OVER, CAT, DOLIT, 0x2d, EQUAL,                    // handle negative sign (i.e. 0x2d)
               TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP);
 		_IF(ONEM); {
@@ -428,7 +427,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_NEXT(DROP, EXIT);
 	}
 	XA TCHAR = _COLON(">CHAR", DOLIT, 0x7f, AND, DUP, DOLIT, 0x7f, BLANK, WITHI); {
-		_IF(DROP, DOLIT, 0x5f);
+		_IF(DROP, DOLIT, 0x5f);     // out-of-range put '_' instead
 		_THEN(EXIT);
 	}
 	XA SPACS = _COLON("SPACES", BLANK, CHARS, EXIT);
@@ -445,8 +444,8 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA UDOTR = _COLON("U.R",  TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	XA UDOT  = _COLON("U.",   BDIGS, DIGS, EDIGS, SPACE, TYPE, EXIT);
 	XA DOT   = _COLON(".",    vBASE, AT, DOLIT, 0xa, XOR); {
-		_IF(UDOT, EXIT);
-		_THEN(STR, SPACE, TYPE, EXIT);
+		_IF(UDOT, EXIT);                     // base==10
+		_THEN(STR, SPACE, TYPE, EXIT);       // other 
 	}
 	XA QUEST = _COLON("?", AT, DOT, EXIT);
 	// HERE=0x819
@@ -481,7 +480,7 @@ int assemble(U8 *cdata, U8 *stack) {
 					   PARSE0, vIN, PSTOR,
 					   EXIT);
 	XA TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);  // put token at HERE
-	XA WORDD = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
+	XA WORD  = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
 	XA NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, EXIT);
 	XA SAMEQ = _COLON("SAME?", NOP); {               // (a1 a2 n - a1 a2 f) compare n byte-by-byte
         _FOR(DDUP);
@@ -608,14 +607,14 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);
 	XA LITER = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
 	XA ALLOT = _COLON("ALLOT",   vCP, PSTOR, EXIT);
-	XA STRCQ = _COLON("$,\"",    DOLIT, 0x22, WORDD, COUNT, PLUS, vCP, STORE, EXIT);
+	XA STRCQ = _COLON("$,\"",    DOLIT, 0x22, WORD, COUNT, PLUS, vCP, STORE, EXIT);
 	XA UNIQU = _COLON("?UNIQUE", DUP, NAMEQ, QDUP); {
 		_IF(COUNT, DOLIT, 0x1f, AND, SPACE, TYPE); {
 			_DOTQ(" reDef");
 		}
 		_THEN(DROP, EXIT);
 	}
-	XA SNAME = _COLON("$,n", DUP, AT); {
+	XA SNAME = _COLON("$,n", DUP, AT); {     // add new name field which is already build by PACK$
 		_IF(UNIQU, DUP, NAMET, vCP, STORE, DUP, vLAST, STORE, CELLM, vCNTX, AT, SWAP, STORE, EXIT);
 		_THEN(ERROR);
 	}
@@ -637,7 +636,7 @@ int assemble(U8 *cdata, U8 *stack) {
 	}
 	XA OVERT = _COLON("OVERT", vLAST, AT, vCNTX, STORE, EXIT);
 	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
-	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXIT);
+	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, HERE, DOLIT, 0x6, CSTOR, DOLIT, 0x1, vCP, PSTOR, EXIT);
 	XA SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
 	// HERE=0xd7e
 	//
@@ -645,11 +644,11 @@ int assemble(U8 *cdata, U8 *stack) {
 	//
 	XA DMP   = _COLON("dm+", OVER, DOLIT, 6, UDOTR); {
 		_FOR(NOP);
-		_AFT(DUP, AT, DOLIT, 9, UDOTR, CELLP);
+		_AFT(DUP, AT, DOLIT, 5, UDOTR, CELLP);
 		_THEN(NOP);
 		_NEXT(EXIT);
 	}
-	XA DUMP  = _COLON("DUMP", vBASE, AT, TOR, HEX, DOLIT, 0x1f, PLUS, DOLIT, 0x20, SLASH); {
+	XA DUMP  = _COLON("DUMP", vBASE, AT, TOR, HEX, DOLIT, 0x1f, PLUS, DOLIT, 0x10, SLASH); {
 		_FOR(NOP);
 		_AFT(CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPE, RFROM);
 		_THEN(NOP);
@@ -700,20 +699,22 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA VARIA  = _COLON("VARIABLE",CREAT, DOLIT, 0, COMMA, EXIT);
 	XA CONST  = _COLON("CONSTANT",CODE, DOLIT, ((opNEXT<<8)|opDOCON), COMMA, COMMA, EXIT);
 	XA iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);
-	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORDD, DROP,  EXIT);
+	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);
 	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	XA ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
+	U8 *p = &cdata[aPC];
 	XA IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
 	// HERE=0x108e
 
-	int XDIC  = aPC;                                   // End of dictionary
+	int XDIC  = aPC + FORTH_PAD_SZ;                    // End of dictionary
 	int sz    = strlen("IMMEDIATE");                   // size of last word
 	int last  = IMMED - (sz + (-sz & (CELLSZ-1)));     // name field of last word
+
 	//
 	// Setup Boot Vector
 	//
 	aPC = FORTH_BOOT_ADDR;
-	XA RESET = _LABEL(opENTER, COLD);
+	BSET(aPC++, opENTER); STORE(COLD);
 	//
 	// Forth internal (user) variables
 	//
