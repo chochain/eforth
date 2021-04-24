@@ -484,21 +484,21 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, EXIT);
 	XA SAMEQ = _COLON("SAME?", NOP); {               // (a1 a2 n - a1 a2 f) compare n byte-by-byte
         _FOR(DDUP);
-        _AFT(DUP, CAT, TOR, ONEP, SWAP,                                 // *a1++
-             DUP, CAT, TOR, ONEP, SWAP, RFROM, RFROM, SUB, QDUP); {     // *a2++
-            _IF(RFROM, DROP, TOR, DDROP, RFROM, EXIT);                  // pop off loop counter and pointers
+        _AFT(DUP, CAT, TOR, ONEP, SWAP,                                  // *a1++
+             DUP, CAT, TOR, ONEP, SWAP, RFROM, RFROM, SUB, QDUP); {      // *a2++
+            _IF(RFROM, DROP, TOR, DDROP, RFROM, EXIT);                   // pop off loop counter and pointers
             _THEN(NOP);
         }
         _THEN(NOP);
         _NEXT(DDROP, DOLIT, 0, EXIT);
 	}
-	XA FIND = _COLON("find", SWAP, DUP, CAT, vTEMP, STORE,                               // keep length in temp
-                     DUP, AT, TOR, CELLP, SWAP); {                                       // fetch 1st cell
-		_BEGIN(AT, DUP); {                                                               // 0000 = end of dic
-			_IF(DUP, AT, DOLIT, 0xff3f, AND, RAT, XOR); {                                // compare 2-byte
-				_IF(CELLP, DOLIT, 0xffff);                                               // miss, try next word
-				_ELSE(CELLP, vTEMP, AT, ONEM, DUP); {    // -1, since 1st byte has been compared
-                    _IF(SAMEQ);                          // compare strings if larger than 2 bytes
+	XA FIND = _COLON("find", SWAP, DUP, CAT, vTEMP, STORE,      // keep length in temp
+                     DUP, AT, TOR, CELLP, SWAP); {              // fetch 1st cell
+		_BEGIN(AT, DUP); {                                      // 0000 = end of dic
+			_IF(DUP, AT, DOLIT, 0xff3f, AND, RAT, XOR); {       // compare 2-byte
+				_IF(CELLP, DOLIT, 0xffff);                      // miss, try next word
+				_ELSE(CELLP, vTEMP, AT, ONEM, DUP); {           // -1, since 1st byte has been compared
+                    _IF(SAMEQ);                                 // compare strings if larger than 2 bytes
                     _THEN(NOP);
                 }
 				_THEN(NOP);
@@ -636,7 +636,9 @@ int assemble(U8 *cdata, U8 *stack) {
 	}
 	XA OVERT = _COLON("OVERT", vLAST, AT, vCNTX, STORE, EXIT);
 	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
-	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, HERE, DOLIT, 0x6, CSTOR, DOLIT, 0x1, vCP, PSTOR, EXIT);
+	//XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, HERE, DOLIT, 0x6, CSTOR, DOLIT, 0x1, vCP, PSTOR, EXIT);
+	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6,
+					  HERE, DUP, ONEP, vCP, STORE, CSTOR, EXIT);
 	XA SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
 	// HERE=0xd7e
 	//
@@ -672,7 +674,6 @@ int assemble(U8 *cdata, U8 *stack) {
 		_IF(CELLM, DUP, vCP, STORE, AT, DUP, vCNTX, STORE, vLAST, STORE, DROP, EXIT);
 		_THEN(ERROR);
 	}
-	XA COLD   = _COLON("COLD", CR, QUIT);              // QUIT is the main query loop
 	// HERE=0xeaf
 	//
 	// Compiler - branching instructions
@@ -702,14 +703,14 @@ int assemble(U8 *cdata, U8 *stack) {
 	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);
 	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	XA ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
-	U8 *p = &cdata[aPC];
 	XA IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
-	// HERE=0x108e
-
-	int XDIC  = aPC + FORTH_PAD_SZ;                    // End of dictionary
-	int sz    = strlen("IMMEDIATE");                   // size of last word
-	int last  = IMMED - (sz + (-sz & (CELLSZ-1)));     // name field of last word
-
+	//
+	// End of dictionary
+	//
+	int last  = aPC + CELLSZ;               // address of last word
+	XA COLD   = _COLON("COLD", CR, QUIT);   // QUIT is the main query loop
+	int cp    = aPC;                        // current pointer
+	// HERE=0x100c
 	//
 	// Setup Boot Vector
 	//
@@ -720,15 +721,15 @@ int assemble(U8 *cdata, U8 *stack) {
 	//
 	//   'TIB    = FORTH_TIB_SIZE (pointer to top of input buffer)
 	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
-	//   CONTEXT = IMMED - 12     (pointer to name field of the most recently defined word in dictionary)
-	//   CP      = XDIC           (pointer to top of dictionary, first memory location to add new word)
-	//   LAST    = IMMED - 12     (pointer to name field of last word in dictionary)
+	//   CONTEXT = last           (pointer to name field of the most recently defined word in dictionary)
+	//   CP      = cp             (pointer to top of dictionary, first memory location to add new word)
+	//   LAST    = last           (pointer to name field of last word in dictionary)
 	//   'EVAL   = INTER          ($COMPILE for compiler or $INTERPRET for interpreter)
 	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
 	//   tmp     = 0              (scratch pad)
 	//
 	aPC = FORTH_UVAR_ADDR;
-	XA USER  = _LABEL(FORTH_TIB_SZ, 0x10, last, XDIC, last, INTER, QUIT, 0);
+	XA USER  = _LABEL(FORTH_TIB_SZ, 0x10, last, cp, last, INTER, QUIT, 0);
 
-	return XDIC;
+	return cp;
 }
