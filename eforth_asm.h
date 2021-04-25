@@ -4,8 +4,8 @@
 // tracing/logging macros
 //
 #if ASM_TRACE
-#define DEBUG(s, v)     printf(s, v)
-#define SHOWOP(op)      printf("\n%04x: %s\t", aPC, op)
+#define DEBUG(s, v)     PRINTF(s, v)
+#define SHOWOP(op)      PRINTF("\n%04x: %s\t", aPC, op)
 #else
 #define DEBUG(s, v)
 #define SHOWOP(op)

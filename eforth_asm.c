@@ -14,27 +14,30 @@ XA NOP, TOR;
 //
 // return stack for branching ops
 //
-XA *aRack;          // return stack (4 cells used only, can be independent of Forth return stack)
 U8 *aByte;          // heap
 U8 aR;              // return stack index
 XA aPC, aThread;    // program counter, pointer to previous word
 //
 // stack op macros
 //
-#define SET(d, v)      (*(XA*)(aByte+d)=(XA)(v))
-#define BSET(d, c)     (*(aByte+d)=(U8)(c))
-#define STORE(v)       do { SET(aPC, (v)); aPC+=CELLSZ; } while(0)
-#define	RPUSH(v)       (aRack[++aR] = (XA)(v))
-#define	RPOP()         (aRack[aR ? aR-- : aR])
-#define VAR(a, i)      ((a)+CELLSZ*(i))
+#define BSET(d, c)  (*(aByte+(d))=(U8)(c))
+#define BGET(d)     ((U8)*(aByte+(d)))
+#define SET(d, v)   do { XA a=(d); U16 x=(v); BSET(a, (x)&0xff); BSET((a)+1, (x)>>8); } while (0)
+#define GET(d)      ({ XA a=(d); (U16)BGET(a) + ((U16)BGET((a)+1)<<8); })
+#define STORE(v)    do { SET(aPC, (v)); aPC+=CELLSZ; } while(0)
+#define RS_TOP      (FORTH_DIC_ADDR)
+#define R_GET(r)    ((U16)GET(RS_TOP - (r)*CELLSZ))
+#define R_SET(r, v) SET(RS_TOP - (r)*CELLSZ, v)
+#define RPUSH(a)    R_SET(++aR, a)
+#define RPOP()      R_GET(aR ? aR-- : aR)
+#define VAR(a, i)   ((a)+CELLSZ*(i))
 
 void _dump(int b, int u) {
     // dump memory between previous word and this
     DEBUG("%s", "\n    : ");
-    DEBUG("%04x", *(XA*)(aByte+b));
-    for (int i=b+sizeof(XA); i<u; i+=sizeof(XA)) {
-        if ((i+1)<u) DEBUG(" %04x", *(XA*)(aByte+i));
-        else         DEBUG(" %02x", *(aByte+i));
+    for (int i=b; i<u; i+=sizeof(XA)) {
+        if ((i+1)<u) DEBUG(" %04x", GET(i));
+        else         DEBUG(" %02x", BGET(i));
     }
     DEBUG("%c", '\n');
 }
@@ -42,22 +45,21 @@ void _rdump()
 {
 	DEBUG("%cR[", ' ');
 	for (int i=1; i<=aR; i++) {
-        DEBUG(" %04x", aRack[i]);
+        DEBUG(" %04x", R_GET(i));
 	}
 	DEBUG("%c]", ' ');
 }
 void _header(int lex, const char *seq) {
     if (aThread) {
-    	if (aPC >= (FORTH_MEM_SZ-FORTH_DIC_ADDR))
-    		DEBUG("HEAP %s", "max!");
-    	_dump(aThread-sizeof(XA), aPC);         // dump data from previous word to current word
+    	if (aPC >= (FORTH_MEM_SZ-FORTH_DIC_ADDR)) DEBUG("HEAP %s", "max!");
+    	_dump(aThread-sizeof(XA), aPC);       // dump data from previous word to current word
     }
     STORE(aThread);                           // point to previous word
     aThread = aPC;                            // keep pointer to this word
 
     BSET(aPC++, lex);                         // length of word (with optional fIMMED or fCOMPO flags)
-    U32 len = lex & 0x1f;                     // Forth allows word max length 31
-    for (U32 i = 0; i < len; i++) {           // memcpy word string
+    int len = lex & 0x1f;                     // Forth allows word max length 31
+    for (int i=0; i < len; i++) {             // memcpy word string
         BSET(aPC++, seq[i]);
     }
     DEBUG("%04x: ", aPC);
@@ -189,7 +191,7 @@ void _nxt(int len, ...) {          // _next() is multi-defined in vm
 	STORE(op);                                      \
 	int len = strlen(seq);							\
 	BSET(aPC++, len);                               \
-	for (int i = 0; i < len; i++) {					\
+	for (int i=0; i < len; i++) {					\
 		BSET(aPC++, seq[i]);                        \
 	}												\
 }
@@ -227,9 +229,8 @@ void _ABORTQ(const char *seq) {
 #define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
-int assemble(U8 *cdata, U8 *stack) {
+int assemble(U8 *cdata) {
 	aByte = cdata;
-    aRack = (XA*)stack;
 	aR    = aThread = 0;
 	//
 	// Kernel constants
@@ -533,7 +534,8 @@ int assemble(U8 *cdata, U8 *stack) {
 		_REPEAT(DROP, OVER, SUB, EXIT);                         // keep token length in #TIB
 	}
 	XA EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
-	XA QUERY = _COLON("QUERY", TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
+	XA QUERY = _COLON("QUERY", TIB, DOLIT, FORTH_TIB_SZ, ACCEP,
+                      vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
 	// HERE=0xae0
 	//
 	// Text Interpreter
@@ -585,7 +587,7 @@ int assemble(U8 *cdata, U8 *stack) {
 		_THEN(NOP);
 	}
 	XA LBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
-	XA DOTOK = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {
+	XA DOTOK = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {  // are we in interpreter mode?
 		_IF(TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
 			_DOTQ(" ok>");
 		}
@@ -636,9 +638,7 @@ int assemble(U8 *cdata, U8 *stack) {
 	}
 	XA OVERT = _COLON("OVERT", vLAST, AT, vCNTX, STORE, EXIT);
 	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
-	//XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, HERE, DOLIT, 0x6, CSTOR, DOLIT, 0x1, vCP, PSTOR, EXIT);
-	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6,
-					  HERE, DUP, ONEP, vCP, STORE, CSTOR, EXIT);
+	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, HERE, DUP, ONEP, vCP, STORE, CSTOR, EXIT);
 	XA SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
 	// HERE=0xd7e
 	//
@@ -708,8 +708,8 @@ int assemble(U8 *cdata, U8 *stack) {
 	// End of dictionary
 	//
 	int last  = aPC + CELLSZ;               // address of last word
-	XA COLD   = _COLON("COLD", CR, QUIT);   // QUIT is the main query loop
-	int cp    = aPC;                        // current pointer
+	XA  COLD  = _COLON("COLD", CR, QUIT);   // QUIT is the main query loop
+	int here  = aPC;                        // current pointer
 	// HERE=0x100c
 	//
 	// Setup Boot Vector
@@ -719,17 +719,17 @@ int assemble(U8 *cdata, U8 *stack) {
 	//
 	// Forth internal (user) variables
 	//
-	//   'TIB    = FORTH_TIB_SIZE (pointer to top of input buffer)
+	//   'TIB    = FORTH_TIB_ADDR (pointer to input buffer)
 	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
 	//   CONTEXT = last           (pointer to name field of the most recently defined word in dictionary)
-	//   CP      = cp             (pointer to top of dictionary, first memory location to add new word)
+	//   CP      = here           (pointer to top of dictionary, first memory location to add new word)
 	//   LAST    = last           (pointer to name field of last word in dictionary)
 	//   'EVAL   = INTER          ($COMPILE for compiler or $INTERPRET for interpreter)
 	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
 	//   tmp     = 0              (scratch pad)
 	//
 	aPC = FORTH_UVAR_ADDR;
-	XA USER  = _LABEL(FORTH_TIB_SZ, 0x10, last, cp, last, INTER, QUIT, 0);
+	XA USER  = _LABEL(FORTH_TIB_ADDR, 0x10, last, here, last, INTER, QUIT, 0);
 
-	return cp;
+	return here;
 }
