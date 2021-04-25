@@ -10,31 +10,39 @@ S16 top;                        // ALU (i.e. cached top of stack value)
 //
 // Forth VM core storage
 //
-S16 *stack;   	                // stack used by stack and rack
-U8  *cdata;             		// linear byte array pointer
+U8  *cData;             		// linear byte array pointer
 //
 // data and return stack ops
 //  R                   S
 //  |                   |
 // [R0, R1,..., S2, S1, S0] <- top
 //
-// Ting uses 256 and U8 for wrap-around control
+// Dr. Ting uses 256 and U8 for wrap-around control
 //
 #define BOOL(f)     ((f) ? TRUE : FALSE)
-#define CELL(ip)    (*(XA*)(cdata+(XA)(ip)))
-#define STACK(s)    (stack[s])
-#define RACK(r)     (stack[FORTH_STACK_SZ-(r)])
-#define RPUSH(a)    (RACK(++R)=(S16)a)
-#define RPOP()      ((XA)RACK(R ? R-- : R))
-#define	PUSH(v)	    (STACK(++S)=top, top=(S16)(v))
-#define	POP()		(top=STACK(S ? S-- : S))
+#define BSET(d, c)  (*(cData+(d))=(U8)(c))
+#define BGET(d)     ((U8)*(cData+(d)))
+#define SET(d, v)   do { XA a=(d); U16 x=(v); BSET(a, (x)&0xff); BSET((a)+1, (x)>>8); } while(0)
+#define GET(d)      ({ XA a=(d); (U16)BGET(a) + ((U16)BGET((a)+1)<<8); })
+// stack ops
+#define S_GET(s)    ((S16)GET(FORTH_STACK_ADDR + (s)*CELLSZ))
+#define S_SET(s, v) SET(FORTH_STACK_ADDR + (s)*CELLSZ, v)
+#define	PUSH(v)     do { S_SET(++S, top); top=(S16)(v); } while(0)
+#define	POP()       (top=S_GET(S ? S-- : S))
+// rack ops
+#define RS_TOP      (FORTH_DIC_ADDR)
+#define R_GET(r)    ((U16)GET(RS_TOP - (r)*CELLSZ))
+#define R_SET(r,v)  SET(RS_TOP - (r)*CELLSZ,v)
+#define RPUSH(v)    R_SET(++R, v)
+#define RPOP()      R_GET(R ? R-- : R)
 //
 // tracing instrumentation
 //
 int tTAB = 0, tCNT = 0;		// trace indentation and depth counters
 
-void _trc_on()  	{ tCNT++; }
-void _trc_off() 	{ tCNT -= tCNT ? 1 : 0; }
+void _next();               // forward declaration
+void _trc_on()  { tCNT++;               _next(); }
+void _trc_off() { tCNT -= tCNT ? 1 : 0; _next(); }
 void _break_point(U32 pc, char *name)
 {
 	if (name && strcmp("EVAL", name)) return;
@@ -59,8 +67,8 @@ void TRACE_WORD()
 
 	static char buf[32];			    // allocated in memory instead of on C stack
 
-	//PRINTF(" (pc=%x, ip=%x, R=%x)", PC, IP, RACK(R));
-	U8 *a = &cdata[PC];		            // pointer to current code pointer
+	//PRINTF(" (pc=%x, ip=%x, R=%x)", PC, IP, R_GET(R));
+	U8 *a = &cData[PC];		            // pointer to current code pointer
 	if (!PC || *a==opEXIT) return;
 	for (--a; (*a & 0x7f)>0x1f; a--);   // retract pointer to word name (ASCII range: 0x20~0x7f)
 
@@ -68,18 +76,13 @@ void TRACE_WORD()
 	memcpy(buf, a+1, len);
 	buf[len] = '\0';
 
-	PRINTF(" %x_%x_%x_%s", STACK(S-1), STACK(S), top, buf);
+	PRINTF(" %x_%x_%x_%s", S_GET(S-1), S_GET(S), top, buf);
 
 	_break_point(PC, buf);
 }
 //
 // Forth Virtual Machine (primitive functions)
 //
-void _next()                // advance instruction pointer
-{
-	PC = CELL(IP);          // fetch instruction address
-	IP += sizeof(XA);       // advance, except control flow instructions
-}
 void _nop() { _next(); }    // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
 void _qrx()                 // ( -- c t|f) read a char from terminal input device
@@ -113,13 +116,14 @@ void _dovar()               // ( -- a) return address of a variable
 }
 void _docon()               // ( -- n) push next token onto data stack as constant
 {
-	PUSH(CELL(++PC));       // fetch next byte (skip opDOCON opcode)
+    ++PC;                   // skip opDOCON opcode
+	PUSH(GET(PC));          // fetch next cell
     _next();
 }
 void _dolit()               // ( -- w) push next token as an integer literal
 {
-	TRACE(" %d", CELL(IP)); // fetch literal from data
-	PUSH(CELL(IP));	        // push onto data stack
+	TRACE(" %d", GET(IP));  // fetch literal from data
+	PUSH(GET(IP));	        // push onto data stack
 	IP += CELLSZ;		    // skip the data cell to next instruction
     _next();
 }
@@ -127,13 +131,13 @@ void _enter()               // ( -- ) push instruction pointer onto return stack
 {
 	TRACE_COLON();
 	RPUSH(IP);              // keep return address
-	IP = ++PC;              // skip the opcode (06), advance to next instruction
+ 	IP = ++PC;              // skip the opcode (06), advance to next instruction
     _next();
 }
 void __exit()               // ( -- ) terminate all token lists in colon words
 {
 	TRACE_EXIT();
-	IP = RPOP();            // pop return address
+ 	IP = RPOP();            // pop return address
     _next();
 }
 void _execu()               // (a -- ) take execution address from data stack and execute the token
@@ -143,9 +147,10 @@ void _execu()               // (a -- ) take execution address from data stack an
 }
 void _donext()              // ( -- ) terminate a FOR-NEXT loop
 {
-	if (RACK(R)) {			// check if loop counter > 0
-		RACK(R) -= 1;		// decrement loop counter
-		IP = CELL(IP);		// branch back to FOR
+    XA i = R_GET(R);        // loop counter
+	if (i) {			    // check if loop counter > 0
+		R_SET(R, i-1);	    // decrement loop counter
+		IP = GET(IP);		// branch back to FOR
 	}
 	else {
 		IP += CELLSZ;		// skip to next instruction
@@ -156,35 +161,35 @@ void _donext()              // ( -- ) terminate a FOR-NEXT loop
 void _qbran()               // (f -- ) test top as a flag on data stack
 {
 	if (top) IP += CELLSZ;	// next instruction
-    else     IP = CELL(IP);	// fetch branching target address
+    else     IP = GET(IP);	// fetch branching target address
 	POP();
     _next();
 }
 void _bran()                // ( -- ) branch to address following
 {
-	IP = CELL(IP);			// fetch branching target address
+	IP = GET(IP);			// fetch branching target address
     _next();
 }
 void _store()               // (n a -- ) store into memory location from top of stack
 {
-	CELL(top) = STACK(S--);
+	SET(top, S_GET(S--));
 	POP();
     _next();
 }
 void _at()                  // (a -- n) fetch from memory address onto top of stack
 {
-	top = (S16)CELL(top);
+	top = (S16)GET(top);
     _next();
 }
 void _cstor()               // (c b -- ) store a byte into memory location
 {
-	cdata[top] = (U8)STACK(S--);
+	BSET(top, S_GET(S--));
 	POP();
     _next();
 }
 void _cat()                 // (b -- n) fetch a byte from memory location
 {
-	top = (S16)cdata[top];
+	top = (S16)BGET(top);
     _next();
 }
 void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
@@ -194,7 +199,7 @@ void _rfrom()               // (n --) pop from return stack onto data stack (Tin
 }
 void _rat()                 // (-- n) copy a number off the return stack and push onto data stack
 {
-	PUSH(RACK(R));
+	PUSH(R_GET(R));
     _next();
 }
 void _tor()                 // (-- n) pop from data stack and push onto return stack
@@ -220,19 +225,19 @@ void _drop()                // (w -- ) drop top of stack item
 }
 void _dup()                 // (w -- w w) duplicate to of stack
 {
-	STACK(++S) = top;
+	S_SET(++S, top);
     _next();
 }
 void _swap()                // (w1 w2 -- w2 w1) swap top two items on the data stack
 {
 	S16 tmp  = top;
-	top = STACK(S);
-	STACK(S) = tmp;
+	top = S_GET(S);
+	S_SET(S, tmp);
     _next();
 }
 void _over()                // (w1 w2 -- w1 w2 w1) copy second stack item to top
 {
-	PUSH(STACK(S - 1));
+	PUSH(S_GET(S-1));
     _next();
 }
 void _zless()               // (n -- f) check whether top of stack is negative
@@ -242,35 +247,40 @@ void _zless()               // (n -- f) check whether top of stack is negative
 }
 void _and()                 // (w w -- w) bitwise AND
 {
-	top &= STACK(S--);
+	top &= S_GET(S--);
     _next();
 }
 void _or()                  // (w w -- w) bitwise OR
 {
-	top |= STACK(S--);
+	top |= S_GET(S--);
     _next();
 }
 void _xor()                 // (w w -- w) bitwise XOR
 {
-	top ^= STACK(S--);
+	top ^= S_GET(S--);
 	_next();
 }
 void _uplus()               // (w w -- w c) add two numbers, return the sum and carry flag
 {
-	STACK(S) += top;
-	top = (U16)STACK(S) < (U16)top;
+	S_SET(S, S_GET(S)+top);
+	top = (U16)S_GET(S) < (U16)top;
     _next();
+}
+void _next()                // advance instruction pointer
+{
+	PC = GET(IP);           // fetch instruction address
+	IP += sizeof(XA);       // advance, except control flow instructions
 }
 void _qdup()                // (w -- w w | 0) dup top of stack if it is not zero
 {
-	if (top) STACK(++S) = top;
+	if (top) S_SET(++S, top);
     _next();
 }
 void _rot()                 // (w1 w2 w3 -- w2 w3 w1) rotate 3rd item to top
 {
-	S16 tmp = STACK(S - 1);
-	STACK(S - 1) = STACK(S);
-	STACK(S)     = top;
+	S16 tmp = S_GET(S-1);
+	S_SET(S-1, S_GET(S));
+	S_SET(S, top);
 	top = tmp;
     _next();
 }
@@ -282,13 +292,13 @@ void _ddrop()               // (w w --) drop top two items
 }
 void _ddup()                // (w1 w2 -- w1 w2 w1 w2) duplicate top two items
 {
-	PUSH(STACK(S - 1));
-	PUSH(STACK(S - 1));
+	PUSH(S_GET(S-1));
+	PUSH(S_GET(S-1));
     _next();
 }
 void _plus()                // (w w -- sum) add top two items
 {
-	top += STACK(S--);
+	top += S_GET(S--);
     _next();
 }
 void _inver()               // (w -- w) one's complement
@@ -308,15 +318,15 @@ void _dnega()               // (d -- -d) two's complement of top double
 	POP();
 	top = -top - 1;         // _inver()
 	PUSH(1);
-	STACK(S) += top;        // _uplus()
-	top = (U16)STACK(S) < (U16)top;
+	S_SET(S, S_GET(S)+top); // _uplus()
+	top = (U16)S_GET(S) < (U16)top;
 	PUSH(RPOP());           // _rfrom()
-	top += STACK(S--);      // _plus()
+	top += S_GET(S--);      // _plus()
     _next();
 }
 void _sub()                 // (n1 n2 -- n1-n2) subtraction
 {
-	top = STACK(S--) - top;
+	top = S_GET(S--) - top;
     _next();
 }
 void _abs()                 // (n -- n) absolute value of n
@@ -327,92 +337,92 @@ void _abs()                 // (n -- n) absolute value of n
 }
 void _great()               // (n1 n2 -- t) true if n1>n2
 {
-	top = BOOL(STACK(S--) > top);
+	top = BOOL(S_GET(S--) > top);
     _next();
 }
 void _less()                // (n1 n2 -- t) true if n1<n2
 {
-	top = BOOL(STACK(S--) < top);
+	top = BOOL(S_GET(S--) < top);
     _next();
 }
 void _equal()               // (w w -- t) true if top two items are equal
 {
-	top = BOOL(STACK(S--)==top);
+	top = BOOL(S_GET(S--)==top);
     _next();
 }
 void _uless()               // (u1 u2 -- t) unsigned compare top two items
 {
-	top = BOOL((U32)(STACK(S--)) < (U32)top);
+	top = BOOL((U16)(S_GET(S--)) < (U16)top);
     _next();
 }
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
 	U32 d = (U32)top;       // CC: auto variable uses C stack 
-	U32 m = ((U32)STACK(S)<<16) + (U16)STACK(S-1);
+	U32 m = ((U32)S_GET(S)<<16) + (U16)S_GET(S-1);
 	POP();
-	STACK(S) = (S16)(m % d); // remainder
-	top      = (S16)(m / d); // quotient
+	S_SET(S, (S16)(m % d)); // remainder
+	top   = (S16)(m / d);   // quotient
     _next();
 }
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
 	S32 d = (S32)top;
-	S32 m = ((S32)STACK(S)<<16) + STACK(S-1);
+	S32 m = ((S32)S_GET(S)<<16) + S_GET(S-1);
 	POP();
-	STACK(S) = (S16)(m % d); // remainder
-	top      = (S16)(m / d); // quotient
+	S_SET(S, (S16)(m % d)); // remainder
+	top   = (S16)(m / d);   // quotient
     _next();
 }
-void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotient
+void _slmod()               // (n1 n2 -- r q) signed divide, return mod and quotient
 {
 	if (top) {
-		S16 tmp  = STACK(S) / top;
-		STACK(S) %= top;
+		S16 tmp  = S_GET(S) / top;
+		S_SET(S, S_GET(S) % top);
 		top      = tmp;
 	}
     _next();
 }
 void _mod()                 // (n n -- r) signed divide, returns mod
 {
-	top = (top) ? STACK(S--) % top : STACK(S--);
+	top = (top) ? S_GET(S--) % top : S_GET(S--);
     _next();
 }
 void _slash()               // (n n - q) signed divide, return quotient
 {
-	top = (top) ? STACK(S--) / top : (STACK(S--), 0);
+	top = (top) ? S_GET(S--) / top : (S_GET(S--), 0);
     _next();
 }
 void _umsta()               // (u1 u2 -- ud) unsigned multiply return double product
 {
-	U32 m    = (U32)STACK(S) * top;
-	STACK(S) = (U16)(m & 0xffff);
-	top      = (U16)(m >> 16);
+	U32 m = (U32)S_GET(S) * top;
+	S_SET(S, (U16)(m & 0xffff));
+	top   = (U16)(m >> 16);
     _next();
 }
 void _star()                // (n n -- n) signed multiply, return single product
 {
-	top *= STACK(S--);
+	top *= S_GET(S--);
     _next();
 }
 void _mstar()               // (n1 n2 -- d) signed multiply, return double product
 {
-	S32 m    = (S32)STACK(S) * top;
-	STACK(S) = (S16)(m&0xffff);
-	top      = (S16)(m >> 16);
+	S32 m = (S32)S_GET(S) * top;
+	S_SET(S, (S16)(m&0xffff));
+	top   = (S16)(m >> 16);
     _next();
 }
 void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotient
 {
-	S32 m = (S32)STACK(S-1) * STACK(S);
+	S32 m = (S32)S_GET(S-1) * S_GET(S);
 	S16 d = top;
 	POP();
-	STACK(S) = (S16)(m % d);
-	top      = (S16)(m / d);
+	S_SET(S, (S16)(m % d));
+	top   = (S16)(m / d);
     _next();
 }
 void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 {
-	S32 m = (S32)STACK(S-1) * STACK(S);
+	S32 m = (S32)S_GET(S-1) * S_GET(S);
     S16 d = top;
 	POP();
     POP();
@@ -421,43 +431,43 @@ void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 }
 void _pick()                // (... +n -- ...w) copy nth stack item to top
 {
-	top = STACK(S - (U8)top);
+	top = S_GET(S-(U8)top);
     _next();
 }
 void _pstor()               // (n a -- ) add n to content at address a
 {
-	CELL(top) += (XA)STACK(S--);
+	SET(top, GET(top)+S_GET(S--));
     POP();
     _next();
 }
 void _dstor()               // (d a -- ) store the double to address a
 {
-	CELL(top+CELLSZ) = STACK(S--);
-	CELL(top)        = STACK(S--);
+	SET(top+CELLSZ, S_GET(S--));
+	SET(top,        S_GET(S--));
 	POP();
     _next();
 }
 void _dat()                 // (a -- d) fetch double from address a
 {
-	PUSH(CELL(top));
-	top = CELL(top + CELLSZ);
+	PUSH(GET(top));
+	top = GET(top + CELLSZ);
     _next();
 }
 void _count()               // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
-	STACK(++S) = top + 1;
-	top = cdata[top];
+    S_SET(++S, top+1);
+	top = (S16)BGET(top);
     _next();
 }
 void _max()                 // (n1 n2 -- n) return greater of two top stack items
 {
-	if (top < STACK(S)) POP();
+	if (top < S_GET(S)) POP();
 	else (U8)S--;
     _next();
 }
 void _min()                 // (n1 n2 -- n) return smaller of two top stack items
 {
-	if (top < STACK(S)) (U8)S--;
+	if (top < S_GET(S)) S--;
 	else POP();
     _next();
 }
@@ -534,9 +544,8 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 63 */ _min,
 };
 
-void vm_init(U8 *cdata0, U8 *stack0) {
-	cdata = cdata0;
-    stack = (S16*)stack0;
+void vm_init(U8 *cdata) {
+	cData = cdata;
     
 	R = S = PC = IP = top = 0;
 }
@@ -547,6 +556,6 @@ void vm_run() {
 #endif // EXE_TRACE
 	for (;;) {
 	    TRACE_WORD();               // tracing stack and word name
-		prim[cdata[PC]]();          // walk bytecode stream
+		prim[BGET(PC)]();           // walk bytecode stream
 	}
 }
