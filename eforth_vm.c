@@ -10,6 +10,7 @@ S16 top;                        // ALU (i.e. cached top of stack value)
 //
 // Forth VM core storage
 //
+U8  *cRom;                      // flash memory
 U8  *cData;             		// linear byte array pointer
 //
 // data and return stack ops
@@ -20,10 +21,12 @@ U8  *cData;             		// linear byte array pointer
 // Dr. Ting uses 256 and U8 for wrap-around control
 //
 #define BOOL(f)     ((f) ? TRUE : FALSE)
-#define BSET(d, c)  (*(cData+(d))=(U8)(c))
-#define BGET(d)     ((U8)*(cData+(d)))
-#define SET(d, v)   do { XA a=(d); U16 x=(v); BSET(a, (x)&0xff); BSET((a)+1, (x)>>8); } while(0)
-#define GET(d)      ({ XA a=(d); (U16)BGET(a) + ((U16)BGET((a)+1)<<8); })
+#define ROM(d)      ((U8*)cRom +((d)&0xfff))
+#define RAM(d)      ((U8*)cData+((d)&0xfff))
+#define BSET(d, c)  ({ XA a=(d); if (a&0xf000) *RAM(a)=(U8)(c); })
+#define BGET(d)     ({ XA a=(d); (a&0xf000) ? *RAM(a) : *ROM(a); })
+#define SET(d, v)   do { XA a=(d); U16 x=(v); BSET(a, x&0xff); BSET(a+1, x>>8); } while(0)
+#define GET(d)      ({ XA a=(d); (U16)BGET(a) + ((U16)BGET(a+1)<<8); })
 // stack ops
 #define S_GET(s)    ((S16)GET(FORTH_STACK_ADDR + (s)*CELLSZ))
 #define S_SET(s, v) SET(FORTH_STACK_ADDR + (s)*CELLSZ, v)
@@ -68,12 +71,14 @@ void TRACE_WORD()
 	static char buf[32];			    // allocated in memory instead of on C stack
 
 	//PRINTF(" (pc=%x, ip=%x, R=%x)", PC, IP, R_GET(R));
-	U8 *a = &cData[PC];		            // pointer to current code pointer
-	if (!PC || *a==opEXIT) return;
-	for (--a; (*a & 0x7f)>0x1f; a--);   // retract pointer to word name (ASCII range: 0x20~0x7f)
+	if (!PC || BGET(PC)==opEXIT) return;
+	XA pc = PC-1;
+	for (; (BGET(pc) & 0x7f)>0x1f; pc--);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
-	int  len = (int)*a & 0x1f;          // Forth allows 31 char max
-	memcpy(buf, a+1, len);
+	int  len = BGET(pc++) & 0x1f;          // Forth allows 31 char max
+	for (int i=0; i<len; i++, pc++) {
+		buf[i] = BGET(pc);
+	}
 	buf[len] = '\0';
 
 	PRINTF(" %x_%x_%x_%s", S_GET(S-1), S_GET(S), top, buf);
@@ -268,6 +273,11 @@ void _uplus()               // (w w -- w c) add two numbers, return the sum and 
 }
 void _next()                // advance instruction pointer
 {
+	U8  r = *ROM(IP);
+	U8  d = *RAM(IP);
+	U8  v0= BGET(IP);
+	U8  v1= BGET(IP+1);
+	U16 v = GET(IP);
 	PC = GET(IP);           // fetch instruction address
 	IP += sizeof(XA);       // advance, except control flow instructions
 }
@@ -544,15 +554,38 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 63 */ _min,
 };
 
-void vm_init(U8 *cdata) {
+void vm_init(U8 *rom, U8 *cdata, dicState *st) {
+    cRom  = rom;
 	cData = cdata;
+	for (int i=0; i<FORTH_RAM_SZ; i++) *cdata++ = 0;
+	//
+	// Forth internal (user) variables
+	//
+	//   'TIB    = FORTH_TIB_ADDR (pointer to input buffer)
+	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
+	//   CONTEXT = last           (pointer to name field of the most recently defined word in dictionary)
+	//   CP      = here           (pointer to top of dictionary, first memory location to add new word)
+	//   LAST    = last           (pointer to name field of last word in dictionary)
+	//   'EVAL   = INTER          ($COMPILE for compiler or $INTERPRET for interpreter)
+	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
+	//   tmp     = 0              (scratch pad)
+	//
+	XA *p = (XA*)&cData[FORTH_UVAR_ADDR - FORTH_RAM_ADDR];
+    *p++ = FORTH_TIB_ADDR;
+    *p++ = 0x10;
+    *p++ = st->last;
+    *p++ = FORTH_DIC_ADDR;
+    *p++ = st->last;
+    *p++ = st->inter;
+    *p++ = st->quit;
+    *p++ = 0;
     
 	R = S = PC = IP = top = 0;
 }
 
 void vm_run() {
 #if EXE_TRACE
-    tCNT++;                         // execution tracing
+    tCNT=1;  tTAB=0;                // execution tracing
 #endif // EXE_TRACE
 	for (;;) {
 	    TRACE_WORD();               // tracing stack and word name
