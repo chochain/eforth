@@ -10,7 +10,7 @@
 //
 XA BRAN, QBRAN, DONXT;
 XA DOTQ, STRQ, ABORTQ;
-XA NOP, TOR;
+XA TOR, NOP = 0xffff;				// NOP set to ffff to prevent access before initialized
 //
 // return stack for branching ops
 //
@@ -25,16 +25,16 @@ XA aPC, aThread;    // program counter, pointer to previous word
 #define SET(d, v)   do { XA a=(d); U16 x=(v); BSET(a, (x)&0xff); BSET((a)+1, (x)>>8); } while (0)
 #define GET(d)      ({ XA a=(d); (U16)BGET(a) + ((U16)BGET((a)+1)<<8); })
 #define STORE(v)    do { SET(aPC, (v)); aPC+=CELLSZ; } while(0)
-#define RS_TOP      (FORTH_DIC_ADDR)
-#define R_GET(r)    ((U16)GET(RS_TOP - (r)*CELLSZ))
-#define R_SET(r, v) SET(RS_TOP - (r)*CELLSZ, v)
+#define R_GET(r)    ((U16)GET(FORTH_STACK_ADDR + (r)*CELLSZ))
+#define R_SET(r, v) SET(FORTH_STACK_ADDR + (r)*CELLSZ, v)
 #define RPUSH(a)    R_SET(++aR, a)
 #define RPOP()      R_GET(aR ? aR-- : aR)
-#define VAR(a, i)   ((a)+CELLSZ*(i))
+#define VL(a, i)    (((XA)(a)+CELLSZ*(i))&0xff)
+#define VH(a, i)    (((XA)(a)+CELLSZ*(i))>>8)
 
 void _dump(int b, int u) {
     // dump memory between previous word and this
-    DEBUG("%s", "\n    : ");
+    DEBUG("%s", "\n    :");
     for (int i=b; i<u; i+=sizeof(XA)) {
         if ((i+1)<u) DEBUG(" %04x", GET(i));
         else         DEBUG(" %02x", BGET(i));
@@ -51,7 +51,7 @@ void _rdump()
 }
 void _header(int lex, const char *seq) {
     if (aThread) {
-    	if (aPC >= (FORTH_MEM_SZ-FORTH_DIC_ADDR)) DEBUG("HEAP %s", "max!");
+    	if (aPC >= FORTH_ROM_SZ) DEBUG("HEAP %s", "max!");
     	_dump(aThread-sizeof(XA), aPC);       // dump data from previous word to current word
     }
     STORE(aThread);                           // point to previous word
@@ -172,10 +172,10 @@ void _for(int len, ...) {          // FOR-NEXT
     RPUSH(aPC);                    // keep 1st loop repeat address A0
     CELLCPY(len);
 }
-void _aft(int len, ...) {          // code between FOR-AFT run only once
+void _aft(int len, ...) {          // code between FOR-AFT run only oNOP, nce
     SHOWOP("AFT");
     STORE(BRAN);                   // unconditional branch
-    STORE(0);                      // forward jump address (A1)
+    STORE(0);                      // forward jump address (A1)NOP,
     RPOP();                        // pop-off A0 (FOR-AFT once only)
     RPUSH(aPC);                    // keep repeat address on return stack
     RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for AFT-THEN
@@ -229,28 +229,30 @@ void _ABORTQ(const char *seq) {
 #define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
-int assemble(U8 *cdata) {
+int assemble(U8 *cdata, dicState *st) {
 	aByte = cdata;
 	aR    = aThread = 0;
+	aPC   = FORTH_BOOT_ADDR;
 	//
 	// Kernel constants
 	//
-	aPC = FORTH_DIC_ADDR;
-	XA ta    = FORTH_TVAR_ADDR;
-	XA vHLD  = _CODE("HLD",     opDOCON, VAR(ta,0), 0);
-	XA vSPAN = _CODE("SPAN",    opDOCON, VAR(ta,1), 0);
-	XA vIN   = _CODE(">IN",     opDOCON, VAR(ta,2), 0);
-	XA vNTIB = _CODE("#TIB",    opDOCON, VAR(ta,3), 0);
+    XA BOOT  = _LABEL(opENTER, 0);      // reserved for boot vectors
+
+    XA ta    = FORTH_TVAR_ADDR;
+	XA vHLD  = _CODE("HLD",     opDOCON, VL(ta,0), VH(ta,0));
+	XA vSPAN = _CODE("SPAN",    opDOCON, VL(ta,1), VH(ta,1));
+	XA vIN   = _CODE(">IN",     opDOCON, VL(ta,2), VH(ta,2));
+	XA vNTIB = _CODE("#TIB",    opDOCON, VL(ta,3), VH(ta,3));
 
 	XA ua    = FORTH_UVAR_ADDR;
-	XA vTTIB = _CODE("'TIB",    opDOCON, VAR(ua,0), 0);
-	XA vBASE = _CODE("BASE",    opDOCON, VAR(ua,1), 0);
-	XA vCNTX = _CODE("CONTEXT", opDOCON, VAR(ua,2), 0);
-	XA vCP   = _CODE("CP",      opDOCON, VAR(ua,3), 0);
-	XA vLAST = _CODE("LAST",    opDOCON, VAR(ua,4), 0);
-	XA vTEVL = _CODE("'EVAL",   opDOCON, VAR(ua,5), 0);
-	XA vTABRT= _CODE("'ABORT",  opDOCON, VAR(ua,6), 0);
-	XA vTEMP = _CODE("tmp",     opDOCON, VAR(ua,7), 0);
+	XA vTTIB = _CODE("'TIB",    opDOCON, VL(ua,0), VH(ua,0));
+	XA vBASE = _CODE("BASE",    opDOCON, VL(ua,1), VH(ua,1));
+	XA vCNTX = _CODE("CONTEXT", opDOCON, VL(ua,2), VH(ua,2));
+	XA vCP   = _CODE("CP",      opDOCON, VL(ua,3), VH(ua,3));
+	XA vLAST = _CODE("LAST",    opDOCON, VL(ua,4), VH(ua,4));
+	XA vTEVL = _CODE("'EVAL",   opDOCON, VL(ua,5), VH(ua,5));
+	XA vTABRT= _CODE("'ABORT",  opDOCON, VL(ua,6), VH(ua,6));
+	XA vTEMP = _CODE("tmp",     opDOCON, VL(ua,7), VH(ua,7));
 	//
 	// common constants and variable spec
 	//
@@ -325,8 +327,8 @@ int assemble(U8 *cdata) {
 	//
 	// tracing instrumentation (borrow 2 opcodes)
 	//
-	XA trc_on  = _CODE("trc_on",  opRPAT);
-	XA trc_off = _CODE("trc_off", opRPSTO);
+	//XA trc_on  = _CODE("trc_on",  opRPAT);
+	//XA trc_off = _CODE("trc_off", opRPSTO);
 	//
 	// Common Colon Words (in word streams)
 	//
@@ -714,22 +716,12 @@ int assemble(U8 *cdata) {
 	//
 	// Setup Boot Vector
 	//
-	aPC = FORTH_BOOT_ADDR;
-	BSET(aPC++, opENTER); STORE(COLD);
-	//
-	// Forth internal (user) variables
-	//
-	//   'TIB    = FORTH_TIB_ADDR (pointer to input buffer)
-	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
-	//   CONTEXT = last           (pointer to name field of the most recently defined word in dictionary)
-	//   CP      = here           (pointer to top of dictionary, first memory location to add new word)
-	//   LAST    = last           (pointer to name field of last word in dictionary)
-	//   'EVAL   = INTER          ($COMPILE for compiler or $INTERPRET for interpreter)
-	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
-	//   tmp     = 0              (scratch pad)
-	//
-	aPC = FORTH_UVAR_ADDR;
-	XA USER  = _LABEL(FORTH_TIB_ADDR, 0x10, last, here, last, INTER, QUIT, 0);
+	SET(FORTH_BOOT_ADDR+1, COLD);
 
-	return here;
+    st->last  = last;
+    st->here  = here;
+    st->inter = INTER;
+    st->quit  = QUIT;
+
+    return here;
 }
