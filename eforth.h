@@ -5,14 +5,14 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-#define EFORTH_16BIT    1
+#define EFORTH_8BIT     1
 //
 // debugging flags
 //
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
 #define ASM_TRACE       1
-#define EXE_TRACE       0
+#define EXE_TRACE       1
 //
 // portable types
 //
@@ -26,7 +26,7 @@ typedef int32_t   S32;
 typedef int16_t   S16;
 typedef int8_t    S8;
 
-#if EFORTH_16BIT
+#if EFORTH_8BIT
 typedef U16       XA;				// Address size
 #define CELLSZ		     2
 #else
@@ -37,19 +37,21 @@ typedef U32       XA;
 // capacity and sizing
 //
 #define FORTH_PRIMITIVES 64
-#define FORTH_MEM_SZ     0x2000
-#define FORTH_STACK_SZ   0x50*CELLSZ
+#define FORTH_ROM_SZ     0x1000
+#define FORTH_RAM_SZ     0x500
+#define FORTH_STACK_SZ   0x60*CELLSZ
 #define FORTH_TIB_SZ     0x40
 #define FORTH_PAD_SZ     0x20
 //
 // logic and stack op macros (processor dependent)
 //
 #define FORTH_BOOT_ADDR  0x0
-#define FORTH_TVAR_ADDR  0x4
-#define FORTH_UVAR_ADDR  0x10
-#define FORTH_TIB_ADDR   0x20
-#define FORTH_STACK_ADDR (FORTH_TIB_ADDR+FORTH_TIB_SZ)
-#define FORTH_DIC_ADDR   (FORTH_STACK_ADDR+FORTH_STACK_SZ)
+#define FORTH_RAM_ADDR   0x1000
+#define FORTH_STACK_ADDR (FORTH_RAM_ADDR+0x0)
+#define FORTH_TIB_ADDR   (FORTH_STACK_ADDR+FORTH_STACK_SZ)
+#define FORTH_TVAR_ADDR  (FORTH_TIB_ADDR+FORTH_TIB_SZ)
+#define FORTH_UVAR_ADDR  (FORTH_TVAR_ADDR+0x10)
+#define FORTH_DIC_ADDR   (FORTH_UVAR_ADDR+0x10)
 //
 // TRUE cannot use 1 because NOT(ffffffff)==0 while NOT(1)==ffffffff
 // which does not need boolean op (i.e. in C)
@@ -95,7 +97,6 @@ enum {
     opAND,        // 28
     opOR,         // 29
     opXOR,        // 30
-    
     opUPLUS,      // 31
     opNEXT,       // 32
     opQDUP,       // 33
@@ -105,7 +106,7 @@ enum {
     
     opPLUS,       // 37
     opINVER,      // 38
-    opNEGAT,      // 39
+    opNEGAT,      // 39has
     opDNEGA,      // 40
     opSUB,        // 41
     opABS,        // 42
@@ -135,18 +136,10 @@ enum {
 };
 
 typedef struct {
-	U8  R, S;              // return stack index, data stack index
-	U32 P, IP;             // P (program counter), IP (intruction pointer), WP (parameter pointer)
-	U32 thread;            // pointer to previous word
-	S32 top0;              // stack top value (cache)
-	void (*vtbl[])();      // opcode vtable
-} efState;
-
-typedef struct {
-	U32 rack[256];         // return stack
-	S32 stack[256];        // data stack
-	U32	data[16000];       // main memory block
-	U8  *cdata;            // byte stream pointer to data[]
-} efHeap;
+    XA  last;              // pointer to last word
+    XA  here;              // current pointer (top of dictionary)
+    XA  inter;             // interpreter address
+    XA  quit;              // QUIT, main loop entry point, i.e. return from error handler
+} dicState;
 
 #endif // __EFORTH_SRC_EFORTH_H

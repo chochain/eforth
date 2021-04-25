@@ -23,49 +23,55 @@
 #include <stdio.h>
 #include "eforth.h"
 
-extern "C" int  assemble(U8 *cdata);
-extern "C" void vm_init(U8 *cdata);
+extern "C" int  assemble(U8 *cdata, dicState *st);
+extern "C" void vm_init(U8 *rom, U8 *cdata, dicState *st);
 extern "C" void vm_run();
 
-static U8 _mem[FORTH_MEM_SZ];        		  // default 8K forth memory block
+extern U32 rom[];
+static U8  _mem[FORTH_ROM_SZ];        		  // default 4K forth ROM block
 
 void dump_data(U8* cdata, int len) {
 #if ASM_TRACE
+	printf("\n");
     for (int p=0; p<len+0x20; p+=0x20) {
-        printf("\n%04x: ", p);
-        for (int i=0; i<0x20; i++) {
-        	U8 c = cdata[p+i];
-            printf("%02x", c);
-            printf("%s", (i%4)==3 ? " " : "");
+        U32 *x = (U32*)&cdata[p];
+        for (int i=0; i<0x8; i++, x++) {
+            printf("0x%08x,", *x);
         }
+        printf(" // %04x ", p);
         for (int i=0; i<0x20; i++) {
             U8 c = cdata[p+i];
-            printf("%c", c ? ((c>0x1f && c<0x7f) ? c : '_') : '.');
+            printf("%c", c ? ((c!=0x5c && c>0x1f && c<0x7f) ? c : '_') : '.');
         }
+        printf("\n");
     }
+#endif // ASM_TRACE
     printf("\nPrimitives=%d, Addr=%d-bit, CELL=%d", FORTH_PRIMITIVES, (int)sizeof(XA)*8, CELLSZ);
-    printf("\nHEAP = x%x", FORTH_MEM_SZ);
-    printf("\n  BOOT  x%04x", FORTH_BOOT_ADDR);
-    printf("\n  USER  x%04x+%04x", FORTH_TVAR_ADDR,  FORTH_TIB_ADDR-FORTH_TVAR_ADDR);
-    printf("\n  TIB   x%04x+%04x", FORTH_TIB_ADDR,   FORTH_TIB_SZ);
+    printf("\nROM = x%x", FORTH_ROM_SZ);
+    printf("\nRAM = x%x", FORTH_RAM_SZ);
     printf("\n  STACK x%04x+%04x", FORTH_STACK_ADDR, FORTH_STACK_SZ);
-    printf("\n  DIC   x%04x+%04x", FORTH_DIC_ADDR,   FORTH_MEM_SZ-FORTH_DIC_ADDR);
+    printf("\n  TIB   x%04x+%04x", FORTH_TIB_ADDR,   FORTH_TIB_SZ);
+    printf("\n  USER  x%04x+%04x (flash here)", FORTH_TVAR_ADDR,  FORTH_DIC_ADDR-FORTH_TVAR_ADDR);
+    printf("\n  DIC   x%04x+%04x", FORTH_DIC_ADDR,   FORTH_RAM_ADDR+FORTH_RAM_SZ-FORTH_DIC_ADDR);
     printf("\nHERE x%04x", len);
     printf("\neForth16 v1.0");
-#endif // ASM_TRACE
 }
 
 int main(int ac, char* av[])
 {
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
 
-	U8  *cdata = _mem;
-	int sz     = assemble(cdata);
+	U8 *cdata = _mem;
+    dicState st;
+	int sz = assemble(cdata, &st);
 	dump_data(cdata, sz);
 
-	vm_init(cdata);
+	vm_init((U8*)rom, cdata, &st);
 	vm_run();
 
 	return 0;
 }
+
+
+
 
