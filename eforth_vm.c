@@ -24,7 +24,9 @@ U8  *cData;             		// linear byte array pointer
 #define OFF_MASK    0x0fff
 #define BOOL(f)     ((f) ? TRUE : FALSE)
 #define BSET(d, c)     (cData[(d)&OFF_MASK]=(U8)(c))
-U8   BGET(U16 d)       { return (U8)((d&RAM_FLAG) ? cData[d&OFF_MASK] : cRom[d]); }
+U8   BGET(U16 d)       {
+	return (U8)((d&RAM_FLAG) ? cData[d&OFF_MASK] : cRom[d]);
+}
 void SET(U16 d, S16 v) { BSET(d, v&0xff); BSET(d+1, v>>8); }
 U16  GET(U16 d)        { return (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
 // stack ops
@@ -40,7 +42,7 @@ U16  GET(U16 d)        { return (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
 //
 // tracing instrumentation
 //
-int tTAB = 0, tCNT = 0;		// trace indentation and depth counters
+int tTAB, tCNT;				// trace indentation and depth counters
 
 void _next();               // forward declaration
 void _trc_on()  { tCNT++;               _next(); }
@@ -557,29 +559,24 @@ void vm_init(U8 *rom, U8 *cdata, dicState *st) {
 	//
 	//   'TIB    = FORTH_TIB_ADDR (pointer to input buffer)
 	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
-	//   CONTEXT = last           (pointer to name field of the most recently defined word in dictionary)
 	//   CP      = here           (pointer to top of dictionary, first memory location to add new word)
+	//   CONTEXT = last           (pointer to name field of the most recently defined word in dictionary)
 	//   LAST    = last           (pointer to name field of last word in dictionary)
 	//   'EVAL   = INTER          ($COMPILE for compiler or $INTERPRET for interpreter)
 	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
 	//   tmp     = 0              (scratch pad)
 	//
-	XA *p = (XA*)&cData[FORTH_UVAR_ADDR - FORTH_RAM_ADDR];
-    *p++ = FORTH_TIB_ADDR;
-    *p++ = 0x10;
-    *p++ = st->last;
-    *p++ = FORTH_DIC_ADDR;
-    *p++ = st->last;
-    *p++ = st->inter;
-    *p++ = st->quit;
-    *p++ = 0;
+	XA pc = FORTH_UVAR_ADDR;
+	SET(pc,   FORTH_TIB_ADDR);
+	SET(pc+2, 0x10);
+	SET(pc+4, FORTH_DIC_ADDR);
     
 	R = S = PC = IP = top = 0;
 }
 
 void vm_run() {
 #if EXE_TRACE
-    tCNT=1;  tTAB=0;                // execution tracing
+    tCNT=1; tTAB=0;					// execution tracing
 #endif // EXE_TRACE
 	for (;;) {
 	    TRACE_WORD();               // tracing stack and word name

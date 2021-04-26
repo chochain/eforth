@@ -11,7 +11,7 @@
 //
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
-#define ASM_TRACE       1
+#define ASM_TRACE       0
 #define EXE_TRACE       1
 //
 // portable types
@@ -27,10 +27,10 @@ typedef int16_t   S16;
 typedef int8_t    S8;
 
 #if EFORTH_8BIT
-typedef U16       XA;				// Address size
+typedef U16       		 XA;				// Address size
 #define CELLSZ		     2
 #else
-typedef U32       XA;
+typedef U32       		 XA;
 #define CELLSZ		     4
 #endif // EFORTH_16BIT
 //

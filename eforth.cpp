@@ -67,7 +67,9 @@ int main(int ac, char* av[])
 	dump_data(cdata, sz);
 
 	vm_init((U8*)rom, cdata, &st);
+#if EXE_TRACE
 	vm_run();
+#endif // EXE_TRACE
 
 	return 0;
 }

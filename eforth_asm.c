@@ -229,7 +229,7 @@ void _ABORTQ(const char *seq) {
 #define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
-int assemble(U8 *cdata, dicState *st) {
+int assemble(U8 *cdata) {
 	aByte = cdata;
 	aR    = aThread = 0;
 	aPC   = FORTH_BOOT_ADDR;
@@ -247,8 +247,8 @@ int assemble(U8 *cdata, dicState *st) {
 	XA ua    = FORTH_UVAR_ADDR;
 	XA vTTIB = _CODE("'TIB",    opDOCON, VL(ua,0), VH(ua,0));
 	XA vBASE = _CODE("BASE",    opDOCON, VL(ua,1), VH(ua,1));
-	XA vCNTX = _CODE("CONTEXT", opDOCON, VL(ua,2), VH(ua,2));
-	XA vCP   = _CODE("CP",      opDOCON, VL(ua,3), VH(ua,3));
+	XA vCP   = _CODE("CP",      opDOCON, VL(ua,2), VH(ua,2));
+	XA vCNTX = _CODE("CONTEXT", opDOCON, VL(ua,3), VH(ua,3));
 	XA vLAST = _CODE("LAST",    opDOCON, VL(ua,4), VH(ua,4));
 	XA vTEVL = _CODE("'EVAL",   opDOCON, VL(ua,5), VH(ua,5));
 	XA vTABRT= _CODE("'ABORT",  opDOCON, VL(ua,6), VH(ua,6));
@@ -710,18 +710,18 @@ int assemble(U8 *cdata, dicState *st) {
 	// End of dictionary
 	//
 	int last  = aPC + CELLSZ;               // address of last word
-	XA  COLD  = _COLON("COLD", CR, QUIT);   // QUIT is the main query loop
+	XA  COLD  = _COLON("COLD",
+			DOLIT, last,  vCNTX, STORE,     // reset vectors
+			DOLIT, last,  vLAST, STORE,
+			DOLIT, INTER, vTEVL, STORE,
+			DOLIT, QUIT,  vTABRT,STORE,
+			CR, QUIT);   					// enter the main query loop (QUIT)
 	int here  = aPC;                        // current pointer
 	// HERE=0x100c
 	//
 	// Setup Boot Vector
 	//
-	SET(FORTH_BOOT_ADDR+1, COLD);
-
-    st->last  = last;
-    st->here  = here;
-    st->inter = INTER;
-    st->quit  = QUIT;
+	SET(FORTH_BOOT_ADDR+1,  COLD);
 
     return here;
 }
