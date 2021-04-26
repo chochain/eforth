@@ -20,22 +20,21 @@ U8  *cData;             		// linear byte array pointer
 //
 // Dr. Ting uses 256 and U8 for wrap-around control
 //
+#define RAM_FLAG    0xf000
+#define OFF_MASK    0x0fff
 #define BOOL(f)     ((f) ? TRUE : FALSE)
-#define ROM(d)      ((U8*)cRom +((d)&0xfff))
-#define RAM(d)      ((U8*)cData+((d)&0xfff))
-#define BSET(d, c)  ({ XA a=(d); if (a&0xf000) *RAM(a)=(U8)(c); })
-#define BGET(d)     ({ XA a=(d); (a&0xf000) ? *RAM(a) : *ROM(a); })
-#define SET(d, v)   do { XA a=(d); U16 x=(v); BSET(a, x&0xff); BSET(a+1, x>>8); } while(0)
-#define GET(d)      ({ XA a=(d); (U16)BGET(a) + ((U16)BGET(a+1)<<8); })
+#define BSET(d, c)     (cData[(d)&OFF_MASK]=(U8)(c))
+U8   BGET(U16 d)       { return (U8)((d&RAM_FLAG) ? cData[d&OFF_MASK] : cRom[d]); }
+void SET(U16 d, S16 v) { BSET(d, v&0xff); BSET(d+1, v>>8); }
+U16  GET(U16 d)        { return (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
 // stack ops
 #define S_GET(s)    ((S16)GET(FORTH_STACK_ADDR + (s)*CELLSZ))
 #define S_SET(s, v) SET(FORTH_STACK_ADDR + (s)*CELLSZ, v)
 #define	PUSH(v)     do { S_SET(++S, top); top=(S16)(v); } while(0)
 #define	POP()       (top=S_GET(S ? S-- : S))
 // rack ops
-#define RS_TOP      (FORTH_DIC_ADDR)
-#define R_GET(r)    ((U16)GET(RS_TOP - (r)*CELLSZ))
-#define R_SET(r,v)  SET(RS_TOP - (r)*CELLSZ,v)
+#define R_GET(r)    ((U16)GET(FORTH_STACK_TOP - (r)*CELLSZ))
+#define R_SET(r,v)  SET(FORTH_STACK_TOP - (r)*CELLSZ, v)
 #define RPUSH(v)    R_SET(++R, v)
 #define RPOP()      R_GET(R ? R-- : R)
 //
@@ -273,11 +272,6 @@ void _uplus()               // (w w -- w c) add two numbers, return the sum and 
 }
 void _next()                // advance instruction pointer
 {
-	U8  r = *ROM(IP);
-	U8  d = *RAM(IP);
-	U8  v0= BGET(IP);
-	U8  v1= BGET(IP+1);
-	U16 v = GET(IP);
 	PC = GET(IP);           // fetch instruction address
 	IP += sizeof(XA);       // advance, except control flow instructions
 }

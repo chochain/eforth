@@ -22,15 +22,15 @@ XA aPC, aThread;    // program counter, pointer to previous word
 //
 #define BSET(d, c)  (*(aByte+(d))=(U8)(c))
 #define BGET(d)     ((U8)*(aByte+(d)))
-#define SET(d, v)   do { XA a=(d); U16 x=(v); BSET(a, (x)&0xff); BSET((a)+1, (x)>>8); } while (0)
-#define GET(d)      ({ XA a=(d); (U16)BGET(a) + ((U16)BGET((a)+1)<<8); })
+#define SET(d, v)   do { U16 a=(d); U16 x=(v); BSET(a, (x)&0xff); BSET(a+1, (x)>>8); } while (0)
+#define GET(d)      ({ U16 a=(d); (U16)BGET(a) + ((U16)BGET(a+1)<<8); })
 #define STORE(v)    do { SET(aPC, (v)); aPC+=CELLSZ; } while(0)
 #define R_GET(r)    ((U16)GET(FORTH_STACK_ADDR + (r)*CELLSZ))
 #define R_SET(r, v) SET(FORTH_STACK_ADDR + (r)*CELLSZ, v)
 #define RPUSH(a)    R_SET(++aR, a)
 #define RPOP()      R_GET(aR ? aR-- : aR)
-#define VL(a, i)    (((XA)(a)+CELLSZ*(i))&0xff)
-#define VH(a, i)    (((XA)(a)+CELLSZ*(i))>>8)
+#define VL(a, i)    (((U16)(a)+CELLSZ*(i))&0xff)
+#define VH(a, i)    (((U16)(a)+CELLSZ*(i))>>8)
 
 void _dump(int b, int u) {
     // dump memory between previous word and this
