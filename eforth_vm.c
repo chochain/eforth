@@ -47,44 +47,34 @@ int tTAB, tCNT;				// trace indentation and depth counters
 void _next();               // forward declaration
 void _trc_on()  { tCNT++;               _next(); }
 void _trc_off() { tCNT -= tCNT ? 1 : 0; _next(); }
-void _break_point(U32 pc, char *name)
-{
-	if (name && strcmp("EVAL", name)) return;
 
-	int i=pc;
-}
-#define TRACE(s,v)  if(tCNT) PRINTF(s,v)
-#define LOG(s)      TRACE(" %s", s)
+#define TRACE(s,v)    if (tCNT) { PRINTF(s,v); }
+#define LOG(s)        TRACE(" %s", s)
 #define TRACE_COLON() if (tCNT) {              \
-    PRINTF("\n");                              \
-	for (int i=0; i<tTAB; i++) PRINTF("  ");   \
+    LOG("\n");                                 \
+	for (int i=0; i<tTAB; i++) LOG("  ");      \
 	tTAB++;                                    \
-	PRINTF(":");                               \
+	LOG(":");                                  \
 }
 #define TRACE_EXIT()  if (tCNT) {              \
-	PRINTF(" ;");                              \
+	LOG(" ;");                                 \
 	tTAB--;                                    \
 }
 void TRACE_WORD()
 {
 	if (!tCNT) return;
 
-	static char buf[32];			    // allocated in memory instead of on C stack
-
 	//PRINTF(" (pc=%x, ip=%x, R=%x)", PC, IP, R_GET(R));
 	if (!PC || BGET(PC)==opEXIT) return;
 	XA pc = PC-1;
 	for (; (BGET(pc) & 0x7f)>0x1f; pc--);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
+	PRINTF(" %x_%x_%x_", S_GET(S-1), S_GET(S), top);
+    
 	int  len = BGET(pc++) & 0x1f;          // Forth allows 31 char max
 	for (int i=0; i<len; i++, pc++) {
-		buf[i] = BGET(pc);
+		PRINTF("%c", BGET(pc));
 	}
-	buf[len] = '\0';
-
-	PRINTF(" %x_%x_%x_%s", S_GET(S-1), S_GET(S), top, buf);
-
-	_break_point(PC, buf);
 }
 //
 // Forth Virtual Machine (primitive functions)
@@ -103,9 +93,9 @@ void _txsto()               // (c -- ) send a char to console
 	PRINTF("%c", (U8)top);
 #else  // !EXE_TRACE
 	switch (top) {
-	case 0xa: PRINTF("<LF>");  break;
-	case 0xd: PRINTF("<CR>");  break;
-	case 0x8: PRINTF("<TAB>"); break;
+	case 0xa: LOG("<LF>");  break;
+	case 0xd: LOG("<CR>");  break;
+	case 0x8: LOG("<TAB>"); break;
 	default:
 		if (tCNT) PRINTF("<%c>", (U8)top);
 		else      PRINTF("%c", (U8)top);
@@ -196,6 +186,20 @@ void _cstor()               // (c b -- ) store a byte into memory location
 void _cat()                 // (b -- n) fetch a byte from memory location
 {
 	top = (S16)BGET(top);
+    _next();
+}
+#define digitalRead(i)     ((i),1)
+#define digitalWrite(i,v)
+void _din()
+{
+    PUSH(digitalRead(POP()));
+    _next();
+}
+void _dout()
+{
+    digitalWrite(S_GET(S), top);
+    POP();
+    POP();
     _next();
 }
 void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
@@ -370,6 +374,18 @@ void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double 
 	top   = (S16)(m / d);   // quotient
     _next();
 }
+#define vm_delay(t)  (t)
+#define millis()  	 0
+void _delay()
+{
+    vm_delay(POP());
+    _next();
+}
+void _msec()
+{
+    PUSH(millis());
+    _next();
+}
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
 	S32 d = (S32)top;
@@ -446,6 +462,20 @@ void _pstor()               // (n a -- ) add n to content at address a
     POP();
     _next();
 }
+#define analogRead(i)    ((i),1111)
+#define analogWrite(i,v)
+void _ain()
+{
+    PUSH(analogRead(POP()));
+    _next();
+}
+void _aout()
+{
+    analogWrite(S_GET(S), top);
+    POP();
+    POP();
+    _next();
+}
 void _dstor()               // (d a -- ) store the double to address a
 {
 	SET(top+CELLSZ, S_GET(S--));
@@ -500,13 +530,13 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 13 */ _at,
 	/* case 14 */ _cstor,
 	/* case 15 */ _cat,
-	/* case 16  rpat, */  _trc_on,
-	/* case 17  rpsto, */ _trc_off,
+	/* case 16  opRPAT  */ _din,
+	/* case 17  opRPSTO */ _dout,
 	/* case 18 */ _rfrom,
 	/* case 19 */ _rat,
 	/* case 20 */ _tor,
-	/* case 21 spat, */  _onep,
-	/* case 22 spsto, */ _onem,
+	/* case 21 opSPAT  */ _onep,
+	/* case 22 opSPSTO */ _onem,
 	/* case 23 */ _drop,
 	/* case 24 */ _dup,
 	/* case 25 */ _swap,
@@ -531,8 +561,8 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 44 */ _uless,
 	/* case 45 */ _less,
 	/* case 46 */ _ummod,
-	/* case 47 */ _msmod,
-	/* case 48 */ _slmod,
+	/* case 47 opMSMOD */ _delay,
+	/* case 48 opSLMOD */ _msec,
 	/* case 49 */ _mod,
 	/* case 50 */ _slash,
 	/* case 51 */ _umsta,
@@ -542,8 +572,8 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 55 */ _stasl,
 	/* case 56 */ _pick,
 	/* case 57 */ _pstor,
-	/* case 58 */ _dstor,
-	/* case 59 */ _dat,
+	/* case 58 opDSTOR */ _ain,
+	/* case 59 opDAT   */ _aout,
 	/* case 60 */ _count,
 	/* case 61 */ _dovar,
 	/* case 62 */ _max,

@@ -24,28 +24,14 @@
 #include "eforth.h"
 
 extern "C" int  assemble(U8 *cdata);
+extern "C" void rom_dump(U8 *cdata, int len);
 extern "C" void vm_init(U8 *rom, U8 *cdata);
 extern "C" void vm_run();
 
-extern U32 rom[];
+extern U32 forth_rom[];
 static U8  _mem[FORTH_ROM_SZ];        		  // default 4K forth ROM block
 
-void dump_data(U8* cdata, int len) {
-#if ASM_TRACE
-	printf("\n");
-    for (int p=0; p<len+0x20; p+=0x20) {
-        U32 *x = (U32*)&cdata[p];
-        for (int i=0; i<0x8; i++, x++) {
-            printf("0x%08x,", *x);
-        }
-        printf(" // %04x ", p);
-        for (int i=0; i<0x20; i++) {
-            U8 c = cdata[p+i];
-            printf("%c", c ? ((c!=0x5c && c>0x1f && c<0x7f) ? c : '_') : '.');
-        }
-        printf("\n");
-    }
-#endif // ASM_TRACE
+void sys_info(U8* cdata, int len) {
     printf("\nPrimitives=%d, Addr=%d-bit, CELL=%d", FORTH_PRIMITIVES, (int)sizeof(XA)*8, CELLSZ);
     printf("\nROM = x%x", FORTH_ROM_SZ);
     printf("\nRAM = x%x", FORTH_RAM_SZ);
@@ -62,11 +48,16 @@ int main(int ac, char* av[])
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
 
 	U8 *cdata = _mem;
-	int sz = assemble(cdata);
-	dump_data(cdata, sz);
 
-	vm_init((U8*)rom, cdata);
+#if ROM_DUMP
+	int sz = assemble(cdata);
+    rom_dump(cdata, sz);
+#else 
+    sys_info(cdata, FORTH_DIC_ADDR);
+
+	vm_init((U8*)forth_rom, cdata);
 	vm_run();
+#endif // ROM_DUMP
 
 	return 0;
 }

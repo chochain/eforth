@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #define EFORTH_8BIT     1
+#define ROM_DUMP        0
 //
 // debugging flags
 //
@@ -81,8 +82,8 @@ enum {
     opAT,         // 13
     opCSTOR,      // 14
     opCAT,        // 15
-    opRPAT,       // 16   borrowed for trc_on
-    opRPSTO,      // 17   borrowed for trc_off
+    opDIN,        // 16 Dr. Ting's opRPAT
+    opDOUT,       // 17 Dr. Ting's opRPSTO
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
@@ -107,7 +108,7 @@ enum {
     
     opPLUS,       // 37
     opINVER,      // 38
-    opNEGAT,      // 39has
+    opNEGAT,      // 39
     opDNEGA,      // 40
     opSUB,        // 41
     opABS,        // 42
@@ -116,8 +117,8 @@ enum {
     opLESS,       // 45
     
     opUMMOD,      // 46
-    opMSMOD,      // 47
-    opSLMOD,      // 48
+    opDELAY,      // 47 Dr. Ting's opMSMOD
+    opMSEC,       // 48 Dr. Ting's opSLMOD
     
     opMOD,        // 49
     opSLASH,      // 50
@@ -128,11 +129,12 @@ enum {
     opSTASL,      // 55
     opPICK,       // 56
     opPSTOR,      // 57
-    opDSTOR,      // 58
-    opDAT,        // 59
+    opAIN,        // 58 Dr. Ting's opDSTOR
+    opAOUT,       // 59 Dr. Ting's opDAT
     opCOUNT,      // 60
     opDOVAR,      // 61
     opMAX,        // 62
     opMIN         // 63
 };
+
 #endif // __EFORTH_SRC_EFORTH_H
