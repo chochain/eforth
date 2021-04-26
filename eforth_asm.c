@@ -1,5 +1,10 @@
 #include "eforth.h"
 #include "eforth_asm.h"
+
+#if !ROM_DUMP
+int  assemble(U8 *cdata) { return FORTH_DIC_ADDR; }
+void rom_dump(U8 *cdata, int len) {}
+#else
 //
 // Forth Macro Assembler
 //
@@ -14,9 +19,9 @@ XA TOR, NOP = 0xffff;				// NOP set to ffff to prevent access before initialized
 //
 // return stack for branching ops
 //
-U8 *aByte;          // heap
-U8 aR;              // return stack index
-XA aPC, aThread;    // program counter, pointer to previous word
+U8 *aByte;                         // rom byte stream
+U8 aR;                             // return stack index
+XA aPC, aThread;                   // program counter, pointer to previous word
 //
 // stack op macros
 //
@@ -278,6 +283,8 @@ int assemble(U8 *cdata) {
 	XA AT    = _CODE("@",       opAT     );
 	XA CSTOR = _CODE("C!",      opCSTOR  );
 	XA CAT   = _CODE("C@",      opCAT    );
+    XA DIN   = _CODE("DIN",     opDIN    );
+    XA DOUT  = _CODE("DOUT",    opDOUT   );
 	XA RFROM = _CODE("R>",      opRFROM  );
 	XA RAT   = _CODE("R@",      opRAT    );
 	   TOR   = _CODE(">R",      opTOR    );
@@ -307,8 +314,8 @@ int assemble(U8 *cdata) {
 	XA ULESS = _CODE("U<",      opULESS  );
 	XA LESS  = _CODE("<",       opLESS   );
 	XA UMMOD = _CODE("UM/MOD",  opUMMOD  );
-    XA MSMOD = _CODE("M/MOD",   opMSMOD  );
-	XA SLMOD = _CODE("/MOD",    opSLMOD  );
+    XA DELAY = _CODE("DELAY",   opDELAY  );
+    XA MSEC  = _CODE("MSEC",    opMSEC   );
 	XA MOD   = _CODE("MOD",     opMOD    );
 	XA SLASH = _CODE("/",       opSLASH  );
 	XA UMSTA = _CODE("UM*",     opUMSTA  );
@@ -318,8 +325,8 @@ int assemble(U8 *cdata) {
 	XA STASL = _CODE("*/",      opSTASL  );
 	XA PICK  = _CODE("PICK",    opPICK   );
 	XA PSTOR = _CODE("+!",      opPSTOR  );
-	XA DSTOR = _CODE("2!",      opDSTOR  );
-	XA DAT   = _CODE("2@",      opDAT    );
+    XA AIN   = _CODE("AIN",     opAIN    );
+	XA AOUT  = _CODE("AOUT",    opAOUT   );
 	XA COUNT = _CODE("COUNT",   opCOUNT  );
 	XA MAX   = _CODE("MAX",     opMAX    );
 	XA MIN   = _CODE("MIN",     opMIN    );
@@ -725,3 +732,24 @@ int assemble(U8 *cdata) {
 
     return here;
 }
+
+void rom_dump(U8* cdata, int len)
+{
+    printf("\n//\n// cut and paste the following segment into Arduino C code\n//");
+	printf("\nconst U32 forth_rom[] PROGMEM = {\n");
+    for (int p=0; p<len+0x20; p+=0x20) {
+        U32 *x = (U32*)&cdata[p];
+        for (int i=0; i<0x8; i++, x++) {
+            printf("0x%08x,", *x);
+        }
+        printf(" // %04x ", p);
+        for (int i=0; i<0x20; i++) {
+            U8 c = cdata[p+i];
+            printf("%c", c ? ((c!=0x5c && c>0x1f && c<0x7f) ? c : '_') : '.');
+        }
+        printf("\n");
+    }
+    printf("};\n");
+}
+#endif // ROM_DUMP
+
