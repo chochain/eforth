@@ -135,12 +135,4 @@ enum {
     opMAX,        // 62
     opMIN         // 63
 };
-
-typedef struct {
-    XA  last;              // pointer to last word
-    XA  here;              // current pointer (top of dictionary)
-    XA  inter;             // interpreter address
-    XA  quit;              // QUIT, main loop entry point, i.e. return from error handler
-} dicState;
-
 #endif // __EFORTH_SRC_EFORTH_H

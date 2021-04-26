@@ -23,8 +23,8 @@
 #include <stdio.h>
 #include "eforth.h"
 
-extern "C" int  assemble(U8 *cdata, dicState *st);
-extern "C" void vm_init(U8 *rom, U8 *cdata, dicState *st);
+extern "C" int  assemble(U8 *cdata);
+extern "C" void vm_init(U8 *rom, U8 *cdata);
 extern "C" void vm_run();
 
 extern U32 rom[];
@@ -54,7 +54,7 @@ void dump_data(U8* cdata, int len) {
     printf("\n  USER  x%04x+%04x (flash here)", FORTH_TVAR_ADDR,  FORTH_DIC_ADDR-FORTH_TVAR_ADDR);
     printf("\n  DIC   x%04x+%04x", FORTH_DIC_ADDR,   FORTH_RAM_ADDR+FORTH_RAM_SZ-FORTH_DIC_ADDR);
     printf("\nHERE x%04x", len);
-    printf("\neForth16 v1.0");
+    printf("\neForth8 v1.0");
 }
 
 int main(int ac, char* av[])
@@ -62,11 +62,10 @@ int main(int ac, char* av[])
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
 
 	U8 *cdata = _mem;
-    dicState st;
-	int sz = assemble(cdata, &st);
+	int sz = assemble(cdata);
 	dump_data(cdata, sz);
 
-	vm_init((U8*)rom, cdata, &st);
+	vm_init((U8*)rom, cdata);
 	vm_run();
 
 	return 0;

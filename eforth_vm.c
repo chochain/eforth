@@ -550,7 +550,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 63 */ _min,
 };
 
-void vm_init(U8 *rom, U8 *cdata, dicState *st) {
+void vm_init(U8 *rom, U8 *cdata) {
     cRom  = rom;
 	cData = cdata;
 	for (int i=0; i<FORTH_RAM_SZ; i++) *cdata++ = 0;
