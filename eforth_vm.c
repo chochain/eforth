@@ -12,6 +12,7 @@ S16 top;                        // ALU (i.e. cached top of stack value)
 //
 U8  *cRom;                      // flash memory
 U8  *cData;             		// linear byte array pointer
+S16 *cStack;					// pointer to stack/rack block
 //
 // data and return stack ops
 //  R                   S
@@ -23,20 +24,29 @@ U8  *cData;             		// linear byte array pointer
 #define RAM_FLAG    0xf000
 #define OFF_MASK    0x0fff
 #define BOOL(f)     ((f) ? TRUE : FALSE)
+
 #define BSET(d, c)     (cData[(d)&OFF_MASK]=(U8)(c))
-U8   BGET(U16 d)       {
-	return (U8)((d&RAM_FLAG) ? cData[d&OFF_MASK] : cRom[d]);
-}
+U8   BGET(U16 d)       { return (U8)((d&RAM_FLAG) ? cData[d&OFF_MASK] : cRom[d]); }
+
+#if EFORTH_8BIT
+void SET(U16 d, S16 v) { *((XA*)&cData[d&OFF_MASK])=v; }
+U16  GET(U16 d)        { return (d&RAM_FLAG) ? *((XA*)&cData[d&OFF_MASK]) : (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
+#define S_GET(s)    (cStack[s])
+#define S_SET(s, v) (cStack[s]=(S16)(v))
+#define RS_TOP      (FORTH_STACK_SZ>>1)
+#define R_GET(r)    ((XA)cStack[RS_TOP - (r)])
+#define R_SET(r,v)  (cStack[RS_TOP - (r)]=(XA)(v))
+#else
 void SET(U16 d, S16 v) { BSET(d, v&0xff); BSET(d+1, v>>8); }
 U16  GET(U16 d)        { return (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
-// stack ops
 #define S_GET(s)    ((S16)GET(FORTH_STACK_ADDR + (s)*CELLSZ))
 #define S_SET(s, v) SET(FORTH_STACK_ADDR + (s)*CELLSZ, v)
-#define	PUSH(v)     do { S_SET(++S, top); top=(S16)(v); } while(0)
-#define	POP()       (top=S_GET(S ? S-- : S))
-// rack ops
 #define R_GET(r)    ((U16)GET(FORTH_STACK_TOP - (r)*CELLSZ))
 #define R_SET(r,v)  SET(FORTH_STACK_TOP - (r)*CELLSZ, v)
+#endif // EFORTH_8BIT
+
+#define	PUSH(v)     do { S_SET(++S, top); top=(S16)(v); } while(0)
+#define	POP()       (top=S_GET(S ? S-- : S))
 #define RPUSH(v)    R_SET(++R, v)
 #define RPOP()      R_GET(R ? R-- : R)
 //
@@ -583,6 +593,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 void vm_init(U8 *rom, U8 *cdata) {
     cRom  = rom;
 	cData = cdata;
+	cStack= (S16*)&cdata[FORTH_STACK_ADDR - FORTH_RAM_ADDR];
 	for (int i=0; i<FORTH_RAM_SZ; i++) *cdata++ = 0;
 	//
 	// Forth internal (user) variables
