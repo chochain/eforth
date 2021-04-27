@@ -177,7 +177,7 @@ void _for(int len, ...) {          // FOR-NEXT
     RPUSH(aPC);                    // keep 1st loop repeat address A0
     CELLCPY(len);
 }
-void _aft(int len, ...) {          // code between FOR-AFT run only oNOP, nce
+void _aft(int len, ...) {          // code between FOR-AFT run only NOP, once
     SHOWOP("AFT");
     STORE(BRAN);                   // unconditional branch
     STORE(0);                      // forward jump address (A1)NOP,
@@ -283,13 +283,13 @@ int assemble(U8 *cdata) {
 	XA AT    = _CODE("@",       opAT     );
 	XA CSTOR = _CODE("C!",      opCSTOR  );
 	XA CAT   = _CODE("C@",      opCAT    );
-    XA DIN   = _CODE("DIN",     opDIN    );
-    XA DOUT  = _CODE("DOUT",    opDOUT   );
+    XA ONEP  = _CODE("1+",      opONEP   );
+    XA ONEM  = _CODE("1-",      opONEM   );
 	XA RFROM = _CODE("R>",      opRFROM  );
 	XA RAT   = _CODE("R@",      opRAT    );
 	   TOR   = _CODE(">R",      opTOR    );
-    XA ONEP  = _CODE("1+",      opONEP   );
-    XA ONEM  = _CODE("1-",      opONEM   );
+    XA DELAY = _CODE("DELAY",   opDELAY  );
+    XA CLOCK = _CODE("CLOCK",   opCLOCK  );
 	XA DROP  = _CODE("DROP",    opDROP   );
 	XA DUP   = _CODE("DUP",     opDUP    );
 	XA SWAP  = _CODE("SWAP",    opSWAP   );
@@ -305,24 +305,24 @@ int assemble(U8 *cdata) {
 	XA DDROP = _CODE("2DROP",   opDDROP  );
 	XA DDUP  = _CODE("2DUP",    opDDUP   );
 	XA PLUS  = _CODE("+",       opPLUS   );
-	XA INVER = _CODE("NOT",     opINVER  );
-	XA NEGAT = _CODE("NEGATE",  opNEGAT  );
-	XA DNEGA = _CODE("DNEGATE", opDNEGA  );
+	XA NOT   = _CODE("NOT",     opNOT    );
+	XA NEGAT = _CODE("NEGATE",  opNEGATE );
+	XA GREAT = _CODE("GREAT",   opGREAT  );
 	XA SUB   = _CODE("-",       opSUB    );
 	XA ABS   = _CODE("ABS",     opABS    );
 	XA EQUAL = _CODE("=",       opEQUAL  );
 	XA ULESS = _CODE("U<",      opULESS  );
 	XA LESS  = _CODE("<",       opLESS   );
 	XA UMMOD = _CODE("UM/MOD",  opUMMOD  );
-    XA DELAY = _CODE("DELAY",   opDELAY  );
-    XA MSEC  = _CODE("MSEC",    opMSEC   );
+	XA PIN   = _CODE("PIN",     opPIN    );
+	XA MAP   = _CODE("MAP",     opMAP    );
 	XA MOD   = _CODE("MOD",     opMOD    );
 	XA SLASH = _CODE("/",       opSLASH  );
-	XA UMSTA = _CODE("UM*",     opUMSTA  );
+	XA UMSTA = _CODE("UM*",     opUMSTAR );
 	XA STAR  = _CODE("*",       opSTAR   );
 	XA MSTAR = _CODE("M*",      opMSTAR  );
-	XA SSMOD = _CODE("*/MOD",   opSSMOD  );
-	XA STASL = _CODE("*/",      opSTASL  );
+    XA DIN   = _CODE("DIN",     opDIN    );
+    XA DOUT  = _CODE("DOUT",    opDOUT   );
 	XA PICK  = _CODE("PICK",    opPICK   );
 	XA PSTOR = _CODE("+!",      opPSTOR  );
     XA AIN   = _CODE("AIN",     opAIN    );
@@ -466,7 +466,7 @@ int assemble(U8 *cdata) {
 		_IF(ONEM, vTEMP, CAT, BLANK, EQUAL); {                     // check <SPC>
 			_IF(NOP); {
                 // a FOR..WHILE..NEXT..THEN construct =~ for {..break..}
-				_FOR(BLANK, OVER, CAT, SUB, ZLESS, INVER);    // 
+				_FOR(BLANK, OVER, CAT, SUB, ZLESS, NOT);      // 
                 _WHILE(ONEP);                                 // break to THEN if is char, or next char
                 _NEXT(RFROM, DROP, DOLIT, 0, DUP, EXIT);      // no break, (R>, DROP to rm loop counter)
                 _THEN(RFROM);                                 // populate A0, i.e. break comes here, rm counter

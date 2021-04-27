@@ -200,18 +200,14 @@ void _cat()                 // (b -- n) fetch a byte from memory location
 	top = (S16)BGET(top);
     _next();
 }
-#define digitalRead(i)     ((i),1)
-#define digitalWrite(i,v)
-void _din()
+void _onep()
 {
-    PUSH(digitalRead(POP()));
+    top++;
     _next();
 }
-void _dout()
+void _onem()
 {
-    digitalWrite(S_GET(S), top);
-    POP();
-    POP();
+    top--;
     _next();
 }
 void _rfrom()               // (n --) pop from return stack onto data stack (Ting comments different ???)
@@ -230,14 +226,18 @@ void _tor()                 // (-- n) pop from data stack and push onto return s
 	POP();
     _next();
 }
-void _onep()
+#define vm_delay(t)  (t)
+#define millis()  	 0x12345678
+void _delay()
 {
-    top++;
+    vm_delay(POP());
     _next();
 }
-void _onem()
+void _clock()
 {
-    top--;
+	U32 t = millis();
+	PUSH(t&0xffff);
+    PUSH(t>>16);
     _next();
 }
 void _drop()                // (w -- ) drop top of stack item
@@ -323,16 +323,17 @@ void _plus()                // (w w -- sum) add top two items
 	top += S_GET(S--);
     _next();
 }
-void _inver()               // (w -- w) one's complement
+void _not()                 // (w -- w) one's complement
 {
 	top = -top - 1;
     _next();
 }
-void _negat()               // (n -- -n) two's complement
+void _negate()              // (n -- -n) two's complement
 {
 	top = 0 - top;
     _next();
 }
+/* deprecated
 void _dnega()               // (d -- -d) two's complement of top double
 {
 	top = -top - 1;         // _inver()
@@ -346,6 +347,7 @@ void _dnega()               // (d -- -d) two's complement of top double
 	top += S_GET(S--);      // _plus()
     _next();
 }
+*/
 void _sub()                 // (n1 n2 -- n1-n2) subtraction
 {
 	top = S_GET(S--) - top;
@@ -386,18 +388,20 @@ void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double 
 	top   = (S16)(m / d);   // quotient
     _next();
 }
-#define vm_delay(t)  (t)
-#define millis()  	 0x12345678
-void _delay()
+#define pinMode(i, v)
+void _pin()
 {
-    vm_delay(POP());
+    pinMode(S_GET(S), top);
+    POP();
+    POP();
     _next();
 }
-void _msec()
+#define map(n,f1,f2,t1,t2) (1234)
+void _map()              // (f1 f2 t1 t2 n -- nx) arduino map(n, f1, f2, t1, t2)
 {
-	U32 t = millis();
-	PUSH(t&0xffff);
-    PUSH(t>>16);
+    map(top, S_GET(S-3), S_GET(S-2), S_GET(S-1), S_GET(S));
+    S -= 4;
+    POP();
     _next();
 }
 /* deprecated
@@ -430,7 +434,7 @@ void _slash()               // (n n - q) signed divide, return quotient
 	top = (top) ? S_GET(S--) / top : (S_GET(S--), 0);
     _next();
 }
-void _umsta()               // (u1 u2 -- ud) unsigned multiply return double product
+void _umstar()              // (u1 u2 -- ud) unsigned multiply return double product
 {
 	U32 m = (U32)S_GET(S) * top;
 	S_SET(S, (U16)(m & 0xffff));
@@ -449,6 +453,21 @@ void _mstar()               // (n1 n2 -- d) signed multiply, return double produ
 	top   = (S16)(m >> 16);
     _next();
 }
+#define digitalRead(i)     ((i),1)
+#define digitalWrite(i,v)
+void _din()
+{
+    PUSH(digitalRead(POP()));
+    _next();
+}
+void _dout()
+{
+    digitalWrite(S_GET(S), top);
+    POP();
+    POP();
+    _next();
+}
+/* deprecated
 void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotient
 {
 	S32 m = (S32)S_GET(S-1) * S_GET(S);
@@ -467,6 +486,7 @@ void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 	top = (S16)(m / d);
     _next();
 }
+*/
 void _pick()                // (... +n -- ...w) copy nth stack item to top
 {
 	top = S_GET(S-(U8)top);
@@ -492,6 +512,7 @@ void _aout()
     POP();
     _next();
 }
+/* deprecated
 void _dstor()               // (d a -- ) store the double to address a
 {
 	SET(top+CELLSZ, S_GET(S--));
@@ -505,6 +526,7 @@ void _dat()                 // (a -- d) fetch double from address a
 	top = GET(top + CELLSZ);
     _next();
 }
+*/
 void _count()               // (b -- b+1 +n) count byte of a string and add 1 to byte address
 {
     S_SET(++S, top+1);
@@ -521,11 +543,6 @@ void _min()                 // (n1 n2 -- n) return smaller of two top stack item
 {
 	if (top < S_GET(S)) S--;
 	else POP();
-    _next();
-}
-void _clock()
-{
-    PUSH((U32)clock());
     _next();
 }
 
@@ -546,13 +563,13 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 13 */ _at,
 	/* case 14 */ _cstor,
 	/* case 15 */ _cat,
-	/* case 16  opRPAT  */ _din,
-	/* case 17  opRPSTO */ _dout,
+	/* case 16  opRPAT  */ _onep,
+	/* case 17  opRPSTO */ _onem,
 	/* case 18 */ _rfrom,
 	/* case 19 */ _rat,
 	/* case 20 */ _tor,
-	/* case 21 opSPAT  */ _onep,
-	/* case 22 opSPSTO */ _onem,
+	/* case 21 opSPAT  */ _delay,
+	/* case 22 opSPSTO */ _clock,
 	/* case 23 */ _drop,
 	/* case 24 */ _dup,
 	/* case 25 */ _swap,
@@ -568,24 +585,24 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 35 */ _ddrop,
 	/* case 36 */ _ddup,
 	/* case 37 */ _plus,
-	/* case 38 */ _inver,
-	/* case 39 */ _negat,
-	/* case 40 */ _dnega,
+	/* case 38 */ _not,
+	/* case 39 */ _negate,
+	/* case 40 opDNEGA */ _great,
 	/* case 41 */ _sub,
 	/* case 42 */ _abs,
 	/* case 43 */ _equal,
 	/* case 44 */ _uless,
 	/* case 45 */ _less,
 	/* case 46 */ _ummod,
-	/* case 47 opMSMOD */ _delay,
-	/* case 48 opSLMOD */ _msec,
+	/* case 47 opMSMOD */ _pin,
+	/* case 48 opSLMOD */ _map,
 	/* case 49 */ _mod,
 	/* case 50 */ _slash,
-	/* case 51 */ _umsta,
+	/* case 51 */ _umstar,
 	/* case 52 */ _star,
 	/* case 53 */ _mstar,
-	/* case 54 */ _ssmod,
-	/* case 55 */ _stasl,
+	/* case 54 opSSMOD */ _din,
+	/* case 55 opSTASL */ _dout,
 	/* case 56 */ _pick,
 	/* case 57 */ _pstor,
 	/* case 58 opDSTOR */ _ain,

@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define EFORTH_8BIT     1
-#define ROM_DUMP        0
+#define ROM_DUMP        1
 //
 // debugging flags
 //
@@ -17,23 +17,16 @@
 //
 // portable types
 //
-typedef uint64_t  U64;
-typedef uint32_t  U32;
+typedef uint32_t  U32;   // unsigned integer
 typedef uint16_t  U16;
 typedef uint8_t   U8;
-typedef int64_t   S64;
 
-typedef int32_t   S32;
-typedef int16_t   S16;
+typedef int32_t   S32;   // signed integers
+typedef int16_t   S16;   // 16-bit data 
 typedef int8_t    S8;
 
-#if EFORTH_8BIT
-typedef U16       		 XA;				// Address size
-#define CELLSZ		     2
-#else
-typedef U32       		 XA;
-#define CELLSZ		     4
-#endif // EFORTH_16BIT
+typedef U16       XA;	 // 16-bit address
+#define CELLSZ	  2
 //
 // capacity and sizing
 //
@@ -50,7 +43,7 @@ typedef U32       		 XA;
 #define FORTH_RAM_ADDR   0x1000
 #define FORTH_STACK_ADDR (FORTH_RAM_ADDR+0x0)
 #define FORTH_STACK_TOP  (FORTH_STACK_ADDR+FORTH_STACK_SZ)
-#define FORTH_TIB_ADDR   FORTH_STACK_TOP
+#define FORTH_TIB_ADDR   (FORTH_STACK_TOP)
 #define FORTH_TVAR_ADDR  (FORTH_TIB_ADDR+FORTH_TIB_SZ)
 #define FORTH_UVAR_ADDR  (FORTH_TVAR_ADDR+0x10)
 #define FORTH_DIC_ADDR   (FORTH_UVAR_ADDR+0x10)
@@ -82,13 +75,13 @@ enum {
     opAT,         // 13
     opCSTOR,      // 14
     opCAT,        // 15
-    opDIN,        // 16 Dr. Ting's opRPAT
-    opDOUT,       // 17 Dr. Ting's opRPSTO
+    opONEP,       // 16 Dr. Ting's opRPAT
+    opONEM,       // 17 Dr. Ting's opRPSTO
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
-    opONEP,       // 21 Dr. Ting' opPSPAT
-    opONEM,       // 22 Dr. Ting's opSPSTO
+    opDELAY,      // 21 Dr. Ting's opPSPAT 
+    opCLOCK,      // 22 Dr. Ting's opSPSTO
     
     opDROP,       // 23
     opDUP,        // 24
@@ -107,9 +100,9 @@ enum {
     opDDUP,       // 36
     
     opPLUS,       // 37
-    opINVER,      // 38
-    opNEGAT,      // 39
-    opDNEGA,      // 40
+    opNOT,        // 38 =opINVERT
+    opNEGATE,     // 39
+    opGREAT,      // 40 Dr. Ting' opDNEGA
     opSUB,        // 41
     opABS,        // 42
     opEQUAL,      // 43
@@ -117,16 +110,16 @@ enum {
     opLESS,       // 45
     
     opUMMOD,      // 46
-    opDELAY,      // 47 Dr. Ting's opMSMOD
-    opMSEC,       // 48 Dr. Ting's opSLMOD
+    opPIN,        // 47 Dr. Ting's opMSMOD
+    opMAP,        // 48 Dr. Ting's opSLMOD
     
     opMOD,        // 49
     opSLASH,      // 50
-    opUMSTA,      // 51
+    opUMSTAR,     // 51 =opUMSTA
     opSTAR,       // 52
     opMSTAR,      // 53
-    opSSMOD,      // 54
-    opSTASL,      // 55
+    opDIN,        // 54 Dr. Ting's opSSMOD
+    opDOUT,       // 55 Dr. Ting's opSTASL
     opPICK,       // 56
     opPSTOR,      // 57
     opAIN,        // 58 Dr. Ting's opDSTOR
