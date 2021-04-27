@@ -389,9 +389,9 @@ void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double 
     _next();
 }
 #define pinMode(i, v)
-void _pin()
+void _pinmode()
 {
-    pinMode(S_GET(S), top);
+    pinMode(S_GET(S), top ? INPUT : OUTPUT);
     POP();
     POP();
     _next();
@@ -594,7 +594,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 44 */ _uless,
 	/* case 45 */ _less,
 	/* case 46 */ _ummod,
-	/* case 47 opMSMOD */ _pin,
+	/* case 47 opMSMOD */ _pinmode,
 	/* case 48 opSLMOD */ _map,
 	/* case 49 */ _mod,
 	/* case 50 */ _slash,

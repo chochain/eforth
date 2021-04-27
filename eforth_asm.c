@@ -314,7 +314,7 @@ int assemble(U8 *cdata) {
 	XA ULESS = _CODE("U<",      opULESS  );
 	XA LESS  = _CODE("<",       opLESS   );
 	XA UMMOD = _CODE("UM/MOD",  opUMMOD  );
-	XA PIN   = _CODE("PIN",     opPIN    );
+	XA PIN   = _CODE("PINMODE", opPIN    );
 	XA MAP   = _CODE("MAP",     opMAP    );
 	XA MOD   = _CODE("MOD",     opMOD    );
 	XA SLASH = _CODE("/",       opSLASH  );
