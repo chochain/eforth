@@ -399,9 +399,9 @@ void _pin()
 #define map(n,f1,f2,t1,t2) (1234)
 void _map()              // (f1 f2 t1 t2 n -- nx) arduino map(n, f1, f2, t1, t2)
 {
-    map(top, S_GET(S-3), S_GET(S-2), S_GET(S-1), S_GET(S));
+    U16 tmp = map(top, S_GET(S-3), S_GET(S-2), S_GET(S-1), S_GET(S));
     S -= 4;
-    POP();
+    top = tmp;
     _next();
 }
 /* deprecated

@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define EFORTH_8BIT     1
-#define ROM_DUMP        1
+#define ROM_DUMP        0
 //
 // debugging flags
 //
