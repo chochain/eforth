@@ -29,13 +29,15 @@ S16 *cStack;					// pointer to stack/rack block
 U8   BGET(U16 d)       { return (U8)((d&RAM_FLAG) ? cData[d&OFF_MASK] : cRom[d]); }
 
 #if EFORTH_8BIT
-void SET(U16 d, S16 v) { *((XA*)&cData[d&OFF_MASK])=v; }
-U16  GET(U16 d)        { return (d&RAM_FLAG) ? *((XA*)&cData[d&OFF_MASK]) : (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
+void SET(U16 d, S16 v) { *((S16*)&cData[d&OFF_MASK])=v; }
+U16  GET(U16 d)        {
+	return (d&RAM_FLAG)	? *((U16*)&cData[d&OFF_MASK]) : (U16)cRom[d]+((U16)cRom[d+1]<<8);
+}
 #define S_GET(s)    (cStack[s])
 #define S_SET(s, v) (cStack[s]=(S16)(v))
 #define RS_TOP      (FORTH_STACK_SZ>>1)
 #define R_GET(r)    ((XA)cStack[RS_TOP - (r)])
-#define R_SET(r,v)  (cStack[RS_TOP - (r)]=(XA)(v))
+#define R_SET(r,v)  (cStack[RS_TOP - (r)]=(S16)(v))
 #else
 void SET(U16 d, S16 v) { BSET(d, v&0xff); BSET(d+1, v>>8); }
 U16  GET(U16 d)        { return (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
