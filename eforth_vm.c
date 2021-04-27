@@ -387,7 +387,7 @@ void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double 
     _next();
 }
 #define vm_delay(t)  (t)
-#define millis()  	 0
+#define millis()  	 0x12345678
 void _delay()
 {
     vm_delay(POP());
@@ -395,9 +395,12 @@ void _delay()
 }
 void _msec()
 {
-    PUSH(millis());
+	U32 t = millis();
+	PUSH(t&0xffff);
+    PUSH(t>>16);
     _next();
 }
+/* deprecated
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
 	S32 d = (S32)top;
@@ -416,6 +419,7 @@ void _slmod()               // (n1 n2 -- r q) signed divide, return mod and quot
 	}
     _next();
 }
+*/
 void _mod()                 // (n n -- r) signed divide, returns mod
 {
 	top = (top) ? S_GET(S--) % top : S_GET(S--);
