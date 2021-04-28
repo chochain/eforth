@@ -505,7 +505,6 @@ int assemble(U8 *cdata) {
 		_REPEAT(RFROM, DROP, SWAP, DROP, CELLM, DUP, NAMET, SWAP, EXIT);  // word found, get name field
 	}
 	XA NAMEQ = _COLON("NAME?", vCNTX, FIND, EXIT);
-	// HERE=0xa17
 	//
 	// Interpreter Input String handler
 	//
@@ -530,7 +529,6 @@ int assemble(U8 *cdata) {
 	XA EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
 	XA QUERY = _COLON("QUERY", TIB, DOLIT, FORTH_TIB_SZ, ACCEP,
                       vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
-	// HERE=0xae0
 	//
 	// Text Interpreter
 	//
@@ -580,8 +578,8 @@ int assemble(U8 *cdata) {
 		_ELSE(ERROR);
 		_THEN(NOP);
 	}
-	XA LBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
-	XA DOTOK = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {  // are we in interpreter mode?
+	XA iLBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
+	XA DOTOK  = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {  // are we in interpreter mode?
 		_IF(TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
 			_DOTQ(" ok>");
 		}
@@ -592,16 +590,16 @@ int assemble(U8 *cdata) {
 		_WHILE(vTEVL, ATEXE);
 		_REPEAT(DROP, DOTOK, EXIT);
 	}
-	XA QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, LBRAC); {
+	XA QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, iLBRAC); {
 		_BEGIN(QUERY, EVAL);      // main query-eval loop
 		_AGAIN(NOP);
 	}
-	// HERE=0xc0e
 	//
-	// meta-compiler
+	// Forth Compiler - meta-compiler
 	//
 	XA COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);
-	XA LITER = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
+	XA CCMMA = _COLON("C,",      HERE, DUP, ONEP,  vCP, STORE, CSTOR, EXIT);
+	XA iLITR = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
 	XA ALLOT = _COLON("ALLOT",   vCP, PSTOR, EXIT);
 	XA STRCQ = _COLON("$,\"",    DOLIT, 0x22, WORD, COUNT, PLUS, vCP, STORE, EXIT);
 	XA UNIQU = _COLON("?UNIQUE", DUP, NAMEQ, QDUP); {
@@ -618,7 +616,7 @@ int assemble(U8 *cdata) {
 		_IF(EXIT);
 		_THEN(ERROR);
 	}
-	XA BCOMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);
+	XA iBCMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);
 	XA COMPI = _COLON("COMPILE",  RFROM, DUP, AT, COMMA, CELLP, TOR, EXIT);
 	XA SCOMP = _COLON("$COMPILE", NAMEQ, QDUP); {
 		_IF(AT, DOLIT, fIMMED, AND); {
@@ -627,13 +625,55 @@ int assemble(U8 *cdata) {
 			_THEN(EXIT);
 		}
 		_THEN(NUMBQ);
-		_IF(LITER, EXIT);
+		_IF(iLITR, EXIT);
 		_THEN(ERROR);
 	}
+	//
+	// Compiler - define new word
+	//
 	XA OVERT = _COLON("OVERT", vLAST, AT, vCNTX, STORE, EXIT);
 	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
-	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, HERE, DUP, ONEP, vCP, STORE, CSTOR, EXIT);
-	XA SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
+	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, CCMMA, EXIT);
+	XA iSEMI = _IMMED(";", DOLIT, EXIT, COMMA, iLBRAC, OVERT, EXIT);
+	XA FORGT = _COLON("FORGET", TOKEN, NAMEQ, QDUP); {
+		_IF(CELLM, DUP, vCP, STORE, AT, DUP, vCNTX, STORE, vLAST, STORE, DROP, EXIT);
+		_THEN(ERROR);
+	}
+	//
+	// Compiler - variable and constant
+	//
+	XA CODE   = _COLON("CODE",    TOKEN, SNAME, OVERT, EXIT);
+	XA CREAT  = _COLON("CREATE",  CODE,  DOLIT, opDOVAR, CCMMA, EXIT);
+	XA VARIA  = _COLON("VARIABLE",CREAT, DOLIT, 0, COMMA, EXIT);
+	XA CONST  = _COLON("CONSTANT",CODE,  DOLIT, opDOCON, CCMMA, COMMA, EXIT);
+	XA iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);
+	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);
+	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
+	XA ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
+	XA iIMMED = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
+	//
+	// Compiler - branching instructions
+	//
+	XA iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
+	XA iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
+	XA iBEGIN = _IMMED("BEGIN",   HERE, EXIT);
+	XA iNEXT  = _IMMED("NEXT",    COMPI, DONXT, COMMA, EXIT);
+	XA iUNTIL = _IMMED("UNTIL",   COMPI, QBRAN, COMMA, EXIT);
+	XA iAGAIN = _IMMED("AGAIN",   COMPI, BRAN,  COMMA, EXIT);
+	
+	XA iIF    = _IMMED("IF",      COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXIT);
+	XA iAHEAD = _IMMED("AHEAD",   COMPI, BRAN,  HERE, DOLIT, 0, COMMA, EXIT);
+	XA iREPEA = _IMMED("REPEAT",  iAGAIN, iTHEN, EXIT);
+	XA iAFT   = _IMMED("AFT",     DROP, iAHEAD, HERE, SWAP, EXIT);
+	XA iELSE  = _IMMED("ELSE",    iAHEAD, SWAP, iTHEN, EXIT);
+	XA iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
+	XA iWHILE = _IMMED("WHILE",   iIF, SWAP, EXIT);
+	//
+	// Compiler - String specification
+	//
+	XA iABRTQ = _IMMED("ABORT\"", DOLIT, ABORTQ, HERE, STORE, STRCQ, EXIT);
+	XA iSTRQ  = _IMMED("$\"",     DOLIT, STRQ, HERE, STORE, STRCQ, EXIT);
+	XA iDOTQ  = _IMMED(".\"",     DOLIT, DOTQ, HERE, STORE, STRCQ, EXIT);
 	//
 	// Debugging Tools
 	//
@@ -663,40 +703,6 @@ int assemble(U8 *cdata) {
 		}
 		_REPEAT(EXIT);
 	}
-	XA FORGT = _COLON("FORGET", TOKEN, NAMEQ, QDUP); {
-		_IF(CELLM, DUP, vCP, STORE, AT, DUP, vCNTX, STORE, vLAST, STORE, DROP, EXIT);
-		_THEN(ERROR);
-	}
-	// HERE=0xeaf
-	//
-	// Compiler - branching instructions
-	//
-	XA iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
-	XA iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
-	XA iBEGIN = _IMMED("BEGIN",   HERE, EXIT);
-	XA iNEXT  = _IMMED("NEXT",    COMPI, DONXT, COMMA, EXIT);
-	XA iUNTIL = _IMMED("UNTIL",   COMPI, QBRAN, COMMA, EXIT);
-	XA iAGAIN = _IMMED("AGAIN",   COMPI, BRAN,  COMMA, EXIT);
-	XA iIF    = _IMMED("IF",      COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXIT);
-	XA iAHEAD = _IMMED("AHEAD",   COMPI, BRAN,  HERE, DOLIT, 0, COMMA, EXIT);
-	XA iREPEA = _IMMED("REPEAT",  iAGAIN, iTHEN, EXIT);
-	XA iAFT   = _IMMED("AFT",     DROP, iAHEAD, HERE, SWAP, EXIT);
-	XA iELSE  = _IMMED("ELSE",    iAHEAD, SWAP, iTHEN, EXIT);
-	XA iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
-	XA iWHILE = _IMMED("WHILE",   iIF, SWAP, EXIT);
-	XA iABRTQ = _IMMED("ABORT\"", DOLIT, ABORTQ, HERE, STORE, STRCQ, EXIT);
-	XA iSTRQ  = _IMMED("$\"",     DOLIT, STRQ, HERE, STORE, STRCQ, EXIT);
-	XA iDOTQ  = _IMMED(".\"",     DOLIT, DOTQ, HERE, STORE, STRCQ, EXIT);
-
-	XA CODE   = _COLON("CODE",    TOKEN, SNAME, OVERT, EXIT);
-	XA CREAT  = _COLON("CREATE",  CODE, DOLIT, ((opNEXT<<8)|opDOVAR), COMMA, EXIT);
-	XA VARIA  = _COLON("VARIABLE",CREAT, DOLIT, 0, COMMA, EXIT);
-	XA CONST  = _COLON("CONSTANT",CODE, DOLIT, ((opNEXT<<8)|opDOCON), COMMA, COMMA, EXIT);
-	XA iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);
-	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);
-	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
-	XA ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
-	XA IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
     //
     // Arduino specific opcodes
     //
