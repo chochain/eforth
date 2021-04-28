@@ -242,13 +242,17 @@ int assemble(U8 *cdata) {
 	// Kernel constants
 	//
     XA BOOT  = _LABEL(opENTER, 0);      // reserved for boot vectors
-
+    //
+    // pointers to kernal
+    //
     XA ta    = FORTH_TVAR_ADDR;
 	XA vHLD  = _CODE("HLD",     opDOCON, VL(ta,0), VH(ta,0));
 	XA vSPAN = _CODE("SPAN",    opDOCON, VL(ta,1), VH(ta,1));
 	XA vIN   = _CODE(">IN",     opDOCON, VL(ta,2), VH(ta,2));
 	XA vNTIB = _CODE("#TIB",    opDOCON, VL(ta,3), VH(ta,3));
-
+    //
+    // pointers to user variables
+    //
 	XA ua    = FORTH_UVAR_ADDR;
 	XA vTTIB = _CODE("'TIB",    opDOCON, VL(ua,0), VH(ua,0));
 	XA vBASE = _CODE("BASE",    opDOCON, VL(ua,1), VH(ua,1));
@@ -263,7 +267,6 @@ int assemble(U8 *cdata) {
 	//
 	XA BLANK = _CODE("BL",      opDOCON, 0x20,      0);
 	XA CELL  = _CODE("CELL",    opDOCON, CELLSZ,    0);
-	XA DOVAR = _CODE("DOVAR",   opDOVAR  );
 	//
 	// Kernel dictionary (primitive words)
 	//
@@ -288,8 +291,6 @@ int assemble(U8 *cdata) {
 	XA RFROM = _CODE("R>",      opRFROM  );
 	XA RAT   = _CODE("R@",      opRAT    );
 	   TOR   = _CODE(">R",      opTOR    );
-    XA DELAY = _CODE("DELAY",   opDELAY  );
-    XA CLOCK = _CODE("CLOCK",   opCLOCK  );
 	XA DROP  = _CODE("DROP",    opDROP   );
 	XA DUP   = _CODE("DUP",     opDUP    );
 	XA SWAP  = _CODE("SWAP",    opSWAP   );
@@ -307,35 +308,24 @@ int assemble(U8 *cdata) {
 	XA PLUS  = _CODE("+",       opPLUS   );
 	XA NOT   = _CODE("NOT",     opNOT    );
 	XA NEGAT = _CODE("NEGATE",  opNEGATE );
-	XA GREAT = _CODE("GREAT",   opGREAT  );
+	XA GREAT = _CODE(">",       opGREAT  );
 	XA SUB   = _CODE("-",       opSUB    );
 	XA ABS   = _CODE("ABS",     opABS    );
 	XA EQUAL = _CODE("=",       opEQUAL  );
 	XA ULESS = _CODE("U<",      opULESS  );
 	XA LESS  = _CODE("<",       opLESS   );
 	XA UMMOD = _CODE("UM/MOD",  opUMMOD  );
-	XA PIN   = _CODE("PINMODE", opPIN    );
-	XA MAP   = _CODE("MAP",     opMAP    );
 	XA MOD   = _CODE("MOD",     opMOD    );
 	XA SLASH = _CODE("/",       opSLASH  );
 	XA UMSTA = _CODE("UM*",     opUMSTAR );
 	XA STAR  = _CODE("*",       opSTAR   );
 	XA MSTAR = _CODE("M*",      opMSTAR  );
-    XA DIN   = _CODE("DIN",     opDIN    );
-    XA DOUT  = _CODE("DOUT",    opDOUT   );
 	XA PICK  = _CODE("PICK",    opPICK   );
 	XA PSTOR = _CODE("+!",      opPSTOR  );
-    XA AIN   = _CODE("AIN",     opAIN    );
-	XA AOUT  = _CODE("AOUT",    opAOUT   );
 	XA COUNT = _CODE("COUNT",   opCOUNT  );
+	XA DOVAR = _CODE("DOVAR",   opDOVAR  );
 	XA MAX   = _CODE("MAX",     opMAX    );
 	XA MIN   = _CODE("MIN",     opMIN    );
-	// HERE=0x343
-	//
-	// tracing instrumentation (borrow 2 opcodes)
-	//
-	//XA trc_on  = _CODE("trc_on",  opRPAT);
-	//XA trc_off = _CODE("trc_off", opRPSTO);
 	//
 	// Common Colon Words (in word streams)
 	//
@@ -344,7 +334,6 @@ int assemble(U8 *cdata) {
 	XA CELLP = _COLON("CELL+", CELL,  PLUS,  EXIT);
 	XA CELLM = _COLON("CELL-", CELL,  SUB,   EXIT);
 	XA CELLS = _COLON("CELLS", CELL,  STAR,  EXIT);
-	XA CELLD = _COLON("CELL/", CELL,  SLASH, EXIT);
 	XA WITHI = _COLON("WITHIN",  OVER, SUB, TOR, SUB, RFROM, ULESS, EXIT);
 	XA CMOVE = _COLON("CMOVE", NOP); {
 		_FOR(NOP);
@@ -352,7 +341,7 @@ int assemble(U8 *cdata) {
 		_THEN(NOP);
 		_NEXT(DDROP, EXIT);
 	}
-	XA MOVE  = _COLON("MOVE", CELLD); {
+	XA MOVE  = _COLON("MOVE", CELL, SLASH); {
 		_FOR(NOP);
 		_AFT(OVER, AT, OVER, STORE, TOR, CELLP, RFROM, CELLP);
 		_THEN(NOP);
@@ -364,7 +353,6 @@ int assemble(U8 *cdata) {
 		_THEN(NOP);
 		_NEXT(DDROP, EXIT);
 	}
-	// HERE=x046b
 	//
 	// Number Conversions and formatting
 	//
@@ -386,8 +374,7 @@ int assemble(U8 *cdata) {
 	}
 	XA EDIGS = _COLON("#>",     DROP, vHLD, AT, PAD, OVER, SUB, EXIT);
 	XA STR   = _COLON("str",    DUP, TOR, ABS, BDIGS, DIGS, RFROM, SIGN, EDIGS, EXIT);
-	XA UPPER = _COLON("wupper", DOLIT, 0x5f5f, AND, EXIT);
-	XA TOUPP = _COLON(">upper", DUP, DOLIT, 0x61, DOLIT, 0x7b, WITHI); { // [a-z] only?
+	XA TOUPP = _COLON(">UPPER", DUP, DOLIT, 0x61, DOLIT, 0x7b, WITHI); { // [a-z] only?
 		_IF(DOLIT, 0x5f, AND);
 		_THEN(EXIT);
 	}
@@ -413,7 +400,6 @@ int assemble(U8 *cdata) {
          }
   		 _THEN(RFROM, DDROP, RFROM, vBASE, STORE, EXIT);
 	}
-	// HERE=0x671
 	//
 	// Console I/O
 	//
@@ -458,7 +444,6 @@ int assemble(U8 *cdata) {
 		_THEN(STR, SPACE, TYPE, EXIT);       // other 
 	}
 	XA QUEST = _COLON("?", AT, DOT, EXIT);
-	// HERE=0x819
 	//
 	// Parser
     //
@@ -492,7 +477,7 @@ int assemble(U8 *cdata) {
 	XA TOKEN = _COLON("TOKEN", BLANK, PARSE, DOLIT, 0x1f, MIN, HERE, CELLP, PACKS, EXIT);  // put token at HERE
 	XA WORD  = _COLON("WORD",  PARSE, HERE, CELLP, PACKS, EXIT);
 	XA NAMET = _COLON("NAME>", COUNT, DOLIT, 0x1f, AND, PLUS, EXIT);
-	XA SAMEQ = _COLON("SAME?", NOP); {               // (a1 a2 n - a1 a2 f) compare n byte-by-byte
+	XA SAMEQ = _COLON("SAME?", NOP); {  // (a1 a2 n - a1 a2 f) compare a1, a2 byte-by-byte
         _FOR(DDUP);
         _AFT(DUP, CAT, TOR, ONEP, SWAP,                                  // *a1++
              DUP, CAT, TOR, ONEP, SWAP, RFROM, RFROM, SUB, QDUP); {      // *a2++
@@ -525,7 +510,7 @@ int assemble(U8 *cdata) {
 	// Interpreter Input String handler
 	//
 	XA TAP   = _COLON("TAP", DUP, EMIT, OVER, CSTOR, ONEP, EXIT);                  // store new char to TIB
-	XA KTAP  = _COLON("kTAP", DUP, DOLIT, 0xd, XOR, OVER, DOLIT, 0xa, XOR, AND); { // check <CR><LF>
+	XA KTAP  = _COLON("KTAP", DUP, DOLIT, 0xd, XOR, OVER, DOLIT, 0xa, XOR, AND); { // check <CR><LF>
 		_IF(DOLIT, 8, XOR); {                                                      // check <TAB>
 			_IF(BLANK, TAP);                                                       // check BLANK
 			_ELSE(HATH);
@@ -649,7 +634,6 @@ int assemble(U8 *cdata) {
 	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
 	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, HERE, DUP, ONEP, vCP, STORE, CSTOR, EXIT);
 	XA SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
-	// HERE=0xd7e
 	//
 	// Debugging Tools
 	//
@@ -713,6 +697,17 @@ int assemble(U8 *cdata) {
 	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	XA ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
 	XA IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
+    //
+    // Arduino specific opcodes
+    //
+    XA DELAY = _CODE("DELAY",   opDELAY  );
+    XA CLOCK = _CODE("CLOCK",   opCLOCK  );
+	XA PIN   = _CODE("PINMODE", opPIN    );
+	XA MAP   = _CODE("MAP",     opMAP    );
+    XA DIN   = _CODE("DIN",     opDIN    );
+    XA DOUT  = _CODE("DOUT",    opDOUT   );
+    XA AIN   = _CODE("AIN",     opAIN    );
+	XA AOUT  = _CODE("AOUT",    opAOUT   );
 	//
 	// End of dictionary
 	//
