@@ -595,13 +595,13 @@ int assemble(U8 *cdata) {
 		_AGAIN(NOP);
 	}
 	//
-	// Forth Compiler - meta-compiler
+	// Forth Compiler - utility functions
 	//
-	XA COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);
-	XA CCMMA = _COLON("C,",      HERE, DUP, ONEP,  vCP, STORE, CSTOR, EXIT);
-	XA iLITR = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
+	XA ONLY  = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);  // enable COMPILE-ONLY flag
+	XA IMMED = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);  // enable IMMEDIATE flag
+	XA COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);   // store a byte
+	XA CCMMA = _COLON("C,",      HERE, DUP, ONEP,  vCP, STORE, CSTOR, EXIT);   // store a word
 	XA ALLOT = _COLON("ALLOT",   vCP, PSTOR, EXIT);
-	XA STRCQ = _COLON("$,\"",    DOLIT, 0x22, WORD, COUNT, PLUS, vCP, STORE, EXIT);
 	XA UNIQU = _COLON("?UNIQUE", DUP, NAMEQ, QDUP); {
 		_IF(COUNT, DOLIT, 0x1f, AND, SPACE, TYPE); {
 			_DOTQ(" reDef");
@@ -616,43 +616,42 @@ int assemble(U8 *cdata) {
 		_IF(EXIT);
 		_THEN(ERROR);
 	}
-	XA iBCMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);
+	XA iLITR  = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);    // create a literal
+	XA iBCMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);                  // add word address to dictionary
 	XA COMPI = _COLON("COMPILE",  RFROM, DUP, AT, COMMA, CELLP, TOR, EXIT);
-	XA SCOMP = _COLON("$COMPILE", NAMEQ, QDUP); {
-		_IF(AT, DOLIT, fIMMED, AND); {
-			_IF(EXECU);
-			_ELSE(COMMA);
+	XA SCOMP = _COLON("$COMPILE", NAMEQ, QDUP); { // name found?
+		_IF(AT, DOLIT, fIMMED, AND); {            // is immediate?
+			_IF(EXECU);                           // execute
+			_ELSE(COMMA);                         // or, add to dictionary
 			_THEN(EXIT);
 		}
-		_THEN(NUMBQ);
-		_IF(iLITR, EXIT);
+		_THEN(NUMBQ);                             // a number?
+		_IF(iLITR, EXIT);                         // add as literal
 		_THEN(ERROR);
 	}
 	//
-	// Compiler - define new word
+	// Forth Compiler - define new word
 	//
-	XA OVERT = _COLON("OVERT", vLAST, AT, vCNTX, STORE, EXIT);
-	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
-	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, CCMMA, EXIT);
+	XA OVERT = _COLON("OVERT", vLAST, AT, vCNTX, STORE, EXIT);            // update LAST and CONTEXT variables
+	XA RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);             // switch into compiler-mode
+	XA COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, opENTER, CCMMA, EXIT);
 	XA iSEMI = _IMMED(";", DOLIT, EXIT, COMMA, iLBRAC, OVERT, EXIT);
 	XA FORGT = _COLON("FORGET", TOKEN, NAMEQ, QDUP); {
 		_IF(CELLM, DUP, vCP, STORE, AT, DUP, vCNTX, STORE, vLAST, STORE, DROP, EXIT);
 		_THEN(ERROR);
 	}
 	//
-	// Compiler - variable and constant
+	// Forth Compiler - variable, constant, and comments
 	//
 	XA CODE   = _COLON("CODE",    TOKEN, SNAME, OVERT, EXIT);
 	XA CREAT  = _COLON("CREATE",  CODE,  DOLIT, opDOVAR, CCMMA, EXIT);
 	XA VARIA  = _COLON("VARIABLE",CREAT, DOLIT, 0, COMMA, EXIT);
 	XA CONST  = _COLON("CONSTANT",CODE,  DOLIT, opDOCON, CCMMA, COMMA, EXIT);
-	XA iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);
-	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);
-	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
-	XA ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
-	XA iIMMED = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
+	XA iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);              // print til hit ) i.e. 0x29
+	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);             // skip til end of line
+	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);             // skip til )
 	//
-	// Compiler - branching instructions
+	// Forth Compiler - branching instructions
 	//
 	XA iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
 	XA iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
@@ -669,8 +668,10 @@ int assemble(U8 *cdata) {
 	XA iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
 	XA iWHILE = _IMMED("WHILE",   iIF, SWAP, EXIT);
 	//
-	// Compiler - String specification
+	// Forth Compiler - String specification
 	//
+	XA STRCQ  = _COLON("$,\"",    DOLIT, 0x22, WORD,     // find quote in TIB (0x22 is " in ASCII)
+                       COUNT, PLUS, vCP, STORE, EXIT);   // advance dic pointer
 	XA iABRTQ = _IMMED("ABORT\"", DOLIT, ABORTQ, HERE, STORE, STRCQ, EXIT);
 	XA iSTRQ  = _IMMED("$\"",     DOLIT, STRQ, HERE, STORE, STRCQ, EXIT);
 	XA iDOTQ  = _IMMED(".\"",     DOLIT, DOTQ, HERE, STORE, STRCQ, EXIT);
@@ -736,7 +737,7 @@ int assemble(U8 *cdata) {
 
 void rom_dump(U8* cdata, int len)
 {
-    printf("\n//\n// cut and paste the following segment into Arduino C code\n//");
+    printf("//\n// cut and paste the following segment into Arduino C code\n//");
 	printf("\nconst U32 forth_rom[] PROGMEM = {\n");
     for (int p=0; p<len+0x20; p+=0x20) {
         U32 *x = (U32*)&cdata[p];
