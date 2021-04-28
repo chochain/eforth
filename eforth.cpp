@@ -52,12 +52,13 @@ int main(int ac, char* av[])
 #if ROM_DUMP
 	int sz = assemble(cdata);
     rom_dump(cdata, sz);
-#else 
+
+    memcpy((U8*)forth_rom, cdata, sz);
+#endif // ROM_DUMP
     sys_info(cdata, FORTH_DIC_ADDR);
 
 	vm_init((U8*)forth_rom, cdata);
 	vm_run();
-#endif // ROM_DUMP
 
 	return 0;
 }

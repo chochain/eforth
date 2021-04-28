@@ -118,14 +118,14 @@ void _txsto()               // (c -- ) send a char to console
 }
 void _dovar()               // ( -- a) return address of a variable
 {
-	TRACE(" %x", IP);       // fetch literal from data
-	PUSH(IP);
+	++PC;                   // skip opDOVAR opcode
+	PUSH(PC);               // push variable address onto stack
 	_next();
 }
 void _docon()               // ( -- n) push next token onto data stack as constant
 {
     ++PC;                   // skip opDOCON opcode
-	PUSH(GET(PC));          // fetch next cell
+	PUSH(GET(PC));          // push cell value onto stack
     _next();
 }
 void _dolit()               // ( -- w) push next token as an integer literal
