@@ -80,7 +80,7 @@ enum {
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
-    opDELAY,      // 21 Dr. Ting's opPSPAT 
+    opDELAY,      // 21 Dr. Ting's opSPAT 
     opCLOCK,      // 22 Dr. Ting's opSPSTO
     
     opDROP,       // 23

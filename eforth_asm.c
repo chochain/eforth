@@ -19,9 +19,9 @@ XA TOR, NOP = 0xffff;				// NOP set to ffff to prevent access before initialized
 //
 // return stack for branching ops
 //
-U8 *aByte;                         // rom byte stream
-U8 aR;                             // return stack index
-XA aPC, aThread;                   // program counter, pointer to previous word
+U8 *aByte;                          // rom byte stream
+U8 aR;                              // return stack index
+XA aPC, aThread;                    // program counter, pointer to previous word
 //
 // stack op macros
 //
@@ -119,26 +119,14 @@ int _label(int len, ...) {
     return addr;
 }
 void _begin(int len, ...) {
-    SHOWOP("BEGIN");
-    RPUSH(aPC);                     // keep current address for looping
+    SHOWOP("BEGIN");               // BEGIN-(once)-WHILE-(loop)-UNTIL/REPEAT
+    RPUSH(aPC);                    // keep current address for looping
     CELLCPY(len);
 }
-void _again(int len, ...) {
-    SHOWOP("AGAIN");
-    STORE(BRAN);                    // unconditional branch
-    STORE(RPOP());                  // store return address
-    CELLCPY(len);
-}
-void _until(int len, ...) {
-    SHOWOP("UNTIL");
-    STORE(QBRAN);                   // conditional branch
-    STORE(RPOP());                  // loop begin address
-    CELLCPY(len);
-}
-void _while(int len, ...) {
+void _while(int len, ...) {        
     SHOWOP("WHILE");
     STORE(QBRAN);
-    STORE(0);                       // branching address
+    STORE(0);                      // branching address
     int k = RPOP();
     RPUSH(aPC - CELLSZ);
     RPUSH(k);
@@ -150,6 +138,39 @@ void _repeat(int len, ...) {
     STORE(RPOP());
     SET(RPOP(), aPC);
     CELLCPY(len);
+}
+void _until(int len, ...) {
+    SHOWOP("UNTIL");
+    STORE(QBRAN);                   // conditional branch
+    STORE(RPOP());                  // loop begin address
+    CELLCPY(len);
+}
+void _again(int len, ...) {         // BEGIN-AGAIN
+    SHOWOP("AGAIN");
+    STORE(BRAN);                    // unconditional branch
+    STORE(RPOP());                  // store return address
+    CELLCPY(len);
+}
+void _for(int len, ...) {
+    SHOWOP("FOR");                 // FOR-(first)-AFT-(2nd,...)-THEN-(every)-NEXT
+    STORE(TOR);                    // put loop counter on return stack
+    RPUSH(aPC);                    // keep 1st loop repeat address A0
+    CELLCPY(len);
+}
+void _aft(int len, ...) {          // code between FOR-AFT run only once
+    SHOWOP("AFT");
+    STORE(BRAN);                   // unconditional branch
+    STORE(0);                      // forward jump address (A1)NOP,
+    RPOP();                        // pop-off A0 (FOR-AFT once only)
+    RPUSH(aPC);                    // keep repeat address on return stack
+    RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for AFT-THEN
+    CELLCPY(len);
+}
+void _next(int len, ...) {         // _next() is multi-defined in vm
+    SHOWOP("NEXT");
+    STORE(DONXT);                  // check loop counter (on return stack)
+    STORE(RPOP());                 // add A0 (FOR-NEXT) or 
+    CELLCPY(len);                  // A1 to repeat loop (conditional branch by DONXT)
 }
 void _if(int len, ...) {           // IF-THEN, IF-ELSE-THEN
     SHOWOP("IF");
@@ -170,27 +191,6 @@ void _then(int len, ...) {
     SHOWOP("THEN");
     SET(RPOP(), aPC);              // backfill branching address (A0) or (A1)
     CELLCPY(len);
-}
-void _for(int len, ...) {          // FOR-NEXT
-    SHOWOP("FOR");                 // FOR-(first)-AFT-(2nd,...)-THEN-(every)-NEXT
-    STORE(TOR);                    // put loop counter on return stack
-    RPUSH(aPC);                    // keep 1st loop repeat address A0
-    CELLCPY(len);
-}
-void _aft(int len, ...) {          // code between FOR-AFT run only NOP, once
-    SHOWOP("AFT");
-    STORE(BRAN);                   // unconditional branch
-    STORE(0);                      // forward jump address (A1)NOP,
-    RPOP();                        // pop-off A0 (FOR-AFT once only)
-    RPUSH(aPC);                    // keep repeat address on return stack
-    RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for AFT-THEN
-    CELLCPY(len);
-}
-void _nxt(int len, ...) {          // _next() is multi-defined in vm
-    SHOWOP("NEXT");
-    STORE(DONXT);                  // check loop counter (on return stack)
-    STORE(RPOP());                 // add A0 (FOR-NEXT) or 
-    CELLCPY(len);                  // A1 to repeat loop (conditional branch by DONXT)
 }
 #define STRCPY(op, seq) {                           \
 	STORE(op);                                      \
@@ -231,7 +231,7 @@ void _ABORTQ(const char *seq) {
 #define _ELSE(...)           _else(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _THEN(...)           _then(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _FOR(...)            _for(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _NEXT(...)           _next(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
 int assemble(U8 *cdata) {
@@ -246,22 +246,22 @@ int assemble(U8 *cdata) {
     // pointers to kernal
     //
     XA ta    = FORTH_TVAR_ADDR;
-	XA vHLD  = _CODE("HLD",     opDOCON, VL(ta,0), VH(ta,0));
-	XA vSPAN = _CODE("SPAN",    opDOCON, VL(ta,1), VH(ta,1));
-	XA vIN   = _CODE(">IN",     opDOCON, VL(ta,2), VH(ta,2));
-	XA vNTIB = _CODE("#TIB",    opDOCON, VL(ta,3), VH(ta,3));
+	XA vHLD  = _CODE("HLD",     opDOCON, VL(ta,0), VH(ta,0));   // char pointer to output buffer
+	XA vSPAN = _CODE("SPAN",    opDOCON, VL(ta,1), VH(ta,1));   // number of character accepted
+	XA vIN   = _CODE(">IN",     opDOCON, VL(ta,2), VH(ta,2));   // interpreter pointer to next char
+	XA vNTIB = _CODE("#TIB",    opDOCON, VL(ta,3), VH(ta,3));   // number of character received in TIB
     //
     // pointers to user variables
     //
 	XA ua    = FORTH_UVAR_ADDR;
-	XA vTTIB = _CODE("'TIB",    opDOCON, VL(ua,0), VH(ua,0));
-	XA vBASE = _CODE("BASE",    opDOCON, VL(ua,1), VH(ua,1));
-	XA vCP   = _CODE("CP",      opDOCON, VL(ua,2), VH(ua,2));
-	XA vCNTX = _CODE("CONTEXT", opDOCON, VL(ua,3), VH(ua,3));
-	XA vLAST = _CODE("LAST",    opDOCON, VL(ua,4), VH(ua,4));
-	XA vTEVL = _CODE("'EVAL",   opDOCON, VL(ua,5), VH(ua,5));
-	XA vTABRT= _CODE("'ABORT",  opDOCON, VL(ua,6), VH(ua,6));
-	XA vTEMP = _CODE("tmp",     opDOCON, VL(ua,7), VH(ua,7));
+	XA vTTIB = _CODE("'TIB",    opDOCON, VL(ua,0), VH(ua,0));   // console input buffer pointer
+	XA vBASE = _CODE("BASE",    opDOCON, VL(ua,1), VH(ua,1));   // current radix for numeric ops
+	XA vCP   = _CODE("CP",      opDOCON, VL(ua,2), VH(ua,2));   // =HERE, top of dictionary
+	XA vCNTX = _CODE("CONTEXT", opDOCON, VL(ua,3), VH(ua,3));   // name field of last word
+	XA vLAST = _CODE("LAST",    opDOCON, VL(ua,4), VH(ua,4));   // =CONTEXT
+	XA vTEVL = _CODE("'EVAL",   opDOCON, VL(ua,5), VH(ua,5));   // eval mode (interpreter or compiler)
+	XA vTABRT= _CODE("'ABORT",  opDOCON, VL(ua,6), VH(ua,6));   // exception rescue handler (QUIT)
+	XA vTEMP = _CODE("tmp",     opDOCON, VL(ua,7), VH(ua,7));   // tmp storage (alternative to return stack)
 	//
 	// common constants and variable spec
 	//
@@ -280,7 +280,7 @@ int assemble(U8 *cdata) {
 	XA EXIT  = _CODE("EXIT",    opEXIT   );
 	XA EXECU = _CODE("EXECUTE", opEXECU  );
 	   DONXT = _CODE("DONEXT",  opDONEXT );
-	   QBRAN = _CODE("QBRANCH", opQBRAN  );
+	   QBRAN = _CODE("?BRANCH", opQBRAN  );
 	   BRAN  = _CODE("BRANCH",  opBRAN   );
 	XA STORE = _CODE("!",       opSTORE  );
 	XA AT    = _CODE("@",       opAT     );
@@ -306,7 +306,7 @@ int assemble(U8 *cdata) {
 	XA DDROP = _CODE("2DROP",   opDDROP  );
 	XA DDUP  = _CODE("2DUP",    opDDUP   );
 	XA PLUS  = _CODE("+",       opPLUS   );
-	XA NOT   = _CODE("NOT",     opNOT    );
+	XA NOT   = _CODE("INVERT",  opNOT    );
 	XA NEGAT = _CODE("NEGATE",  opNEGATE );
 	XA GREAT = _CODE(">",       opGREAT  );
 	XA SUB   = _CODE("-",       opSUB    );
@@ -590,7 +590,7 @@ int assemble(U8 *cdata) {
 		_WHILE(vTEVL, ATEXE);
 		_REPEAT(DROP, DOTOK, EXIT);
 	}
-	XA QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, iLBRAC); {
+	XA QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, iLBRAC); {  // clear TIB, interpreter mode
 		_BEGIN(QUERY, EVAL);      // main query-eval loop
 		_AGAIN(NOP);
 	}
@@ -653,20 +653,27 @@ int assemble(U8 *cdata) {
 	//
 	// Forth Compiler - branching instructions
 	//
-	XA iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
-	XA iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
-	XA iBEGIN = _IMMED("BEGIN",   HERE, EXIT);
-	XA iNEXT  = _IMMED("NEXT",    COMPI, DONXT, COMMA, EXIT);
-	XA iUNTIL = _IMMED("UNTIL",   COMPI, QBRAN, COMMA, EXIT);
-	XA iAGAIN = _IMMED("AGAIN",   COMPI, BRAN,  COMMA, EXIT);
-	
-	XA iIF    = _IMMED("IF",      COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXIT);
+    // BEGIN-(once)-WHILE-(loop)-UNTIL/REPEAT, BEGIN-AGAIN
+    //
 	XA iAHEAD = _IMMED("AHEAD",   COMPI, BRAN,  HERE, DOLIT, 0, COMMA, EXIT);
-	XA iREPEA = _IMMED("REPEAT",  iAGAIN, iTHEN, EXIT);
-	XA iAFT   = _IMMED("AFT",     DROP, iAHEAD, HERE, SWAP, EXIT);
+	XA iBEGIN = _IMMED("BEGIN",   HERE, EXIT);
+	XA iAGAIN = _IMMED("AGAIN",   COMPI, BRAN,  COMMA, EXIT);
+	XA iUNTIL = _IMMED("UNTIL",   COMPI, QBRAN, COMMA, EXIT);
+    //
+    // IF-THEN, IF-ELSE-THEN
+    //
+	XA iIF    = _IMMED("IF",      COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXIT);
+	XA iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
 	XA iELSE  = _IMMED("ELSE",    iAHEAD, SWAP, iTHEN, EXIT);
-	XA iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
 	XA iWHILE = _IMMED("WHILE",   iIF, SWAP, EXIT);
+	XA iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
+	XA iREPEA = _IMMED("REPEAT",  iAGAIN, iTHEN, EXIT);
+    //
+    // FOR-(first)-AFT-(2nd,...)-THEN-(every)-NEXT
+    //
+	XA iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
+	XA iAFT   = _IMMED("AFT",     DROP, iAHEAD, HERE, SWAP, EXIT);
+	XA iNEXT  = _IMMED("NEXT",    COMPI, DONXT, COMMA, EXIT);
 	//
 	// Forth Compiler - String specification
 	//
@@ -726,11 +733,10 @@ int assemble(U8 *cdata) {
 			DOLIT, QUIT,  vTABRT,STORE,
 			CR, QUIT);   					// enter the main query loop (QUIT)
 	int here  = aPC;                        // current pointer
-	// HERE=0x100c
 	//
 	// Setup Boot Vector
 	//
-	SET(FORTH_BOOT_ADDR+1,  COLD);
+	SET(FORTH_BOOT_ADDR+1, COLD);
 
     return here;
 }
@@ -753,5 +759,5 @@ void rom_dump(U8* cdata, int len)
     }
     printf("};\n");
 }
-#endif // ROM_DUMP
+#endif // !ROM_DUMP
 
