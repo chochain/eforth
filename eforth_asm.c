@@ -166,7 +166,7 @@ void _aft(int len, ...) {          // code between FOR-AFT run only once
     RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for AFT-THEN
     CELLCPY(len);
 }
-void _nxt(int len, ...) {          // _next() is multi-defined in vm
+void _next(int len, ...) {         // _next() is multi-defined in vm
     SHOWOP("NEXT");
     STORE(DONXT);                  // check loop counter (on return stack)
     STORE(RPOP());                 // add A0 (FOR-NEXT) or 
@@ -231,7 +231,7 @@ void _ABORTQ(const char *seq) {
 #define _ELSE(...)           _else(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _THEN(...)           _then(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _FOR(...)            _for(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _NEXT(...)           _next(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
 int assemble(U8 *cdata) {
@@ -291,7 +291,6 @@ int assemble(U8 *cdata) {
 	XA RFROM = _CODE("R>",      opRFROM  );
 	XA RAT   = _CODE("R@",      opRAT    );
 	   TOR   = _CODE(">R",      opTOR    );
-    XA SPAT  = _CODE("SP@",     opSPAT   );
 	XA DROP  = _CODE("DROP",    opDROP   );
 	XA DUP   = _CODE("DUP",     opDUP    );
 	XA SWAP  = _CODE("SWAP",    opSWAP   );
@@ -301,13 +300,13 @@ int assemble(U8 *cdata) {
 	XA OR    = _CODE("OR",      opOR     );
 	XA XOR   = _CODE("XOR",     opXOR    );
 	XA UPLUS = _CODE("UM+",     opUPLUS  );
-	XA NEXT  = _CODE("NEXT",    opNEXT   );
+    XA DEPTH = _CODE("DEPTH",   opDEPTH  );
 	XA QDUP  = _CODE("?DUP",    opQDUP   );
 	XA ROT   = _CODE("ROT",     opROT    );
-	XA DDROP = _CODE("2DROP",   opDDROP  );
-	XA DDUP  = _CODE("2DUP",    opDDUP   );
+    XA LSHFT = _CODE("<<",      opLSHIFT );
+    XA RSHFT = _CODE(">>",      opRSHIFT );
 	XA PLUS  = _CODE("+",       opPLUS   );
-	XA NOT   = _CODE("INVERT",  opNOT    );
+	XA INVER = _CODE("INVERT",  opINVERT );
 	XA NEGAT = _CODE("NEGATE",  opNEGATE );
 	XA GREAT = _CODE(">",       opGREAT  );
 	XA SUB   = _CODE("-",       opSUB    );
@@ -318,6 +317,7 @@ int assemble(U8 *cdata) {
 	XA UMMOD = _CODE("UM/MOD",  opUMMOD  );
 	XA MOD   = _CODE("MOD",     opMOD    );
 	XA SLASH = _CODE("/",       opSLASH  );
+    XA UMSTA = _CODE("UM*",     opUMSTAR );
 	XA STAR  = _CODE("*",       opSTAR   );
 	XA MSTAR = _CODE("M*",      opMSTAR  );
 	XA PICK  = _CODE("PICK",    opPICK   );
@@ -335,6 +335,8 @@ int assemble(U8 *cdata) {
 	XA CELLM = _COLON("CELL-", CELL,  SUB,   EXIT);
 	XA CELLS = _COLON("CELLS", CELL,  STAR,  EXIT);
 	XA WITHI = _COLON("WITHIN",  OVER, SUB, TOR, SUB, RFROM, ULESS, EXIT);
+    XA DDUP  = _COLON("2DUP",  OVER, OVER, EXIT);
+    XA DDROP = _COLON("2DROP", DROP, DROP, EXIT);
 	XA CMOVE = _COLON("CMOVE", NOP); {
 		_FOR(NOP);
 		_AFT(OVER, CAT, OVER, CSTOR, TOR, ONEP, RFROM, ONEP);
@@ -451,7 +453,7 @@ int assemble(U8 *cdata) {
 		_IF(ONEM, vTEMP, CAT, BLANK, EQUAL); {                     // check <SPC>
 			_IF(NOP); {
                 // a FOR..WHILE..NEXT..THEN construct =~ for {..break..}
-				_FOR(BLANK, OVER, CAT, SUB, ZLESS, NOT);      // 
+				_FOR(BLANK, OVER, CAT, SUB, ZLESS, INVER);    // 
                 _WHILE(ONEP);                                 // break to THEN if is char, or next char
                 _NEXT(RFROM, DROP, DOLIT, 0, DUP, EXIT);      // no break, (R>, DROP to rm loop counter)
                 _THEN(RFROM);                                 // populate A0, i.e. break comes here, rm counter
@@ -580,7 +582,7 @@ int assemble(U8 *cdata) {
 	}
 	XA iLBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
 	XA DOTOK  = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {  // are we in interpreter mode?
-		_IF(SPAT, DOLIT, 3, MIN); {
+		_IF(DEPTH, DOLIT, 3, MIN); {
 			_FOR(RAT, PICK, DOT);
 			_NEXT(NOP);
 			_DOTQ(" ok>");
@@ -597,12 +599,13 @@ int assemble(U8 *cdata) {
 		_AGAIN(NOP);
 	}
 	//
-	// Forth Compiler - utility functions
+	// Forth Compiler - meta-compiler functions
 	//
 	XA ONLY  = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);  // enable COMPILE-ONLY flag
 	XA IMMED = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);  // enable IMMEDIATE flag
 	XA COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);   // store a byte
 	XA CCMMA = _COLON("C,",      HERE, DUP, ONEP,  vCP, STORE, CSTOR, EXIT);   // store a word
+	XA iLITR = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);            // create a literal
 	XA ALLOT = _COLON("ALLOT",   vCP, PSTOR, EXIT);
 	XA UNIQU = _COLON("?UNIQUE", DUP, NAMEQ, QDUP); {
 		_IF(COUNT, DOLIT, 0x1f, AND, SPACE, TYPE); {
@@ -610,7 +613,7 @@ int assemble(U8 *cdata) {
 		}
 		_THEN(DROP, EXIT);
 	}
-	XA SNAME = _COLON("$,n", DUP, AT); {     // add new name field which is already build by PACK$
+	XA SNAME = _COLON("$,n", DUP, AT); {          // add new name field which is already build by PACK$
 		_IF(UNIQU, DUP, NAMET, vCP, STORE, DUP, vLAST, STORE, CELLM, vCNTX, AT, SWAP, STORE, EXIT);
 		_THEN(ERROR);
 	}
@@ -618,7 +621,6 @@ int assemble(U8 *cdata) {
 		_IF(EXIT);
 		_THEN(ERROR);
 	}
-	XA iLITR  = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);    // create a literal
 	XA iBCMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);                  // add word address to dictionary
 	XA COMPI = _COLON("COMPILE",  RFROM, DUP, AT, COMMA, CELLP, TOR, EXIT);
 	XA SCOMP = _COLON("$COMPILE", NAMEQ, QDUP); { // name found?
@@ -649,20 +651,20 @@ int assemble(U8 *cdata) {
 	XA CREAT  = _COLON("CREATE",  CODE,  DOLIT, opDOVAR, CCMMA, EXIT);
 	XA VARIA  = _COLON("VARIABLE",CREAT, DOLIT, 0, COMMA, EXIT);
 	XA CONST  = _COLON("CONSTANT",CODE,  DOLIT, opDOCON, CCMMA, COMMA, EXIT);
-	XA iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);              // print til hit ) i.e. 0x29
-	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);             // skip til end of line
-	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);             // skip til )
+	XA iDOTPR = _IMMED(".(",      DOLIT, 0x29, PARSE, TYPE, EXIT);        // print til hit ) i.e. 0x29
+	XA iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORD,  DROP,  EXIT);       // skip til end of line
+	XA iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);       // skip til )
 	//
 	// Forth Compiler - branching instructions
 	//
-    // BEGIN-(once)-WHILE-(loop)-UNTIL/REPEAT, BEGIN-AGAIN
+    // BEGIN...AGAIN, BEGIN... f UNTIL, BEGIN...(once)...f WHILE...(loop)...REPEAT
     //
 	XA iAHEAD = _IMMED("AHEAD",   COMPI, BRAN,  HERE, DOLIT, 0, COMMA, EXIT);
 	XA iBEGIN = _IMMED("BEGIN",   HERE, EXIT);
 	XA iAGAIN = _IMMED("AGAIN",   COMPI, BRAN,  COMMA, EXIT);
 	XA iUNTIL = _IMMED("UNTIL",   COMPI, QBRAN, COMMA, EXIT);
     //
-    // IF-THEN, IF-ELSE-THEN
+    // f IF...THEN, f IF...ELSE...THEN
     //
 	XA iIF    = _IMMED("IF",      COMPI, QBRAN, HERE, DOLIT, 0, COMMA, EXIT);
 	XA iTHEN  = _IMMED("THEN",    HERE, SWAP, STORE, EXIT);
@@ -671,7 +673,7 @@ int assemble(U8 *cdata) {
 	XA iWHEN  = _IMMED("WHEN",    iIF, OVER, EXIT);
 	XA iREPEA = _IMMED("REPEAT",  iAGAIN, iTHEN, EXIT);
     //
-    // FOR-(first)-AFT-(2nd,...)-THEN-(every)-NEXT
+    // n FOR...NEXT, n FOR...(first)... f AFT...(2nd,...)...THEN...(every)...NEXT
     //
 	XA iFOR   = _IMMED("FOR",     COMPI, TOR, HERE, EXIT);
 	XA iAFT   = _IMMED("AFT",     DROP, iAHEAD, HERE, SWAP, EXIT);
@@ -687,7 +689,7 @@ int assemble(U8 *cdata) {
 	//
 	// Debugging Tools
 	//
-	XA DMP   = _COLON("dm+", OVER, DOLIT, 6, UDOTR); {
+	XA DMP   = _COLON("dm+", OVER, DOLIT, 6, UDOTR); {   // print one row
 		_FOR(NOP);
 		_AFT(DUP, AT, DOLIT, 5, UDOTR, CELLP);
 		_THEN(NOP);
@@ -697,7 +699,7 @@ int assemble(U8 *cdata) {
 		_FOR(NOP);
 		_AFT(CR, DOLIT, 8, DDUP, DMP, TOR, SPACE, CELLS, TYPE, RFROM);
 		_THEN(NOP);
-		_NEXT(DROP, RFROM, vBASE, STORE, EXIT);      // restore BASE
+		_NEXT(DROP, RFROM, vBASE, STORE, EXIT);          // restore BASE
 	}
 	XA TNAME = _COLON(">NAME", NOP); {
 		_BEGIN(ONEM, DUP, CAT, DOLIT, 0x7f, AND, DOLIT, 0x20, LESS);
