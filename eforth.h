@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define EFORTH_8BIT     1
-#define ROM_DUMP        0
+#define ROM_DUMP        1
 //
 // debugging flags
 //
@@ -80,7 +80,7 @@ enum {
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
-    opSPAT,       // 21
+    opDELAY,      // 21 Dr. Ting's opSPAT
     opCLOCK,      // 22 Dr. Ting's opSPSTO
     
     opDROP,       // 23
@@ -93,14 +93,14 @@ enum {
     opOR,         // 29
     opXOR,        // 30
     opUPLUS,      // 31
-    opNEXT,       // 32
+    opDEPTH,      // 32 Dr. Ting's opNEXT
     opQDUP,       // 33
     opROT,        // 34
-    opDDROP,      // 35
-    opDDUP,       // 36
-    
+    opLSHIFT,     // 35 Dr. Ting's opDDROP
+    opRSHIFT,     // 36 Dr. Ting's opDDUP
     opPLUS,       // 37
-    opNOT,        // 38 =opINVERT
+    
+    opINVERT,     // 38 =opINVERT
     opNEGATE,     // 39
     opGREAT,      // 40 Dr. Ting's opDNEGA
     opSUB,        // 41
@@ -115,7 +115,7 @@ enum {
     
     opMOD,        // 49
     opSLASH,      // 50
-    opDELAY,      // 51 Dr. Ting's opUMSTAR
+    opUMSTAR,     // 51
     opSTAR,       // 52
     opMSTAR,      // 53
     opDIN,        // 54 Dr. Ting's opSSMOD
