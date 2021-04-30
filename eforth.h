@@ -12,8 +12,8 @@
 //
 #define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
 #define GETCHAR()       getchar()
-#define ASM_TRACE       1
-#define EXE_TRACE       0
+#define ASM_TRACE       0
+#define EXE_TRACE		0
 //
 // portable types
 //
@@ -80,7 +80,7 @@ enum {
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
-    opDELAY,      // 21 Dr. Ting's opSPAT 
+    opSPAT,       // 21
     opCLOCK,      // 22 Dr. Ting's opSPSTO
     
     opDROP,       // 23
@@ -102,7 +102,7 @@ enum {
     opPLUS,       // 37
     opNOT,        // 38 =opINVERT
     opNEGATE,     // 39
-    opGREAT,      // 40 Dr. Ting' opDNEGA
+    opGREAT,      // 40 Dr. Ting's opDNEGA
     opSUB,        // 41
     opABS,        // 42
     opEQUAL,      // 43
@@ -115,7 +115,7 @@ enum {
     
     opMOD,        // 49
     opSLASH,      // 50
-    opUMSTAR,     // 51 =opUMSTA
+    opDELAY,      // 51 Dr. Ting's opUMSTAR
     opSTAR,       // 52
     opMSTAR,      // 53
     opDIN,        // 54 Dr. Ting's opSSMOD

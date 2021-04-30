@@ -43,8 +43,9 @@ void SET(U16 d, S16 v) { BSET(d, v&0xff); BSET(d+1, v>>8); }
 U16  GET(U16 d)        { return (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
 #define S_GET(s)    ((S16)GET(FORTH_STACK_ADDR + (s)*CELLSZ))
 #define S_SET(s, v) SET(FORTH_STACK_ADDR + (s)*CELLSZ, v)
-#define R_GET(r)    ((U16)GET(FORTH_STACK_TOP - (r)*CELLSZ))
-#define R_SET(r,v)  SET(FORTH_STACK_TOP - (r)*CELLSZ, v)
+#define RS_TOP      (FORTH_STACK_TOP)
+#define R_GET(r)    ((XA)GET(RS_TOP - (r)*CELLSZ))
+#define R_SET(r,v)  SET(RS_TOP - (r)*CELLSZ, v)
 #endif // EFORTH_8BIT
 
 #define	PUSH(v)     do { S_SET(++S, top); top=(S16)(v); } while(0)
@@ -81,7 +82,7 @@ void TRACE_WORD()
 	XA pc = PC-1;
 	for (; (BGET(pc) & 0x7f)>0x1f; pc--);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
-	PRINTF(" %x_%x_%x_", S_GET(S-1), S_GET(S), top);
+	PRINTF(" [%x]%x_%x_%x_", S, S_GET(S-1), S_GET(S), top);
     
 	int  len = BGET(pc++) & 0x1f;          // Forth allows 31 char max
 	for (int i=0; i<len; i++, pc++) {
@@ -226,13 +227,12 @@ void _tor()                 // (-- n) pop from data stack and push onto return s
 	POP();
     _next();
 }
-#define vm_delay(t)  (t)
-#define millis()  	 0x12345678
-void _delay()
+void _spat()
 {
-    vm_delay(POP());
+    PUSH(S-1);
     _next();
 }
+#define millis()  	 0x12345678
 void _clock()
 {
 	U32 t = millis();
@@ -434,6 +434,13 @@ void _slash()               // (n n - q) signed divide, return quotient
 	top = (top) ? S_GET(S--) / top : (S_GET(S--), 0);
     _next();
 }
+#define vm_delay(t)  (t)
+void _delay()
+{
+    vm_delay(POP());
+    _next();
+}
+/* deprecated
 void _umstar()              // (u1 u2 -- ud) unsigned multiply return double product
 {
 	U32 m = (U32)S_GET(S) * top;
@@ -441,6 +448,7 @@ void _umstar()              // (u1 u2 -- ud) unsigned multiply return double pro
 	top   = (U16)(m >> 16);
     _next();
 }
+*/
 void _star()                // (n n -- n) signed multiply, return single product
 {
 	top *= S_GET(S--);
@@ -489,7 +497,7 @@ void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 */
 void _pick()                // (... +n -- ...w) copy nth stack item to top
 {
-	top = S_GET(S-(U8)top);
+	top = S_GET(S - (U8)top);
     _next();
 }
 void _pstor()               // (n a -- ) add n to content at address a
@@ -568,7 +576,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 18 */ _rfrom,
 	/* case 19 */ _rat,
 	/* case 20 */ _tor,
-	/* case 21 opSPAT  */ _delay,
+	/* case 21 opSPAT  */ _spat,
 	/* case 22 opSPSTO */ _clock,
 	/* case 23 */ _drop,
 	/* case 24 */ _dup,
@@ -598,7 +606,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 48 opSLMOD */ _map,
 	/* case 49 */ _mod,
 	/* case 50 */ _slash,
-	/* case 51 */ _umstar,
+	/* case 51 opUMSTAR */ _delay,
 	/* case 52 */ _star,
 	/* case 53 */ _mstar,
 	/* case 54 opSSMOD */ _din,
@@ -617,7 +625,7 @@ void vm_init(U8 *rom, U8 *cdata) {
     cRom  = rom;
 	cData = cdata;
 	cStack= (S16*)&cdata[FORTH_STACK_ADDR - FORTH_RAM_ADDR];
-	for (int i=0; i<FORTH_RAM_SZ; i++) *cdata++ = 0;
+	memset(cdata, 0, FORTH_RAM_SZ);
 	//
 	// Forth internal (user) variables
 	//

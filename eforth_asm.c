@@ -30,8 +30,8 @@ XA aPC, aThread;                    // program counter, pointer to previous word
 #define SET(d, v)   do { U16 a=(d); U16 x=(v); BSET(a, (x)&0xff); BSET(a+1, (x)>>8); } while (0)
 #define GET(d)      ({ U16 a=(d); (U16)BGET(a) + ((U16)BGET(a+1)<<8); })
 #define STORE(v)    do { SET(aPC, (v)); aPC+=CELLSZ; } while(0)
-#define R_GET(r)    ((U16)GET(FORTH_STACK_ADDR + (r)*CELLSZ))
-#define R_SET(r, v) SET(FORTH_STACK_ADDR + (r)*CELLSZ, v)
+#define R_GET(r)    ((U16)GET(FORTH_ROM_SZ - (r)*CELLSZ))
+#define R_SET(r, v) SET(FORTH_ROM_SZ - (r)*CELLSZ, v)
 #define RPUSH(a)    R_SET(++aR, a)
 #define RPOP()      R_GET(aR ? aR-- : aR)
 #define VL(a, i)    (((U16)(a)+CELLSZ*(i))&0xff)
@@ -166,7 +166,7 @@ void _aft(int len, ...) {          // code between FOR-AFT run only once
     RPUSH(aPC - CELLSZ);           // keep A1 address on return stack for AFT-THEN
     CELLCPY(len);
 }
-void _next(int len, ...) {         // _next() is multi-defined in vm
+void _nxt(int len, ...) {          // _next() is multi-defined in vm
     SHOWOP("NEXT");
     STORE(DONXT);                  // check loop counter (on return stack)
     STORE(RPOP());                 // add A0 (FOR-NEXT) or 
@@ -231,7 +231,7 @@ void _ABORTQ(const char *seq) {
 #define _ELSE(...)           _else(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _THEN(...)           _then(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _FOR(...)            _for(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _NEXT(...)           _next(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
 int assemble(U8 *cdata) {
@@ -291,6 +291,7 @@ int assemble(U8 *cdata) {
 	XA RFROM = _CODE("R>",      opRFROM  );
 	XA RAT   = _CODE("R@",      opRAT    );
 	   TOR   = _CODE(">R",      opTOR    );
+    XA SPAT  = _CODE("SP@",     opSPAT   );
 	XA DROP  = _CODE("DROP",    opDROP   );
 	XA DUP   = _CODE("DUP",     opDUP    );
 	XA SWAP  = _CODE("SWAP",    opSWAP   );
@@ -317,7 +318,6 @@ int assemble(U8 *cdata) {
 	XA UMMOD = _CODE("UM/MOD",  opUMMOD  );
 	XA MOD   = _CODE("MOD",     opMOD    );
 	XA SLASH = _CODE("/",       opSLASH  );
-	XA UMSTA = _CODE("UM*",     opUMSTAR );
 	XA STAR  = _CODE("*",       opSTAR   );
 	XA MSTAR = _CODE("M*",      opMSTAR  );
 	XA PICK  = _CODE("PICK",    opPICK   );
@@ -580,7 +580,9 @@ int assemble(U8 *cdata) {
 	}
 	XA iLBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
 	XA DOTOK  = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {  // are we in interpreter mode?
-		_IF(TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
+		_IF(SPAT, DOLIT, 3, MIN); {
+			_FOR(RAT, PICK, DOT);
+			_NEXT(NOP);
 			_DOTQ(" ok>");
 		}
 		_THEN(EXIT);
