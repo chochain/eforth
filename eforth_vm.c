@@ -21,9 +21,9 @@ S16 *cStack;					// pointer to stack/rack block
 //
 // Dr. Ting uses 256 and U8 for wrap-around control
 //
-#define RAM_FLAG    0xf000
-#define OFF_MASK    0x0fff
-#define BOOL(f)     ((f) ? TRUE : FALSE)
+#define RAM_FLAG       0xf000
+#define OFF_MASK       0x0fff
+#define BOOL(f)        ((f) ? TRUE : FALSE)
 
 #define BSET(d, c)     (cData[(d)&OFF_MASK]=(U8)(c))
 U8   BGET(U16 d)       { return (U8)((d&RAM_FLAG) ? cData[d&OFF_MASK] : cRom[d]); }
@@ -33,25 +33,25 @@ void SET(U16 d, S16 v) { *((S16*)&cData[d&OFF_MASK])=v; }
 U16  GET(U16 d)        {
 	return (d&RAM_FLAG)	? *((U16*)&cData[d&OFF_MASK]) : (U16)cRom[d]+((U16)cRom[d+1]<<8);
 }
-#define S_GET(s)    (cStack[s])
-#define S_SET(s, v) (cStack[s]=(S16)(v))
-#define RS_TOP      (FORTH_STACK_SZ>>1)
-#define R_GET(r)    ((XA)cStack[RS_TOP - (r)])
-#define R_SET(r,v)  (cStack[RS_TOP - (r)]=(S16)(v))
+#define S_GET(s)       (cStack[s])
+#define S_SET(s, v)    (cStack[s]=(S16)(v))
+#define RS_TOP         (FORTH_STACK_SZ>>1)
+#define R_GET(r)       ((XA)cStack[RS_TOP - (r)])
+#define R_SET(r,v)     (cStack[RS_TOP - (r)]=(S16)(v))
 #else
 void SET(U16 d, S16 v) { BSET(d, v&0xff); BSET(d+1, v>>8); }
 U16  GET(U16 d)        { return (U16)BGET(d) + ((U16)BGET(d+1)<<8); }
-#define S_GET(s)    ((S16)GET(FORTH_STACK_ADDR + (s)*CELLSZ))
-#define S_SET(s, v) SET(FORTH_STACK_ADDR + (s)*CELLSZ, v)
-#define RS_TOP      (FORTH_STACK_TOP)
-#define R_GET(r)    ((XA)GET(RS_TOP - (r)*CELLSZ))
-#define R_SET(r,v)  SET(RS_TOP - (r)*CELLSZ, v)
+#define S_GET(s)       ((S16)GET(FORTH_STACK_ADDR + (s)*CELLSZ))
+#define S_SET(s, v)    SET(FORTH_STACK_ADDR + (s)*CELLSZ, v)
+#define RS_TOP         (FORTH_STACK_TOP)
+#define R_GET(r)       ((XA)GET(RS_TOP - (r)*CELLSZ))
+#define R_SET(r,v)     SET(RS_TOP - (r)*CELLSZ, v)
 #endif // EFORTH_8BIT
 
-#define	PUSH(v)     do { S_SET(++S, top); top=(S16)(v); } while(0)
-#define	POP()       (top=S_GET(S ? S-- : S))
-#define RPUSH(v)    R_SET(++R, v)
-#define RPOP()      R_GET(R ? R-- : R)
+#define	PUSH(v)        do { S_SET(++S, top); top=(S16)(v); } while(0)
+#define	POP()          (top=S_GET(S ? S-- : S))
+#define RPUSH(v)       R_SET(++R, v)
+#define RPOP()         R_GET(R ? R-- : R)
 //
 // tracing instrumentation
 //
