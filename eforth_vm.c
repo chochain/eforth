@@ -12,34 +12,35 @@ S32 top;                        // ALU (i.e. cached top of stack value)
 //
 XA  rack[FORTH_RACK_SZ]   = { 0 };   	// return stack (assume FORTH_RACK_SZ is power of 2)
 S32 stack[FORTH_STACK_SZ] = { 0 };   	// data stack   (assume FORTH_STACK_SZ is power of 2)
-U8* cdata = 0;             			 	// linear byte array pointer
+U8  *cdata;                             // linear byte array 
 //
 // data and return stack ops
 //              S            R
 //              |            |
 // ..., S2, S1, S0 <- top -> R0, R1, R2, ...
 //
-// Ting uses 256 and U8 for wrap-around control
+// Dr. Ting uses U8 (0-255) for wrap-around control
 //
+#define BOOL(f)     ((f) ? TRUE : FALSE)
 #define RACK(r)     (rack[(r)&(FORTH_RACK_SZ-1)])
 #define STACK(s)    (stack[(s)&(FORTH_STACK_SZ-1)])
-#define BOOL(f)     ((f) ? TRUE : FALSE)
-#define	POP()		(top=STACK(S--))
 #define	PUSH(v)	    (STACK(++S)=top, top=(S32)(v))
-#define DATA(ip)    (*(XA*)(cdata+(XA)(ip)))
+#define	POP()		(top=STACK(S--))
+#define DATA(i)     (*(XA*)(cdata+(i)))
+#define NEXT()      {  	 \
+	PC = DATA(IP);       \
+	WP = PC + CELLSZ; 	 \
+	IP += CELLSZ;        \
+	TRACE_WORD();        \
+	}
 //
 // tracing instrumentation
 //
-int tTAB = 0, tCNT = 0;		// trace indentation and depth counters
+int tTAB, tCNT;		// trace indentation and depth counters
 
 void _trc_on()  	{ tCNT++; }
 void _trc_off() 	{ tCNT -= tCNT ? 1 : 0; }
-void _break_point(U32 pc, char *name)
-{
-	if (name && strcmp("EVAL", name)) return;
 
-	int i=pc;
-}
 #define TRACE(s,v)  if(tCNT) PRINTF(s,v)
 #define LOG(s)      TRACE(" %s", s)
 #define TRACE_COLON() if (tCNT) {              \
@@ -59,30 +60,18 @@ void TRACE_WORD()
 	static char buf[32];			    // allocated in memory instead of on C stack
 
 	U8 *a = &cdata[PC];		            // pointer to current code pointer
-	if (*a==opEXIT) return;
+	if (!PC || *a==opEXIT) return;
 	for (a-=CELLSZ; (*a & 0x7f)>0x1f; a-=CELLSZ);  // retract pointer to word name (ASCII range: 0x20~0x7f)
 
 	int  len = (int)*a & 0x1f;          // Forth allows 31 char max
 	memcpy(buf, a+1, len);
 	buf[len] = '\0';
 
-	PRINTF(" %x_%x_%s", STACK(S), top, buf);
-
-	_break_point(PC, buf);
+	PRINTF(" [%x]%x_%x_%x_%s", S, STACK(S-1), STACK(S), top, buf);
 }
 //
 // Forth Virtual Machine (primitive functions)
 //
-#define NEXT()      {  	 \
-	PC = DATA(IP);       \
-	WP = PC + CELLSZ; 	 \
-	IP += CELLSZ;        \
-	TRACE_WORD();        \
-	}
-void _clock()
-{
-    PUSH((U32)clock());
-}
 void _nop() {}              // ( -- )
 void _bye() { exit(0); }    // ( -- ) exit to OS
 void _qrx()                 // ( -- c t|f) read a char from terminal input device
@@ -121,7 +110,7 @@ void _docon()               // ( -- n) push next token onto data stack as consta
 void _dolit()               // ( -- w) push next token as an integer literal
 {
 	TRACE(" %d", DATA(IP)); // fetch literal from data
-	PUSH((S32)DATA(IP));	// push onto data stack
+	PUSH(DATA(IP));	        // push onto data stack
 	IP += CELLSZ;			// skip to next instruction
     NEXT();
 }
@@ -307,23 +296,19 @@ void _uless()               // (u1 u2 -- t) unsigned compare top two items
 }
 void _ummod()               // (udl udh u -- ur uq) unsigned divide of a double by single
 {
-	S64 d = (S64)top;       // CC: auto variable uses C stack (should use WP instead)
-	S64 m = (S64)STACK(S);
-	S64 n = (S64)STACK(S - 1);
-	n += m << (CELLSZ<<3);
+    S64 d    = (S64)top;
+	S64 m    = ((S64)STACK(S)<<32) + STACK(S - 1);
 	POP();
-	top      = (U32)(n / d); // quotient
-	STACK(S) = (U32)(n % d); // remainder
+	top      = (U32)(m/d);  // quotient
+	STACK(S) = (U32)(m%d);  // remainder
 }
 void _msmod()               // (d n -- r q) signed floored divide of double by single
 {
-	S64 d = (S64)top;
-	S64 m = (S64)STACK(S);
-	S64 n = (S64)STACK(S - 1);
-	n += m << 32;
+	S64 d    = (S64)top;
+	S64 m    = ((S64)STACK(S)<<32) + STACK(S - 1);
 	POP();
-	top      = (S32)(n / d); // quotient
-	STACK(S) = (S32)(n % d); // remainder
+	top      = (S32)(m/d);  // quotient
+	STACK(S) = (S32)(m%d);  // remainder
 }
 void _slmod()               // (n1 n2 -- r q) signed devide, return mod and quotien
 {
@@ -343,9 +328,7 @@ void _slash()               // (n n - q) signed divide, return quotient
 }
 void _umsta()               // (u1 u2 -- ud) unsigned multiply return double product
 {
-	U64 d = (U64)top;
-	U64 m = (U64)STACK(S);
-	m *= d;
+	U64 m    = (U64)STACK(S) * (U64)top;
 	top      = (U32)(m >> 32);
 	STACK(S) = (U32)m;
 }
@@ -355,31 +338,25 @@ void _star()                // (n n -- n) signed multiply, return single product
 }
 void _mstar()               // (n1 n2 -- d) signed multiply, return double product
 {
-	S64 d = (S64)top;
-	S64 m = (S64)STACK(S);
-	m *= d;
+	S64 m    = (S64)STACK(S) * (S64)top;
 	top      = (S32)(m >> 32);
 	STACK(S) = (S32)m;
 }
 void _ssmod()               // (n1 n2 n3 -- r q) n1*n2/n3, return mod and quotion
 {
-	S64 d = (S64)top;
-	S64 m = (S64)STACK(S);
-	S64 n = (S64)STACK(S - 1);
-	n *= m;
+	S64 d    = (S64)top;
+	S64 m    = (S64)STACK(S) * (S64)STACK(S - 1);
 	POP();
-	top      = (S32)(n / d);
-	STACK(S) = (S32)(n % d);
+	top      = (S32)(m / d);
+	STACK(S) = (S32)(m % d);
 }
 void _stasl()               // (n1 n2 n3 -- q) n1*n2/n3 return quotient
 {
 	S64 d = (S64)top;
-	S64 m = (S64)STACK(S);
-	S64 n = (S64)STACK(S - 1);
-	n *= m;
+	S64 m = (S64)STACK(S) * (S64)STACK(S - 1);
 	POP();
     POP();
-	top = (S32)(n / d);
+	top = (S32)(m / d);
 }
 void _pick()                // (... +n -- ...w) copy nth stack item to top
 {
@@ -439,7 +416,7 @@ void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 18 */ _rfrom,
 	/* case 19 */ _rat,
 	/* case 20 */ _tor,
-	/* case 21 spat, */  _clock,
+	/* case 21 spat, */  _nop,
 	/* case 22 spsto, */ _nop,
 	/* case 23 */ _drop,
 	/* case 24 */ _dup,
@@ -488,6 +465,10 @@ void vm_init(U8 *rom) {
 	cdata = rom;
 	R  = S = PC = IP = top = 0;
 	WP = CELLSZ;
+    
+#if EXE_TRACE
+    tCNT=1; tTAB=0;
+#endif // EXE_TRACE
 }
 
 void vm_run() {

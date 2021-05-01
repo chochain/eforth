@@ -7,43 +7,46 @@
 //
 // debugging flags
 //
-#define PRINTF(s, ...)  printf(s, ##__VA_ARGS__)
-#define GETCHAR()       getchar()
-#define DATA_DUMP       0
-#define ASSEM_DUMP      1
-#define FORTH_TRACE     0
+#define ASM_TRACE        0
+#define EXE_TRACE        0
+//
+// IO macros
+//
+#define PRINTF(s, ...)   printf(s, ##__VA_ARGS__)
+#define GETCHAR()        getchar()
 //
 // portable types
 //
-typedef uint64_t  U64;
-typedef uint32_t  U32;
-typedef uint16_t  U16;
-typedef uint8_t   U8;
-typedef int64_t   S64;
+typedef uint64_t         U64;
+typedef uint32_t         U32;
+typedef uint16_t         U16;
+typedef uint8_t          U8;
+typedef int64_t          S64;
 
-typedef int32_t   S32;
-typedef int16_t   S16;
-typedef int8_t    S8;
+typedef int32_t          S32;
+typedef int16_t          S16;
+typedef int8_t           S8;
 
-typedef U32       XA;				// Address size
+typedef U32              XA;		// 32-bit address size
 //
 // capacity and sizing
 //
 #define CELLSZ		     4
 #define FORTH_PRIMITIVES 64
-#define FORTH_RACK_SZ    64
-#define FORTH_STACK_SZ   64
+#define FORTH_RACK_SZ    0x100
+#define FORTH_STACK_SZ   0x100
+#define FORTH_TIB_SZ     0x100
 #define FORTH_DATA_SZ    0x8000
-#define ASSEM_RACK_SZ    64
+#define FORTH_PAD_SZ     0x50
+#define ASSEM_RACK_SZ    0x100
 //
 // logic and stack op macros (processor dependent)
 //
-#define FORTH_BOOT_ADDR  0x0
-#define FORTH_TVAR_ADDR  0x80
-#define FORTH_UVAR_ADDR  0x90
-#define FORTH_DIC_ADDR   0x200
-#define FORTH_TIB_ADDR   0x100
-#define FORTH_TIB_SZ     0x100
+#define FORTH_BOOT_ADDR  0x0000
+#define FORTH_TVAR_ADDR  0x0080
+#define FORTH_UVAR_ADDR  0x0090
+#define FORTH_TIB_ADDR   0x0100
+#define FORTH_DIC_ADDR   0x0200
 //
 // TRUE cannot use 1 because NOT(ffffffff)==0 while NOT(1)==ffffffff
 // which does not need boolean op (i.e. in C)
@@ -70,12 +73,12 @@ enum {
     opAT,         // 13
     opCSTOR,      // 14
     opCAT,        // 15
-    opRPAT,       // 16   borrowed for trc_on
-    opRPSTO,      // 17   borrowed for trc_off
+    opRPAT,       // 16 borrow for trc_on
+    opRPSTO,      // 17 borrow for trc_off
     opRFROM,      // 18
     opRAT,        // 19
     opTOR,        // 20
-    opSPAT,       // 21   borrowed for clock
+    opSPAT,       // 21
     opSPSTO,      // 22   
     opDROP,       // 23
     opDUP,        // 24
@@ -119,20 +122,4 @@ enum {
     opMAX,        // 62
     opMIN         // 63
 };
-
-typedef struct {
-	U8  R, S;              // return stack index, data stack index
-	U32 P, IP, WP;         // P (program counter), IP (intruction pointer), WP (parameter pointer)
-	U32 thread;            // pointer to previous word
-	S32 top0;              // stack top value (cache)
-	void (*vtbl[])();      // opcode vtable
-} efState;
-
-typedef struct {
-	U32 rack[256];         // return stack
-	S32 stack[256];        // data stack
-	U32	data[16000];       // main memory block
-	U8  *cdata;            // byte stream pointer to data[]
-} efHeap;
-
 #endif // __EFORTH_SRC_EFORTH_H
