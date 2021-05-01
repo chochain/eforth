@@ -3,7 +3,7 @@
 //
 // Forth Macro Assembler
 //
-#define fIMMED  0x80           		  // immediate flag
+#define fIMMED  0x80           		// immediate flag
 #define fCOMPO  0x40                // compile only flag
 //
 // variables to keep branching addresses
@@ -14,15 +14,16 @@ int NOP, TOR;
 //
 // return stack for branching ops
 //
-XA aRack[ASSEM_RACK_SZ] = { 0 };    // return stack (independent of Forth return stack for modulization)
+XA aRack[ASSEM_RACK_SZ] = { 0 };    // assembler return stack (can be independent of Forth return stack)
 U8 *aByte    = 0;                   //
 U8 aR        = 0;                   // return stack index
 XA aPC, aThread;                    // program counter, pointer to previous word
 //
-// stack op macros
+// memory and stack op macros
 //
+#define BSET(d, c)     (*(aByte+(d))=(U8)(c))
 #define SET(d, v)      (*(XA*)(aByte+d)=(v))
-#define DATA(v)        { SET(aPC, (v)); aPC+=CELLSZ; }
+#define STORE(v)       do { SET(aPC, (v)); aPC+=CELLSZ; } while(0)
 #define	PUSH(v)        (aRack[++aR] = (XA)(v))
 #define	POP()          (aRack[aR--])
 #define VAR(a, i)      ((a)+CELLSZ*(i))
@@ -36,16 +37,21 @@ void _dump(int b, int u) {
     DEBUG("%c", '\n');
 }
 void _header(int lex, const char *seq) {
-    DATA(aThread);                            // point to previous word
-    _dump(aThread, aPC);                      // dump data from previous word to current word
+    if (aThread) {
+        if (aPC >= (FORTH_DATA_SZ*CELLSZ)) {
+            DEBUG("%s!", "Out of memory");
+        }
+        _dump(aThread-sizeof(XA), aPC);         // dump data from previous word to current word
+    }
+    STORE(aThread);                           // point to previous word
     aThread = aPC;                            // keep pointer to this word
 
-    aByte[aPC++] = lex;                       // length of word (with optional fIMMED or fCOMPO flags)
-    U32 len = lex & 0x1f;                     // Forth allows word max length 31
-    for (U32 i = 0; i < len; i++) {           // memcpy word string
-        aByte[aPC++] = seq[i];
+    BSET(aPC++, lex);                         // length of word (with optional fIMMED or fCOMPO flags)
+    int len = lex & 0x1f;                     // Forth allows word max length 31
+    for (int i = 0; i < len; i++) {           // memcpy word string
+        BSET(aPC++, seq[i]);
     }
-    while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }// padding cell alignment
+    while (aPC&(CELLSZ-1)) { BSET(aPC++,0); } // padding cell alignment
 
     DEBUG("%04x: ", aPC);
     DEBUG("%s", seq);
@@ -57,7 +63,7 @@ int _code(const char *seg, int len, ...) {
     va_start(argList, len);
     for (; len; len--) {                      // copy bytecodes
         U8 b = (U8)va_arg(argList, int);
-        aByte[aPC++] = b;
+        BSET(aPC++, b);
         DEBUG(" %02x", b);
     }
     va_end(argList);
@@ -67,10 +73,10 @@ int _code(const char *seg, int len, ...) {
     va_list argList;                            \
 	va_start(argList, n);						\
 	for (; n; n--) {							\
-		U32 j = va_arg(argList, U32);			\
+		XA j = va_arg(argList, int);			\
 		if (j==NOP) continue;					\
-		DATA(j);								\
-		DEBUG(" %04x", j);						\
+		STORE(j);								\
+		DEBUG(" %08x", j);						\
 	}											\
 	va_end(argList);							\
 }
@@ -78,7 +84,7 @@ int _colon(const char *seg, int len, ...) {
     _header(strlen(seg), seg);
     DEBUG(" %s", ":0006");
     int addr = aPC;
-    DATA(opENTER);
+    STORE(opENTER);
     DATACPY(len);
     return addr;
 }
@@ -86,7 +92,7 @@ int _immed(const char *seg, int len, ...) {
     _header(fIMMED | strlen(seg), seg);
     DEBUG(" %s", "i0006");
     int addr = aPC;
-    DATA(opENTER);
+    STORE(opENTER);
     DATACPY(len);
     return addr;
 }
@@ -104,20 +110,20 @@ void _begin(int len, ...) {
 }
 void _again(int len, ...) {
     SHOWOP("AGAIN");
-    DATA(BRAN);
-    DATA(POP());                   // store return address
+    STORE(BRAN);
+    STORE(POP());                   // store return address
     DATACPY(len);
 }
 void _until(int len, ...) {
     SHOWOP("UNTIL");
-    DATA(QBRAN);                   // conditional branch
-    DATA(POP());                   // loop begin address
+    STORE(QBRAN);                   // conditional branch
+    STORE(POP());                   // loop begin address
     DATACPY(len);
 }
 void _while(int len, ...) {
     SHOWOP("WHILE");
-    DATA(QBRAN);
-    DATA(0);                       // branching address
+    STORE(QBRAN);
+    STORE(0);                       // branching address
     int k = POP();
     PUSH(aPC - CELLSZ);
     PUSH(k);
@@ -125,22 +131,22 @@ void _while(int len, ...) {
 }
 void _repeat(int len, ...) {
     SHOWOP("REPEAT");
-    DATA(BRAN);
-    DATA(POP());
+    STORE(BRAN);
+    STORE(POP());
     SET(POP(), aPC);
     DATACPY(len);
 }
 void _if(int len, ...) {
     SHOWOP("IF");
-	DATA(QBRAN);
+	STORE(QBRAN);
     PUSH(aPC);                     // keep for ELSE-THEN
-    DATA(0);                       // reserved for branching address
+    STORE(0);                       // reserved for branching address
     DATACPY(len);
 }
 void _else(int len, ...) {
     SHOWOP("ELSE");
-    DATA(BRAN);
-    DATA(0);
+    STORE(BRAN);
+    STORE(0);
     SET(POP(), aPC);
     PUSH(aPC - CELLSZ);
     DATACPY(len);
@@ -152,33 +158,33 @@ void _then(int len, ...) {
 }
 void _for(int len, ...) {
     SHOWOP("FOR");
-    DATA(TOR);
+    STORE(TOR);
     PUSH(aPC);
     DATACPY(len);
 }
-void _nxt(int len, ...) {          // _next() is multi-defined in vm
+void _next_a(int len, ...) {          // _next() is multi-defined in vm
     SHOWOP("NEXT");
-    DATA(DONXT);
-    DATA(POP());
+    STORE(DONXT);
+    STORE(POP());
     DATACPY(len);
 }
 void _aft(int len, ...) {
     SHOWOP("AFT");
-    DATA(BRAN);
-    DATA(0);
+    STORE(BRAN);
+    STORE(0);
     POP();
     PUSH(aPC);
     PUSH(aPC - CELLSZ);
     DATACPY(len);
 }
 #define STRCPY(op, seq) {                           \
-	DATA(op);                                       \
+	STORE(op);                                      \
 	int len = strlen(seq);							\
-	aByte[aPC++] = len;								\
-	for (int i = 0; i < len; i++) {					\
-		aByte[aPC++] = seq[i];						\
+	BSET(aPC++, len);								\
+	for (int i=0; i < len; i++) {					\
+		BSET(aPC++, seq[i]);						\
 	}												\
-	while (aPC&(CELLSZ-1)) { aByte[aPC++]=0; }		\
+	while (aPC&(CELLSZ-1)) { BSET(aPC++,0); }		\
 }
 void _DOTQ(const char *seq) {
     SHOWOP("DOTQ");
@@ -211,13 +217,13 @@ void _ABORTQ(const char *seq) {
 #define _ELSE(...)           _else(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _THEN(...)           _then(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _FOR(...)            _for(_NARG(__VA_ARGS__), __VA_ARGS__)
-#define _NEXT(...)           _nxt(_NARG(__VA_ARGS__), __VA_ARGS__)
+#define _NEXT(...)           _next_a(_NARG(__VA_ARGS__), __VA_ARGS__)
 #define _AFT(...)            _aft(_NARG(__VA_ARGS__), __VA_ARGS__)
 
-int assemble(U8 *rom) {
-	aByte = rom;
-	aPC   = FORTH_DIC_ADDR;
+int assemble(U8 *cdata) {
+	aByte = cdata;
 	aR    = aThread = 0;
+	aPC   = FORTH_DIC_ADDR;
 	//
 	// Kernel variables (in bytecode streams)
 	// FORTH_TIB_ADDR = 0x80
@@ -227,6 +233,7 @@ int assemble(U8 *rom) {
 	int vSPAN = _CODE("SPAN",    opDOCON, opNEXT, 0, 0, VAR(ta,1), 0, 0, 0);
 	int vIN   = _CODE(">IN",     opDOCON, opNEXT, 0, 0, VAR(ta,2), 0, 0, 0);
 	int vNTIB = _CODE("#TIB",    opDOCON, opNEXT, 0, 0, VAR(ta,3), 0, 0, 0);
+    
 	int ua    = FORTH_UVAR_ADDR;
 	int vTTIB = _CODE("'TIB",    opDOCON, opNEXT, 0, 0, VAR(ua,0), 0, 0, 0);
 	int vBASE = _CODE("BASE",    opDOCON, opNEXT, 0, 0, VAR(ua,1), 0, 0, 0);
@@ -237,9 +244,9 @@ int assemble(U8 *rom) {
 	int vTABRT= _CODE("'ABORT",  opDOCON, opNEXT, 0, 0, VAR(ua,6), 0, 0, 0);
 	int vTEMP = _CODE("tmp",     opDOCON, opNEXT, 0, 0, VAR(ua,7), 0, 0, 0);
 	//
-	// Kernel dictionary (primitive proxies)
+	// Kernel dictionary (primitives)
 	//
-	NOP       = _CODE("NOP",     opNOP,   opNEXT, 0, 0);
+	    NOP   = _CODE("NOP",     opNOP,   opNEXT, 0, 0);
 	int BYE   = _CODE("BYE",     opBYE,   opNEXT, 0, 0);
 	int QRX   = _CODE("?RX",     opQRX,   opNEXT, 0, 0);
 	int TXSTO = _CODE("TX!",     opTXSTO, opNEXT, 0, 0);
@@ -248,16 +255,16 @@ int assemble(U8 *rom) {
 	int ENTER = _CODE("ENTER",   opENTER, opNEXT, 0, 0);    // aka DOLIST by Dr. Ting
 	int EXIT  = _CODE("EXIT",    opEXIT,  opNEXT, 0, 0);
 	int EXECU = _CODE("EXECUTE", opEXECU, opNEXT, 0, 0);
-	DONXT     = _CODE("DONEXT",  opDONEXT,opNEXT, 0, 0);
-	QBRAN     = _CODE("QBRANCH", opQBRAN, opNEXT, 0, 0);
-	BRAN      = _CODE("BRANCH",  opBRAN,  opNEXT, 0, 0);
+	    DONXT = _CODE("DONEXT",  opDONEXT,opNEXT, 0, 0);
+	    QBRAN = _CODE("QBRANCH", opQBRAN, opNEXT, 0, 0);
+	    BRAN  = _CODE("BRANCH",  opBRAN,  opNEXT, 0, 0);
 	int STORE = _CODE("!",       opSTORE, opNEXT, 0, 0);
 	int AT    = _CODE("@",       opAT,    opNEXT, 0, 0);
 	int CSTOR = _CODE("C!",      opCSTOR, opNEXT, 0, 0);
 	int CAT   = _CODE("C@",      opCAT,   opNEXT, 0, 0);
 	int RFROM = _CODE("R>",      opRFROM, opNEXT, 0, 0);
 	int RAT   = _CODE("R@",      opRAT,   opNEXT, 0, 0);
-	TOR       = _CODE(">R",      opTOR,   opNEXT, 0, 0);
+	    TOR   = _CODE(">R",      opTOR,   opNEXT, 0, 0);
 	int DROP  = _CODE("DROP",    opDROP,  opNEXT, 0, 0);
 	int DUP   = _CODE("DUP",     opDUP,   opNEXT, 0, 0);
 	int SWAP  = _CODE("SWAP",    opSWAP,  opNEXT, 0, 0);
@@ -298,7 +305,9 @@ int assemble(U8 *rom) {
 	int COUNT = _CODE("COUNT",   opCOUNT, opNEXT, 0, 0);
 	int MAX   = _CODE("MAX",     opMAX,   opNEXT, 0, 0);
 	int MIN   = _CODE("MIN",     opMIN,   opNEXT, 0, 0);
-
+    //
+    // Forth commonly used words
+    //
 	int BLANK = _CODE("BL",      opDOCON, opNEXT, 0,      0, 0x20,   0, 0, 0);
 	int CELL  = _CODE("CELL",    opDOCON, opNEXT, 0,      0, CELLSZ, 0, 0, 0);
 	int CELLP = _CODE("CELL+",   opDOCON, opPLUS, opNEXT, 0, CELLSZ, 0, 0, 0);
@@ -309,13 +318,12 @@ int assemble(U8 *rom) {
 	int ONEM  = _CODE("1-",      opDOCON, opSUB,  opNEXT, 0, 1,      0, 0, 0);
 	int DOVAR = _CODE("DOVAR",   opDOVAR, opNEXT, 0,      0);
 	//
-	// tracing instrumentation (borrow 2 opcodes)
+	// tracing instrumentation (borrow 2 unused opcodes)
 	//
-	int clock   = _CODE("clock",   opSPAT,  opNEXT, 0, 0);
 	int trc_on  = _CODE("trc_on",  opRPAT,  opNEXT, 0, 0);
 	int trc_off = _CODE("trc_off", opRPSTO, opNEXT, 0, 0);
 	//
-	// Common Colon Words (in word streams)
+	// Console input/output controls
 	//
 	int QKEY  = _COLON("?KEY",  QRX, EXIT);
 	int KEY   = _COLON("KEY",   NOP); {
@@ -329,9 +337,9 @@ int assemble(U8 *rom) {
 		_THEN(EXIT);
 	}
 	int ALIGN = _COLON("ALIGNED", DOLIT, 3, PLUS, DOLIT, 0xfffffffc, AND, EXIT);
-	int HERE  = _COLON("HERE",    vCP, AT, EXIT);                  // top of dictionary
-	int PAD   = _COLON("PAD",     HERE, DOLIT, 0x50, PLUS, EXIT);  // used 80-byte as output buffer (i.e. pad)
-	int TIB   = _COLON("TIB",     vTTIB, AT, EXIT);                // CC: change PAD,TIB to RAM buffer for R/W
+	int HERE  = _COLON("HERE",    vCP, AT, EXIT);
+	int PAD   = _COLON("PAD",     HERE, DOLIT, FORTH_PAD_SZ, PLUS, EXIT);
+	int TIB   = _COLON("TIB",     vTTIB, AT, EXIT);
 	int ATEXE = _COLON("@EXECUTE",AT, QDUP); {
 		_IF(EXECU);
 		_THEN(EXIT);
@@ -386,11 +394,12 @@ int assemble(U8 *rom) {
 	}
 	int NUMBQ = _COLON("NUMBER?", vBASE, AT, TOR, DOLIT, 0, OVER, COUNT, OVER, CAT, DOLIT, 0x24, EQUAL); {
 		_IF(HEX, SWAP, ONEP, SWAP, ONEM);
-		_THEN(OVER, CAT, DOLIT, 0x2d, EQUAL, TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP); {
-			_IF(ONEM); {
-				_FOR(DUP, TOR, CAT, vBASE, AT, DIGTQ);
-				_WHILE(SWAP, vBASE, AT, STAR, PLUS, RFROM, ONEP);
-				_NEXT(DROP, RAT);
+		_THEN(OVER, CAT, DOLIT, 0x2d, EQUAL, TOR, SWAP, RAT, SUB, SWAP, RAT, PLUS, QDUP);
+		_IF(ONEM); {
+            // a FOR..WHILE..NEXT..ELSE..THEN construct =~ for {..break..}
+            _FOR(DUP, TOR, CAT, vBASE, AT, DIGTQ);
+            _WHILE(SWAP, vBASE, AT, STAR, PLUS, RFROM, ONEP);
+            _NEXT(DROP, RAT); {
 				_IF(NEGAT);
 				_THEN(SWAP);
 			}
@@ -419,7 +428,7 @@ int assemble(U8 *rom) {
 	int CR    = _COLON("CR",    DOLIT, 10, DOLIT, 13, EMIT, EMIT, EXIT);
 	int DOSTR = _COLON("do$",   RFROM, RAT, RFROM, COUNT, PLUS, ALIGN, TOR, SWAP, TOR, EXIT);
 	int STRQ  = _COLON("$\"|",  DOSTR, EXIT);
-	DOTQ  = _COLON(".\"|",  DOSTR, COUNT, TYPE, EXIT);
+	    DOTQ  = _COLON(".\"|",  DOSTR, COUNT, TYPE, EXIT);
 	int DOTR  = _COLON(".R",    TOR, STR, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOTR = _COLON("U.R",   TOR, BDIGS, DIGS, EDIGS, RFROM, OVER, SUB, SPACS, TYPE, EXIT);
 	int UDOT  = _COLON("U.",    BDIGS, DIGS, EDIGS, SPACE, TYPE, EXIT);
@@ -434,22 +443,24 @@ int assemble(U8 *rom) {
 	int PARSE0= _COLON("(parse)", vTEMP, CSTOR, OVER, TOR, DUP); {
 		_IF(ONEM, vTEMP, CAT, BLANK, EQUAL); {
 			_IF(NOP); {
+                // a FOR..WHILE..NEXT..THEN construct =~ for {..break..}
 				_FOR(BLANK, OVER, CAT, SUB, ZLESS, INVER);
 				_WHILE(ONEP);
 				_NEXT(RFROM, DROP, DOLIT, 0, DUP, EXIT);
 				_THEN(RFROM);
 			}
 			_THEN(OVER, SWAP);
+            // a FOR..WHILE..NEXT..ELSE..THEN construct =~ DO..LEAVE..+LOOP
 			_FOR(vTEMP, CAT, OVER, CAT, SUB, vTEMP, CAT, BLANK, EQUAL); {
 				_IF(ZLESS);
 				_THEN(NOP);
 			}
 			_WHILE(ONEP);
 			_NEXT(DUP, TOR);
-		}
-		_ELSE(RFROM, DROP, DUP, ONEP, TOR);
-		_THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);
-		_THEN(OVER, RFROM, SUB, EXIT);                   // CC: this line is questionable
+            _ELSE(RFROM, DROP, DUP, ONEP, TOR);
+            _THEN(OVER, SUB, RFROM, RFROM, SUB, EXIT);
+        }
+		_THEN(OVER, RFROM, SUB, EXIT);
 	}
 	int PACKS = _COLON("PACK$",
 					   DUP, TOR, DDUP, PLUS, DOLIT, 0xfffffffc, AND, DOLIT, 0, SWAP, STORE,
@@ -511,7 +522,8 @@ int assemble(U8 *rom) {
 		_REPEAT(DROP, OVER, SUB, EXIT);
 	}
 	int EXPEC = _COLON("EXPECT", ACCEP, vSPAN, STORE, DROP, EXIT);
-	int QUERY = _COLON("QUERY", TIB, DOLIT, 0x50, ACCEP, vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
+	int QUERY = _COLON("QUERY", TIB, DOLIT, FORTH_TIB_SZ, ACCEP,
+                       vNTIB, STORE, DROP, DOLIT, 0, vIN, STORE, EXIT);
 	//
 	// Text Interpreter
 	//
@@ -552,12 +564,12 @@ int assemble(U8 *rom) {
 		_ABORTQ(" compile only");
 	}
 	int INTER0= _LABEL(EXECU, EXIT); {
-		_THEN(NUMBQ);
+		_THEN(NUMBQ);    // continue from previous _IF
 		_IF(EXIT);
 		_ELSE(ERROR);
 		_THEN(NOP);
 	}
-	int LBRAC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
+	int iLBRC = _IMMED("[", DOLIT, INTER, vTEVL, STORE, EXIT);
 	int DOTOK = _COLON(".OK", CR, DOLIT, INTER, vTEVL, AT, EQUAL); {
 		_IF(TOR, TOR, TOR, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT, RFROM, DUP, DOT); {
 			_DOTQ(" ok>");
@@ -569,7 +581,7 @@ int assemble(U8 *rom) {
 		_WHILE(vTEVL, ATEXE);
 		_REPEAT(DROP, DOTOK, EXIT);
 	}
-	int QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, LBRAC); {
+	int QUIT  = _COLON("QUIT", DOLIT, FORTH_TIB_ADDR, vTTIB, STORE, iLBRC); {
 		_BEGIN(QUERY, EVAL);
 		_AGAIN(NOP);
 	}
@@ -577,7 +589,7 @@ int assemble(U8 *rom) {
 	// Colon Word Compiler
 	//
 	int COMMA = _COLON(",",       HERE, DUP, CELLP, vCP, STORE, STORE, EXIT);
-	int LITER = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
+	int iLITR = _IMMED("LITERAL", DOLIT, DOLIT, COMMA, COMMA, EXIT);
 	int ALLOT = _COLON("ALLOT",   ALIGN, vCP, PSTOR, EXIT);
 	int STRCQ = _COLON("$,\"",    DOLIT, 0x22, WORDD, COUNT, PLUS, ALIGN, vCP, STORE, EXIT);
 	int UNIQU = _COLON("?UNIQUE", DUP, NAMEQ, QDUP); {
@@ -594,7 +606,7 @@ int assemble(U8 *rom) {
 		_IF(EXIT);
 		_THEN(ERROR);
 	}
-	int BCOMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);
+	int iBCMP = _IMMED("[COMPILE]", TICK, COMMA, EXIT);
 	int COMPI = _COLON("COMPILE",  RFROM, DUP, AT, COMMA, CELLP, TOR, EXIT);
 	int SCOMP = _COLON("$COMPILE", NAMEQ, QDUP); {
 		_IF(AT, DOLIT, fIMMED, AND); {
@@ -603,13 +615,13 @@ int assemble(U8 *rom) {
 			_THEN(EXIT);
 		}
 		_THEN(NUMBQ);
-		_IF(LITER, EXIT);
+		_IF(iLITR, EXIT);
 		_THEN(ERROR);
 	}
 	int OVERT = _COLON("OVERT", vLAST, AT, vCNTX, STORE, EXIT);
 	int RBRAC = _COLON("]", DOLIT, SCOMP, vTEVL, STORE, EXIT);
-	int COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, 0x6, COMMA, EXIT);
-	int SEMIS = _IMMED(";", DOLIT, EXIT, COMMA, LBRAC, OVERT, EXIT);
+	int COLON = _COLON(":", TOKEN, SNAME, RBRAC, DOLIT, opENTER, COMMA, EXIT);
+	int iSEMI = _IMMED(";", DOLIT, EXIT, COMMA, iLBRC, OVERT, EXIT);
 	//
 	// Debugging Tools
 	//
@@ -627,16 +639,16 @@ int assemble(U8 *rom) {
 	}
 	/*
 	int TNAME = _COLON(">NAME", vCNTX); {            // scan through the dictionary to find the name
-		_BEGIN(AT, QDUP);                            // this is inefficient, see following
+		_BEGIN(AT, QDUP);                            // this is less inefficient, see following
 		_WHILE(DDUP, NAMET, XOR); {
-			_IF(CELLM);                              // fetch previous word, CC: Ting uses ONEM, a bug
+			_IF(CELLM);                              // fetch previous word, CC: Dr. Ting uses ONEM, a bug?
 			_ELSE(SWAP, DROP, EXIT);
 			_THEN(NOP);
 		}
 		_REPEAT(SWAP, DROP, EXIT);
 	}
 	*/
-	int TNAME = _COLON(">NAME", NOP); {              // CC: my implementation
+	int TNAME = _COLON(">NAME", NOP); {              // try another way
 		_BEGIN(CELLM, DUP, CAT, DOLIT, 0x7f, AND, DOLIT, 0x20, LESS);
 		_UNTIL(EXIT);
 	}
@@ -684,11 +696,12 @@ int assemble(U8 *rom) {
 	int iBKSLA = _IMMED("\\",      DOLIT, 0xa,  WORDD, DROP,  EXIT);
 	int iPAREN = _IMMED("(",       DOLIT, 0x29, PARSE, DDROP, EXIT);
 	int ONLY   = _COLON("COMPILE-ONLY", DOLIT, fCOMPO, vLAST, AT, PSTOR, EXIT);
-	int IMMED  = _COLON("IMMEDIATE",    DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
-
-	int XDIC   = aPC;                                   // End of dictionary
-	int sz     = strlen("IMMEDIATE");                   // size of last word
-	int last   = IMMED - (sz + (-sz & (CELLSZ-1)));     // name field of last word
+    //
+    // top of dictionary
+    //
+    int last   = aPC + CELLSZ;
+	int IMMED  = _COLON("IMMEDIATE", DOLIT, fIMMED, vLAST, AT, PSTOR, EXIT);
+	int here   = aPC;                                   // End of dictionary
 	//
 	// Setup Boot Vector
 	//
@@ -697,17 +710,17 @@ int assemble(U8 *rom) {
 	//
 	// Forth internal (user) variables
 	//
-	//   'TIB    = FORTH_TIB_SIZE (pointer to top of input buffer)
+	//   'TIB    = FORTH_TIB_ADDR (pointer to top of input buffer)
 	//   BASE    = 0x10           (numerical base 0xa for decimal, 0x10 for hex)
-	//   CONTEXT = IMMED - 12     (pointer to name field of the most recently defined word in dictionary)
-	//   CP      = XDIC           (pointer to top of dictionary, first memory location to add new word)
-	//   LAST    = IMMED - 12     (pointer to name field of last word in dictionary)
+	//   CONTEXT = last           (pointer to name field of the most recently defined word in dictionary)
+	//   CP      = here           (pointer to top of dictionary, first memory location to add new word)
+	//   LAST    = last           (pointer to name field of last word in dictionary)
 	//   'EVAL   = INTER          ($COMPILE for compiler or $INTERPRET for interpreter)
 	//   ABORT   = QUIT           (pointer to error handler, QUIT is the main loop)
 	//   tmp     = 0              (scratch pad)
 	//
 	aPC = FORTH_UVAR_ADDR;
-	int USER  = _LABEL(FORTH_TIB_SZ, 0x10, last, XDIC, last, INTER, QUIT, 0);
+	int USER  = _LABEL(FORTH_TIB_ADDR, 0x10, last, here, last, INTER, QUIT, 0);
 
-	return XDIC;
+	return here;
 }

@@ -23,14 +23,14 @@
 #include <stdio.h>
 #include "eforth.h"
 
-extern "C" int  assemble(U8 *rom);
+extern "C" int  assemble(U8 *cdata);
 extern "C" void vm_init(U8 *rom);
 extern "C" void vm_run();
 
-U32 data[FORTH_DATA_SZ] = {};           		// 64K forth memory block
+U32 data[FORTH_DATA_SZ];           		     // 32K forth memory block
 
-void dump_data(U8* cdata, int len) {
-#if DATA_DUMP
+void dump_data(U8* cdata, int len) {         // in big-endian format
+#if ASM_TRACE
     for (int p=0; p<len; p+=0x20) {
         PRINTF("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
@@ -43,10 +43,10 @@ void dump_data(U8* cdata, int len) {
             PRINTF("%c", c ? ((c>32 && c<127) ? c : '_') : '.');
         }
     }
-#endif // DATA_DUMP
+#endif // ASM_TRACE
 }
 
-int main0(int ac, char* av[])
+int main(int ac, char* av[])
 {
 	U8 *cdata = (U8*)data;
 	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
@@ -54,7 +54,6 @@ int main0(int ac, char* av[])
 	int sz  = assemble(cdata);
 	dump_data(cdata, sz+0x20);
 
-	printf("\nceForth v4.0 ROM[%04x]\n", sz);
 	vm_init(cdata);
 	vm_run();
 
