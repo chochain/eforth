@@ -23,9 +23,9 @@
 #include <stdio.h>
 #include "eforth.h"
 
-extern "C" int  assemble(U8 *cdata);
-extern "C" void vm_init(U8 *rom);
-extern "C" void vm_run();
+extern int  assemble(U8 *cdata);
+extern void vm_init(U8 *rom);
+extern void vm_run();
 
 U32 data[FORTH_DATA_SZ];           		     // 32K forth memory block
 
