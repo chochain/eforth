@@ -502,7 +502,7 @@ void _within()	{ _over(); _sub(); _tor(); _sub(); _rfrom(); _uless(); __exit(); 
 //
 op_list pt_emit = { _txsto, __exit };
 //
-// a virtual table can be built with different options
+// a virtual table can be built with various options
 //
 static const vt words[] = {
 	//
@@ -516,16 +516,15 @@ static const vt words[] = {
     VT("?RX",     _qrx     ),
     VT("TX!",     _txsto   ),
     VT("EXECUTE", _execu   ),
-    VT("!",       _store   ),
-    VT("@",       _at      ),
-    VT("C!",      _cstor   ),
-    VT("C@",      _cat     ),
-    /* ... */
 	VT("COUNT",   _count   ),
 	VT("dovar",   _dovar   ),
 	//
 	// option 2: xt as decay lambda (in-line primitive)
 	//
+    {"!",         [](){ DATA(top) = STACK(S--); POP();      }, {}, 0},
+    {"@",         [](){ top = (S32)DATA(top);               }, {}, 0},
+    {"C!",        [](){ cdata[top] = (U8)STACK(S--); POP(); }, {}, 0},
+    {"C@",        [](){ top = (S32)cdata[top];              }, {}, 0},
 	{ "MAX",      [](){
 		if (top < STACK(S)) POP();
 		else (U8)S--;
@@ -535,7 +534,7 @@ static const vt words[] = {
 		else POP();
 	}, {}, 0},
 	//
-	// option 3: xt as decay lambda (predefined colon function)
+	// option 3: xt as decay lambda (predefined colon function, can be called by other functions)
 	//
     { "?KEY",     [](){ _qkey();   }, {}, 0},
     { "WITHIN",   [](){ _within(); }, {}, 0},
