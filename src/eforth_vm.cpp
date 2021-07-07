@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <time.h>
+#include <vector>
 #include "eforth.h"
 //
 // Forth VM control registers
@@ -394,22 +395,6 @@ void _min()                 // (n1 n2 -- n) return smaller of two top stack item
 	else POP();
 }
 
-typedef void (*op)();
-struct vt
-{
-    const char *name;
-    op         xt;
-};
-
-static const vt words[] = {
-    { "NOP",   []() { _nop }},
-    { "BYE",   []() { _bye }},
-    { "?RX",   []() { _qrx }},
-	{ "TX!",   []() { _txsto }},
-    { "docon", []() { _docon }},
-    { "dolit", []() { _dolit }}
-};
-
 void(*prim[FORTH_PRIMITIVES])() = {
 	/* case 0 */ _nop,
 	/* case 1 */ _bye,
@@ -481,7 +466,7 @@ void vm_init(U8 *rom) {
 	cdata = rom;
 	R  = S = PC = IP = top = 0;
 	WP = CELLSZ;
-    
+
 #if EXE_TRACE
     tCNT=1; tTAB=0;
 #endif // EXE_TRACE
@@ -492,3 +477,83 @@ void vm_run() {
 		prim[cdata[PC++]]();            // walk bytecode stream
 	}
 }
+//=======================================================================================
+//
+// building dictionary using C++ vtable concept similar to jeForth
+//
+typedef void (*op)();
+typedef std::vector<op> op_list;
+typedef struct
+{
+    const char *name;		// function name
+    op   		xt;			// function pointer
+    op_list 	pt;			// a list of function pointers
+    U8         	immd;		// immediate flag
+} vt;
+#define VT(s,f) { s, f, {}, 0 }
+
+void _qkey()	{ _qrx(); __exit(); }
+void _within()	{ _over(); _sub(); _tor(); _sub(); _rfrom(); _uless(); __exit(); }
+op_list pt_emit = { _txsto, __exit };
+
+static const vt words[] = {
+	//
+	// option 1: xt as function pointer (predefined primitive function)
+	//
+	{ "NOP",  	  _nop, {}, 0  },
+    { "BYE",      _bye, {}, 1  },
+    //
+    // can use macro to simplify syntax
+    //
+    VT("?RX",     _qrx     ),
+    VT("TX!",     _txsto   ),
+    VT("EXECUTE", _execu   ),
+    VT("!",       _store   ),
+    VT("@",       _at      ),
+    VT("C!",      _cstor   ),
+    VT("C@",      _cat     ),
+    /* ... */
+	VT("COUNT",   _count   ),
+	VT("dovar",   _dovar   ),
+	//
+	// option 2: xt as decay lambda (in-line primitive), requires C++11
+	//
+	{ "MAX",      [](){
+		if (top < STACK(S)) POP();
+		else (U8)S--;
+	}, {}, 0},
+	{ "MIN",      [](){
+		if (top < STACK(S)) (U8)S--;
+		else POP();
+	}, {}, 0},
+	//
+	// option 3: xt as decay lambda (predefined colon function)
+	//
+    { "?KEY",     [](){ _qkey();   }, {}, 0},
+    { "WITHIN",   [](){ _within(); }, {}, 0},
+	//
+	// option 4: xt as decay lambda (in-line colon function)
+	//
+    { "KEY",      [](){ do { _qkey(); } while(top==0); _drop(); }, {}, 0},
+    { ">CHAR",    [](){ 
+            PUSH(0x7f); _and(); _dup(); PUSH(0x7f); PUSH(0x20); _within();
+            if (top==0) {
+                _drop();
+                PUSH(0x5f);
+            }
+            __exit();
+        }, {}, 0},
+    //
+    // option 5: pt as pre-defined list of function
+    //
+    { "EMIT",    NULL, pt_emit, 0},
+    //
+    // option 6: pt as in-line list of function, (pt in-line)
+    //
+	{ "ALIGNED", NULL, {
+		_dolit, (op)0x3, _plus, _dolit, (op)0xfffffffc, _and, __exit
+	}, 0},
+    { "HERE",    NULL, {
+    	_dolit, (op)2, _plus, _next
+    }, 0 }
+};

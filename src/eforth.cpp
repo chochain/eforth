@@ -1,7 +1,7 @@
 /******************************************************************************/
 /* ceForth_33.cpp, Version 3.3 : Forth in C                                   */
 /******************************************************************************/
-/* Chen-Hanson Ting                                                           */
+/* Chen-Hanson Ting     chenhansunding@gmail.com                              */
 /* 01jul19cht   version 3.3                                                   */
 /* Macro assembler, Visual Studio 2019 Community                              */
 /* 13jul17cht   version 2.3                                                   */
