@@ -474,28 +474,36 @@ void vm_init(U8 *rom) {
 
 void vm_run() {
 	for (;;) {
-		prim[cdata[PC++]]();            // walk bytecode stream
+		prim[cdata[PC++]]();      // walk bytecode stream
 	}
 }
-//=======================================================================================
+//==================================================================================
 //
 // building dictionary using C++ vtable concept similar to jeForth
 //
-typedef void (*op)();
-typedef std::vector<op> op_list;
+// 
+typedef void (*op)();             // function pointer
+typedef std::vector<op> op_list;  // list of function pointers
 typedef struct
 {
-    const char *name;		// function name
-    op   		xt;			// function pointer
-    op_list 	pt;			// a list of function pointers
-    U8         	immd;		// immediate flag
+    const char *name;		      // function name
+    op   		xt;			      // function pointer (for primitives)
+    op_list 	pt;			      // list of function pointers (colon words)
+    U8         	immd;		      // immediate flag
 } vt;
-#define VT(s,f) { s, f, {}, 0 }
-
+#define VT(s,f) { s, f, {}, 0 }   /* macro for virtual table entry */
+//
+// sample functions
+//
 void _qkey()	{ _qrx(); __exit(); }
 void _within()	{ _over(); _sub(); _tor(); _sub(); _rfrom(); _uless(); __exit(); }
+//
+// sample list of function pointers
+//
 op_list pt_emit = { _txsto, __exit };
-
+//
+// a virtual table can be built with different options
+//
 static const vt words[] = {
 	//
 	// option 1: xt as function pointer (predefined primitive function)
@@ -503,7 +511,7 @@ static const vt words[] = {
 	{ "NOP",  	  _nop, {}, 0  },
     { "BYE",      _bye, {}, 1  },
     //
-    // can use macro to simplify syntax
+    // use macro to simplify syntax
     //
     VT("?RX",     _qrx     ),
     VT("TX!",     _txsto   ),
@@ -516,7 +524,7 @@ static const vt words[] = {
 	VT("COUNT",   _count   ),
 	VT("dovar",   _dovar   ),
 	//
-	// option 2: xt as decay lambda (in-line primitive), requires C++11
+	// option 2: xt as decay lambda (in-line primitive)
 	//
 	{ "MAX",      [](){
 		if (top < STACK(S)) POP();
