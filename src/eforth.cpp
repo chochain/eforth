@@ -27,14 +27,14 @@ extern int  assemble(U8 *cdata);
 extern void vm_init(U8 *rom);
 extern void vm_run();
 
-U32 data[FORTH_DATA_SZ];           		     // 32K forth memory block
+U32 data[FORTH_DATA_SZ];                     // 32K forth memory block
 
 void dump_data(U8* cdata, int len) {         // in big-endian format
 #if ASM_TRACE
     for (int p=0; p<len; p+=0x20) {
         PRINTF("\n%04x: ", p);
         for (int i=0; i<0x20; i++) {
-        	U8 c = cdata[p+i];
+            U8 c = cdata[p+i];
             PRINTF("%02x", c);
             PRINTF("%s", (i%4)==3 ? " " : "");
         }
@@ -48,15 +48,15 @@ void dump_data(U8* cdata, int len) {         // in big-endian format
 
 int main(int ac, char* av[])
 {
-	U8 *cdata = (U8*)data;
-	setvbuf(stdout, NULL, _IONBF, 0);		// autoflush (turn STDOUT buffering off)
+    U8 *cdata = (U8*)data;
+    setvbuf(stdout, NULL, _IONBF, 0);       // autoflush (turn STDOUT buffering off)
 
-	int sz  = assemble(cdata);
-	dump_data(cdata, sz+0x20);
+    int sz  = assemble(cdata);
+    dump_data(cdata, sz+0x20);
 
-	vm_init(cdata);
-	vm_run();
+    vm_init(cdata);
+    vm_run();
 
-	return 0;
+    return 0;
 }
 

@@ -27,11 +27,11 @@ typedef int32_t          S32;
 typedef int16_t          S16;
 typedef int8_t           S8;
 
-typedef U32              XA;		// 32-bit address size
+typedef U32              XA;        // 32-bit address size
 //
 // capacity and sizing
 //
-#define CELLSZ		     4
+#define CELLSZ           4
 #define FORTH_PRIMITIVES 64
 #define FORTH_RACK_SZ    0x100
 #define FORTH_STACK_SZ   0x100
@@ -51,8 +51,8 @@ typedef U32              XA;		// 32-bit address size
 // TRUE cannot use 1 because NOT(ffffffff)==0 while NOT(1)==ffffffff
 // which does not need boolean op (i.e. in C)
 //
-#define	TRUE	         -1
-#define	FALSE	         0
+#define TRUE             -1
+#define FALSE            0
 //
 // Forth VM Opcodes (for Bytecode Assembler)
 //
