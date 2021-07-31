@@ -3,9 +3,12 @@
 #include <functional>
 #include <cstring>
 #include <string>
+#include <exception>
 
 using namespace std;
-
+///
+/// .hpp - macros and class prototypes
+///
 #define FALSE   0
 #define TRUE    -1
 
@@ -19,7 +22,7 @@ struct ForthList {
 	T merge(vector<T>& v2) { v.insert(v.end(), v2.begin(), v2.end()); }
 	void clear()           { v.clear(); }
 };
-#define POP()    (top=ss.pop())
+#define POP()    (top=ss.v.empty() ? 0 : ss.pop())
 #define PUSH(v)  (ss.push(top),top=(v))
 
 class Code;									/// forward declaration
@@ -48,15 +51,18 @@ public:
     Code *addcode(Code *w);				    /// append colon word
     void exec();						    /// execute word
 };
-
+///
+/// .cpp part - Code class implementation
+///
+/// virtual machine variables
+///
 ForthList<int>   rs; 						/// return stack
 ForthList<int>   ss; 						/// parameter stack
 ForthList<Code*> dict;						/// dictionary
-//
-// internal variables
+
 bool cmpi = false;
 int  base = 10;
-int  top  = 0;                                /// cached top of stack
+int  top  = 0;                              /// cached top of stack
 int  P, IP, WP;
 ///
 /// dictionary search function
@@ -65,12 +71,35 @@ Code *find(string s)	{
 	for (Code *w:dict.v) if (s==w->name) return w;
     return NULL;
 }
+///
+/// constructors
+///
+int Code::fence = 0;
+Code::Code(string n, fop fn, bool im) { name=n;	token=fence++; xt=fn; immd=im; }
+Code::Code(string n, bool f)   { Code *c=find(name=n); if (c) xt=c->xt; if (f) token=fence++; }
+Code::Code(string n, int d)    { xt=find(name=n)->xt; qf.push(d); }
+Code::Code(string n, string l) { xt=find(name=n)->xt; literal=l;  }
+///
+/// public methods
+///
+Code *Code::immediate()      { immd=true;  return this; }
+Code *Code::addcode(Code *w) { pf.push(w); return this; }
+void  Code::exec() {
+	if (xt) { xt(this); return; }		/// * execute primitive word and return
+
+    rs.push(WP); rs.push(IP);           /// * execute colon word
+    WP=token; IP=0;                    	/// * setup dolist call frame
+    for (Code *w: pf.v) {				/// * inner interpreter
+        try { w->xt(this); IP++; }
+        catch (int e) {}
+    }
+    IP=rs.pop(); WP=rs.pop();           /// * return to caller
+}
 //
 // external function examples (instead of inline)
 //
 void _sub() {
-    top = ss[-1] - top;
-    ss.pop();
+    top = ss.pop() - top;
 }
 void _over() {
 	int v = ss[-1];
@@ -80,9 +109,7 @@ void _ddup() {
 	_over(); _over();
 }
 void ss_dump() {
-	for (int i:ss.v) {
-		cout << i << "_";
-	}
+	for (int i:ss.v) { cout << i << "_"; }
 	cout << top << "_ok" << endl;
 }
 void words() {
@@ -93,18 +120,14 @@ void words() {
 	}
 	cout << endl;
 }
-
+///
+/// macros to reduce verbosity (but harder to single-step debug)
+///
 #define CODE(s, g) new Code(s, [](Code *c){ g; })
 #define IMMD(s, g) new Code(s, [](Code *c){ g; }, true)
-
-void _dovar(Code *c) {
-         string s; cin >> s;
-         dict.push(new Code(s, true));
-         Code *last=dict[-1]
-             ->addcode(new Code("dovar", 0));
-         last->pf[0]->token=last->token;
-}    
-
+///
+/// primitives (mostly use lambda but can use external as well)
+///
 vector<Code*> prim = {
 	CODE("hi",    cout << "---->hi!" << endl),
     IMMD("bye",   exit(0)),					  	// lambda using macro to shorten
@@ -112,7 +135,7 @@ vector<Code*> prim = {
     CODE("txsto", putchar((char)top); POP()),
     CODE("dup",   PUSH(top)),
     CODE("drop",  POP()),
-    CODE("+",     top+=POP()),
+    CODE("+",     int n=ss.pop(); top+=n),
     IMMD("if",
     	dict.push(new Code("branch"));
     	dict.push(new Code("temp"))),
@@ -139,9 +162,9 @@ vector<Code*> prim = {
          dict[-1]->addcode(new Code("dostr",s))),
     CODE("dolit", PUSH(c->qf[0])),
     CODE("dovar", PUSH(c->token)),
-    CODE("sub",   _sub()),                    	// direct functions
+    CODE("-",     _sub()),                    	// external function (instead of inline)
     CODE("over",  _over()),
-    CODE("2dup",  _ddup()),                   	// compiled
+    CODE("2dup",  _ddup()),
     CODE(".s",    ss_dump()),
     CODE("words", words()),
     CODE(":",
@@ -150,33 +173,12 @@ vector<Code*> prim = {
          cmpi=true),
     IMMD(";",     cmpi=false),
     CODE("dovar", PUSH(c->token)),
-    IMMD("variable", _dovar(c))
+    IMMD("variable",
+         string s; cin >> s;
+         dict.push(new Code(s, true));
+         Code *last=dict[-1]->addcode(new Code("dovar", 0));
+         last->pf[0]->token=last->token)
 };
-///
-/// Code class implementation
-///
-/// constructors
-int Code::fence = 0;
-Code::Code(string n, fop fn, bool im) { name=n;	token=fence++; xt=fn; immd=im; }
-Code::Code(string n, bool f)   { Code *c=find(name=n); if (c) xt=c->xt; if (f) token=fence++; }
-Code::Code(string n, int d)    { xt=find(name=n)->xt; qf.push(d); }
-Code::Code(string n, string l) { xt=find(name=n)->xt; literal=l;  }
-/// public methods
-Code *Code::immediate()      { immd=true; return this;        }
-Code *Code::addcode(Code *w) {
-	pf.push(w);
-	return this;
-}
-void  Code::exec() {
-	if (xt) { xt(this); return; }		/// * execute primitive word and return
-    rs.push(WP); rs.push(IP);           /// * execute colon word
-    WP=token; IP=0;                    	/// * setup dolist call frame
-    for (Code *w: pf.v) {				/// * inner interpreter
-        try { w->xt(this); IP++; }
-        catch (int e) {}
-    }
-    IP=rs.pop(); WP=rs.pop();           /// * return to caller
-}
 ///
 /// main class
 ///
@@ -190,27 +192,26 @@ void outer() {
         cout << tok << endl;
 		if (tok=="bye") break;
         Code *w = find(tok);
-        if (w) {
-            if (cmpi && !w->immd) {
-            	Code *last = dict[-1];
-            	last->addcode(w);
+        if (w) {						/// word found?
+            if (cmpi && !w->immd) {		/// in compile mode?
+            	dict[-1]->addcode(w);	/// * add to colon word
             }
             else {
-            	try { w->exec(); }
+            	try { w->exec(); }		/// forth word
             	catch (exception &e) {
             		cout << e.what() << endl;
             	}
             }
         }
-        else {
+        else {							// try numeric
             try {
-                int n = stoi(tok, nullptr, base);
+                int n = stoi(tok, nullptr, base);	// convert to integer
                 if (cmpi) {
                 	dict[-1]->addcode(new Code("dolit",n));
                 }
                 else PUSH(n);
             }
-            catch(...) {
+            catch(...) {				// failed to parse number
                 cout << tok << "? " << endl;
                 cmpi = false;
             }
