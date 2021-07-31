@@ -21,12 +21,9 @@ struct ForthList {			/// vector helper class template
 		if (v.empty()) throw length_error("ERR: stack empty");
 		T t=v.back(); v.pop_back(); return t;
 	}
-	T push(T t)		       { v.push_back(t); }
-	T merge(vector<T>& v2) {
-		v.insert(v.end(), v2.begin(), v2.end());
-
-	}
-	void clear()           { v.clear(); }
+	void push(T t)		      { v.push_back(t); }
+	void merge(vector<T>& v2) { v.insert(v.end(), v2.begin(), v2.end()); }
+	void clear()              { v.clear(); }
 };
 #define POP()    (top=ss.pop())
 #define PUSH(v)  (ss.push(top),top=(v))
@@ -126,6 +123,21 @@ void words() {
 	}
 	cout << endl;
 }
+void _then() {
+    Code *temp=dict[-1];
+    Code *last=dict[-2]->pf[-1];
+    if (last->stage==0) {					// if...then
+        cout << last->pf.v.size() << "+" << temp->pf.v.size() << endl;
+        last->pf.merge(temp->pf.v);
+        cout << last->pf.v.size() << "+" << temp->pf.v.size() << endl;
+        dict.pop();
+    }
+    else {									// if...else...then
+        last->pf1.merge(temp->pf.v);
+        if (last->stage==1) dict.pop();
+        else temp->pf.clear();
+    }
+}
 ///
 /// macros to reduce verbosity (but harder to single-step debug)
 ///
@@ -151,21 +163,11 @@ vector<Code*> prim = {
          last->pf.merge(temp->pf.v);
          temp->pf.clear();
          last->stage=1),
-    IMMD("then",
-         Code *temp=dict[-1];
-         Code *last=dict[-2]->pf[-1];
-         if (last->stage==0) {					// if...then
-             last->pf.merge(temp->pf.v);
-             dict.pop();
-         }
-         else {									// if...else...then
-             last->pf1.merge(temp->pf.v);
-             if (last->stage==1) dict.pop();
-             else temp->pf.clear();
-         }),
+    IMMD("then", _then()),
     IMMD(".\"",
          string s; getline(cin, s, '"');		// scan upto delimiter
-         dict[-1]->addcode(new Code("dostr",s))),
+         dict[-1]->addcode(new Code("dotstr",s))),
+	CODE("dotstr",cout << c->literal),
     CODE("dolit", PUSH(c->qf[0])),
     CODE("dovar", PUSH(c->token)),
     CODE("-",     _sub()),                    	// external function (instead of inline)
@@ -178,7 +180,6 @@ vector<Code*> prim = {
          dict.push(new Code(s, true));
          cmpi=true),
     IMMD(";",     cmpi=false),
-    CODE("dovar", PUSH(c->token)),
     IMMD("variable",
          string s; cin >> s;
          dict.push(new Code(s, true));
