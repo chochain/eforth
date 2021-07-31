@@ -169,6 +169,7 @@ vector<Code*> prim = {
     // ALU examples
     CODE("+",     top+=ss.pop()),       // note: ss.pop() is different from POP()
     CODE("-",     top=ss.pop()-top),
+    CODE("<",     top=ss.pop()<top),
     // external function examples
     CODE("over",  _over()),
     CODE("2dup",  _2dup()),
