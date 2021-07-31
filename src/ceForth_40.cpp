@@ -12,17 +12,23 @@ using namespace std;
 #define FALSE   0
 #define TRUE    -1
 
-template<class T>			/// template class as vector proxy
-struct ForthList {
+template<class T>
+struct ForthList {			/// vector helper class template
 	vector<T> v;
 	T operator[](int i)    { return i<0 ? v[v.size()+i] : v[i]; }
 	T operator<<(T t)      { v.push_back(t); }
-	T pop()                { T t=v.back(); v.pop_back(); return t; }
+	T pop()                {
+		if (v.empty()) throw length_error("ERR: stack empty");
+		T t=v.back(); v.pop_back(); return t;
+	}
 	T push(T t)		       { v.push_back(t); }
-	T merge(vector<T>& v2) { v.insert(v.end(), v2.begin(), v2.end()); }
+	T merge(vector<T>& v2) {
+		v.insert(v.end(), v2.begin(), v2.end());
+
+	}
 	void clear()           { v.clear(); }
 };
-#define POP()    (top=ss.v.empty() ? 0 : ss.pop())
+#define POP()    (top=ss.pop())
 #define PUSH(v)  (ss.push(top),top=(v))
 
 class Code;									/// forward declaration
@@ -90,7 +96,7 @@ void  Code::exec() {
     rs.push(WP); rs.push(IP);           /// * execute colon word
     WP=token; IP=0;                    	/// * setup dolist call frame
     for (Code *w: pf.v) {				/// * inner interpreter
-        try { w->xt(this); IP++; }
+        try { w->xt(w); IP++; }			/// * pass Code object to xt
         catch (int e) {}
     }
     IP=rs.pop(); WP=rs.pop();           /// * return to caller
@@ -137,8 +143,8 @@ vector<Code*> prim = {
     CODE("drop",  POP()),
     CODE("+",     int n=ss.pop(); top+=n),
     IMMD("if",
-    	dict.push(new Code("branch"));
-    	dict.push(new Code("temp"))),
+    	dict.push(new Code("branch"));			// dict[-2]
+    	dict.push(new Code("temp"))),			// dict[-1]
     IMMD("else",
          Code *temp=dict[-1];
          Code *last=dict[-2]->pf[-1];
@@ -148,11 +154,11 @@ vector<Code*> prim = {
     IMMD("then",
          Code *temp=dict[-1];
          Code *last=dict[-2]->pf[-1];
-         if (last->stage==0) {
+         if (last->stage==0) {					// if...then
              last->pf.merge(temp->pf.v);
              dict.pop();
          }
-         else {
+         else {									// if...else...then
              last->pf1.merge(temp->pf.v);
              if (last->stage==1) dict.pop();
              else temp->pf.clear();
