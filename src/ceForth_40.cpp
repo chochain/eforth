@@ -1,4 +1,5 @@
-#include <iostream>
+#include <iostream>			// cin, cout
+#include <iomanip>			// setbase
 #include <vector>
 #include <functional>
 #include <cstring>
@@ -95,7 +96,7 @@ void  Code::exec() {
     rs.push(WP); rs.push(IP);           /// * execute colon word
     WP=token; IP=0;                     /// * setup dolist call frame
     for (Code *w: pf.v) {               /// * inner interpreter
-        try { w->xt(w); IP++; }         /// * pass Code object to xt
+        try { w->exec(); IP++; }        /// * pass Code object to xt
         catch (int e) {}
     }
     IP=rs.pop(); WP=rs.pop();           /// * return to caller
@@ -114,12 +115,13 @@ void _2dup() {
     _over(); _over();
 }
 void ss_dump() {
+	cout << " ";
     for (int i:ss.v) { cout << i << "_"; }
     cout << top << "_ok" << endl;
 }
 void see(Code *c, int dp) {
-    auto tab = [](int i)         { cout<<endl; while(i--) cout << "  "; };          // lambda for indentation
-auto qf  = [](vector<int> v) { cout<<"="; for (int i:v) cout << i << " "; };
+    auto tab = [](int i)     { cout<<endl; while(i--) cout << "  "; };          // lambda for indentation
+    auto qf  = [](vector<int> v) { cout<<"="; for (int i:v) cout << i << " "; };
     tab(dp); cout << "[ " << c->to_s();
     for (Code *w: c->pf.v)  see(w, dp+1);    /// call recursively
     if (c->pf1.v.size()>0) {
@@ -163,12 +165,15 @@ vector<Code*> prim = {
     IMMD("bye",   exit(0)),             // lambda using macro to shorten
     CODE("qrx",   PUSH(getchar()); if (top!=0) PUSH(TRUE)),
     CODE("txsto", putchar((char)top); POP()),
+    CODE(".",     cout << top; POP()),
     // stack op examples
     CODE("dup",   PUSH(top)),
     CODE("drop",  POP()),
     // ALU examples
+    CODE("hex",   cout << setbase(base=16)),
     CODE("+",     top+=ss.pop()),       // note: ss.pop() is different from POP()
     CODE("-",     top=ss.pop()-top),
+    CODE("*",     top*=ss.pop()),
     CODE("<",     top=ss.pop()<top),
     // external function examples
     CODE("over",  _over()),
@@ -224,7 +229,7 @@ void dict_setup() {
 void outer() {
     string tok;
     while (cin >> tok) {
-        // cout << tok << endl;
+        //cout << tok << endl;
         if (tok=="bye") break;
         Code *w = find(tok);            /// * search through dictionary
         if (w) {                        /// * word found?
