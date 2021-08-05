@@ -107,15 +107,8 @@ string Code::to_s() {
     return name + " " + to_string(token) + (immd ? "*" : " ");
 }
 //
-// external function examples (instead of inline)
+// external functions (instead of inline)
 //
-void _over() {
-    int v = ss[-1];
-    PUSH(v);
-}
-void _2dup() {
-    _over(); _over();
-}
 void ss_dump() {
     cout << "< ";
     for (int i : ss.v) { cout << i << " "; }
@@ -194,7 +187,7 @@ vector<Code*> prim = {
     CODE("0>", ss.push((ss.pop() > 0) ? -1 : 0)),
     CODE("=",  top=(ss.pop() == top) ? -1 : 0),                     // CC:1
     CODE(">",  top=(ss.pop() > top) ? -1 : 0),                      // CC:1
-    CODE("<",  int n = ss.pop(); ss.push((ss.pop() < n) ? -1 : 0)),
+    CODE("<",  top=(ss.pop() < top) ? -1 : 0),
     CODE("<>", int n = ss.pop(); ss.push((ss.pop() != n) ? -1 : 0)),
     CODE(">=", int n = ss.pop(); ss.push((ss.pop() >= n) ? -1 : 0)),
     CODE("<=", int n = ss.pop(); ss.push((ss.pop() <= n) ? -1 : 0)),
@@ -241,7 +234,7 @@ vector<Code*> prim = {
     CODE("\\",
         string s; getline(cin, s, '\n')),
     // branching examples
-    IMMD("branch",
+    CODE("branch",
         bool f = top != 0; POP();                   // check flag then update top
         for (Code* w : (f ? c->pf.v : c->pf1.v)) w->exec()),
     IMMD("if",
