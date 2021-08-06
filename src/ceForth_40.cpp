@@ -109,8 +109,7 @@ void words() {
     cout << endl;
 }
 /// macros to reduce verbosity (but harder to single-step debug)
-inline int TOPOP() { int n=top; top=ss.pop(); return n; }
-#define POP()    (top=ss.pop())
+inline int POP() { int n=top; top=ss.pop(); return n; }
 #define PUSH(v)  (ss.push(top),top=(v))
 #define CODE(s, g) new Code(s, [](Code *c){ g; })
 #define IMMD(s, g) new Code(s, [](Code *c){ g; }, true)
@@ -128,13 +127,13 @@ vector<Code*> prim = {
     CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
     CODE("pick", int i = top; top = ss[-i]),
     //    CODE("roll", int i=top; top=ss[-i]),
-    CODE("drop", POP()),
+    CODE("drop", top=ss.pop()),
     CODE("nip",  ss.pop()),
-    CODE("2drop",POP(); POP()),
-    CODE(">r",   rs.push(TOPOP())),
+    CODE("2drop",ss.pop(); top=ss.pop()),
+    CODE(">r",   rs.push(POP())),
     CODE("r>",   PUSH(rs.pop())),
     CODE("r@",   PUSH(rs[-1])),
-    CODE("push", rs.push(TOPOP())),
+    CODE("push", rs.push(POP())),
     CODE("pop",  PUSH(rs.pop())),
     // ALU ops
     CODE("+",   top += ss.pop()),       // note: ss.pop() is different from POP()
@@ -162,22 +161,22 @@ vector<Code*> prim = {
     CODE("<=",  top = (ss.pop() <= top) ? -1 : 0),
     // output
     CODE("base@", PUSH(base)),
-    CODE("base!", cout << setbase(base = TOPOP())),
+    CODE("base!", cout << setbase(base = POP())),
     CODE("hex",   cout << setbase(base = 16)),
     CODE("decimal", cout << setbase(base = 10)),
     CODE("cr", cout << endl),
-    CODE(".",  cout << TOPOP() << " "),
-    CODE(".r", int n = TOPOP(); string s = to_string(TOPOP());
+    CODE(".",  cout << POP() << " "),
+    CODE(".r", int n = POP(); string s = to_string(POP());
         for (int i = 0; (i + s.size()) < n; i++) cout << " ";
         cout << s),
-    CODE("u.r", int n = TOPOP();
-        string s = to_string(TOPOP() & 0x7fffffff);
+    CODE("u.r", int n = POP();
+        string s = to_string(POP() & 0x7fffffff);
         for (int i = 0; (i + s.size()) < n; i++) cout << " ";
         cout << s),
     CODE("key",   PUSH(next_idiom()[0])),
-    CODE("emit",  char b = (char)TOPOP(); cout << b),
+    CODE("emit",  char b = (char)POP(); cout << b),
     CODE("space", cout << (" ")),
-    CODE("spaces",int n = TOPOP(); for (int i = 0; i < n; i++) cout << " "),
+    CODE("spaces",int n = POP(); for (int i = 0; i < n; i++) cout << " "),
     // literals
     CODE("dotstr", cout << c->literal),
     CODE("dolit", PUSH(c->qf[0])),
@@ -195,7 +194,7 @@ vector<Code*> prim = {
     CODE("\\", cout << next_idiom('\n')),
     // branching examples
     IMMD("branch",
-        bool f = TOPOP() != 0;                      // check flag then update top
+        bool f = POP() != 0;                      // check flag then update top
         for (Code* w : (f ? c->pf.v : c->pf1.v)) w->exec()),
     IMMD("if",
         dict[-1]->addcode(new Code("branch"));      // bran=word->pf
@@ -221,9 +220,9 @@ vector<Code*> prim = {
         while (true) {
             for (Code* w : c->pf.v) w->exec();            // begin...
             int f = top;
-            if (c->stage == 0 && (POP(), f != 0)) break;  // ...until
+            if (c->stage == 0 && (top=ss.pop(), f != 0)) break;  // ...until
             // if (c->stage == 1) continue;               // ...again
-            if (c->stage == 2 && (POP(), f == 0)) break;  // while...repeat
+            if (c->stage == 2 && (top=ss.pop(), f == 0)) break;  // while...repeat
             for (Code* w : c->pf1.v) w->exec();
         }),
     IMMD("begin",
@@ -284,24 +283,24 @@ vector<Code*> prim = {
         last->pf[0]->qf.pop()),
     CODE("constant",
         dict.push(new Code(next_idiom(), true));
-        Code *last = dict[-1]->addcode(new Code("dolit", TOPOP()));
+        Code *last = dict[-1]->addcode(new Code("dolit", POP()));
         last->pf[0]->token = last->token),
-    CODE("@", int n=TOPOP(); PUSH(dict[n]->pf[0]->qf[0])),			      // w -- n
-    CODE("!", int n=TOPOP(); dict[n]->pf[0]->qf[0] = TOPOP()),	          // n w --
-    CODE("+!",int n=TOPOP(); dict[n]->pf[0]->qf[0] += TOPOP()),	          // n w --
-    CODE("?", int n=TOPOP(); cout << dict[n]->pf[0]->qf[0] << " "),       // w --
-    CODE("array@", int a=TOPOP(); PUSH(dict[TOPOP()]->pf[0]->qf[a])),     // w a -- n
-    CODE("array!", int a=TOPOP(); dict[TOPOP()]->pf[0]->qf[a] = TOPOP()), // n w a --
-    CODE(",", dict[-1]->pf[0]->qf.push(TOPOP())),
+    CODE("@", int n=POP(); PUSH(dict[n]->pf[0]->qf[0])),			      // w -- n
+    CODE("!", int n=POP(); dict[n]->pf[0]->qf[0] = POP()),	          // n w --
+    CODE("+!",int n=POP(); dict[n]->pf[0]->qf[0] += POP()),	          // n w --
+    CODE("?", int n=POP(); cout << dict[n]->pf[0]->qf[0] << " "),       // w --
+    CODE("array@", int a=POP(); PUSH(dict[POP()]->pf[0]->qf[a])),     // w a -- n
+    CODE("array!", int a=POP(); dict[POP()]->pf[0]->qf[a] = POP()), // n w a --
+    CODE(",", dict[-1]->pf[0]->qf.push(POP())),
     CODE("allot",                                     // n --
-        int n = TOPOP();
+        int n = POP();
         for (int i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(0)),
     CODE("does", dict[-1]->pf.merge(dict[WP]->pf.v)),
     CODE("to",                                        // n -- , compile only
         IP++;                                         // current colon word
-        dict[WP]->pf[IP++]->pf[0]->qf.push(TOPOP())), // next constant
+        dict[WP]->pf[IP++]->pf[0]->qf.push(POP())), // next constant
     CODE("is",                                        // w -- , execute only
-        Code *source = dict[TOPOP()];                 // source word
+        Code *source = dict[POP()];                 // source word
         Code *w = find(next_idiom());
         if (w == NULL) throw length_error(" ");
         dict[w->token]->pf = source->pf),
