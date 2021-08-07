@@ -52,7 +52,7 @@ int  base = 10;                             /// numeric radix
 int  top = -1;                              /// cached top of stack
 int  IP, WP;                                /// instruction and parameter pointers
 /// dictionary and input stream search functions
-Code *find(string s) {                   /// search dictionary reversely
+Code *find(string s) {                      /// search dictionary reversely
     for (int i = dict.v.size() - 1; i >= 0; --i) {
         if (s == dict.v[i]->name) return dict.v[i];
     }
@@ -69,14 +69,14 @@ Code::Code(string n, string l) { xt = find(name = n)->xt; literal = l; }
 Code* Code::immediate() { immd = true;  return this; }
 Code* Code::addcode(Code* w) { pf.push(w); return this; }
 void  Code::exec() {
-    if (xt) { xt(this); return; }       /// * execute primitive word and return
-    rs.push(WP); rs.push(IP);           /// * execute colon word
-    WP = token; IP = 0;                 /// * setup dolist call frame
-    for (Code* w : pf.v) {              /// * inner interpreter
-        try { w->exec(); IP++; }        /// * pass Code object to xt
+    if (xt) { xt(this); return; }           /// * execute primitive word and return
+    rs.push(WP); rs.push(IP);               /// * execute colon word
+    WP = token; IP = 0;                     /// * setup dolist call frame
+    for (Code* w : pf.v) {                  /// * inner interpreter
+        try { w->exec(); IP++; }            /// * pass Code object to xt
         catch (...) {}
     }
-    IP = rs.pop(); WP = rs.pop();       /// * return to caller
+    IP = rs.pop(); WP = rs.pop();           /// * return to caller
 }
 string Code::to_s() { return name + " " + to_string(token) + (immd ? "*" : ""); }
 // external function (instead of inline)
@@ -85,10 +85,10 @@ void dot_r(int n, string s) {
 	cout << s;
 }
 void ss_dump() {
-    for (int i : ss.v) { cout << i << " "; }
-    cout << top << " ok>" << endl;
+    cout << "< "; for (int i : ss.v) { cout << i << " "; }
+    cout << top << " >ok" << endl;
 }
-void see(Code* c, int dp) {                             // CC:
+void see(Code* c, int dp) {
     auto pf = [](int dp, string s, vector<Code*> v) {   // lambda for indentation and recursive dump
         int i = dp; cout << endl; while (i--) cout << "  "; cout << s;
         for (Code* w : v) see(w, dp + 1);
@@ -106,7 +106,6 @@ void words() {
         cout << w->to_s() << " ";
         if ((++i % 10) == 0) cout << endl;
     }
-    cout << endl;
 }
 /// macros to reduce verbosity (but harder to single-step debug)
 inline int POP() { int n=top; top=ss.pop(); return n; }
@@ -316,29 +315,28 @@ vector<Code*> prim = {
 void outer() {
     string idiom;
     while (cin >> idiom) {
-        //cout << ">>" << idiom << "<<" << endl;
-        Code *w = find(idiom);          /// * search through dictionary
-        if (w) {                        /// * word found?
-            if (compile && !w->immd) {  /// * in compile mode?
-                dict[-1]->addcode(w); } /// * add to colon word
+        Code *w = find(idiom);                          /// * search through dictionary
+        if (w) {                                        /// * word found?
+            if (compile && !w->immd)                    /// * in compile mode?
+                dict[-1]->addcode(w);                   /// * add to colon word
             else {
-                try { w->exec(); }      /// * execute forth word
+                try { w->exec(); }                      /// * execute forth word
                 catch (exception& e) {
                     cout << e.what() << endl; }}}
         else {
-        	try {                       /// * try as numeric
-        		int n = stoi(idiom, nullptr, base);            /// * convert to integer
-        		if (compile) {
-        			dict[-1]->addcode(new Code("dolit", n)); } /// * add to current word
-                else PUSH(n); }         /// * add value onto data stack
-            catch (...) {               /// * failed to parse number
+        	try {                                       /// * try as numeric
+        		int n = stoi(idiom, nullptr, base);     /// * convert to integer
+        		if (compile) 
+        			dict[-1]->addcode(new Code("dolit", n)); /// * add to current word
+                else PUSH(n); }                         /// * add value onto data stack
+            catch (...) {                               /// * failed to parse number
                 cout << idiom << "? " << endl;
                 ss.clear(); top = -1; compile = false;
-                getline(cin, idiom, '\n'); }}
-        if (!compile) ss_dump(); }}     /// * stack dump and display ok prompt
+                getline(cin, idiom, '\n'); }}           /// * skip the entire line
+    	if (cin.peek()=='\n' && !compile) ss_dump(); }} /// * dump stack and display ok prompt
 void dict_setup() {
-    dict.merge(prim);                   /// * populate dictionary
-    prim.clear(); }                     /// * reduce memory footprint
+    dict.merge(prim);                                   /// * populate dictionary
+    prim.clear(); }                                     /// * reduce memory footprint
 /// main program
 int main(int ac, char* av[]) {
     dict_setup();
