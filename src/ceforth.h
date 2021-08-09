@@ -40,15 +40,15 @@ public:
     ForthList<Code*> pf;
     ForthList<Code*> pf1;
     ForthList<Code*> pf2;
-    ForthList<int>   qf;
+    ForthList<float> qf;
 
     Code(string n, fop fn, bool im=false);  /// primitive
     Code(string n, bool f=false);           /// new colon word or temp
-    Code(string n, int d);                  /// dolit
-    Code(string n, string l);               /// dostr
+    Code(Code *c,  float d);                /// dolit, dovar
+    Code(Code *c,  string s);               /// dotstr
+    Code(Code *c);                          /// branching i.e. bran, cycle, loop
 
     Code* immediate();                      /// set immediate flag
-    Code* set_xt(fop f);					/// set primitive function
     Code* addcode(Code* w);                 /// append colon word
 
     string to_s();                          /// debugging
@@ -60,21 +60,21 @@ public:
 ///
 class ForthVM {
 public:
-    ForthList<int>   rs;                    /// return stack
-    ForthList<int>   ss;                    /// parameter stack
+    ForthList<float> rs;                    /// return stack
+    ForthList<float> ss;                    /// parameter stack
     ForthList<Code*> dict;                  /// dictionary
 
-    bool compile = false;                   /// compiling flag
-    int  base    = 10;                      /// numeric radix
-    int  top     = -1;                      /// cached top of stack
-    int  IP, WP;                            /// instruction and parameter pointers
+    bool  compile = false;                   /// compiling flag
+    int   base    = 10;                      /// numeric radix
+    float top     = -1;                      /// cached top of stack
+    int   IP, WP;                            /// instruction and parameter pointers
 
     void init();
     void outer();
     
 private:
-    int POP();
-    int PUSH(int v);
+    float POP();
+    float PUSH(float v);
     
     Code *find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
