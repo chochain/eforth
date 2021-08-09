@@ -10,12 +10,11 @@ Code::Code(string n, fop fn, bool im) {
     name = n; token = fence++; xt = fn; immd = im;
 }
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
-Code::Code(Code *c, float v)   { name = c->name; qf.push(v); }
-Code::Code(Code *c, string s)  { name = c->name; literal = s;  }
-Code::Code(Code *c)            { name = c->name; xt = c->xt;   }
+Code::Code(Code *c, float v)   { name = c->name; xt = c->xt; qf.push(v); }
+Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s!=string()) literal = s;  }
 
 Code* Code::immediate()        { immd = true;  return this; }
-Code* Code::addcode(Code* w)   { pf.push(w); return this; }
+Code* Code::addcode(Code* w)   { pf.push(w);   return this; }
 
 string Code::to_s()    { return name+" "+to_string(token)+(immd ? "*" : ""); }
 void Code::see(int dp) {
@@ -53,13 +52,12 @@ Code *ForthVM::find(string s) {
 string ForthVM::next_idiom(char delim) {
     string s; delim ? getline(cin, s, delim) : cin >> s; return s;
 }
-void ForthVM::dot_r(int n, string s) {
-    for (int i = 0, m = n-s.size(); i < m; i++) cout << " ";
-    cout << s;
+void ForthVM::dot_r(int n, float v) {
+    cout << setw(n) << setfill(' ') << v;
 }
 void ForthVM::ss_dump() {
-    cout << "< "; for (int i : ss.v) { cout << i << " "; }
-    cout << top << " >ok" << endl;
+    cout << " "; for (int i : ss.v) { cout << i << "_"; }
+    cout << top << "_ok" << endl;
 }
 void ForthVM::words() {
     int i = 0;
@@ -68,6 +66,7 @@ void ForthVM::words() {
         if ((++i % 10) == 0) cout << endl;
     }
 }
+
 /// macros to reduce verbosity (but harder to single-step debug)
 #define CODE(s, g) new Code(s, [&](ForthVM &, Code *c){ g; })
 #define IMMD(s, g) new Code(s, [&](ForthVM &, Code *c){ g; }, true)
@@ -105,6 +104,7 @@ void ForthVM::outer() {
         if (cin.peek() == '\n' && !compile) ss_dump();    /// * dump stack and display ok prompt
     }
 }
+
 #define ALU(a, OP, b) (static_cast<int>(a) OP static_cast<int>(b))
 void ForthVM::init() {
     //fop xt = [&](ForthVM &, Code*){ top = 0;  };
@@ -151,12 +151,12 @@ void ForthVM::init() {
     CODE("0= ",  top = (top == 0) ? -1 : 0),
     CODE("0<",   top = (top <  0) ? -1 : 0),
     CODE("0>",   top = (top >  0) ? -1 : 0),
-    CODE("= ",   top = (ss.pop() == top) ? -1 : 0),
+    CODE("=",    top = (ss.pop() == top) ? -1 : 0),
     CODE(">",    top = (ss.pop() >  top) ? -1 : 0),
     CODE("<",    top = (ss.pop() <  top) ? -1 : 0),
     CODE("<>",   top = (ss.pop() != top) ? -1 : 0),
-    CODE(">= ",  top = (ss.pop() >= top) ? -1 : 0),
-    CODE("<= ",  top = (ss.pop() <= top) ? -1 : 0),
+    CODE(">=",   top = (ss.pop() >= top) ? -1 : 0),
+    CODE("<=",   top = (ss.pop() <= top) ? -1 : 0),
     // output
     CODE("base@",   PUSH(base)),
     CODE("base!",   cout << setbase(base = POP())),
@@ -164,8 +164,9 @@ void ForthVM::init() {
     CODE("decimal", cout << setbase(base = 10)),
     CODE("cr",      cout << endl),
     CODE(".",       cout << POP() << " "),
-    CODE(".r",      int n = POP(); string s = to_string(POP()); dot_r(n, s)),
-    CODE("u.r",     int n = POP(); string s = to_string(abs(POP())); dot_r(n, s)),
+    CODE(".r",      int n = POP(); dot_r(n, POP())),
+    CODE("u.r",     int n = POP(); dot_r(n, abs(POP()))),
+    CODE(".f",      int n = POP(); cout << setprecision(n) << POP()),
     CODE("key",     PUSH(next_idiom()[0])),
     CODE("emit",    char b = (char)POP(); cout << b),
     CODE("space",   cout << " "),
@@ -290,11 +291,11 @@ void ForthVM::init() {
     CODE("to",                                        // n -- , compile only
         IP++;                                         // current colon word
         dict[WP]->pf[IP++]->pf[0]->qf.push(POP())),   // next constant
-    CODE("is",                                        // w -- , execute only
-        Code *source = dict[POP()];                   // source word
-        Code *w = find(next_idiom());
-        if (w == NULL) throw length_error(" ");
-        dict[w->token]->pf = source->pf),
+    CODE("alias",                                     // w -- , execute only
+    	Code *tgt = find(next_idiom());
+        if (tgt == NULL) throw length_error(" ");
+        Code *src = dict[POP()]; 					   // source word
+        for (Code *w: src->pf.v)  tgt->pf.push(w)),
     // tools
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),

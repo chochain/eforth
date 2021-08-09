@@ -35,7 +35,7 @@ public:
     bool   immd  = false;                   /// immediate flag
     int    stage = 0;                       /// branching stage
     string literal;                         /// string literal
-    fop    xt;                              /// primitive function
+    fop    xt    = NULL;                    /// primitive function
 
     ForthList<Code*> pf;
     ForthList<Code*> pf1;
@@ -45,8 +45,7 @@ public:
     Code(string n, fop fn, bool im=false);  /// primitive
     Code(string n, bool f=false);           /// new colon word or temp
     Code(Code *c,  float d);                /// dolit, dovar
-    Code(Code *c,  string s);               /// dotstr
-    Code(Code *c);                          /// branching i.e. bran, cycle, loop
+    Code(Code *c,  string s=string());      /// dotstr
 
     Code* immediate();                      /// set immediate flag
     Code* addcode(Code* w);                 /// append colon word
@@ -79,7 +78,7 @@ private:
     Code *find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
     
-    void dot_r(int n, string s);
+    void dot_r(int n, float v);
     void ss_dump();
     void words();
 };
