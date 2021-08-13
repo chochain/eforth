@@ -67,13 +67,14 @@ void ForthVM::words() {
     }
 }
 void ForthVM::call(Code *w) {
-    int tmp = WP;
-    WP = w->token;					// setup call frame
-    try { w->exec(); }
+    int tmp = WP;										/// * setup call frame
+    WP = w->token;
+    try { w->exec(); }									/// * run inner interpreter
     catch (exception& e) {
-    	cout << e.what() << endl;
+    	string msg = e.what();						    /// * capture exception message
+    	if (msg!=string()) cout << msg << endl;
     }
-    WP = tmp;						// restore call frame
+    WP = tmp;											/// * restore call frame
 }
 
 /// macros to reduce verbosity (but harder to single-step debug)
@@ -106,13 +107,18 @@ void ForthVM::outer() {
                 getline(cin, idiom, '\n');              /// * skip the entire line
             }
         }
-        if (cin.peek() == '\n' && !compile) ss_dump();    /// * dump stack and display ok prompt
+        if (cin.peek() == '\n' && !compile) ss_dump();  /// * dump stack and display ok prompt
     }
 }
 
 #define ALU(a, OP, b) (static_cast<int>(a) OP static_cast<int>(b))
 void ForthVM::init() {
-	fop _test = [&](Code *c) {
+	fop _does   = [&](Code *c) {
+        vector<Code*> src = dict[WP]->pf.v;             // source word : xx create...does...;
+        int i=0; int n=src.size();
+        while (i<n && src[i]->name!="does") i++;        // find the "does"
+        while (++i<n) dict[-1]->pf.push(src[i]);        // copy words after "does" to new the word
+        throw domain_error(string());					// break out of for { c->exec() } loop
 	};
 
     static vector<Code*> prim = {                       /// singleton, build once only
@@ -266,7 +272,7 @@ void ForthVM::init() {
         if (last->stage == 0) last->pf.merge(temp->pf.v);
         else last->pf2.merge(temp->pf.v); dict.pop()),
     // compiler
-    CODE("exit", exit(0)),                          // exit interpreter
+    CODE("exit", exit(0)),
     CODE("exec", int n = top; call(dict[n])),
     CODE(":",
         dict.push(new Code(next_idiom(), true));    // create new word
@@ -286,26 +292,26 @@ void ForthVM::init() {
     CODE("?",      int n = POP(); cout << dict[n]->pf[0]->qf[0] << " "),// w --
     CODE("array@", int a = POP(); PUSH(dict[POP()]->pf[0]->qf[a])),     // w a -- n
     CODE("array!", int a = POP(); dict[POP()]->pf[0]->qf[a] = POP()),   // n w a --
-    CODE("allot",                                     // n --
+    CODE("allot",                                     		// n --
         for (int n = POP(), i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(0)),
     CODE(",",      dict[-1]->pf[0]->qf.push(POP())),
     CODE("create",
-        dict.push(new Code(next_idiom(), true));          // create a new word
+        dict.push(new Code(next_idiom(), true));            // create a new word
         Code *last = dict[-1]->addcode(new Code(find("dovar"), 0.0f));
         last->pf[0]->token = last->token;
         last->pf[0]->qf.clear()),
-    CODE("does",
-        vector<Code*> src = dict[WP]->pf.v;               // source word : xx create...does...;
-        int i=0; int n=src.size();
-        while (i<n && src[i]->name!="does") i++;          // find the "does"
-        if (++i<n) {
-            vector<Code*> vec(src.begin()+i, src.end());  // copy words after "does"
-            dict[-1]->pf.merge(vec);
-        }),
-    CODE("to",                                            // n -- , compile only
+    CODE("does", _does(c)),
+//        vector<Code*> src = dict[WP]->pf.v;               // source word : xx create...does...;
+//        int i=0; int n=src.size();
+//        while (i<n && src[i]->name!="does") i++;          // find the "does"
+//        if (++i<n) {
+//            vector<Code*> vec(src.begin()+i, src.end());  // copy words after "does"
+//            dict[-1]->pf.merge(vec);
+//        }),
+    CODE("to",                                            	// n -- , compile only
         Code *tgt = find(next_idiom());
-        if (tgt) tgt->pf[0]->qf[0] = POP()),              // update constant
-    CODE("is",                                            // w -- , execute only
+        if (tgt) tgt->pf[0]->qf[0] = POP()),              	// update constant
+    CODE("is",                                            	// w -- , execute only
     	Code *tgt = find(next_idiom());
         if (tgt) {
         	tgt->pf.clear();
