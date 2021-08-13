@@ -24,8 +24,7 @@ struct ForthList {          /// vector helper template class
 };
 
 class Code;                                 /// forward declaration
-class ForthVM;
-typedef function<void(ForthVM&,Code*)> fop; /// Forth operator
+using fop = function<void(Code*)>;          /// Forth operator
 
 class Code {
 public:
@@ -34,8 +33,8 @@ public:
     int    token = 0;                       /// dictionary order token
     bool   immd  = false;                   /// immediate flag
     int    stage = 0;                       /// branching stage
-    string literal;                         /// string literal
     fop    xt    = NULL;                    /// primitive function
+    string literal;                         /// string literal
 
     ForthList<Code*> pf;
     ForthList<Code*> pf1;
@@ -52,7 +51,7 @@ public:
 
     string to_s();                          /// debugging
     void   see(int dp);
-    void   exec(ForthVM &vm);               /// execute word
+    void   exec();                          /// execute word
 };
 ///
 /// Forth virtual machine variables
@@ -66,7 +65,7 @@ public:
     bool  compile = false;                   /// compiling flag
     int   base    = 10;                      /// numeric radix
     float top     = -1;                      /// cached top of stack
-    int   IP, WP;                            /// instruction and parameter pointers
+    int   WP      = 0;                       /// instruction and parameter pointers
 
     void init();
     void outer();
@@ -77,6 +76,7 @@ private:
     
     Code *find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
+    void call(Code *c);                     /// execute a word
     
     void dot_r(int n, float v);
     void ss_dump();

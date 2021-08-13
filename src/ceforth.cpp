@@ -1,5 +1,6 @@
 #include <iostream>         // cin, cout
 #include <iomanip>          // setbase
+#include <string>
 #include "ceforth.h"
 
 int Code::fence = 0;
@@ -29,11 +30,10 @@ void Code::see(int dp) {
     if (qf.v.size()  > 0) see_qf(qf.v);
     cout << "]";
 }
-void  Code::exec(ForthVM &vm) {
-    if (xt) { xt(vm, this); return; }           /// * execute primitive word and return
-    for (Code* w : pf.v) {                      /// * inner interpreter
-        try { w->exec(vm); }                    /// * pass Code object to xt
-        catch (...) {}
+void  Code::exec() {
+    if (xt) xt(this);           				/// * execute primitive word
+    else {
+    	for (Code* w : pf.v) w->exec();        	/// * or, run inner interpreter
     }
 }
 ///
@@ -66,10 +66,19 @@ void ForthVM::words() {
         if ((++i % 10) == 0) cout << endl;
     }
 }
+void ForthVM::call(Code *w) {
+    int tmp = WP;
+    WP = w->token;					// setup call frame
+    try { w->exec(); }
+    catch (exception& e) {
+    	cout << e.what() << endl;
+    }
+    WP = tmp;						// restore call frame
+}
 
 /// macros to reduce verbosity (but harder to single-step debug)
-#define CODE(s, g) new Code(s, [&](ForthVM &, Code *c){ g; })
-#define IMMD(s, g) new Code(s, [&](ForthVM &, Code *c){ g; }, true)
+#define CODE(s, g) new Code(s, [&](Code *c){ g; })
+#define IMMD(s, g) new Code(s, [&](Code *c){ g; }, true)
 /// primitives (mostly use lambda but can use external as well)
 
 /// core functions
@@ -80,12 +89,7 @@ void ForthVM::outer() {
         if (w) {                                        /// * word found?
             if (compile && !w->immd)                    /// * in compile mode?
                 dict[-1]->addcode(w);                   /// * add to colon word
-            else {
-                try { w->exec(*this); }                 /// * execute forth word
-                catch (exception& e) {
-                    cout << e.what() << endl;
-                }
-            }
+            else call(w);								/// * execute forth word
         }
         else {
             try {                                       /// * try as numeric
@@ -94,10 +98,11 @@ void ForthVM::outer() {
                     : stof(idiom);
                 if (compile)
                     dict[-1]->addcode(new Code(find("dolit"), n)); /// * add to current word
-                else PUSH(n); }                         /// * add value onto data stack
+                else PUSH(n);                           /// * add value onto data stack
+            }
             catch (...) {                               /// * failed to parse number
                 cout << idiom << "? " << endl;
-                ss.clear(); top = -1; compile = false;
+                compile = false;
                 getline(cin, idiom, '\n');              /// * skip the entire line
             }
         }
@@ -107,7 +112,9 @@ void ForthVM::outer() {
 
 #define ALU(a, OP, b) (static_cast<int>(a) OP static_cast<int>(b))
 void ForthVM::init() {
-    //fop xt = [&](ForthVM &, Code*){ top = 0;  };
+	fop _test = [&](Code *c) {
+	};
+
     static vector<Code*> prim = {                       /// singleton, build once only
     // stack op
     CODE("dup",  PUSH(top)),
@@ -189,7 +196,7 @@ void ForthVM::init() {
     // branching - if...then, if...else...then
     IMMD("bran",
         bool f = POP() != 0;                        // check flag
-        for (Code* w : (f ? c->pf.v : c->pf1.v)) w->exec(*this)),
+        for (Code* w : (f ? c->pf.v : c->pf1.v)) call(w)),
     IMMD("if",
         dict[-1]->addcode(new Code(find("bran")));
         dict.push(new Code("temp"))),               // use last cell of dictionay as scratch pad
@@ -212,12 +219,12 @@ void ForthVM::init() {
     // loops - begin...again, begin...f until, begin...f while...repeat
     CODE("loop",
         while (true) {
-            for (Code* w : c->pf.v) w->exec(*this);                // begin...
+            for (Code* w : c->pf.v) call(w);                       // begin...
             int f = top;
             if (c->stage == 0 && (top = ss.pop(), f != 0)) break;  // ...until
             if (c->stage == 1) continue;                           // ...again
             if (c->stage == 2 && (top = ss.pop(), f == 0)) break;  // while...repeat
-            for (Code* w : c->pf1.v) w->exec(*this);
+            for (Code* w : c->pf1.v) call(w);
         }),
     IMMD("begin",
         dict[-1]->addcode(new Code(find("loop")));
@@ -238,12 +245,12 @@ void ForthVM::init() {
         last->pf.merge(temp->pf.v); dict.pop()),
     // loops - for...next, for...aft...then...next
     CODE("cycle",
-        do { for (Code* w : c->pf.v) w->exec(*this); }
+        do { for (Code* w : c->pf.v) call(w); }
         while (c->stage == 0 && rs.dec_i() >= 0);    // for...next only
         while (c->stage > 0) {                       // aft
-            for (Code* w : c->pf2.v) w->exec(*this); // then...next
+            for (Code* w : c->pf2.v) call(w);        // then...next
             if (rs.dec_i() < 0) break;
-            for (Code* w : c->pf1.v) w->exec(*this); // aft...then
+            for (Code* w : c->pf1.v) call(w);        // aft...then
         }
         rs.pop()),
     IMMD("for",
@@ -260,7 +267,7 @@ void ForthVM::init() {
         else last->pf2.merge(temp->pf.v); dict.pop()),
     // compiler
     CODE("exit", exit(0)),                          // exit interpreter
-    CODE("exec", int n = top; dict[n]->exec(*this)),
+    CODE("exec", int n = top; call(dict[n])),
     CODE(":",
         dict.push(new Code(next_idiom(), true));    // create new word
         compile = true),
@@ -269,11 +276,6 @@ void ForthVM::init() {
         dict.push(new Code(next_idiom(), true));
         Code *last = dict[-1]->addcode(new Code(find("dovar"), 0.0f));
         last->pf[0]->token = last->token),
-    CODE("create",
-        dict.push(new Code(next_idiom(), true));
-        Code *last = dict[-1]->addcode(new Code(find("dovar"), 0.0f));
-        last->pf[0]->token = last->token;
-        last->pf[0]->qf.pop()),
     CODE("constant",
         dict.push(new Code(next_idiom(), true));
         Code *last = dict[-1]->addcode(new Code(find("dolit"), POP()));
@@ -286,16 +288,29 @@ void ForthVM::init() {
     CODE("array!", int a = POP(); dict[POP()]->pf[0]->qf[a] = POP()),   // n w a --
     CODE("allot",                                     // n --
         for (int n = POP(), i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(0)),
-    CODE(",",    dict[-1]->pf[0]->qf.push(POP())),
-    CODE("does", dict[-1]->pf.merge(dict[WP]->pf.v)),
-    CODE("to",                                        // n -- , compile only
-        IP++;                                         // current colon word
-        dict[WP]->pf[IP++]->pf[0]->qf.push(POP())),   // next constant
-    CODE("alias",                                     // w -- , execute only
+    CODE(",",      dict[-1]->pf[0]->qf.push(POP())),
+    CODE("create",
+        dict.push(new Code(next_idiom(), true));          // create a new word
+        Code *last = dict[-1]->addcode(new Code(find("dovar"), 0.0f));
+        last->pf[0]->token = last->token;
+        last->pf[0]->qf.clear()),
+    CODE("does",
+        vector<Code*> src = dict[WP]->pf.v;               // source word : xx create...does...;
+        int i=0; int n=src.size();
+        while (i<n && src[i]->name!="does") i++;          // find the "does"
+        if (++i<n) {
+            vector<Code*> vec(src.begin()+i, src.end());  // copy words after "does"
+            dict[-1]->pf.merge(vec);
+        }),
+    CODE("to",                                            // n -- , compile only
+        Code *tgt = find(next_idiom());
+        if (tgt) tgt->pf[0]->qf[0] = POP()),              // update constant
+    CODE("is",                                            // w -- , execute only
     	Code *tgt = find(next_idiom());
-        if (tgt == NULL) throw length_error(" ");
-        Code *src = dict[POP()]; 					   // source word
-        for (Code *w: src->pf.v)  tgt->pf.push(w)),
+        if (tgt) {
+        	tgt->pf.clear();
+        	tgt->pf.merge(dict[POP()]->pf.v);
+        }),
     // tools
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
@@ -307,8 +322,8 @@ void ForthVM::init() {
     CODE("forget",
         Code *w = find(next_idiom());
          if (w == NULL) return;
-         dict.erase(max(w->token, find("boot")->token))),
-    CODE("boot", dict.erase(find("boot")->token + 1))
+         dict.erase(Code::fence=max(w->token, find("boot")->token + 1))),
+    CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     };
     dict.merge(prim);                                /// * populate dictionary
 }
