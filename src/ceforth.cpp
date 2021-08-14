@@ -1,4 +1,4 @@
-#include <iostream>         // cin, cout
+#include <sstream>          // stringstream
 #include <iomanip>          // setbase
 #include <string>
 #include "ceforth.h"
@@ -18,17 +18,19 @@ Code* Code::immediate()        { immd = true;  return this; }
 Code* Code::addcode(Code* w)   { pf.push(w);   return this; }
 
 string Code::to_s()    { return name+" "+to_string(token)+(immd ? "*" : ""); }
-void Code::see(int dp) {
-    auto see_pf = [](int dp, string s, vector<Code*> v) {   // lambda for indentation and recursive dump
+string Code::see(int dp) {
+	stringstream cout("");
+    auto see_pf = [&](int dp, string s, vector<Code*> v) {   // lambda for indentation and recursive dump
         int i = dp; cout << endl; while (i--) cout << "  "; cout << s;
-        for (Code* w: v) w->see(dp + 1);
+        for (Code* w: v) cout << w->see(dp + 1);
     };
-    auto see_qf = [](vector<float> v) { cout << " = "; for (int i : v) cout << i << " "; };
+    auto see_qf = [&cout](vector<float> v) { cout << " = "; for (int i : v) cout << i << " "; };
     see_pf(dp, "[ " + to_s(), pf.v);
     if (pf1.v.size() > 0) see_pf(dp, "1--", pf1.v);
     if (pf2.v.size() > 0) see_pf(dp, "2--", pf2.v);
     if (qf.v.size()  > 0) see_qf(qf.v);
     cout << "]";
+    return cout.str();
 }
 void  Code::exec() {
     if (xt) xt(this);           				/// * execute primitive word
@@ -83,12 +85,16 @@ void ForthVM::call(Code *w) {
 /// primitives (mostly use lambda but can use external as well)
 
 /// core functions
-void ForthVM::outer() {
+void ForthVM::outer(string &in, string &out) {
+	cin  = istringstream(in);
+	cout = ostringstream(out);
+
     string idiom;
     while (cin >> idiom) {
         Code *w = find(idiom);                          /// * search through dictionary
         if (w) {                                        /// * word found?
-            if (compile && !w->immd)                    /// * in compile mode?
+        	printf("%s=>%s\n", idiom.c_str(), w->to_s().c_str());
+        	if (compile && !w->immd)                    /// * in compile mode?
                 dict[-1]->addcode(w);                   /// * add to colon word
             else call(w);								/// * execute forth word
         }
@@ -97,6 +103,7 @@ void ForthVM::outer() {
                 float n = base!= 10                     /// * conver to number
                     ? static_cast<float>(stoi(idiom, nullptr, base))
                     : stof(idiom);
+            	printf("%s=>%f\n", idiom.c_str(), n);
                 if (compile)
                     dict[-1]->addcode(new Code(find("dolit"), n)); /// * add to current word
                 else PUSH(n);                           /// * add value onto data stack
@@ -109,6 +116,7 @@ void ForthVM::outer() {
         }
         if (cin.peek() == '\n' && !compile) ss_dump();  /// * dump stack and display ok prompt
     }
+    out = cout.str();
 }
 
 #define ALU(a, OP, b) (static_cast<int>(a) OP static_cast<int>(b))
@@ -324,7 +332,7 @@ void ForthVM::init() {
     CODE("'",     Code *w = find(next_idiom()); PUSH(w->token)),
     CODE("see",
         Code *w = find(next_idiom());
-        if (w) w->see(0); cout << endl),
+        if (w) cout << w->see(0) << endl),
     CODE("forget",
         Code *w = find(next_idiom());
          if (w == NULL) return;
@@ -339,8 +347,11 @@ int main(int ac, char* av[]) {
     ForthVM *vm = new ForthVM();
     vm->init();
 
-    cout << "ceforth 4.02" << endl;
-    vm->outer();
-    cout << "done!" << endl;
+    string out, in("words 123 456 : x dup ; see x words");
+
+//    cout << "ceforth 4.02" << endl;
+    vm->outer(in, out);
+    printf("%s", out.c_str());
+//    cout << "done!" << endl;
     return 0;
 }

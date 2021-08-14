@@ -14,7 +14,7 @@ struct ForthList {          /// vector helper template class
 
     T dec_i() { return v.back() -= 1; }     /// decrement stack top
     T pop()   {
-        if (v.empty()) throw length_error("ERR: stack empty");
+        if (v.empty()) throw underflow_error("ERR: stack empty");
         T t = v.back(); v.pop_back(); return t;
     }
     void push(T t)            { v.push_back(t); }
@@ -50,7 +50,7 @@ public:
     Code* addcode(Code* w);                 /// append colon word
 
     string to_s();                          /// debugging
-    void   see(int dp);
+    string see(int dp);
     void   exec();                          /// execute word
 };
 ///
@@ -58,17 +58,20 @@ public:
 ///
 class ForthVM {
 public:
+	istringstream    cin;					/// stream input
+	ostringstream    cout;					/// stream output
+
     ForthList<float> rs;                    /// return stack
     ForthList<float> ss;                    /// parameter stack
     ForthList<Code*> dict;                  /// dictionary
 
-    bool  compile = false;                   /// compiling flag
-    int   base    = 10;                      /// numeric radix
-    float top     = -1;                      /// cached top of stack
-    int   WP      = 0;                       /// instruction and parameter pointers
+    bool  compile = false;                  /// compiling flag
+    int   base    = 10;                     /// numeric radix
+    float top     = -1;                     /// cached top of stack
+    int   WP      = 0;                      /// instruction and parameter pointers
 
     void init();
-    void outer();
+    void outer(string &in, string &out);
     
 private:
     float POP();
