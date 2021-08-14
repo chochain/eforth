@@ -1,5 +1,6 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
+#include <sstream>
 #include <vector>           // vector
 #include <functional>       // function
 
@@ -58,8 +59,8 @@ public:
 ///
 class ForthVM {
 public:
-	istringstream    cin;					/// stream input
-	ostringstream    cout;					/// stream output
+	istream    		 &cin;					/// stream input
+	ostream    		 &cout;					/// stream output
 
     ForthList<float> rs;                    /// return stack
     ForthList<float> ss;                    /// parameter stack
@@ -70,8 +71,10 @@ public:
     float top     = -1;                     /// cached top of stack
     int   WP      = 0;                      /// instruction and parameter pointers
 
+    ForthVM(istream &in, ostream &out);
+
     void init();
-    void outer(string &in, string &out);
+    void outer();
     
 private:
     float POP();
