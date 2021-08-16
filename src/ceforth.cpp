@@ -92,13 +92,6 @@ void ForthVM::call(Code *w) {
 ///
 /// dictionary initializer
 void ForthVM::init() {
-    fop _does   = [&](Code *c) {
-        vector<Code*> src = dict[WP]->pf.v;             // source word : xx create...does...;
-        int i=0; int n=src.size();
-        while (i<n && src[i]->name!="does") i++;        // find the "does"
-        while (++i<n) dict[-1]->pf.push(src[i]);        // copy words after "does" to new the word
-        throw domain_error(string());                   // break out of for { c->exec() } loop
-    };
     static vector<Code*> prim = {                       /// singleton, build once only
     // stack op
     CODE("dup",  PUSH(top)),
@@ -278,7 +271,12 @@ void ForthVM::init() {
         Code *last = dict[-1]->addcode(new Code(find("dovar"), 0));
         last->pf[0]->token = last->token;
         last->pf[0]->qf.clear()),
-    CODE("does", _does(c)),
+    CODE("does",
+        vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
+        int i = 0; int n = src.size();
+        while (i < n && src[i]->name != "does") i++;        // find the "does"
+        while (++i < n) dict[-1]->pf.push(src[i]);          // copy words after "does" to new the word
+        throw domain_error(string())),                      // break out of for { c->exec() } loop
     CODE("to",                                              // n -- , compile only
         Code *tgt = find(next_idiom());
         if (tgt) tgt->pf[0]->qf[0] = POP()),                // update constant

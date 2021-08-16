@@ -60,7 +60,7 @@ public:
 class ForthVM {
 public:
     istream          &cin;                  /// stream input
-    ostream          &cout;                 /// stream output
+	ostream          &cout;					/// stream output
 
     ForthList<int>   rs;                    /// return stack
     ForthList<int>   ss;                    /// parameter stack
