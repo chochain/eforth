@@ -3,6 +3,13 @@
 #include <sstream>
 #include <vector>           // vector
 #include <functional>       // function
+#include <exception>
+
+#ifdef WIN32
+#define ENDL "\r\n"
+#else
+#define ENDL endl
+#endif // WIN32
 
 using namespace std;
 
