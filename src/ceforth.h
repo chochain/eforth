@@ -40,11 +40,11 @@ public:
     ForthList<Code*> pf;
     ForthList<Code*> pf1;
     ForthList<Code*> pf2;
-    ForthList<float> qf;
+    ForthList<int>   qf;
 
     Code(string n, fop fn, bool im=false);  /// primitive
     Code(string n, bool f=false);           /// new colon word or temp
-    Code(Code *c,  float d);                /// dolit, dovar
+    Code(Code *c,  int d);                  /// dolit, dovar
     Code(Code *c,  string s=string());      /// dotstr
 
     Code* immediate();                      /// set immediate flag
@@ -59,16 +59,16 @@ public:
 ///
 class ForthVM {
 public:
-	istream    		 &cin;					/// stream input
-	ostream    		 &cout;					/// stream output
+    istream          &cin;                  /// stream input
+    ostream          &cout;                 /// stream output
 
-    ForthList<float> rs;                    /// return stack
-    ForthList<float> ss;                    /// parameter stack
+    ForthList<int>   rs;                    /// return stack
+    ForthList<int>   ss;                    /// parameter stack
     ForthList<Code*> dict;                  /// dictionary
 
     bool  compile = false;                  /// compiling flag
     int   base    = 10;                     /// numeric radix
-    float top     = -1;                     /// cached top of stack
+    int   top     = -1;                     /// cached top of stack
     int   WP      = 0;                      /// instruction and parameter pointers
 
     ForthVM(istream &in, ostream &out);
@@ -77,14 +77,14 @@ public:
     void outer();
     
 private:
-    float POP();
-    float PUSH(float v);
+    int POP();
+    int PUSH(int v);
     
     Code *find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
     void call(Code *c);                     /// execute a word
     
-    void dot_r(int n, float v);
+    void dot_r(int n, int v);
     void ss_dump();
     void words();
 };
