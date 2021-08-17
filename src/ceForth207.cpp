@@ -96,22 +96,22 @@ void ProcessCommand() {
     TCHAR* text = new TCHAR[len];
     GetWindowText(TextBox, &text[0], len);
     // prepare command for input in char[]
-    char* txt = (char*)malloc(len + 1);
+    char* cmd = (char*)malloc(len + 1);
     size_t xlen;
-    wcstombs_s(&xlen, txt, len, text, len);
-    printf("%s in %d bytes\n", txt, xlen);
+    wcstombs_s(&xlen, cmd, len, text, len);
+    printf("%s in %d bytes\n", cmd, xlen);
     // paste command into output panel
     SendMessage(TextField, EM_SETSEL, -1, -1);
     SendMessage(TextField, EM_REPLACESEL, 0, (LPARAM)text);
     // send command to ForthVM outer interpreter
-    istringstream cmd(txt);      // check if causes memory leak?
-    forth_in.swap(cmd);
+    forth_in.clear();
+    forth_in.str(cmd);
     forth_vm->outer();
     // process output (in string<char>)
     string out = forth_out.str();
     printf("%s\n", out.c_str());
     size_t wclen = out.size() + 1;
-    if (wclen > 0) {
+    if (wclen > 1) {
         TCHAR* result = new TCHAR[wclen];
         mbstowcs_s(&xlen, result, wclen, out.c_str(), wclen);
         // show it on output panel
@@ -121,7 +121,7 @@ void ProcessCommand() {
         delete[] result;
         forth_out.str("");
     }
-    free(txt);
+    free(cmd);
     delete[] text;
     SetWindowText(TextBox, _T(""));
 }
