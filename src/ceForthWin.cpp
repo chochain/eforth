@@ -5,15 +5,10 @@
 #endif
 #define OUT_ID    1001
 #define EDIT_ID   1002
-#define PRESS_ID  1003
-#define IDM_ABOUT        104
-#define IDR_ACCELERATOR1 129
 
-#include <tchar.h>
-#include <windows.h>
-#include <sstream>
-#include <cstdlib>
+#include "framework.h"
 #include "ceforth.h"
+#include "ceForthWin.h"
 //
 // ForthVM and IO streams
 std::istringstream forth_in;
@@ -46,7 +41,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmd
     hwnd = CreateWindowEx(
         0,                   /* Extended possibilites for variation */
         szClassName,         /* Classname */
-        _T("ceforth207"),    /* Title Text */
+        _T("ceForth v501"),  /* Title Text */
         WS_OVERLAPPEDWINDOW, /* default window */
         CW_USEDEFAULT,       /* Windows decides the position */
         CW_USEDEFAULT,       /* where the window ends up on the screen */
@@ -60,16 +55,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmd
     ShowWindow(hwnd, nCmdShow);
     TextField = CreateWindow(_T("EDIT"), _T(""),
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL | ES_MULTILINE,
-        0, 0, 580, 600,
+        0, 0, 580, 660,
         hwnd, (HMENU)OUT_ID, hInst, NULL);
     TextBox = CreateWindow(_T("EDIT"), _T("words"),
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_AUTOVSCROLL | ES_MULTILINE,
-        580, 0, 480, 600,
+        580, 0, 480, 660,
         hwnd, (HMENU)EDIT_ID, hInst, NULL);
-    SendButton = CreateWindow(_T("BUTTON"), _T("Send"),
-        WS_VISIBLE | WS_CHILD | WS_BORDER,
-        10, 608, 65, 28,
-        hwnd, (HMENU)PRESS_ID, hInst, NULL);
     // add Alt-Return
     Accel = LoadAccelerators(hInst, MAKEINTRESOURCE(IDR_ACCELERATOR1));
     // change to fixed font
@@ -99,7 +90,6 @@ void ProcessCommand() {
     char* cmd = (char*)malloc(len + 1);
     size_t xlen;
     wcstombs_s(&xlen, cmd, len, text, len);
-    printf("%s in %d bytes\n", cmd, xlen);
     // paste command into output panel
     SendMessage(TextField, EM_SETSEL, -1, -1);
     SendMessage(TextField, EM_REPLACESEL, 0, (LPARAM)text);
@@ -109,7 +99,6 @@ void ProcessCommand() {
     forth_vm->outer();
     // process output (in string<char>)
     string out = forth_out.str();
-    printf("%s\n", out.c_str());
     size_t wclen = out.size() + 1;
     if (wclen > 1) {
         TCHAR* result = new TCHAR[wclen];
@@ -130,9 +119,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)                  /* handle the messages */
     {
+    case WM_KEYDOWN:
+        if (wParam == VK_ESCAPE) {          // escape key
+            ProcessCommand();
+        }
+        break;
     case WM_COMMAND:
-        if ((LOWORD(wParam) == PRESS_ID) ||
-            (LOWORD(wParam) == IDM_ABOUT)) {  // Alt-Return
+        if (LOWORD(wParam) == IDM_ABOUT) {  // Alt-Return
             ProcessCommand();
         }
         break;
