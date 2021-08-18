@@ -280,7 +280,7 @@ void ForthVM::init() {
         vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
         int i = 0; int n = src.size();
         while (i < n && src[i]->name != "[to]") i++;        // find the "does"
-        src[i]->pf[0]->qf[0] = POP();),                     // change constant
+        src[++i]->pf[0]->qf[0] = POP()),                    // change the following constant
     CODE("to",                                              // n -- , compile only
         Code *tgt = find(next_idiom());
         if (tgt) tgt->pf[0]->qf[0] = POP()),                // update constant
