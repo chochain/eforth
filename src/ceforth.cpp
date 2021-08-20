@@ -48,7 +48,7 @@ inline int ForthVM::PUSH(int v) { ss.push(top); return top = v; }
 
 /// search dictionary reversely
 Code *ForthVM::find(string s) {
-        for (int i = dict.v.size() - 1; i >= 0; --i) {
+        for (int i = (int)dict.v.size() - 1; i >= 0; --i) {
         if (s == dict.v[i]->name) return dict.v[i];
     }
     return NULL;
@@ -272,13 +272,13 @@ void ForthVM::init() {
         last->pf[0]->qf.clear()),
     CODE("does",
         vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
-        int i = 0; int n = src.size();
+        int i = 0; int n = (int)src.size();
         while (i < n && src[i]->name != "does") i++;        // find the "does"
         while (++i < n) dict[-1]->pf.push(src[i]);          // copy words after "does" to new the word
         throw domain_error(string())),                      // break out of for { c->exec() } loop
     CODE("[to]",
         vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
-        int i = 0; int n = src.size();
+        int i = 0; int n = (int)src.size();
         while (i < n && src[i]->name != "[to]") i++;        // find the "does"
         src[++i]->pf[0]->qf[0] = POP()),                    // change the following constant
     CODE("to",                                              // n -- , compile only
@@ -338,7 +338,7 @@ void ForthVM::outer() {
     if (!compile) ss_dump();  /// * dump stack and display ok prompt
 }
 
-#ifndef WIN32
+#if !_WIN32 && !_WIN64
 #include <iostream>
 /// main program
 int main(int ac, char* av[]) {

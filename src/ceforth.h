@@ -5,11 +5,11 @@
 #include <functional>       // function
 #include <exception>
 
-#ifdef WIN32
+#if _WIN32 || _WIN64
 #define ENDL "\r\n"
 #else
 #define ENDL endl
-#endif // WIN32
+#endif // _WIN32 || _WIN64
 
 using namespace std;
 
@@ -82,7 +82,7 @@ public:
 
     void init();
     void outer();
-    
+
 private:
     int POP();
     int PUSH(int v);
