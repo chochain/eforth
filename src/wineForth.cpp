@@ -8,7 +8,7 @@
 
 #include "framework.h"
 #include "ceforth.h"
-#include "ceForthWin.h"
+#include "wineForth.h"
 //
 // ForthVM and IO streams
 std::istringstream forth_in;
@@ -16,15 +16,16 @@ std::ostringstream forth_out;
 ForthVM* forth_vm = new ForthVM(forth_in, forth_out);
 // Win32 variables
 LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
-TCHAR  szClassName[] = _T("ForthWindowsApp");
+TCHAR  szClassName[] = _T("wineForth - eForth for Windows");
 HWND   hwnd, TextBox, SendButton, TextField;
 HACCEL Accel;
-HFONT  Font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
+HFONT  Font = CreateFont(0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, _T("MingLiU"));
 // Win32 main
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmdShow)
 {
     MSG msg;                 /* Here messages to the application are saved */
     WNDCLASSEX wincl;        /* Data structure for the windowclass */
+    setlocale(LC_ALL, ".utf8");                // enable Chinese
     wincl.hInstance = hInst;
     wincl.lpszClassName = szClassName;
     wincl.lpfnWndProc = WindowProc;            /* This function is called by windows */
@@ -41,7 +42,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmd
     hwnd = CreateWindowEx(
         0,                   /* Extended possibilites for variation */
         szClassName,         /* Classname */
-        _T("ceForth v501"),  /* Title Text */
+        _T("wineForth v501"),/* Title Text */
         WS_OVERLAPPEDWINDOW, /* default window */
         CW_USEDEFAULT,       /* Windows decides the position */
         CW_USEDEFAULT,       /* where the window ends up on the screen */
@@ -76,28 +77,29 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmd
             DispatchMessage(&msg);
         }
     }
-    return msg.wParam;
+    return LOWORD(msg.wParam);
 }
 //
 // execute ForthVM outer interpreter
 //
 void ProcessCommand() {
-    // fetch input (wchar_t) string
+    // fetch utf-8 input into char[] buffer
     const int len = GetWindowTextLength(TextBox) + 1;
+    // allocate char memory and retrieve user input
     TCHAR* text = new TCHAR[len];
     GetWindowText(TextBox, &text[0], len);
-    // prepare command for input in char[]
-    char* cmd = (char*)malloc(len + 1);
+    char* cmd = (char*)malloc(len*4);
     size_t xlen;
-    wcstombs_s(&xlen, cmd, len, text, len);
+    wcstombs_s(&xlen, cmd, len*4, text, len*4);
     // paste command into output panel
     SendMessage(TextField, EM_SETSEL, -1, -1);
     SendMessage(TextField, EM_REPLACESEL, 0, (LPARAM)text);
-    // send command to ForthVM outer interpreter
+    // reset input stream of ForthVM with new command line
     forth_in.clear();
     forth_in.str(cmd);
+    // kick off outer interpreter
     forth_vm->outer();
-    // process output (in string<char>)
+    // fetch output stream from ForthVM (in string<char>)
     string out = forth_out.str();
     size_t wclen = out.size() + 1;
     if (wclen > 1) {
@@ -106,10 +108,10 @@ void ProcessCommand() {
         // show it on output panel
         SendMessage(TextField, EM_SETSEL, -1, -1);
         SendMessage(TextField, EM_REPLACESEL, 0, (LPARAM)result);
-        // clean up memory blocks allocated
         delete[] result;
         forth_out.str("");
     }
+    // free allocated memory
     free(cmd);
     delete[] text;
     SetWindowText(TextBox, _T(""));
