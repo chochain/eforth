@@ -83,8 +83,8 @@ void ForthVM::call(Code *w) {
 ///
 /// macros to reduce verbosity (but harder to single-step debug)
 ///
-#define CODE(s, g) new Code(string(s), [&](Code *c){ g; })
-#define IMMD(s, g) new Code(string(s), [&](Code *c){ g; }, true)
+#define CODE(s, g) new Code(string(s), [this](Code *c){ g; })
+#define IMMD(s, g) new Code(string(s), [this](Code *c){ g; }, true)
 #define ALU(a, OP, b)  (static_cast<int>(a) OP static_cast<int>(b))
 #define BOOL(f) ((f) ? -1 : 0)
 ///
@@ -291,6 +291,7 @@ void ForthVM::init() {
             tgt->pf.merge(dict[POP()]->pf.v);
         }),
     // tools
+    CODE("bye",   exit(0)),
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
