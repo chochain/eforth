@@ -32,8 +32,16 @@ struct ForthList {          /// vector helper template class
 };
 
 class Code;                                 /// forward declaration
-using fop = function<void(Code*)>;          /// Forth operator
-
+struct xtbase {                             /// alternate solution for function
+	virtual void operator()(Code*) = 0;
+};
+template<typename F>
+struct XT :xtbase {
+	F fp;
+	XT(F &f) : fp(f) {}
+	virtual void operator()(Code *c) { fp(c); }
+};
+//using fop = function<void(Code*)>;        /// Forth operator
 class Code {
 public:
     static int fence;                       /// token incremental counter
@@ -41,7 +49,8 @@ public:
     int    token = 0;                       /// dictionary order token
     bool   immd  = false;                   /// immediate flag
     int    stage = 0;                       /// branching stage
-    fop    xt    = NULL;                    /// primitive function
+    xtbase *xt   = NULL;                    /// primitive function
+    //fop  xt    = NULL;
     string literal;                         /// string literal
 
     ForthList<Code*> pf;
@@ -49,13 +58,15 @@ public:
     ForthList<Code*> pf2;
     ForthList<int>   qf;
 
-    Code(string n, fop fn, bool im=false);  /// primitive
+    template<typename F>
+    Code(string n, F fn, bool im=false);	/// primitive
+    //Code(string n, fop fn, bool im=false);  /// primitive
     Code(string n, bool f=false);           /// new colon word or temp
     Code(Code *c,  int d);                  /// dolit, dovar
     Code(Code *c,  string s=string());      /// dotstr
 
-    Code* immediate();                      /// set immediate flag
-    Code* addcode(Code* w);                 /// append colon word
+    Code *immediate();                      /// set immediate flag
+    Code *addcode(Code *w);                 /// append colon word
 
     string to_s();                          /// debugging
     string see(int dp);

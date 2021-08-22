@@ -5,8 +5,9 @@ int Code::fence = 0;
 ///
 /// Code class constructors
 ///
-Code::Code(string n, fop fn, bool im) {
-    name = n; token = fence++; xt = fn; immd = im;
+template<typename F>
+Code::Code(string n, F fn, bool im) {
+	name = n; token = fence++; immd = im; xt = new XT<F>(fn);
 }
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
 Code::Code(Code *c, int v)     { name = c->name; xt = c->xt; qf.push(v); }
@@ -31,7 +32,7 @@ string Code::see(int dp) {
     return cout.str();
 }
 void  Code::exec() {
-    if (xt) xt(this);                           /// * execute primitive word
+    if (xt) (*xt)(this);                        /// * execute primitive word
     else {
         for (Code* w : pf.v) w->exec();         /// * or, run inner interpreter
     }
@@ -91,6 +92,8 @@ void ForthVM::call(Code *w) {
 /// dictionary initializer
 ///
 void ForthVM::init() {
+	auto f = [this](Code *c) { PUSH(top); };
+
     static vector<Code*> prim = {                       /// singleton, build once only
     // stack op
     CODE("dup",  PUSH(top)),
