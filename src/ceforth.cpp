@@ -5,10 +5,15 @@ int Code::fence = 0;
 ///
 /// Code class constructors
 ///
-template<typename F>
+#if NO_FUNCTION
 Code::Code(string n, F fn, bool im) {
 	name = n; token = fence++; immd = im; xt = new XT<F>(fn);
 }
+#else
+Code::Code(string n, fop fn, bool im) {
+	name = n; token = fence++; immd = im; xt = fn;
+}
+#endif // NO_FUNCTION
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
 Code::Code(Code *c, int v)     { name = c->name; xt = c->xt; qf.push(v); }
 Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s!=string()) literal = s;  }
@@ -32,7 +37,11 @@ string Code::see(int dp) {
     return cout.str();
 }
 void  Code::exec() {
+#if NO_FUNCTION
     if (xt) (*xt)(this);                        /// * execute primitive word
+#else
+    if (xt) xt(this);
+#endif // NO_FUNCTION
     else {
         for (Code* w : pf.v) w->exec();         /// * or, run inner interpreter
     }

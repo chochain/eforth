@@ -32,16 +32,20 @@ struct ForthList {          /// vector helper template class
 };
 
 class Code;                                 /// forward declaration
-struct xtbase {                             /// alternate solution for function
+#if NO_FUNCTION
+struct fop {                                /// alternate solution for function
 	virtual void operator()(Code*) = 0;
 };
 template<typename F>
-struct XT :xtbase {
+struct XT : fop {
 	F fp;
 	XT(F &f) : fp(f) {}
 	virtual void operator()(Code *c) { fp(c); }
 };
-//using fop = function<void(Code*)>;        /// Forth operator
+#else
+using fop = function<void(Code*)>;         /// Forth operator
+#endif // NO_FUNCTION
+
 class Code {
 public:
     static int fence;                       /// token incremental counter
@@ -49,8 +53,11 @@ public:
     int    token = 0;                       /// dictionary order token
     bool   immd  = false;                   /// immediate flag
     int    stage = 0;                       /// branching stage
-    xtbase *xt   = NULL;                    /// primitive function
-    //fop  xt    = NULL;
+#if NO_FUNCTION
+    fop    *xt   = NULL;
+#else
+    fop    xt    = NULL;                    /// primitive function
+#endif // NO_FUNCTION
     string literal;                         /// string literal
 
     ForthList<Code*> pf;
@@ -58,9 +65,12 @@ public:
     ForthList<Code*> pf2;
     ForthList<int>   qf;
 
+#if NO_FUNCTION
     template<typename F>
     Code(string n, F fn, bool im=false);	/// primitive
-    //Code(string n, fop fn, bool im=false);  /// primitive
+#else
+    Code(string n, fop fn, bool im=false);  /// primitive
+#endif // NO_FUNCTION
     Code(string n, bool f=false);           /// new colon word or temp
     Code(Code *c,  int d);                  /// dolit, dovar
     Code(Code *c,  string s=string());      /// dotstr
