@@ -103,29 +103,26 @@ void ForthVM::call(Code *w) {
 ///
 void ForthVM::init() {
     static vector<Code*> prim = {                       /// singleton, build once onl    ///
-    /// @defgroup Stack op
+    /// @defgroup Stack ops
     /// @{
     CODE("dup",  PUSH(top)),
+    CODE("drop", top = ss.pop()),
     CODE("over", PUSH(ss[-1])),
-    CODE("2dup", PUSH(ss[-1]); PUSH(ss[-1])),
-    CODE("2over",PUSH(ss[-3]); PUSH(ss[-3])),
-    CODE("4dup", PUSH(ss[-3]); PUSH(ss[-3]); PUSH(ss[-3]); PUSH(ss[-3])),
     CODE("swap", int n = ss.pop(); PUSH(n)),
     CODE("rot",  int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(n); PUSH(m)),
-    CODE("2swap",
-        int n = ss.pop(); int m = ss.pop(); int l = ss.pop();
-        ss.push(n); PUSH(l); PUSH(m)),
     CODE("pick", int i = top; top = ss[-i]),
-    //    CODE("roll", int i = top; top = ss[-i]),
-    CODE("drop", top = ss.pop()),
-    CODE("nip",  ss.pop()),
-    CODE("2drop",ss.pop(); top = ss.pop()),
     CODE(">r",   rs.push(POP())),
     CODE("r>",   PUSH(rs.pop())),
     CODE("r@",   PUSH(rs[-1])),
-    CODE("push", rs.push(POP())),
-    CODE("pop",  PUSH(rs.pop())),
+    /// @}
+    /// @defgroup Stack ops - double
+    /// @{
+    CODE("2dup", PUSH(ss[-1]); PUSH(ss[-1])),
+    CODE("2drop",ss.pop(); top = ss.pop()),
+    CODE("2over",PUSH(ss[-3]); PUSH(ss[-3])),
+    CODE("2swap",
+        int n = ss.pop(); int m = ss.pop(); int l = ss.pop();
+        ss.push(n); PUSH(l); PUSH(m)),
     /// @}
     /// @defgroup ALU ops
     /// @{
