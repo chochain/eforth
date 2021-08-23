@@ -38,18 +38,18 @@ string Code::see(int dp) {
 }
 void  Code::exec() {
 #if NO_FUNCTION
-    if (xt) (*xt)(this);                        /// * execute primitive word
+    if (xt) (*xt)(this);                             /// * execute primitive word
 #else
     if (xt) xt(this);
 #endif // NO_FUNCTION
     else {
-        for (Code* w : pf.v) w->exec();         /// * or, run inner interpreter
+        for (Code* w : pf.v) { yield(); w->exec(); } /// * or, run inner interpreter
     }
 }
 ///
 /// ForthVM class constructor
 ///
-ForthVM::ForthVM(istream& in, ostream& out) : cin(in), cout(out) {}
+ForthVM::ForthVM(istream &in, ostream &out) : cin(in), cout(out) {}
 ///
 /// dictionary and input stream search functions
 ///
@@ -76,7 +76,7 @@ void ForthVM::ss_dump() {
 void ForthVM::words() {
     int i = 0;
     for (Code* w : dict.v) {
-        if ((i++ % 8) == 0) cout << ENDL;
+        if ((i++ % 10) == 0) { cout << ENDL; yield(); }
         cout << w->to_s() << " ";
     }
 }
@@ -86,9 +86,10 @@ void ForthVM::call(Code *w) {
     try { w->exec(); }                                  /// * run inner interpreter recursively
     catch (exception& e) {
         string msg = e.what();                          /// * capture exception message
-        if (msg!=string()) cout << msg << ENDL;
+        if (msg != string()) cout << msg << ENDL;
     }
     WP = tmp;                                           /// * restore call frame
+    yield();
 }
 ///
 /// macros to reduce verbosity (but harder to single-step debug)
@@ -101,10 +102,9 @@ void ForthVM::call(Code *w) {
 /// dictionary initializer
 ///
 void ForthVM::init() {
-	auto f = [this](Code *c) { PUSH(top); };
-
-    static vector<Code*> prim = {                       /// singleton, build once only
-    // stack op
+    static vector<Code*> prim = {                       /// singleton, build once onl    ///
+    /// @defgroup Stack op
+    /// @{
     CODE("dup",  PUSH(top)),
     CODE("over", PUSH(ss[-1])),
     CODE("2dup", PUSH(ss[-1]); PUSH(ss[-1])),
@@ -126,11 +126,13 @@ void ForthVM::init() {
     CODE("r@",   PUSH(rs[-1])),
     CODE("push", rs.push(POP())),
     CODE("pop",  PUSH(rs.pop())),
-    // ALU ops
-    CODE("+",    top = ALU(ss.pop(), +, top)),
-    CODE("-",    top = ALU(ss.pop(), -, top)),
-    CODE("*",    top = ALU(ss.pop(), *, top)),
-    CODE("/",    top = ALU(ss.pop(), /, top)),
+    /// @}
+    /// @defgroup ALU ops
+    /// @{
+    CODE("+",    top += ss.pop()),
+    CODE("-",    top =  ss.pop() - top),
+    CODE("*",    top *= ss.pop()),
+    CODE("/",    top =  ss.pop() / top),
     CODE("mod",  top = ALU(ss.pop(), %, top)),
     CODE("*/",   top = ss.pop() * ss.pop() / top),
     CODE("*/mod",
@@ -142,7 +144,9 @@ void ForthVM::init() {
     CODE("xor",  top = ALU(ss.pop(), ^, top)),
     CODE("negate", top = -top),
     CODE("abs",  top = abs(top)),
-    // logic ops
+    /// @}
+    /// @defgroup Logic ops
+    /// @{
     CODE("0= ",  top = BOOL(top == 0)),
     CODE("0<",   top = BOOL(top <  0)),
     CODE("0>",   top = BOOL(top >  0)),
@@ -152,7 +156,9 @@ void ForthVM::init() {
     CODE("<>",   top = BOOL(ss.pop() != top)),
     CODE(">=",   top = BOOL(ss.pop() >= top)),
     CODE("<=",   top = BOOL(ss.pop() <= top)),
-    // output
+    /// @}
+    /// @defgroup IO ops
+    /// @{
     CODE("base@",   PUSH(base)),
     CODE("base!",   cout << setbase(base = POP())),
     CODE("hex",     cout << setbase(base = 16)),
@@ -166,7 +172,9 @@ void ForthVM::init() {
     CODE("emit",    char b = (char)POP(); cout << b),
     CODE("space",   cout << " "),
     CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) cout << " "),
-    // literals
+    /// @}
+    /// @defgroup Literal ops
+    /// @{
     CODE("dotstr",  cout << c->literal),
     CODE("dolit",   PUSH(c->qf[0])),
     CODE("dovar",   PUSH(c->token)),
@@ -181,7 +189,10 @@ void ForthVM::init() {
     IMMD(".\"",
         string s = next_idiom('"').substr(1);
         dict[-1]->addcode(new Code(find("dotstr"), s))),
-    // branching - if...then, if...else...then
+    /// @}
+    /// @defgroup Branching ops
+    /// @brief - if...then, if...else...then
+    /// @{
     IMMD("bran",
         bool f = POP() != 0;                        // check flag
         for (Code* w : (f ? c->pf.v : c->pf1.v)) call(w)),
@@ -204,7 +215,10 @@ void ForthVM::init() {
              if (last->stage == 1) dict.pop();
              else temp->pf.clear();
         }),
-    // loops - begin...again, begin...f until, begin...f while...repeat
+    /// @}
+    /// @defgroup Loops
+    /// @brief  - begin...again, begin...f until, begin...f while...repeat
+    /// @{
     CODE("loop",
         while (true) {
             for (Code* w : c->pf.v) call(w);                       // begin...
@@ -231,7 +245,10 @@ void ForthVM::init() {
     IMMD("until",
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
         last->pf.merge(temp->pf.v); dict.pop()),
-    // loops - for...next, for...aft...then...next
+    /// @}
+    /// @defgrouop For loops
+    /// @brief  - for...next, for...aft...then...next
+    /// @{
     CODE("cycle",
         do { for (Code* w : c->pf.v) call(w); }
         while (c->stage == 0 && rs.dec_i() >= 0);    // for...next only
@@ -253,8 +270,10 @@ void ForthVM::init() {
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
         if (last->stage == 0) last->pf.merge(temp->pf.v);
         else last->pf2.merge(temp->pf.v); dict.pop()),
-    // compiler
-    CODE("exit", throw domain_error(string())),
+    /// @}
+    /// @defgrouop Compiler ops
+    /// @{
+    CODE("exit", int x = top; throw domain_error(string())),   // need x=top, Arduino bug
     CODE("exec", int n = top; call(dict[n])),
     CODE(":",
         dict.push(new Code(next_idiom(), true));    // create new word
@@ -277,6 +296,9 @@ void ForthVM::init() {
     CODE("allot",                                           // n --
         for (int n = POP(), i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(0)),
     CODE(",",      dict[-1]->pf[0]->qf.push(POP())),
+    /// @}
+    /// @defgroup metacompiler
+    /// @{
     CODE("create",
         dict.push(new Code(next_idiom(), true));            // create a new word
         Code *last = dict[-1]->addcode(new Code(find("dovar"), 0));
@@ -288,11 +310,6 @@ void ForthVM::init() {
         while (i < n && src[i]->name != "does") i++;        // find the "does"
         while (++i < n) dict[-1]->pf.push(src[i]);          // copy words after "does" to new the word
         throw domain_error(string())),                      // break out of for { c->exec() } loop
-    CODE("[to]",
-        vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
-        int i = 0; int n = (int)src.size();
-        while (i < n && src[i]->name != "[to]") i++;        // find the "does"
-        src[++i]->pf[0]->qf[0] = POP()),                    // change the following constant
     CODE("to",                                              // n -- , compile only
         Code *tgt = find(next_idiom());
         if (tgt) tgt->pf[0]->qf[0] = POP()),                // update constant
@@ -302,7 +319,14 @@ void ForthVM::init() {
             tgt->pf.clear();
             tgt->pf.merge(dict[POP()]->pf.v);
         }),
-    // tools
+    CODE("[to]",
+        vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
+        int i = 0; int n = (int)src.size();
+        while (i < n && src[i]->name != "[to]") i++;        // find the "does"
+        src[++i]->pf[0]->qf[0] = POP()),                    // change the following constant
+    /// @}
+    /// @defgroup Debug ops
+    /// @{
     CODE("bye",   exit(0)),
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
@@ -315,9 +339,26 @@ void ForthVM::init() {
         Code *w = find(next_idiom());
          if (w == NULL) return;
          dict.erase(Code::fence=max(w->token, find("boot")->token + 1))),
+    CODE("clock", PUSH(millis())),
+    CODE("delay", delay(POP())),
     CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
+    /// @}
     };
-    dict.merge(prim);                                   /// * populate dictionary
+    dict.merge(prim);                                    /// * populate dictionary
+    
+#if ARDUINO
+    static vector<Code*> mcu = {                         /// singleton, build once only
+    /// @defgroup Arduino specific ops
+    /// @{
+    CODE("in",    PUSH(digitalRead(POP()))),
+    CODE("ain",   PUSH(analogRead(POP()))),
+    CODE("out",   int p = POP(); digitalWrite(p, POP())),
+    CODE("pwm",   int p = POP(); analogWrite(p, POP())),
+    CODE("pin",   int p = POP(); pinMode(p, POP()))
+    /// @}
+    };
+    dict.merge(mcu);
+#endif // ARDUINO
 }
 ///
 /// ForthVM Outer interpreter
@@ -325,33 +366,37 @@ void ForthVM::init() {
 void ForthVM::outer() {
     string idiom;
     while (cin >> idiom) {
+        //Serial.print(idiom.c_str()); Serial.print("=>");
     	//printf("%s=>", idiom.c_str());
         Code *w = find(idiom);                          /// * search through dictionary
         if (w) {                                        /// * word found?
+            //Serial.println(w->to_s().c_str());
             //printf("%s\n", w->to_s().c_str());
             if (compile && !w->immd)                    /// * in compile mode?
                 dict[-1]->addcode(w);                   /// * add to colon word
             else call(w);                               /// * execute forth word
+            continue;
         }
-        else {                                          /// * treat as a numeric?
-        	char *p;
-        	int n = (int)strtol(idiom.c_str(), &p, base);
-    		//printf("%d\n", n);
-        	if (*p != '\0') {                           /// * not number
-                cout << idiom << "? " << ENDL;          ///> display error prompt
-                compile = false;                        ///> reset to interpreter mode
-                ss.clear(); top=-1;                     ///> clear stack
-                getline(cin, idiom, '\n');              ///> skip the entire line
-        	}
-        	else if (compile)                           /// * a number in compile mode?
-        		dict[-1]->addcode(new Code(find("dolit"), n)); ///> add to current word
-            else PUSH(n);                           	///> or, add value onto data stack
+        // try as a number
+        char *p;
+        int n = (int)strtol(idiom.c_str(), &p, base);
+        //Serial.println(n, base);
+        //printf("%d\n", n);
+        if (*p != '\0') {                           /// * not number
+            cout << idiom << "? " << ENDL;          ///> display error prompt
+            compile = false;                        ///> reset to interpreter mode
+            getline(cin, idiom, '\n');              ///> skip the entire line
+            continue;
         }
+        // is a number
+        if (compile)                           /// * a number in compile mode?
+            dict[-1]->addcode(new Code(find("dolit"), n)); ///> add to current word
+        else PUSH(n);                           	///> or, add value onto data stack
     }
     if (!compile) ss_dump();  /// * dump stack and display ok prompt
 }
 
-#if !_WIN32 && !_WIN64
+#if !_WIN32 && !_WIN64 && !ARDUINO
 #include <iostream>
 /// main program
 int main(int ac, char* av[]) {
@@ -374,4 +419,4 @@ int main(int ac, char* av[]) {
     cout << "done!" << ENDL;
     return 0;
 }
-#endif // WIN32
+#endif // !_WIN32 && !_WIN64 && !ARDUINO

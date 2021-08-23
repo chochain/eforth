@@ -11,6 +11,18 @@
 #define ENDL endl
 #endif // _WIN32 || _WIN64
 
+#if ARDUINO
+#include <Arduino.h>
+#define to_string(i)    string(String(i).c_str())
+#else
+#include <chrono>
+#include <thread>
+#define millis()        chrono::duration_cast<chrono::milliseconds>( \
+							chrono::steady_clock::now().time_since_epoch()).count()
+#define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
+#define yield()         this_thread::yield()
+#endif // ARDUINO
+
 using namespace std;
 
 template<class T>
