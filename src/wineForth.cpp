@@ -1,6 +1,6 @@
 #include "framework.h"
 #include "resource.h"
-#include "ceforth.h"
+#include "src/ceforth.h"
 
 #define OUT_ID    1001
 #define EDIT_ID   1002
@@ -66,7 +66,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmd
 
     // change to fixed font
     SendMessage(hTextField, WM_SETFONT, WPARAM(hFont), TRUE);
-    SendMessage(hTextBox, WM_SETFONT, WPARAM(hhFont), TRUE);
+    SendMessage(hTextBox, WM_SETFONT, WPARAM(hFont), TRUE);
 
     // intialize ForthVM
     forth_vm->init();
