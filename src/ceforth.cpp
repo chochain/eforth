@@ -16,7 +16,7 @@ Code::Code(string n, fop fn, bool im) {
 #endif // NO_FUNCTION
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
 Code::Code(Code *c, int v)     { name = c->name; xt = c->xt; qf.push(v); }
-Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s!=string()) literal = s;  }
+Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s != string()) literal = s;  }
 
 Code* Code::immediate()        { immd = true;  return this; }
 Code* Code::addcode(Code* w)   { pf.push(w);   return this; }
@@ -30,9 +30,9 @@ string Code::see(int dp) {
     };
     auto see_qf = [&cout](vector<int> v) { cout << " = "; for (int i : v) cout << i << " "; };
     see_pf(dp, "[ " + to_s(), pf.v);
-    if (pf1.v.size() > 0) see_pf(dp, "1--", pf1.v);
-    if (pf2.v.size() > 0) see_pf(dp, "2--", pf2.v);
-    if (qf.v.size()  > 0) see_qf(qf.v);
+    if (pf1.size() > 0) see_pf(dp, "1--", pf1.v);
+    if (pf2.size() > 0) see_pf(dp, "2--", pf2.v);
+    if (qf.size()  > 0) see_qf(qf.v);
     cout << "]";
     return cout.str();
 }
@@ -58,7 +58,7 @@ inline int ForthVM::PUSH(int v) { ss.push(top); return top = v; }
 
 /// search dictionary reversely
 Code *ForthVM::find(string s) {
-        for (int i = (int)dict.v.size() - 1; i >= 0; --i) {
+    for (int i = (int)dict.size() - 1; i >= 0; --i) {
         if (s == dict.v[i]->name) return dict.v[i];
     }
     return NULL;
@@ -102,7 +102,8 @@ void ForthVM::call(Code *w) {
 /// dictionary initializer
 ///
 void ForthVM::init() {
-    static vector<Code*> prim = {                       /// singleton, build once onl    ///
+    const static vector<Code*> prim = {                /// singleton, built at compile time
+    ///
     /// @defgroup Stack ops
     /// @{
     CODE("dup",  PUSH(top)),
@@ -198,17 +199,17 @@ void ForthVM::init() {
         dict.push(new Code("temp"))),               // use last cell of dictionay as scratch pad
     IMMD("else",
         Code *temp = dict[-1]; Code *last = dict[-2]->pf[-1];
-        last->pf.merge(temp->pf.v);
+        last->pf.merge(temp->pf);
         temp->pf.clear();
         last->stage = 1),
     IMMD("then",
         Code *temp = dict[-1]; Code *last = dict[-2]->pf[-1];
         if (last->stage == 0) {                     // if...then
-            last->pf.merge(temp->pf.v);
+            last->pf.merge(temp->pf);
             dict.pop();
         }
         else {                                      // if...else...then, or
-             last->pf1.merge(temp->pf.v);           // for...aft...then...next
+             last->pf1.merge(temp->pf);             // for...aft...then...next
              if (last->stage == 1) dict.pop();
              else temp->pf.clear();
         }),
@@ -230,18 +231,18 @@ void ForthVM::init() {
         dict.push(new Code("temp"))),
     IMMD("while",
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
-        last->pf.merge(temp->pf.v);
+        last->pf.merge(temp->pf);
         temp->pf.clear(); last->stage = 2),
     IMMD("repeat",
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
-        last->pf1.merge(temp->pf.v); dict.pop()),
+        last->pf1.merge(temp->pf); dict.pop()),
     IMMD("again",
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
-        last->pf.merge(temp->pf.v);
+        last->pf.merge(temp->pf);
         last->stage = 1; dict.pop()),
     IMMD("until",
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
-        last->pf.merge(temp->pf.v); dict.pop()),
+        last->pf.merge(temp->pf); dict.pop()),
     /// @}
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
@@ -261,12 +262,12 @@ void ForthVM::init() {
         dict.push(new Code("temp"))),
     IMMD("aft",
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
-        last->pf.merge(temp->pf.v);
+        last->pf.merge(temp->pf);
         temp->pf.clear(); last->stage = 3),
     IMMD("next",
         Code *last = dict[-2]->pf[-1]; Code *temp = dict[-1];
-        if (last->stage == 0) last->pf.merge(temp->pf.v);
-        else last->pf2.merge(temp->pf.v); dict.pop()),
+        if (last->stage == 0) last->pf.merge(temp->pf);
+        else last->pf2.merge(temp->pf); dict.pop()),
     /// @}
     /// @defgrouop Compiler ops
     /// @{
@@ -314,7 +315,7 @@ void ForthVM::init() {
         Code *tgt = find(next_idiom());
         if (tgt) {
             tgt->pf.clear();
-            tgt->pf.merge(dict[POP()]->pf.v);
+            tgt->pf.merge(dict[POP()]->pf);
         }),
     CODE("[to]",
         vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
@@ -338,13 +339,8 @@ void ForthVM::init() {
          dict.erase(Code::fence=max(w->token, find("boot")->token + 1))),
     CODE("clock", PUSH(millis())),
     CODE("delay", delay(POP())),
-    CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
-    /// @}
-    };
-    dict.merge(prim);                                    /// * populate dictionary
-    
 #if ARDUINO
-    static vector<Code*> mcu = {                         /// singleton, build once only
+    /// @}
     /// @defgroup Arduino specific ops
     /// @{
     CODE("in",    PUSH(digitalRead(POP()))),
@@ -352,10 +348,11 @@ void ForthVM::init() {
     CODE("out",   int p = POP(); digitalWrite(p, POP())),
     CODE("pwm",   int p = POP(); analogWrite(p, POP())),
     CODE("pin",   int p = POP(); pinMode(p, POP()))
+#endif // ARDUINO
+    CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     /// @}
     };
-    dict.merge(mcu);
-#endif // ARDUINO
+    dict.v = prim;                                       /// * populate dictionary
 }
 ///
 /// ForthVM Outer interpreter

@@ -37,13 +37,14 @@ struct ForthList {          /// vector helper template class
         if (v.empty()) throw underflow_error("ERR: stack empty");
         T t = v.back(); v.pop_back(); return t;
     }
+    int  size()               { (int)v.size();  }
     void push(T t)            { v.push_back(t); }
     void clear()              { v.clear(); }
-    void merge(vector<T>& v2) { v.insert(v.end(), v2.begin(), v2.end()); }
+    void merge(ForthList& a)  { v.insert(v.end(), a.v.begin(), a.v.end()); }
     void erase(int i)         { v.erase(v.begin() + i, v.end()); }
 };
 
-class Code;                                 /// forward declaration
+class Code;
 #if NO_FUNCTION
 struct fop {                                /// alternate solution for function
 	virtual void operator()(Code*) = 0;
