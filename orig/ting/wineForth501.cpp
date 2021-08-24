@@ -18,6 +18,7 @@ struct ForthList {          /// vector helper template class
     T pop()   {
         if (v.empty()) throw underflow_error("ERR: stack empty");
         T t = v.back(); v.pop_back(); return t; }
+	int  size()               { return (int)v.size(); }
     void push(T t)            { v.push_back(t); }
     void clear()              { v.clear(); }
     void merge(vector<T>& v2) { v.insert(v.end(), v2.begin(), v2.end()); }
@@ -27,7 +28,7 @@ class Code;                                 /// forward declaration
 using fop = function<void(Code*)>;          /// Forth operator
 class Code {
 public:
-    static int fence;                       /// token incremental counter
+    static int fence, IP;                   /// token incremental counter
     string name;                            /// name of word
     int    token = 0;                       /// dictionary order token
     bool   immd  = false;                   /// immediate flag
@@ -52,16 +53,21 @@ public:
 			for (Code* w: v) cout << w->see(dp + 1); };
 		auto see_qf = [&cout](vector<int> v) { cout << " = "; for (int i : v) cout << i << " "; };
 		see_pf(dp, "[ " + to_s(), pf.v);
-		if (pf1.v.size() > 0) see_pf(dp, "1--", pf1.v);
-		if (pf2.v.size() > 0) see_pf(dp, "2--", pf2.v);
-		if (qf.v.size()  > 0) see_qf(qf.v);
+		if (pf1.size() > 0) see_pf(dp, "1--", pf1.v);
+		if (pf2.size() > 0) see_pf(dp, "2--", pf2.v);
+		if (qf.size()  > 0) see_qf(qf.v);
 		cout << "]";
 		return cout.str(); }
-    void exec() {
+    void nest() {
 		if (xt) xt(this);
-		else { for (Code* w : pf.v) w->exec(); }}
+		else {
+			int tmp = IP; IP = 0;
+			while (IP < pf.size()) { pf[IP]->nest(); IP++; }
+			IP = tmp;
+		}
+	}
 };
-int Code::fence = 0;
+int Code::fence = 0, Code::IP = 0;
 #define CODE(s, g) new Code(string(s), [&](Code *c){ g; })
 #define IMMD(s, g) new Code(string(s), [&](Code *c){ g; }, true)
 #define ALU(a, OP, b)  (static_cast<int>(a) OP static_cast<int>(b))
@@ -75,11 +81,11 @@ class ForthVM {
     bool compile = false;                   /// compiling flag
     int  base    = 10;                      /// numeric radix
     int  top     = -1;                      /// cached top of stack
-    int  WP      = 0;                       /// instruction and parameter pointers
+    int  WP      = 0, IP=0 ;                       /// instruction and parameter pointers
 	inline int POP()       { int n = top; top = ss.pop(); return n; }
 	inline int PUSH(int v) { ss.push(top); return top = v; }
 	Code *find(string s) {
-        for (int i = (int)dict.v.size() - 1; i >= 0; --i) {
+        for (int i = (int)dict.size() - 1; i >= 0; --i) {
 			if (s == dict.v[i]->name) return dict.v[i]; }
 		return NULL; }
 	string next_idiom(char delim=0) {
@@ -93,14 +99,16 @@ class ForthVM {
 		for (Code* w : dict.v) {
 			if ((i++ % 8) == 0) cout << ENDL;
 			cout << w->to_s() << " "; }}
-	void call(Code *w) {
-		int tmp = WP;                                       /// * setup call frame
+	void call(Code* w) {
+		rs.push(WP);				          /// * setup call frame
 		WP = w->token;
-		try { w->exec(); }                                  /// * run inner interpreter recursively
+		try { w->nest(); }		              /// * run inner interpreter recursively
 		catch (exception& e) {
-			string msg = e.what();                          /// * capture exception message
-			if (msg!=string()) cout << msg << ENDL; }
-		WP = tmp; }                                         /// * restore call frame
+			string msg = e.what();            /// * capture exception message
+			if (msg != string()) cout << msg << ENDL;
+		}
+		WP = rs.pop();
+	}                                         /// * restore call frame
 public:
     ForthVM(istream& in, ostream& out) : cin(in), cout(out) {}
 	void init() {
@@ -125,8 +133,6 @@ public:
 			CODE(">r",   rs.push(POP())),
 			CODE("r>",   PUSH(rs.pop())),
 			CODE("r@",   PUSH(rs[-1])),
-			CODE("push", rs.push(POP())),
-			CODE("pop",  PUSH(rs.pop())),
 			// ALU ops
 			CODE("+",    top = ALU(ss.pop(), +, top)),
 			CODE("-",    top = ALU(ss.pop(), -, top)),
@@ -290,9 +296,7 @@ public:
 				 throw domain_error(string())),                      // break out of for { c->exec() } loop
 			CODE("[to]",
 				 vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
-				 int i = 0; int n = (int)src.size();
-				 while (i < n && src[i]->name != "[to]") i++;        // find the "does"
-				 src[++i]->pf[0]->qf[0] = POP()),                    // change the following constant
+				 src[++Code::IP]->pf[0]->qf[0] = POP()),             // change the following constant
 			CODE("to",                                               // n -- , compile only
 				 Code *tgt = find(next_idiom());
 				 if (tgt) tgt->pf[0]->qf[0] = POP()),                // update constant
@@ -345,7 +349,7 @@ std::ostringstream forth_out;
 ForthVM* forth_vm = new ForthVM(forth_in, forth_out);
 LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
 TCHAR  szClassName[] = _T("wineForth - eForth for Windows");
-HWND   hwnd, TextBox, SendButton, TextField;
+HWND   hwnd, TextBox, TextField;
 HACCEL Accel;
 HFONT  Font = CreateFont(0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, _T("MingLiU"));
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmdShow) {
@@ -370,10 +374,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszArg, int nCmd
         szClassName,         /* Classname */
         _T("wineForth v501"),/* Title Text */
         WS_OVERLAPPEDWINDOW, /* default window */
-        CW_USEDEFAULT,       /* Windows decides the position */
-        CW_USEDEFAULT,       /* where the window ends up on the screen */
-        1080,                /* The programs width */
-        680,                 /* and height in pixels */
+        0, 0, 1080, 680,	 /* Put it at upper left corner */
         HWND_DESKTOP,        /* The window is a child-window to desktop */
         NULL,                /* No menu */
         hInst,               /* Program Instance handler */
