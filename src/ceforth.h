@@ -25,6 +25,9 @@
 
 using namespace std;
 
+typedef float DTYPE;
+#define DVAL  0.0f
+
 template<class T>
 struct ForthList {          /// vector helper template class
     vector<T> v;            /// use proxy pattern
@@ -61,7 +64,7 @@ using fop = function<void(Code*)>;         /// Forth operator
 
 class Code {
 public:
-    static int fence;                       /// token incremental counter
+    static int fence, IP;                   /// token incremental counter
     string name;                            /// name of word
     int    token = 0;                       /// dictionary order token
     bool   immd  = false;                   /// immediate flag
@@ -76,7 +79,7 @@ public:
     ForthList<Code*> pf;
     ForthList<Code*> pf1;
     ForthList<Code*> pf2;
-    ForthList<int>   qf;
+    ForthList<DTYPE> qf;
 
 #if NO_FUNCTION
     template<typename F>
@@ -85,7 +88,7 @@ public:
     Code(string n, fop fn, bool im=false);  /// primitive
 #endif // NO_FUNCTION
     Code(string n, bool f=false);           /// new colon word or temp
-    Code(Code *c,  int d);                  /// dolit, dovar
+    Code(Code *c,  DTYPE d);                /// dolit, dovar
     Code(Code *c,  string s=string());      /// dotstr
 
     Code *immediate();                      /// set immediate flag
@@ -93,7 +96,7 @@ public:
 
     string to_s();                          /// debugging
     string see(int dp);
-    void   exec();                          /// execute word
+    void   nest();                          /// execute word
 };
 ///
 /// Forth virtual machine variables
@@ -103,14 +106,14 @@ public:
     istream          &cin;                  /// stream input
 	ostream          &cout;					/// stream output
 
-    ForthList<int>   rs;                    /// return stack
-    ForthList<int>   ss;                    /// parameter stack
+    ForthList<DTYPE> rs;                    /// return stack
+    ForthList<DTYPE> ss;                    /// parameter stack
     ForthList<Code*> dict;                  /// dictionary
 
     bool  compile = false;                  /// compiling flag
     int   base    = 10;                     /// numeric radix
-    int   top     = -1;                     /// cached top of stack
     int   WP      = 0;                      /// instruction and parameter pointers
+    DTYPE top     = DVAL;                   /// cached top of stack
 
     ForthVM(istream &in, ostream &out);
 
@@ -118,14 +121,14 @@ public:
     void outer();
 
 private:
-    int POP();
-    int PUSH(int v);
+    DTYPE POP();
+    DTYPE PUSH(DTYPE v);
     
     Code *find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
     void call(Code *c);                     /// execute a word
     
-    void dot_r(int n, int v);
+    void dot_r(int n, DTYPE v);
     void ss_dump();
     void words();
 };
