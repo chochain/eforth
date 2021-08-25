@@ -7,20 +7,18 @@ int Code::fence = 0, Code::IP = 0;
 ///
 #if NO_FUNCTION
 Code::Code(string n, F fn, bool im) {
-	name = n; token = fence++; immd = im; xt = new XT<F>(fn);
+    name = n; token = fence++; immd = im; xt = new XT<F>(fn);
 }
 #else
 Code::Code(string n, fop fn, bool im) {
-	name = n; token = fence++; immd = im; xt = fn;
+    name = n; token = fence++; immd = im; xt = fn;
 }
 #endif // NO_FUNCTION
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
 Code::Code(Code *c, DTYPE v)   { name = c->name; xt = c->xt; qf.push(v); }
 Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s != string()) literal = s;  }
 
-Code* Code::immediate()        { immd = true;  return this; }
 Code* Code::addcode(Code* w)   { pf.push(w);   return this; }
-
 string Code::to_s()    { return name + " " + to_string(token) + (immd ? "*" : ""); }
 string Code::see(int dp) {
     stringstream cout("");
@@ -42,7 +40,7 @@ void  Code::nest() {
 #else
     if (xt) { xt(this); return; }
 #endif // NO_FUNCTION
-    int tmp = IP, n = pf.size(); IP = 0;			 /// * or, setup call frame
+    int tmp = IP, n = pf.size(); IP = 0;             /// * or, setup call frame
     while (IP < n) { yield(); pf[IP++]->nest(); }    /// * and run inner interpreter
     IP = tmp;                                        /// * resture call frame
 }
@@ -59,7 +57,7 @@ inline DTYPE ForthVM::PUSH(DTYPE v) { ss.push(top); return top = v; }
 /// search dictionary reversely
 Code *ForthVM::find(string s) {
     for (int i = dict.size() - 1; i >= 0; --i) {
-        if (s == dict.v[i]->name) return dict.v[i];
+        if (s == dict[i]->name) return dict[i];
     }
     return NULL;
 }
@@ -103,14 +101,7 @@ void ForthVM::call(Code *w) {
 /// dictionary initializer
 ///
 void ForthVM::init() {
-	auto _does = [&](Code *c) {
-		ForthList<Code*> &src = dict[WP]->pf;               // source word : xx create...does...;
-		int n = src.size();
-		while (Code::IP++ < n) {
-			dict[-1]->pf.push(src[Code::IP]);          // copy words after "does" to new the word
-		}
-	};
-    const static vector<Code*> prim = {                /// singleton, built at compile time
+    static vector<Code*> prim = {                      /// singleton, built at compile time
     ///
     /// @defgroup Stack ops
     /// @{
@@ -282,7 +273,7 @@ void ForthVM::init() {
     CODE("exit", int x = top; throw domain_error(string())),   // need x=top, Arduino bug
     CODE("exec", int n = INT(top); call(dict[n])),
     CODE(":",
-        dict.push(new Code(next_idiom(), true));    // create new word
+        dict.push(new Code(next_idiom(), true));               // create new word
         compile = true),
     IMMD(";", compile = false),
     CODE("variable",
@@ -351,12 +342,12 @@ void ForthVM::init() {
     CODE("ain",   PUSH(analogRead(POP()))),
     CODE("out",   int p = INT(POP()); digitalWrite(p, POP())),
     CODE("pwm",   int p = INT(POP()); analogWrite(p, POP())),
-    CODE("pin",   int p = INT(POP()); pinMode(p, POP()))
+    CODE("pin",   int p = INT(POP()); pinMode(p, POP())),
 #endif // ARDUINO
     CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     /// @}
     };
-    dict.v = prim;                                       /// * populate dictionary
+    dict.v = prim;                                      /// * populate dictionary
 }
 ///
 /// ForthVM Outer interpreter
@@ -364,11 +355,9 @@ void ForthVM::init() {
 void ForthVM::outer() {
     string idiom;
     while (cin >> idiom) {
-        //Serial.print(idiom.c_str()); Serial.print("=>");
-    	//printf("%s=>", idiom.c_str());
+        //printf("%s=>", idiom.c_str());
         Code *w = find(idiom);                          /// * search through dictionary
         if (w) {                                        /// * word found?
-            //Serial.println(w->to_s().c_str());
             //printf("%s\n", w->to_s().c_str());
             if (compile && !w->immd)                    /// * in compile mode?
                 dict[-1]->addcode(w);                   /// * add to colon word
@@ -379,12 +368,11 @@ void ForthVM::outer() {
         char *p;
 #if DTYPE==float
         DTYPE n = (base==10)
-        	? static_cast<DTYPE>(strtof(idiom.c_str(), &p))
-        	: static_cast<DTYPE>(strtol(idiom.c_str(), &p, base));
+            ? static_cast<DTYPE>(strtof(idiom.c_str(), &p))
+            : static_cast<DTYPE>(strtol(idiom.c_str(), &p, base));
 #else
         DTYPE n = static_cast<DTYPE>(strtol(idiom.c_str(), &p, base));
 #endif
-        //Serial.println(n, base);
         //printf("%d\n", n);
         if (*p != '\0') {                           /// * not number
             cout << idiom << "? " << ENDL;          ///> display error prompt
@@ -393,9 +381,9 @@ void ForthVM::outer() {
             continue;
         }
         // is a number
-        if (compile)                           /// * a number in compile mode?
+        if (compile)                                /// * a number in compile mode?
             dict[-1]->addcode(new Code(find("dolit"), n)); ///> add to current word
-        else PUSH(n);                           	///> or, add value onto data stack
+        else PUSH(n);                               ///> or, add value onto data stack
     }
     if (!compile) ss_dump();  /// * dump stack and display ok prompt
 }
@@ -408,17 +396,17 @@ int main(int ac, char* av[]) {
     ostringstream forth_out;
     string cmd;
 
-    ForthVM *vm = new ForthVM(forth_in, forth_out);		// create FVM instance
-    vm->init();                                 		// initialize dictionary
+    ForthVM *vm = new ForthVM(forth_in, forth_out);     // create FVM instance
+    vm->init();                                         // initialize dictionary
 
     cout << "ceforth 5.01" << ENDL;
-    while (getline(cin, cmd)) {							// fetch user input
-    	//printf("cmd=<%s>\n", line.c_str());
-    	forth_in.clear();								// clear any input stream error bit
-    	forth_in.str(cmd);								// send command to FVM
-        vm->outer();									// execute outer interpreter
-        cout << forth_out.str();						// send VM result to output
-        forth_out.str(string());						// clear output buffer
+    while (getline(cin, cmd)) {                         // fetch user input
+        //printf("cmd=<%s>\n", line.c_str());
+        forth_in.clear();                               // clear any input stream error bit
+        forth_in.str(cmd);                              // send command to FVM
+        vm->outer();                                    // execute outer interpreter
+        cout << forth_out.str();                        // send VM result to output
+        forth_out.str(string());                        // clear output buffer
     }
     cout << "done!" << ENDL;
     return 0;
