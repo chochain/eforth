@@ -1,7 +1,7 @@
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
 
-int Code::fence = 0;
+int Code::fence = 0, Code::IP = 0;
 ///
 /// Code class constructors
 ///
@@ -15,7 +15,7 @@ Code::Code(string n, fop fn, bool im) {
 }
 #endif // NO_FUNCTION
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
-Code::Code(Code *c, int v)     { name = c->name; xt = c->xt; qf.push(v); }
+Code::Code(Code *c, DTYPE v)   { name = c->name; xt = c->xt; qf.push(v); }
 Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s != string()) literal = s;  }
 
 Code* Code::immediate()        { immd = true;  return this; }
@@ -28,7 +28,7 @@ string Code::see(int dp) {
         int i = dp; cout << ENDL; while (i--) cout << "  "; cout << s;
         for (Code* w: v) cout << w->see(dp + 1);
     };
-    auto see_qf = [&cout](vector<int> v) { cout << " = "; for (int i : v) cout << i << " "; };
+    auto see_qf = [&cout](vector<DTYPE> v) { cout << " = "; for (DTYPE i : v) cout << i << " "; };
     see_pf(dp, "[ " + to_s(), pf.v);
     if (pf1.size() > 0) see_pf(dp, "1--", pf1.v);
     if (pf2.size() > 0) see_pf(dp, "2--", pf2.v);
@@ -36,15 +36,15 @@ string Code::see(int dp) {
     cout << "]";
     return cout.str();
 }
-void  Code::exec() {
+void  Code::nest() {
 #if NO_FUNCTION
-    if (xt) (*xt)(this);                             /// * execute primitive word
+    if (xt) { (*xt)(this); return; }                 /// * execute primitive word
 #else
-    if (xt) xt(this);
+    if (xt) { xt(this); return; }
 #endif // NO_FUNCTION
-    else {
-        for (Code* w : pf.v) { yield(); w->exec(); } /// * or, run inner interpreter
-    }
+    int tmp = IP, n = pf.size(); IP = 0;			 /// * or, setup call frame
+    while (IP < n) { yield(); pf[IP++]->nest(); }    /// * and run inner interpreter
+    IP = tmp;                                        /// * resture call frame
 }
 ///
 /// ForthVM class constructor
@@ -53,12 +53,12 @@ ForthVM::ForthVM(istream &in, ostream &out) : cin(in), cout(out) {}
 ///
 /// dictionary and input stream search functions
 ///
-inline int ForthVM::POP()       { int n = top; top = ss.pop(); return n; }
-inline int ForthVM::PUSH(int v) { ss.push(top); return top = v; }
+inline DTYPE ForthVM::POP()         { DTYPE n = top; top = ss.pop(); return n; }
+inline DTYPE ForthVM::PUSH(DTYPE v) { ss.push(top); return top = v; }
 
 /// search dictionary reversely
 Code *ForthVM::find(string s) {
-    for (int i = (int)dict.size() - 1; i >= 0; --i) {
+    for (int i = dict.size() - 1; i >= 0; --i) {
         if (s == dict.v[i]->name) return dict.v[i];
     }
     return NULL;
@@ -66,11 +66,11 @@ Code *ForthVM::find(string s) {
 string ForthVM::next_idiom(char delim) {
     string s; delim ? getline(cin, s, delim) : cin >> s; return s;
 }
-void ForthVM::dot_r(int n, int v) {
+void ForthVM::dot_r(int n, DTYPE v) {
     cout << setw(n) << setfill(' ') << v;
 }
 void ForthVM::ss_dump() {
-    cout << " <"; for (int i : ss.v) { cout << i << " "; }
+    cout << " <"; for (DTYPE i : ss.v) { cout << i << " "; }
     cout << top << "> ok" << ENDL;
 }
 void ForthVM::words() {
@@ -83,7 +83,7 @@ void ForthVM::words() {
 void ForthVM::call(Code *w) {
     int tmp = WP;                                       /// * setup call frame
     WP = w->token;
-    try { w->exec(); }                                  /// * run inner interpreter recursively
+    try { w->nest(); }                                  /// * run inner interpreter recursively
     catch (exception& e) {
         string msg = e.what();                          /// * capture exception message
         if (msg != string()) cout << msg << ENDL;
@@ -96,12 +96,20 @@ void ForthVM::call(Code *w) {
 ///
 #define CODE(s, g) new Code(string(s), [this](Code *c){ g; })
 #define IMMD(s, g) new Code(string(s), [this](Code *c){ g; }, true)
-#define ALU(a, OP, b)  (static_cast<int>(a) OP static_cast<int>(b))
+#define INT(f)         (static_cast<int>(f))
+#define ALU(a, OP, b)  (INT(a) OP INT(b))
 #define BOOL(f) ((f) ? -1 : 0)
 ///
 /// dictionary initializer
 ///
 void ForthVM::init() {
+	auto _does = [&](Code *c) {
+		ForthList<Code*> &src = dict[WP]->pf;               // source word : xx create...does...;
+		int n = src.size();
+		while (Code::IP++ < n) {
+			dict[-1]->pf.push(src[Code::IP]);          // copy words after "does" to new the word
+		}
+	};
     const static vector<Code*> prim = {                /// singleton, built at compile time
     ///
     /// @defgroup Stack ops
@@ -109,9 +117,9 @@ void ForthVM::init() {
     CODE("dup",  PUSH(top)),
     CODE("drop", top = ss.pop()),
     CODE("over", PUSH(ss[-1])),
-    CODE("swap", int n = ss.pop(); PUSH(n)),
-    CODE("rot",  int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("pick", int i = top; top = ss[-i]),
+    CODE("swap", DTYPE n = ss.pop(); PUSH(n)),
+    CODE("rot",  DTYPE n = ss.pop(); DTYPE m = ss.pop(); ss.push(n); PUSH(m)),
+    CODE("pick", int i = INT(top); top = ss[-i]),
     CODE(">r",   rs.push(POP())),
     CODE("r>",   PUSH(rs.pop())),
     CODE("r@",   PUSH(rs[-1])),
@@ -122,7 +130,7 @@ void ForthVM::init() {
     CODE("2drop",ss.pop(); top = ss.pop()),
     CODE("2over",PUSH(ss[-3]); PUSH(ss[-3])),
     CODE("2swap",
-        int n = ss.pop(); int m = ss.pop(); int l = ss.pop();
+        DTYPE n = ss.pop(); DTYPE m = ss.pop(); DTYPE l = ss.pop();
         ss.push(n); PUSH(l); PUSH(m)),
     /// @}
     /// @defgroup ALU ops
@@ -134,8 +142,8 @@ void ForthVM::init() {
     CODE("mod",  top = ALU(ss.pop(), %, top)),
     CODE("*/",   top = ss.pop() * ss.pop() / top),
     CODE("*/mod",
-        int n = static_cast<int>(ss.pop() * ss.pop());
-        int t = static_cast<int>(top);
+        int n = INT(ss.pop() * ss.pop());
+        int t = INT(top);
         ss.push(n % t); top = (n / t)),
     CODE("and",  top = ALU(ss.pop(), &, top)),
     CODE("or",   top = ALU(ss.pop(), |, top)),
@@ -163,13 +171,13 @@ void ForthVM::init() {
     CODE("decimal", cout << setbase(base = 10)),
     CODE("cr",      cout << ENDL),
     CODE(".",       cout << POP() << " "),
-    CODE(".r",      int n = POP(); dot_r(n, POP())),
-    CODE("u.r",     int n = POP(); dot_r(n, abs(POP()))),
-    CODE(".f",      int n = POP(); cout << setprecision(n) << POP()),
+    CODE(".r",      int n = INT(POP()); dot_r(n, POP())),
+    CODE("u.r",     int n = INT(POP()); dot_r(n, abs(POP()))),
+    CODE(".f",      int n = INT(POP()); cout << setprecision(n) << POP()),
     CODE("key",     PUSH(next_idiom()[0])),
     CODE("emit",    char b = (char)POP(); cout << b),
     CODE("space",   cout << " "),
-    CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) cout << " "),
+    CODE("spaces",  for (int n = INT(POP()), i = 0; i < n; i++) cout << " "),
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -220,7 +228,7 @@ void ForthVM::init() {
     CODE("loop",
         while (true) {
             for (Code* w : c->pf.v) call(w);                       // begin...
-            int f = top;
+            int f = INT(top);
             if (c->stage == 0 && (top = ss.pop(), f != 0)) break;  // ...until
             if (c->stage == 1) continue;                           // ...again
             if (c->stage == 2 && (top = ss.pop(), f == 0)) break;  // while...repeat
@@ -272,7 +280,7 @@ void ForthVM::init() {
     /// @defgrouop Compiler ops
     /// @{
     CODE("exit", int x = top; throw domain_error(string())),   // need x=top, Arduino bug
-    CODE("exec", int n = top; call(dict[n])),
+    CODE("exec", int n = INT(top); call(dict[n])),
     CODE(":",
         dict.push(new Code(next_idiom(), true));    // create new word
         compile = true),
@@ -285,14 +293,14 @@ void ForthVM::init() {
         dict.push(new Code(next_idiom(), true));
         Code *last = dict[-1]->addcode(new Code(find("dolit"), POP()));
         last->pf[0]->token = last->token),
-    CODE("@",      int w = POP(); PUSH(dict[w]->pf[0]->qf[0])),         // w -- n
-    CODE("!",      int w = POP(); dict[w]->pf[0]->qf[0] = POP()),       // n w --
-    CODE("+!",     int w = POP(); dict[w]->pf[0]->qf[0] += POP()),      // n w --
-    CODE("?",      int w = POP(); cout << dict[w]->pf[0]->qf[0] << " "),// w --
-    CODE("array@", int a = POP(); PUSH(dict[POP()]->pf[0]->qf[a])),     // w a -- n
-    CODE("array!", int a = POP(); int w = POP();  dict[w]->pf[0]->qf[a] = POP()),   // n w a --
+    CODE("@",      int w = INT(POP()); PUSH(dict[w]->pf[0]->qf[0])),         // w -- n
+    CODE("!",      int w = INT(POP()); dict[w]->pf[0]->qf[0] = POP()),       // n w --
+    CODE("+!",     int w = INT(POP()); dict[w]->pf[0]->qf[0] += POP()),      // n w --
+    CODE("?",      int w = INT(POP()); cout << dict[w]->pf[0]->qf[0] << " "),// w --
+    CODE("array@", int a = INT(POP()); PUSH(dict[POP()]->pf[0]->qf[a])),     // w a -- n
+    CODE("array!", int a = INT(POP()); int w = POP();  dict[w]->pf[0]->qf[a] = POP()),   // n w a --
     CODE("allot",                                           // n --
-        for (int n = POP(), i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(0)),
+        for (int n = INT(POP()), i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(DVAL)),
     CODE(",",      dict[-1]->pf[0]->qf.push(POP())),
     /// @}
     /// @defgroup metacompiler
@@ -303,11 +311,9 @@ void ForthVM::init() {
         last->pf[0]->token = last->token;
         last->pf[0]->qf.clear()),
     CODE("does",
-        vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
-        int i = 0; int n = (int)src.size();
-        while (i < n && src[i]->name != "does") i++;        // find the "does"
-        while (++i < n) dict[-1]->pf.push(src[i]);          // copy words after "does" to new the word
-        throw domain_error(string())),                      // break out of for { c->exec() } loop
+        ForthList<Code*> &src = dict[WP]->pf;               // source word : xx create...does...;
+        int n = src.size();
+        while (Code::IP < n) dict[-1]->pf.push(src[Code::IP++])),       // copy words after "does" to new the word
     CODE("to",                                              // n -- , compile only
         Code *tgt = find(next_idiom());
         if (tgt) tgt->pf[0]->qf[0] = POP()),                // update constant
@@ -318,10 +324,8 @@ void ForthVM::init() {
             tgt->pf.merge(dict[POP()]->pf);
         }),
     CODE("[to]",
-        vector<Code*> src = dict[WP]->pf.v;                 // source word : xx create...does...;
-        int i = 0; int n = (int)src.size();
-        while (i < n && src[i]->name != "[to]") i++;        // find the "does"
-        src[++i]->pf[0]->qf[0] = POP()),                    // change the following constant
+        ForthList<Code*> &src = dict[WP]->pf;               // source word : xx create...does...;
+        src[Code::IP++]->pf[0]->qf[0] = POP()),             // change the following constant
     /// @}
     /// @defgroup Debug ops
     /// @{
@@ -338,16 +342,16 @@ void ForthVM::init() {
          if (w == NULL) return;
          dict.erase(Code::fence=max(w->token, find("boot")->token + 1))),
     CODE("clock", PUSH(millis())),
-    CODE("delay", delay(POP())),
+    CODE("delay", delay(INT(POP()))),
 #if ARDUINO
     /// @}
     /// @defgroup Arduino specific ops
     /// @{
     CODE("in",    PUSH(digitalRead(POP()))),
     CODE("ain",   PUSH(analogRead(POP()))),
-    CODE("out",   int p = POP(); digitalWrite(p, POP())),
-    CODE("pwm",   int p = POP(); analogWrite(p, POP())),
-    CODE("pin",   int p = POP(); pinMode(p, POP()))
+    CODE("out",   int p = INT(POP()); digitalWrite(p, POP())),
+    CODE("pwm",   int p = INT(POP()); analogWrite(p, POP())),
+    CODE("pin",   int p = INT(POP()); pinMode(p, POP()))
 #endif // ARDUINO
     CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     /// @}
@@ -373,7 +377,13 @@ void ForthVM::outer() {
         }
         // try as a number
         char *p;
-        int n = (int)strtol(idiom.c_str(), &p, base);
+#if DTYPE==float
+        DTYPE n = (base==10)
+        	? static_cast<DTYPE>(strtof(idiom.c_str(), &p))
+        	: static_cast<DTYPE>(strtol(idiom.c_str(), &p, base));
+#else
+        DTYPE n = static_cast<DTYPE>(strtol(idiom.c_str(), &p, base));
+#endif
         //Serial.println(n, base);
         //printf("%d\n", n);
         if (*p != '\0') {                           /// * not number
