@@ -5,15 +5,15 @@ int Code::fence = 0, Code::IP = 0;
 ///
 /// Code class constructors
 ///
-#if NO_FUNCTION
+#if NO_STD_FUNCTION
 Code::Code(string n, F fn, bool im) {
     name = n; token = fence++; immd = im; xt = new XT<F>(fn);
 }
-#else
+#else // NO_STD_FUNCTION
 Code::Code(string n, fop fn, bool im) {
     name = n; token = fence++; immd = im; xt = fn;
 }
-#endif // NO_FUNCTION
+#endif // NO_STD_FUNCTION
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
 Code::Code(Code *c, DTYPE v)   { name = c->name; xt = c->xt; qf.push(v); }
 Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s != string()) literal = s;  }
@@ -88,6 +88,9 @@ void ForthVM::call(Code *w) {
     }
     WP = tmp;                                           /// * restore call frame
     yield();
+}
+void ForthVM::call(ForthList<Code*> pf) {
+    for (int i=0, n=pf.size(); i<n; i++) call(pf[i]);
 }
 ///
 /// macros to reduce verbosity (but harder to single-step debug)
@@ -190,9 +193,7 @@ void ForthVM::init() {
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
     /// @{
-    IMMD("bran",
-        bool f = POP() != 0;                        // check flag
-        for (Code* w : (f ? c->pf.v : c->pf1.v)) call(w)),
+    IMMD("bran", bool f = POP() != 0; call(f ? c->pf : c->pf1)),
     IMMD("if",
         dict[-1]->addcode(new Code(find("bran")));
         dict.push(new Code("temp"))),               // use last cell of dictionay as scratch pad
@@ -218,12 +219,12 @@ void ForthVM::init() {
     /// @{
     CODE("loop",
         while (true) {
-            for (Code* w : c->pf.v) call(w);                       // begin...
+            call(c->pf);                                           // begin...
             int f = INT(top);
             if (c->stage == 0 && (top = ss.pop(), f != 0)) break;  // ...until
             if (c->stage == 1) continue;                           // ...again
             if (c->stage == 2 && (top = ss.pop(), f == 0)) break;  // while...repeat
-            for (Code* w : c->pf1.v) call(w);
+            call(c->pf1);
         }),
     IMMD("begin",
         dict[-1]->addcode(new Code(find("loop")));
@@ -247,12 +248,12 @@ void ForthVM::init() {
     /// @brief  - for...next, for...aft...then...next
     /// @{
     CODE("cycle",
-        do { for (Code* w : c->pf.v) call(w); }
+       do { call(c->pf); }
         while (c->stage == 0 && rs.dec_i() >= 0);    // for...next only
         while (c->stage > 0) {                       // aft
-            for (Code* w : c->pf2.v) call(w);        // then...next
+            call(c->pf2);                            // then...next
             if (rs.dec_i() < 0) break;
-            for (Code* w : c->pf1.v) call(w);        // aft...then
+            call(c->pf1);                            // aft...then
         }
         rs.pop()),
     IMMD("for",
@@ -338,14 +339,17 @@ void ForthVM::init() {
     /// @}
     /// @defgroup Arduino specific ops
     /// @{
+    CODE("pin",   int p = INT(POP()); ledcAttachPin(INT(POP()), p)),
     CODE("in",    PUSH(digitalRead(POP()))),
-    CODE("ain",   PUSH(analogRead(POP()))),
+    CODE("adc",   PUSH(analogRead(POP()))),
     CODE("out",   int p = INT(POP()); digitalWrite(p, POP())),
-    CODE("pwm",   int p = INT(POP()); analogWrite(p, POP())),
+    CODE("duty",  int p = INT(POP()); analogWrite(p, POP(), 255)),
+    CODE("freq",  int p = INT(POP()); ledcSetup(p, POP(), 13)),
     CODE("pin",   int p = INT(POP()); pinMode(p, POP())),
+    CODE("audio", int p = INT(POP()); ledcWriteTone(p, POP())),
 #endif // ARDUINO
-    CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     /// @}
+    CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     };
     dict.v = prim;                                      /// * populate dictionary
 }
