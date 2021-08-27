@@ -13,8 +13,10 @@
 
 #if ARDUINO
 #include <Arduino.h>
-#include <analogWrite.h>
 #define to_string(i)    string(String(i).c_str())
+#if ESP32
+#define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
+#endif // ESP32
 #else
 #include <chrono>
 #include <thread>
@@ -50,7 +52,7 @@ struct ForthList {          /// vector helper template class
 };
 
 class Code;
-#if NO_FUNCTION
+#if NO_STD_FUNCTION
 struct fop {                                /// alternate solution for function
     virtual void operator()(Code*) = 0;
 };
@@ -58,11 +60,11 @@ template<typename F>
 struct XT : fop {
     F fp;
     XT(F &f) : fp(f) {}
-    virtual void operator()(Code *c) { fp(c); }
+    void operator()(Code *c) { fp(c); }
 };
 #else
-using fop = function<void(Code*)>;         /// Forth operator
-#endif // NO_FUNCTION
+using fop = function<void(Code*)>;          /// Forth operator
+#endif // NO_STD_FUNCTION
 
 class Code {
 public:
@@ -71,11 +73,11 @@ public:
     int    token = 0;                       /// dictionary order token
     bool   immd  = false;                   /// immediate flag
     int    stage = 0;                       /// branching stage
-#if NO_FUNCTION
+#if NO_STD_FUNCTION
     fop    *xt   = NULL;
-#else
+#else // NO_STD_FUNCTION
     fop    xt    = NULL;                    /// primitive function
-#endif // NO_FUNCTION
+#endif // NO_STD_FUNCTION
     string literal;                         /// string literal
 
     ForthList<Code*> pf;
@@ -83,12 +85,12 @@ public:
     ForthList<Code*> pf2;
     ForthList<DTYPE> qf;
 
-#if NO_FUNCTION
+#if NO_STD_FUNCTION
     template<typename F>
     Code(string n, F fn, bool im=false);    /// primitive
-#else
+#else // NO_STD_FUNCTION
     Code(string n, fop fn, bool im=false);  /// primitive
-#endif // NO_FUNCTION
+#endif // NO_STD_FUNCTION
     Code(string n, bool f=false);           /// new colon word or temp
     Code(Code *c,  DTYPE d);                /// dolit, dovar
     Code(Code *c,  string s=string());      /// dotstr
@@ -129,6 +131,7 @@ private:
     Code *find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
     void call(Code *c);                     /// execute a word
+    void call(ForthList<Code*> pf);         /// execute a word
 
     void dot_r(int n, DTYPE v);
     void ss_dump();
