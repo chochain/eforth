@@ -36,7 +36,7 @@ struct ForthList {          /// vector helper template class
     vector<T> v;            /// use proxy pattern
 
     T& operator[](int i) { return i < 0 ? v[v.size() + i] : v[i]; }
-    T operator<<(T t)    { v.push_back(t); }
+    ForthList& operator<<(T t){ v.push_back(t); return *this; }
 
     T dec_i() { return v.back() -= 1; }     /// decrement stack top
     T pop()   {
@@ -98,9 +98,9 @@ public:
     Code *immediate();                      /// set immediate flag
     Code *addcode(Code *w);                 /// append colon word
 
-    string to_s();                          /// debugging
-    string see(int dp);
-    void   nest();                          /// execute word
+    string  to_s();                         /// debugging
+    string  see(int dp);
+    void    nest();                         /// execute word
 };
 ///
 /// Forth virtual machine variables
@@ -131,7 +131,7 @@ private:
     Code *find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
     void call(Code *c);                     /// execute a word
-    void call(ForthList<Code*> pf);         /// execute a word
+    void call(ForthList<Code*>& pf);        /// execute a word
 
     void dot_r(int n, DTYPE v);
     void ss_dump();

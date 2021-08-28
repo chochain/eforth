@@ -16,30 +16,31 @@ Code::Code(string n, fop fn, bool im) {
 #endif // NO_STD_FUNCTION
 Code::Code(string n, bool f)   { name = n; if (f) token = fence++; }
 Code::Code(Code *c, DTYPE v)   { name = c->name; xt = c->xt; qf.push(v); }
-Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s != string()) literal = s;  }
+Code::Code(Code *c, string s)  { name = c->name; xt = c->xt; if (s.size()>0) literal = s;  }
 
 Code* Code::addcode(Code* w)   { pf.push(w);   return this; }
-string Code::to_s()    { return name + " " + to_string(token) + (immd ? "*" : ""); }
+string Code::to_s()            { return name + " " + to_string(token) + (immd ? "*" : "");
+}
 string Code::see(int dp) {
     stringstream cout("");
-    auto see_pf = [&cout](int dp, string s, vector<Code*> v) {   // lambda for indentation and recursive dump
+    auto see_pf = [&cout](int dp, string s, ForthList<Code*>& pf) {   // lambda for indentation and recursive dump
         int i = dp; cout << ENDL; while (i--) cout << "  "; cout << s;
-        for (Code* w: v) cout << w->see(dp + 1);
+        for (Code* w: pf.v) cout << w->see(dp + 1);
     };
-    auto see_qf = [&cout](vector<DTYPE> v) { cout << " = "; for (DTYPE i : v) cout << i << " "; };
-    see_pf(dp, "[ " + to_s(), pf.v);
-    if (pf1.size() > 0) see_pf(dp, "1--", pf1.v);
-    if (pf2.size() > 0) see_pf(dp, "2--", pf2.v);
+    auto see_qf = [&cout](vector<DTYPE>& v) { cout << " = "; for (DTYPE i : v) cout << i << " "; };
+    see_pf(dp, "[ " + to_s(), pf);
+    if (pf1.size() > 0) see_pf(dp, "1--", pf1);
+    if (pf2.size() > 0) see_pf(dp, "2--", pf2);
     if (qf.size()  > 0) see_qf(qf.v);
     cout << "]";
     return cout.str();
 }
 void  Code::nest() {
-#if NO_FUNCTION
+#if NO_STD_FUNCTION
     if (xt) { (*xt)(this); return; }                 /// * execute primitive word
 #else
     if (xt) { xt(this); return; }
-#endif // NO_FUNCTION
+#endif // NO_STD_FUNCTION
     int tmp = IP, n = pf.size(); IP = 0;             /// * or, setup call frame
     while (IP < n) { yield(); pf[IP++]->nest(); }    /// * and run inner interpreter
     IP = tmp;                                        /// * resture call frame
@@ -89,7 +90,7 @@ void ForthVM::call(Code *w) {
     WP = tmp;                                           /// * restore call frame
     yield();
 }
-void ForthVM::call(ForthList<Code*> pf) {
+void ForthVM::call(ForthList<Code*>& pf) {
     for (int i=0, n=pf.size(); i<n; i++) call(pf[i]);
 }
 ///
