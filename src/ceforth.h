@@ -28,8 +28,13 @@
 
 using namespace std;
 
+#ifdef USE_FLOAT
 typedef float DTYPE;
 #define DVAL  0.0f
+#else // USE_FLOAT
+typedef int   DTYPE;
+#define DVAL  0
+#endif // USE_FLOAT
 
 template<class T>
 struct ForthList {          /// vector helper template class
