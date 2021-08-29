@@ -102,6 +102,17 @@ void ForthVM::call(ForthList<Code*>& pf) {
 #define ALU(a, OP, b)  (INT(a) OP INT(b))
 #define BOOL(f) ((f) ? -1 : 0)
 ///
+/// macros for memory space access (be very careful of these)
+/// note: 4000_0000 is instruction bus, access needs to be 32-bit aligned
+///       3fff_ffff and below is data bus, no alignment requirement
+///
+typedef unsigned int U32;
+static char memory_base[] = { 0xf, 0xe, 0xe, 0xd, 0xb, 0xe, 0xe, 0xf };
+uintptr_t   memory_offset = (uintptr_t)memory_base;
+#define MMAP(a)    ((U32*)(memory_base + ((uintptr_t)(a)-memory_offset)))
+#define PEEK(a)    (U32)(*MMAP(a))
+#define POKE(a, c) (*MMAP(a)=(U32)(c))
+///
 /// dictionary initializer
 ///
 void ForthVM::init() {
@@ -336,23 +347,34 @@ void ForthVM::init() {
          dict.erase(Code::fence=max(w->token, find("boot")->token + 1))),
     CODE("clock", PUSH(millis())),
     CODE("delay", delay(INT(POP()))),
-#if ARDUINO
+    CODE("peek",  int a = INT(POP()); PUSH(PEEK(a))),
+    CODE("poke",  int a = INT(POP()); POKE(a, POP())),
+#if ARDUINO || ESP32
     /// @}
     /// @defgroup Arduino specific ops
     /// @{
-    CODE("pin",   int p = INT(POP()); ledcAttachPin(INT(POP()), p)),
-    CODE("in",    PUSH(digitalRead(POP()))),
-    CODE("adc",   PUSH(analogRead(POP()))),
-    CODE("out",   int p = INT(POP()); digitalWrite(p, POP())),
-    CODE("duty",  int p = INT(POP()); analogWrite(p, POP(), 255)),
-    CODE("freq",  int p = INT(POP()); ledcSetup(p, POP(), 13)),
     CODE("pin",   int p = INT(POP()); pinMode(p, POP())),
+    CODE("in",    PUSH(digitalRead(POP()))),
+    CODE("out",   int p = INT(POP()); digitalWrite(p, POP())),
+    CODE("adc",   PUSH(analogRead(POP()))),
+    CODE("pwm",   int p = INT(POP()); analogWrite(p, POP(), 255)),
+#if ESP32
+    CODE("attach",int p = INT(POP()); ledcAttachPin(p, INT(POP()))),
+    CODE("freq",  int p = INT(POP()); ledcSetup(p, POP(), 13)),
     CODE("audio", int p = INT(POP()); ledcWriteTone(p, POP())),
-#endif // ARDUINO
+#endif // ESP32
+#endif // ARDUINO || ESP32
     /// @}
     CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     };
     dict.v = prim;                                      /// * populate dictionary
+    //
+    // test memory access
+    //
+    Serial.print("mem_base=");  Serial.print(memory_offset, HEX);
+    Serial.print(", *p="); Serial.print(PEEK(memory_offset), HEX);
+    POKE(memory_offset+4, 0x12345678);
+    Serial.print(", *(p+4)="); Serial.println(PEEK(memory_offset+4), HEX);
 }
 ///
 /// ForthVM Outer interpreter
