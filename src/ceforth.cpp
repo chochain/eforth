@@ -96,8 +96,8 @@ void ForthVM::call(ForthList<Code*>& pf) {
 ///
 /// macros to reduce verbosity (but harder to single-step debug)
 ///
-#define CODE(s, g) new Code(string(s), [this](Code *c){ g; })
-#define IMMD(s, g) new Code(string(s), [this](Code *c){ g; }, true)
+#define CODE(s, g)     new Code(string(s), [this](Code *c){ g; })
+#define IMMD(s, g)     new Code(string(s), [this](Code *c){ g; }, true)
 #define INT(f)         (static_cast<int>(f))
 #define ALU(a, OP, b)  (INT(a) OP INT(b))
 #define BOOL(f) ((f) ? -1 : 0)
@@ -116,7 +116,7 @@ uintptr_t   memory_offset = (uintptr_t)memory_base;
 /// dictionary initializer
 ///
 void ForthVM::init() {
-    static vector<Code*> prim = {                      /// singleton, built at compile time
+    static vector<Code*> prim = {                      /// singleton, created once
     ///
     /// @defgroup Stack ops
     /// @{
@@ -346,7 +346,7 @@ void ForthVM::init() {
          if (w == NULL) return;
          dict.erase(Code::fence=max(w->token, find("boot")->token + 1))),
     CODE("clock", PUSH(millis())),
-    CODE("delay", delay(INT(POP()))),
+    CODE("delay", delay(POP())),
     CODE("peek",  int a = INT(POP()); PUSH(PEEK(a))),
     CODE("poke",  int a = INT(POP()); POKE(a, POP())),
 #if ARDUINO || ESP32
@@ -359,22 +359,15 @@ void ForthVM::init() {
     CODE("adc",   PUSH(analogRead(POP()))),
     CODE("pwm",   int p = INT(POP()); analogWrite(p, POP(), 255)),
 #if ESP32
-    CODE("attach",int p = INT(POP()); ledcAttachPin(p, INT(POP()))),
-    CODE("freq",  int p = INT(POP()); ledcSetup(p, POP(), 13)),
-    CODE("audio", int p = INT(POP()); ledcWriteTone(p, POP())),
+    CODE("attach",int p = INT(POP()); ledcAttachPin(p, POP())),
+    CODE("setup", int p = INT(POP()); int freq = INT(POP()); ledcSetup(p, freq, POP())),
+    CODE("tone",  int p = INT(POP()); ledcWriteTone(p, POP())),
 #endif // ESP32
 #endif // ARDUINO || ESP32
     /// @}
     CODE("boot", dict.erase(Code::fence=find("boot")->token + 1))
     };
     dict.v = prim;                                      /// * populate dictionary
-    //
-    // test memory access
-    //
-    Serial.print("mem_base=");  Serial.print(memory_offset, HEX);
-    Serial.print(", *p="); Serial.print(PEEK(memory_offset), HEX);
-    POKE(memory_offset+4, 0x12345678);
-    Serial.print(", *(p+4)="); Serial.println(PEEK(memory_offset+4), HEX);
 }
 ///
 /// ForthVM Outer interpreter
