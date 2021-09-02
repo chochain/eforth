@@ -156,6 +156,12 @@ void ForthVM::init() {
     CODE("xor",  top = ALU(ss.pop(), ^, top)),
     CODE("negate", top = -top),
     CODE("abs",  top = abs(top)),
+    CODE("max",  int n=ss.pop();top = (top>n)?top:n),
+    CODE("min",  int n=ss.pop();top = (top<n)?top:n),
+    CODE("2*",   top *= 2),
+    CODE("2/",   top /= 2),
+    CODE("1+",   top += 1),
+    CODE("1-",   top -= 1),
     /// @}
     /// @defgroup Logic ops
     /// @{
