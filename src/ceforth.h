@@ -49,11 +49,10 @@ struct ForthList {          /// vector helper template class
         T t = v.back(); v.pop_back(); return t;
     }
     int  size()               { return (int)v.size(); }
-    void push(T t)            { v.push_back(t); }
-    void clear()              { v.clear(); }
+    void push(T t)            { v.emplace_back(t); }
     void merge(ForthList& a)  { v.insert(v.end(), a.v.begin(), a.v.end()); }
     void merge(vector<T>& v2) { v.insert(v.end(), v2.begin(), v2.end()); }
-    void erase(int i)         { v.erase(v.begin() + i, v.end()); }
+    void clear(int n=0)       { v.erase(v.begin() + n, v.end()); }
 };
 
 class Code;
@@ -68,7 +67,8 @@ struct XT : fop {
     void operator()(Code *c) { fp(c); }
 };
 #else
-using fop = function<void(Code*)>;          /// Forth operator
+using CodeP = shared_ptr<Code>;
+using fop   = function<void(Code&)>;        /// Forth operator
 #endif // NO_STD_FUNCTION
 
 class Code {
@@ -85,9 +85,9 @@ public:
 #endif // NO_STD_FUNCTION
     string literal;                         /// string literal
 
-    ForthList<Code*> pf;
-    ForthList<Code*> pf1;
-    ForthList<Code*> pf2;
+    ForthList<CodeP> pf;
+    ForthList<CodeP> pf1;
+    ForthList<CodeP> pf2;
     ForthList<DTYPE> qf;
 
 #if NO_STD_FUNCTION
@@ -97,12 +97,13 @@ public:
     Code(string n, fop fn, bool im=false);  /// primitive
 #endif // NO_STD_FUNCTION
     Code(string n, bool f=false);           /// new colon word or temp
-    Code(Code *c,  DTYPE d);                /// dolit, dovar
-    Code(Code *c,  string s=string());      /// dotstr
-
-    Code *immediate();                      /// set immediate flag
-    Code *addcode(Code *w);                 /// append colon word
-
+    Code(CodeP c, DTYPE v);
+    Code(CodeP c, string s=string());
+    ~Code() {
+    	printf("free %s\n", to_s().c_str());
+    	pf.clear(); pf1.clear(); pf2.clear(); qf.clear();
+    }
+    Code&   addcode(CodeP w);           	/// append colon word
     string  to_s();                         /// debugging
     string  see(int dp);
     void    nest();                         /// execute word
@@ -117,8 +118,7 @@ public:
 
     ForthList<DTYPE> rs;                    /// return stack
     ForthList<DTYPE> ss;                    /// parameter stack
-    ForthList<Code*> dict;                  /// dictionary
-
+    ForthList<CodeP> dict;                  /// dictionary
     bool  compile = false;                  /// compiling flag
     int   base    = 10;                     /// numeric radix
     int   WP      = 0;                      /// instruction and parameter pointers
@@ -133,10 +133,10 @@ private:
     DTYPE POP();
     DTYPE PUSH(DTYPE v);
 
-    Code *find(string s);                   /// search dictionary reversely
+    CodeP find(string s);                   /// search dictionary reversely
     string next_idiom(char delim=0);
-    void call(Code *c);                     /// execute a word
-    void call(ForthList<Code*>& pf);        /// execute a word
+    void call(CodeP w);                     /// execute a word
+    void call(ForthList<CodeP>& pf);        /// execute a word
 
     void dot_r(int n, DTYPE v);
     void ss_dump();
