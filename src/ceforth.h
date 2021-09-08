@@ -1,9 +1,10 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
-#include <sstream>
+#include <memory>           // shared_ptr, make_shared
+#include <sstream>          // istream, ostream
 #include <vector>           // vector
 #include <functional>       // function
-#include <exception>
+#include <exception>        // try...catch, throw
 
 #if _WIN32 || _WIN64
 #define ENDL "\r\n"
@@ -99,13 +100,11 @@ public:
     Code(string n, bool f=false);           /// new colon word or temp
     Code(CodeP c, DTYPE v);
     Code(CodeP c, string s=string());
-    ~Code() {
-    	printf("free %s\n", to_s().c_str());
-    	pf.clear(); pf1.clear(); pf2.clear(); qf.clear();
-    }
+    ~Code() { pf.clear(); pf1.clear(); pf2.clear(); qf.clear(); }
+    
     Code&   addcode(CodeP w);           	/// append colon word
     string  to_s();                         /// debugging
-    string  see(int dp);
+    string  see(int dp=0);
     void    nest();                         /// execute word
 };
 ///
@@ -120,9 +119,11 @@ public:
     ForthList<DTYPE> ss;                    /// parameter stack
     ForthList<CodeP> dict;                  /// dictionary
     bool  compile = false;                  /// compiling flag
+    int   ucase   = 1;                      /// case sensitivity control
     int   base    = 10;                     /// numeric radix
     int   WP      = 0;                      /// instruction and parameter pointers
     DTYPE top     = DVAL;                   /// cached top of stack
+    string idiom;
 
     ForthVM(istream &in, ostream &out);
 
@@ -132,9 +133,10 @@ public:
 private:
     DTYPE POP();
     DTYPE PUSH(DTYPE v);
+    bool  STREQ(string& s1, string& s2);
 
+    string& next_idiom(char delim=0);
     CodeP find(string s);                   /// search dictionary reversely
-    string next_idiom(char delim=0);
     void call(CodeP w);                     /// execute a word
     void call(ForthList<CodeP>& pf);        /// execute a word
 
