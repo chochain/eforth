@@ -1,3 +1,4 @@
+#include <string.h>         // strcasecmp
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
 
@@ -21,7 +22,7 @@ Code::Code(CodeP c, string s)  { name = c->name; xt = c->xt; if (s.size()>0) lit
 Code&  Code::addcode(CodeP w)  { pf.push(w); return *this; }
 string Code::to_s()            { return name + " " + to_string(token) + (immd ? "*" : ""); }
 string Code::see(int dp) {
-    stringstream cout("");
+    stringstream cout(string("", 256));
     auto see_pf = [&cout](int dp, string s, ForthList<CodeP>& pf) {   // lambda for indentation and recursive dump
         int i = dp; cout << ENDL; while (i--) cout << "  "; cout << s;
         for (CodeP w: pf.v) cout << w->see(dp + 1);
@@ -47,22 +48,27 @@ void  Code::nest() {
 ///
 /// ForthVM class constructor
 ///
-ForthVM::ForthVM(istream &in, ostream &out) : cin(in), cout(out) {}
+ForthVM::ForthVM(istream &in, ostream &out)
+    : cin(in), cout(out), idiom(string("", 256)) {}
 ///
 /// dictionary and input stream search functions
 ///
 inline DTYPE ForthVM::POP()         { DTYPE n = top; top = ss.pop(); return n; }
 inline DTYPE ForthVM::PUSH(DTYPE v) { ss.push(top); return top = v; }
-
+inline bool  ForthVM::STREQ(string& s1, string& s2) {
+    return ucase
+        ? strcasecmp(s1.c_str(), s2.c_str())==0
+        : s1 == s2;
+}
 /// search dictionary reversely
 CodeP ForthVM::find(string s) {
-    for (int i = dict.size() - 1; i >= 0; --i) {
-        if (s == dict[i]->name) return dict[i];
+    for (int i = dict.size() - (compile ? 2 : 1); i >= 0; --i) {
+        if (STREQ(s, dict[i]->name)) return dict[i];
     }
     return NULL;
 }
-string ForthVM::next_idiom(char delim) {
-    string s; delim ? getline(cin, s, delim) : cin >> s; return s;
+string& ForthVM::next_idiom(char delim) {
+    delim ? getline(cin, idiom, delim) : cin >> idiom; return idiom;
 }
 void ForthVM::dot_r(int n, DTYPE v) {
     cout << setw(n) << setfill(' ') << v;
@@ -75,7 +81,7 @@ void ForthVM::words() {
     int i = 0;
     for (CodeP w : dict.v) {
         if ((i++ % 10) == 0) { cout << ENDL; yield(); }
-        cout << w->to_s() << "(" << w.use_count() << ") " ;
+        cout << w->to_s() << " ";
     }
 }
 void ForthVM::call(CodeP w) {
@@ -223,26 +229,11 @@ void ForthVM::init() {
     IMMD("then",
         CodeP temp = dict[-1]; CodeP last = dict[-2]->pf[-1];
         if (last->stage == 0) {                     // if...then
-        	printf("\ntemp=%d", temp->pf.size());
-        	for (int i=0; i<temp->pf.size(); i++) {
-        		printf("%s[%ld] ", temp->pf[i]->to_s().c_str(), temp->pf[i].use_count());
-        	}
             last->pf.merge(temp->pf);
-        	printf("\nlast=%d", last->pf.size());
-        	for (int i=0; i<last->pf.size(); i++) {
-        		printf("%s[%ld] ", last->pf[i]->to_s().c_str(), last->pf[i].use_count());
-        	}
             dict.pop();
         }
         else {                                      // if...else...then, or
-         	for (int i=0; i<temp->pf.size(); i++) {
-         		printf("%s[%ld] ", temp->pf[i]->to_s().c_str(), temp->pf[i].use_count());
-         	}
             last->pf1.merge(temp->pf);             // for...aft...then...next
-        	printf("\nlast=%d", last->pf1.size());
-        	for (int i=0; i<last->pf1.size(); i++) {
-        		printf("%s[%ld] ", last->pf1[i]->to_s().c_str(), last->pf1[i].use_count());
-        	}
             if (last->stage == 1) dict.pop();
             else temp->pf.clear();
         }),
@@ -359,7 +350,7 @@ void ForthVM::init() {
     CODE("'",     CodeP w = find(next_idiom()); PUSH(w->token)),
     CODE("see",
         CodeP w = find(next_idiom());
-        if (w) cout << w->see(0) << ENDL),
+        if (w) cout << w->see() << ENDL),
     CODE("forget",
         CodeP w = find(next_idiom());
          if (w == NULL) return;
@@ -391,12 +382,11 @@ void ForthVM::init() {
 /// ForthVM Outer interpreter
 ///
 void ForthVM::outer() {
-    string idiom;
     while (cin >> idiom) {
-        printf("%s=>", idiom.c_str());
+        //printf("%s=>", idiom.c_str());
         CodeP w = find(idiom);                      /// * search through dictionary
         if (w) {                                    /// * word found?
-            printf("%s(%ld)\n", w->to_s().c_str(), w.use_count());
+            //printf("%s(%ld)\n", w->to_s().c_str(), w.use_count());
             if (compile && !w->immd)                /// * in compile mode?
                 dict[-1]->addcode(w);               /// * add to colon word
             else call(w);                           /// * execute forth word
@@ -411,19 +401,18 @@ void ForthVM::outer() {
 #else
         DTYPE n = static_cast<DTYPE>(strtol(idiom.c_str(), &p, base));
 #endif
-        printf("%d\n", n);
+        //printf("%d\n", n);
         if (*p != '\0') {                           /// * not number
             cout << idiom << "? " << ENDL;          ///> display error prompt
             compile = false;                        ///> reset to interpreter mode
-            getline(cin, idiom, '\n');              ///> skip the entire line
-            continue;
+            break;                                  ///> skip the entire input buffer
         }
         // is a number
         if (compile)                                /// * a number in compile mode?
             dict[-1]->addcode(LIT("dolit", n));     ///> add to current word
         else PUSH(n);                               ///> or, add value onto data stack
     }
-    if (!compile) ss_dump();  	/// * dump stack and display ok prompt
+    if (!compile) ss_dump();   /// * dump stack and display ok prompt
 }
 
 #if !_WIN32 && !_WIN64 && !ARDUINO
