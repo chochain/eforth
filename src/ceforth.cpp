@@ -1,4 +1,4 @@
-#include <string.h>         // strcasecmp
+//#include <string.h>         // strcasecmp
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
 
@@ -22,7 +22,7 @@ Code::Code(CodeP c, string s)  { name = c->name; xt = c->xt; if (s.size()>0) lit
 Code&  Code::addcode(CodeP w)  { pf.push(w); return *this; }
 string Code::to_s()            { return name + " " + to_string(token) + (immd ? "*" : ""); }
 string Code::see(int dp) {
-    stringstream cout(string("", 256));
+    stringstream cout("");
     auto see_pf = [&cout](int dp, string s, ForthList<CodeP>& pf) {   // lambda for indentation and recursive dump
         int i = dp; cout << ENDL; while (i--) cout << "  "; cout << s;
         for (CodeP w: pf.v) cout << w->see(dp + 1);
@@ -48,8 +48,7 @@ void  Code::nest() {
 ///
 /// ForthVM class constructor
 ///
-ForthVM::ForthVM(istream &in, ostream &out)
-    : cin(in), cout(out), idiom(string("", 256)) {}
+ForthVM::ForthVM(istream &in, ostream &out) : cin(in), cout(out) {}
 ///
 /// dictionary and input stream search functions
 ///
