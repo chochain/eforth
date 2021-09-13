@@ -167,6 +167,7 @@ void nest(IU c) {
 /// utilize C++ standard template libraries for core functions only
 ///
 #include <sstream>     // istringstream, ostringstream, cin, cout
+#include <iomanip>     // setbase
 #include <string>      // string class
 using namespace std;
 #define ENDL    endl
@@ -199,6 +200,7 @@ inline void WORD()     { fin >> strbuf; colon(strbuf.c_str()); }  // create a co
 inline IU   PARAM()    { return (dict[WP]->pf+IP+sizeof(IU));  }  // get parameter field
 #define     CODE(s, g) { s, [&](IU c){ g; }, 0 }
 #define     IMMD(s, g) { s, [&](IU c){ g; }, 1 }
+#define     BOOL(f)    ((f)?-1:0)
 ///
 /// primitives (ROMable)
 /// Note:
@@ -213,34 +215,267 @@ auto _colon = [&](int c) {
     compile=true;
 };
 static Code prim[] = {
+    ///
+    /// @defgroup Stack ops
+    /// @{
     CODE("dup",  PUSH(top)),
     CODE("drop", top = ss.pop()),
     CODE("over", PUSH(ss[-1])),
     CODE("swap", DU n = ss.pop(); PUSH(n)),
+    CODE("rot",  DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m)),
+    CODE("pick", DU i = top; top = ss[-i]),
+    CODE(">r",   rs.push(POP())),
+    CODE("r>",   PUSH(rs.pop())),
+    CODE("r@",   PUSH(rs[-1])),
+    /// @}
+    /// @defgroup Stack ops - double
+    /// @{
+    CODE("2dup", PUSH(ss[-1]); PUSH(ss[-1])),
+    CODE("2drop",ss.pop(); top = ss.pop()),
+    CODE("2over",PUSH(ss[-3]); PUSH(ss[-3])),
+    CODE("2swap",
+        DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
+        ss.push(n); PUSH(l); PUSH(m)),
+    /// @}
+    /// @defgroup ALU ops
+    /// @{
     CODE("+",    top += ss.pop()),
     CODE("-",    top =  ss.pop() - top),
-    CODE(".",    fout << POP() << " "),
+    CODE("*",    top *= ss.pop()),
+    CODE("/",    top =  ss.pop() / top),
+    CODE("mod",  top =  ss.pop() % top),
+    CODE("*/",   top = ss.pop() * ss.pop() / top),
+    CODE("*/mod",
+        DU n = ss.pop() * ss.pop();
+        DU t = top;
+        ss.push(n % t); top = (n / t)),
+    CODE("and",  top = ss.pop()&top),
+    CODE("or",   top = ss.pop()|top),
+    CODE("xor",  top = ss.pop()^top),
+    CODE("negate", top = -top),
+    CODE("abs",  top = abs(top)),
+    CODE("max",  DU n=ss.pop(); top = (top>n)?top:n),
+    CODE("min",  DU n=ss.pop(); top = (top<n)?top:n),
+    CODE("2*",   top *= 2),
+    CODE("2/",   top /= 2),
+    CODE("1+",   top += 1),
+    CODE("1-",   top -= 1),
+    /// @}
+    /// @defgroup Logic ops
+    /// @{
+    CODE("0= ",  top = BOOL(top == 0)),
+    CODE("0<",   top = BOOL(top <  0)),
+    CODE("0>",   top = BOOL(top >  0)),
+    CODE("=",    top = BOOL(ss.pop() == top)),
+    CODE(">",    top = BOOL(ss.pop() >  top)),
+    CODE("<",    top = BOOL(ss.pop() <  top)),
+    CODE("<>",   top = BOOL(ss.pop() != top)),
+    CODE(">=",   top = BOOL(ss.pop() >= top)),
+    CODE("<=",   top = BOOL(ss.pop() <= top)),
+    /// @}
+    /// @defgroup IO ops
+    /// @{
+    CODE("base@",   PUSH(base)),
+    CODE("base!",   fout << setbase(base = POP())),
+    CODE("hex",     fout << setbase(base = 16)),
+    CODE("decimal", fout << setbase(base = 10)),
+    CODE("cr",      fout << ENDL),
+    CODE(".",       fout << POP() << " "),
+#if 0
+    CODE(".r",      DU n = POP(); dot_r(n, POP())),
+    CODE("u.r",     DU n = POP(); dot_r(n, abs(POP()))),
+    CODE(".f",      DU n = POP(); fout << setprecision(n) << POP()),
+    CODE("key",     PUSH(next_idiom()[0])),
+#endif
+    CODE("emit",    char b = (char)POP(); fout << b),
+    CODE("space",   fout << " "),
+    CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) fout << " "),
+    /// @}
+    /// @defgroup Literal ops
+    /// @{
     CODE("dovar",
-         IU x = PARAM();                     // get pmem offset to parameter field
-         PUSH(x); IP += sizeof(DU)),         // push and advance to next instruction
+        PUSH(PARAM()); IP += sizeof(DU)),   // push and advance to next instruction
     CODE("dolit",
-         IU x = PARAM();                     // parameter field
-         DU *i = (DU*)&pmem[x];              // fetch the value
-         PUSH(*i); IP += sizeof(DU)),        // push and advance to next instruction
-   CODE("dotstr",
-         IU x = PARAM();                     // pmem offset to parameter field
-         const char *s = (char*)&pmem[x];    // get string pointer
-         fout << s;                          // send to output console
-         IP += ALIGN(strlen(s)+1)),          // advance to next instruction
+    	DU *i = (DU*)&pmem[PARAM()];        // fetch the value
+        PUSH(*i); IP += sizeof(DU)),        // push and advance to next instruction
+    CODE("dotstr",
+        const char *s = (char*)&pmem[PARAM()];    // get string pointer
+        fout << s;                          // send to output console
+        IP += ALIGN(strlen(s)+1)),          // advance to next instruction
+    CODE("[", compile = false),
+    CODE("]", compile = true),
     IMMD(".\"",
-         getline(fin, strbuf, '"');
-         addstr(strbuf.substr(1).c_str())),
-    CODE("variable", WORD(); addvar()),
-    CODE("constant", WORD(); addlit(POP())),
+        getline(fin, strbuf, '"');
+        addstr(strbuf.substr(1).c_str())),
+#if 0
+    IMMD("(",       next_idiom(')')),
+    IMMD(".(",      cout << next_idiom(')')),
+    CODE("\\",      next_idiom('\n')),
+    CODE("$\"",
+        string s = next_idiom('"').substr(1);
+        dict[-1]->addcode(LIT("dovar", s))),
+    /// @}
+    /// @defgroup Branching ops
+    /// @brief - if...then, if...else...then
+    /// @{
+    IMMD("bran", bool f = POP() != 0; call(f ? c.pf : c.pf1)),
+    IMMD("if",
+        dict[-1]->addcode(BRAN("bran"));
+        dict.push(TEMP())),      // use last cell of dictionay as scratch pad
+    IMMD("else",
+        CodeP temp = dict[-1]; CodeP last = dict[-2]->pf[-1];
+        last->pf.merge(temp->pf);
+        temp->pf.clear();
+        last->stage = 1),
+    IMMD("then",
+        CodeP temp = dict[-1]; CodeP last = dict[-2]->pf[-1];
+        if (last->stage == 0) {                     // if...then
+            last->pf.merge(temp->pf);
+            dict.pop();
+        }
+        else {                                      // if...else...then, or
+            last->pf1.merge(temp->pf);             // for...aft...then...next
+            if (last->stage == 1) dict.pop();
+            else temp->pf.clear();
+        }),
+    /// @}
+    /// @defgroup Loops
+    /// @brief  - begin...again, begin...f until, begin...f while...repeat
+    /// @{
+    CODE("loop",
+        while (true) {
+            call(c.pf);                                           // begin...
+            int f = INT(top);
+            if (c.stage == 0 && (top = ss.pop(), f != 0)) break;  // ...until
+            if (c.stage == 1) continue;                           // ...again
+            if (c.stage == 2 && (top = ss.pop(), f == 0)) break;  // while...repeat
+            call(c.pf1);
+        }),
+    IMMD("begin",
+        dict[-1]->addcode(BRAN("loop"));
+        dict.push(TEMP())),
+    IMMD("while",
+        CodeP last = dict[-2]->pf[-1]; CodeP temp = dict[-1];
+        last->pf.merge(temp->pf);
+        temp->pf.clear(); last->stage = 2),
+    IMMD("repeat",
+        CodeP last = dict[-2]->pf[-1]; CodeP temp = dict[-1];
+        last->pf1.merge(temp->pf); dict.pop()),
+    IMMD("again",
+        CodeP last = dict[-2]->pf[-1]; CodeP temp = dict[-1];
+        last->pf.merge(temp->pf);
+        last->stage = 1; dict.pop()),
+    IMMD("until",
+        CodeP last = dict[-2]->pf[-1]; CodeP temp = dict[-1];
+        last->pf.merge(temp->pf); dict.pop()),
+    /// @}
+    /// @defgrouop For loops
+    /// @brief  - for...next, for...aft...then...next
+    /// @{
+    CODE("cycle",
+       do { call(c.pf); }
+        while (c.stage == 0 && rs.dec_i() >= 0);    // for...next only
+        while (c.stage > 0) {                       // aft
+            call(c.pf2);                            // then...next
+            if (rs.dec_i() < 0) break;
+            call(c.pf1);                            // aft...then
+        }
+        rs.pop()),
+    IMMD("for",
+        dict[-1]->addcode(find(">r"));
+        dict[-1]->addcode(BRAN("cycle"));
+        dict.push(TEMP())),
+    IMMD("aft",
+        CodeP last = dict[-2]->pf[-1]; CodeP temp = dict[-1];
+        last->pf.merge(temp->pf);
+        temp->pf.clear(); last->stage = 3),
+    IMMD("next",
+        CodeP last = dict[-2]->pf[-1]; CodeP temp = dict[-1];
+        if (last->stage == 0) last->pf.merge(temp->pf);
+        else last->pf2.merge(temp->pf); dict.pop()),
+    /// @}
+    /// @defgrouop Compiler ops
+    /// @{
+    CODE("exit", int x = top; throw domain_error(string())),   // need x=top, Arduino bug
+    CODE("exec", int n = INT(top); call(dict[n])),
+#endif
     CODE(":", WORD(); compile=true),
     IMMD(";", compile = false),
+    CODE("variable", WORD(); addvar()),
+    CODE("constant", WORD(); addlit(POP())),
+#if 0
+    CODE("@",      int w = INT(POP()); PUSH(dict[w]->pf[0]->qf[0])),         // w -- n
+    CODE("!",      int w = INT(POP()); dict[w]->pf[0]->qf[0] = POP()),       // n w --
+    CODE("+!",     int w = INT(POP()); dict[w]->pf[0]->qf[0] += POP()),      // n w --
+    CODE("?",      int w = INT(POP()); cout << dict[w]->pf[0]->qf[0] << " "),// w --
+    CODE("array@", int a = INT(POP()); PUSH(dict[POP()]->pf[0]->qf[a])),     // w a -- n
+    CODE("array!", int a = INT(POP()); int w = POP();  dict[w]->pf[0]->qf[a] = POP()),   // n w a --
+    CODE("allot",                                           // n --
+        for (int n = INT(POP()), i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(DVAL)),
+    CODE(",",      dict[-1]->pf[0]->qf.push(POP())),
+    /// @}
+    /// @defgroup metacompiler
+    /// @{
+    CODE("create",
+        dict.push(WORD());                                  // create a new word
+        Code& last = dict[-1]->addcode(LIT("dovar", DVAL));
+        last.pf[0]->token = last.token;
+        last.pf[0]->qf.clear()),
+    CODE("does",
+        ForthList<CodeP>& src = dict[WP]->pf;               // source word : xx create...does...;
+        int n = src.size();
+        while (Code::IP < n) dict[-1]->pf.push(src[Code::IP++])),       // copy words after "does" to new the word
+    CODE("to",                                              // n -- , compile only
+        CodeP tgt = find(next_idiom());
+        if (tgt) tgt->pf[0]->qf[0] = POP()),                // update constant
+    CODE("is",                                              // w -- , execute only
+        CodeP tgt = find(next_idiom());
+        if (tgt) {
+            tgt->pf.clear();
+            tgt->pf.merge(dict[POP()]->pf);
+        }),
+    CODE("[to]",
+        ForthList<CodeP>& src = dict[WP]->pf;               // source word : xx create...does...;
+        src[Code::IP++]->pf[0]->qf[0] = POP()),             // change the following constant
+#endif
+    /// @}
+    /// @defgroup Debug ops
+    /// @{
+    CODE("bye",   exit(0)),
+    CODE("here",  PUSH(dict.idx)),
     CODE("words", words()),
-    CODE("bye", exit(0))
+    CODE(".s",    ss_dump()),
+#if 0
+    CODE("'",     CodeP w = find(next_idiom()); PUSH(w->token)),
+    CODE("see",
+        CodeP w = find(next_idiom());
+        if (w) cout << w->see() << ENDL),
+    CODE("forget",
+        CodeP w = find(next_idiom());
+         if (w == NULL) return;
+         dict.clear(Code::fence=max(w->token, find("boot")->token + 1))),
+    CODE("clock", PUSH(millis())),
+    CODE("delay", delay(POP())),
+    CODE("peek",  int a = INT(POP()); PUSH(PEEK(a))),
+    CODE("poke",  int a = INT(POP()); POKE(a, POP())),
+#if ARDUINO || ESP32
+    /// @}
+    /// @defgroup Arduino specific ops
+    /// @{
+    CODE("pin",   int p = INT(POP()); pinMode(p, POP())),
+    CODE("in",    PUSH(digitalRead(POP()))),
+    CODE("out",   int p = INT(POP()); digitalWrite(p, POP())),
+    CODE("adc",   PUSH(analogRead(POP()))),
+    CODE("pwm",   int p = INT(POP()); analogWrite(p, POP(), 255)),
+#if ESP32
+    CODE("attach",int p = INT(POP()); ledcAttachPin(p, POP())),
+    CODE("setup", int p = INT(POP()); int freq = INT(POP()); ledcSetup(p, freq, POP())),
+    CODE("tone",  int p = INT(POP()); ledcWriteTone(p, POP())),
+#endif // ESP32
+#endif // ARDUINO || ESP32
+    /// @}
+    CODE("boot", dict.clear(Code::fence=find("boot")->token + 1))
+#endif
 };
 const int PSZ = sizeof(prim)/sizeof(Code);
 ///
@@ -280,6 +515,8 @@ void forth_init() {
     }                                               /// find to support both
     words();
 }
+
+#include <iostream>		// cin, cout
 int main(int ac, char* av[]) {
     forth_init();
     cout << unitbuf << "eForth8" << ENDL;
