@@ -206,6 +206,7 @@ void words() {
 inline DU   PUSH(DU v) { ss.push(top); return top = v;         }
 inline DU   POP()      { DU n=top; top=ss.pop(); return n;     }
 inline IU   PARAM()    { return (dict[WP]->pf+IP+sizeof(IU));  }  // get parameter field
+inline DU   MEM(a)     (*(DU*)&pmem[a])
 #define     CODE(s, g) { s, [&](IU c){ g; }, 0 }
 #define     IMMD(s, g) { s, [&](IU c){ g; }, 1 }
 #define     BOOL(f)    ((f)?-1:0)
@@ -398,26 +399,30 @@ static Code prim[] = {
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE("exit", int x = top; throw domain_error(string())),   // need x=top, Arduino bug
+    CODE("exit", int x = top; throw domain_error(string())),  // need x=top, Arduino bug
     CODE("exec", int n = INT(top); call(dict[n])),
 #endif
-    CODE(":", colon(next_idiom()); compile=true),              // create a new word
-    IMMD(";", compile = false),
+    CODE(":",      colon(next_idiom()); compile=true),        // create a new word
+    IMMD(";",      compile = false),
     CODE("variable", colon(next_idiom()); addvar()),
     CODE("constant", colon(next_idiom()); addlit(POP())),
-#if 0
-    CODE("@",      int w = INT(POP()); PUSH(dict[w]->pf[0]->qf[0])),         // w -- n
-    CODE("!",      int w = INT(POP()); dict[w]->pf[0]->qf[0] = POP()),       // n w --
-    CODE("+!",     int w = INT(POP()); dict[w]->pf[0]->qf[0] += POP()),      // n w --
-    CODE("?",      int w = INT(POP()); cout << dict[w]->pf[0]->qf[0] << " "),// w --
-    CODE("array@", int a = INT(POP()); PUSH(dict[POP()]->pf[0]->qf[a])),     // w a -- n
-    CODE("array!", int a = INT(POP()); int w = POP();  dict[w]->pf[0]->qf[a] = POP()),   // n w a --
-    CODE("allot",                                           // n --
-        for (int n = INT(POP()), i = 0; i < n; i++) dict[-1]->pf[0]->qf.push(DVAL)),
-    CODE(",",      dict[-1]->pf[0]->qf.push(POP())),
+    CODE("@",      DU a = POP(); PUSH(MEM(a))),               // w -- n
+    CODE("!",      DU a = POP(); MEM(a) = POP()),             // n w --
+    CODE("+!",     DU a = POP(); MEM(a) += POP()),            // n w --
+    CODE("?",      DU a = POP(); fout << MEM(a) << " "),      // w --
+    CODE("array@", DU a = POP(); DU w = POP()*sizeof(DU);     // w a -- n
+		 PUSH(MEM(a+w))),
+    CODE("array!", DU a = POP(); DU w = POP()*sizeof(DU);     // n w a --
+		 MEM(a+w) = POP()),
+    CODE("allot",                                             // n --
+		 for (DU n = POP(), i = 0; i < n; i++) {
+			 pmem.push((U8*)&i, sizeof(DU));
+		 }),
+    CODE(",", DU v = POP(); pmem.push((U8*)&v, sizeof(DU))),
     /// @}
     /// @defgroup metacompiler
     /// @{
+#if 0
     CODE("create",
         dict.push(WORD());                                  // create a new word
         Code& last = dict[-1]->addcode(LIT("dovar", DVAL));
@@ -447,37 +452,35 @@ static Code prim[] = {
     CODE("here",  PUSH(dict.idx)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
-#if 0
-    CODE("'",     CodeP w = find(next_idiom()); PUSH(w->token)),
+    CODE("'",     IU w = find(next_idiom()); PUSH(w)),
     CODE("see",
-        CodeP w = find(next_idiom());
-        if (w) cout << w->see() << ENDL),
+        IU w = find(next_idiom());
+        if (w>=0) fout << see(w) << ENDL),
     CODE("forget",
-        CodeP w = find(next_idiom());
-         if (w == NULL) return;
-         dict.clear(Code::fence=max(w->token, find("boot")->token + 1))),
+        IU w = find(next_idiom());
+        if (w<0) return;
+        dict.clear(max(w, find("boot") + 1))),
     CODE("clock", PUSH(millis())),
     CODE("delay", delay(POP())),
-    CODE("peek",  int a = INT(POP()); PUSH(PEEK(a))),
-    CODE("poke",  int a = INT(POP()); POKE(a, POP())),
+    CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
+    CODE("poke",  DU a = POP(); POKE(a, POP())),
 #if ARDUINO || ESP32
     /// @}
     /// @defgroup Arduino specific ops
     /// @{
-    CODE("pin",   int p = INT(POP()); pinMode(p, POP())),
+    CODE("pin",   DU p = POP(); pinMode(p, POP())),
     CODE("in",    PUSH(digitalRead(POP()))),
-    CODE("out",   int p = INT(POP()); digitalWrite(p, POP())),
+    CODE("out",   DU p = POP(); digitalWrite(p, POP())),
     CODE("adc",   PUSH(analogRead(POP()))),
-    CODE("pwm",   int p = INT(POP()); analogWrite(p, POP(), 255)),
+    CODE("pwm",   DU p = POP(); analogWrite(p, POP(), 255)),
 #if ESP32
-    CODE("attach",int p = INT(POP()); ledcAttachPin(p, POP())),
-    CODE("setup", int p = INT(POP()); int freq = INT(POP()); ledcSetup(p, freq, POP())),
-    CODE("tone",  int p = INT(POP()); ledcWriteTone(p, POP())),
+    CODE("attach",DU p = POP(); ledcAttachPin(p, POP())),
+    CODE("setup", DU p = POP(); DU freq = POP(); ledcSetup(p, freq, POP())),
+    CODE("tone",  DU p = POP(); ledcWriteTone(p, POP())),
 #endif // ESP32
 #endif // ARDUINO || ESP32
     /// @}
-    CODE("boot", dict.clear(Code::fence=find("boot")->token + 1))
-#endif
+    CODE("boot", dict.clear(find("boot") + 1))
 };
 const int PSZ = sizeof(prim)/sizeof(Code);
 ///
