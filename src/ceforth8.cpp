@@ -169,8 +169,28 @@ void nest(IU c) {
 #include <sstream>     // istringstream, ostringstream, cin, cout
 #include <iomanip>     // setbase
 #include <string>      // string class
+#if _WIN32 || _WIN64
+#define ENDL "\r\n"
+#else
+#define ENDL endl
+#endif // _WIN32 || _WIN64
+
+#if ARDUINO
+#include <Arduino.h>
+#define to_string(i)    string(String(i).c_str())
+#if ESP32
+#define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
+#endif // ESP32
+#else
+#include <chrono>
+#include <thread>
+#define millis()        chrono::duration_cast<chrono::milliseconds>( \
+                            chrono::steady_clock::now().time_since_epoch()).count()
+#define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
+#define yield()         this_thread::yield()
+#endif // ARDUINO
+
 using namespace std;
-#define ENDL    endl
 istringstream   fin;   /// forth_in
 ostringstream   fout;  /// forth_out
 string strbuf;
@@ -190,14 +210,20 @@ void ss_dump() {
     fout << " <"; for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
     fout << top << "> ok" << ENDL;
 }
+void to_s(IU c) {
+    fout << dict[c]->name << " " << c << (dict[c]->immd ? "* " : " ");
+}
 void see(IU c) {
-    // TODO
+	to_s(c);
+	if (!dict[c]->def) return;
+	for (int n=dict[c]->len, i=0; i<n; i+=sizeof(IU)) {
+
+	}
 }
 void words() {
     for (int i=dict.idx - 1; i>=0; i--) {
-        Code *w = dict[i];
-        fout << w->name << " " << i << (w->immd ? "* " : " ");
         if ((i%10)==0) fout << ENDL;
+        to_s(i);
     }
 }
 ///
@@ -206,7 +232,7 @@ void words() {
 inline DU   PUSH(DU v) { ss.push(top); return top = v;         }
 inline DU   POP()      { DU n=top; top=ss.pop(); return n;     }
 inline IU   PARAM()    { return (dict[WP]->pf+IP+sizeof(IU));  }  // get parameter field
-inline DU   MEM(a)     (*(DU*)&pmem[a])
+#define     MEM(a)     (*(DU*)&pmem[a])
 #define     CODE(s, g) { s, [&](IU c){ g; }, 0 }
 #define     IMMD(s, g) { s, [&](IU c){ g; }, 1 }
 #define     BOOL(f)    ((f)?-1:0)
@@ -455,19 +481,20 @@ static Code prim[] = {
     CODE("'",     IU w = find(next_idiom()); PUSH(w)),
     CODE("see",
         IU w = find(next_idiom());
-        if (w>=0) fout << see(w) << ENDL),
+        if (w>=0) see(w)),
     CODE("forget",
         IU w = find(next_idiom());
         if (w<0) return;
-        dict.clear(max(w, find("boot") + 1))),
+        IU b = find("boot")+1;
+        dict.clear(w > b ? w : b)),
     CODE("clock", PUSH(millis())),
     CODE("delay", delay(POP())),
-    CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
-    CODE("poke",  DU a = POP(); POKE(a, POP())),
 #if ARDUINO || ESP32
     /// @}
     /// @defgroup Arduino specific ops
     /// @{
+    CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
+    CODE("poke",  DU a = POP(); POKE(a, POP())),
     CODE("pin",   DU p = POP(); pinMode(p, POP())),
     CODE("in",    PUSH(digitalRead(POP()))),
     CODE("out",   DU p = POP(); digitalWrite(p, POP())),
