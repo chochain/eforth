@@ -175,8 +175,17 @@ istringstream   fin;   /// forth_in
 ostringstream   fout;  /// forth_out
 string strbuf;
 ///
+/// input token
+///
+const char *next_idiom(char delim=0) {
+    delim ? getline(fin, strbuf, delim) : fin >> strbuf; return strbuf.c_str();
+}
+///
 /// debug functions
 ///
+void dot_r(int n, DU v) {
+    fout << setw(n) << setfill(' ') << v;
+}
 void ss_dump() {
     fout << " <"; for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
     fout << top << "> ok" << ENDL;
@@ -196,7 +205,6 @@ void words() {
 ///
 inline DU   PUSH(DU v) { ss.push(top); return top = v;         }
 inline DU   POP()      { DU n=top; top=ss.pop(); return n;     }
-inline void WORD()     { fin >> strbuf; colon(strbuf.c_str()); }  // create a colon word
 inline IU   PARAM()    { return (dict[WP]->pf+IP+sizeof(IU));  }  // get parameter field
 #define     CODE(s, g) { s, [&](IU c){ g; }, 0 }
 #define     IMMD(s, g) { s, [&](IU c){ g; }, 1 }
@@ -281,12 +289,10 @@ static Code prim[] = {
     CODE("decimal", fout << setbase(base = 10)),
     CODE("cr",      fout << ENDL),
     CODE(".",       fout << POP() << " "),
-#if 0
     CODE(".r",      DU n = POP(); dot_r(n, POP())),
     CODE("u.r",     DU n = POP(); dot_r(n, abs(POP()))),
     CODE(".f",      DU n = POP(); fout << setprecision(n) << POP()),
     CODE("key",     PUSH(next_idiom()[0])),
-#endif
     CODE("emit",    char b = (char)POP(); fout << b),
     CODE("space",   fout << " "),
     CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) fout << " "),
@@ -304,16 +310,12 @@ static Code prim[] = {
         IP += ALIGN(strlen(s)+1)),          // advance to next instruction
     CODE("[", compile = false),
     CODE("]", compile = true),
-    IMMD(".\"",
-        getline(fin, strbuf, '"');
-        addstr(strbuf.substr(1).c_str())),
+    IMMD(".\"", addstr(next_idiom('"')+1)),
+    IMMD("(",   next_idiom(')')),
+    IMMD(".(",  fout << next_idiom(')')),
+    CODE("\\",  next_idiom('\n')),
+    CODE("$\"", addstr(next_idiom('"')+1)),
 #if 0
-    IMMD("(",       next_idiom(')')),
-    IMMD(".(",      cout << next_idiom(')')),
-    CODE("\\",      next_idiom('\n')),
-    CODE("$\"",
-        string s = next_idiom('"').substr(1);
-        dict[-1]->addcode(LIT("dovar", s))),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -399,10 +401,10 @@ static Code prim[] = {
     CODE("exit", int x = top; throw domain_error(string())),   // need x=top, Arduino bug
     CODE("exec", int n = INT(top); call(dict[n])),
 #endif
-    CODE(":", WORD(); compile=true),
+    CODE(":", colon(next_idiom()); compile=true),              // create a new word
     IMMD(";", compile = false),
-    CODE("variable", WORD(); addvar()),
-    CODE("constant", WORD(); addlit(POP())),
+    CODE("variable", colon(next_idiom()); addvar()),
+    CODE("constant", colon(next_idiom()); addlit(POP())),
 #if 0
     CODE("@",      int w = INT(POP()); PUSH(dict[w]->pf[0]->qf[0])),         // w -- n
     CODE("!",      int w = INT(POP()); dict[w]->pf[0]->qf[0] = POP()),       // n w --
