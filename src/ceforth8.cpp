@@ -111,12 +111,13 @@ int find(const char *s) {
 ///
 void colon(const char *name) {
     const char *nfd = (const char*)&pmem[pmem.idx];      // current pmem pointer
-    dict.push(new Code(nfd, [](int){}));    // create a new word on dictionary
-    dict[-1]->def = 1;                      // specify a colon word
-    dict[-1]->len = 0;                      // advance counter (by number of U16)
     int sz = ALIGN(strlen(name)+1);         // IU (16-bit) alignment
     pmem.push((U8*)name, sz);               // setup raw name field
-    dict[-1]->pf  = pmem.idx;               // capture code field index
+    Code *c = new Code(nfd, [](int){});     // create a new word with name field
+    c->def = 1;                             // specify a colon word
+    c->len = 0;                             // advance counter (by number of U16)
+    c->pf  = pmem.idx;                      // capture code field index
+    dict.push(c);                           // create a new word on dictionary
 };
 void addcode(IU c) {
     pmem.push((U8*)&c, sizeof(IU));         // add an opcode to pf
@@ -193,12 +194,14 @@ void nest(IU c) {
 using namespace std;
 istringstream   fin;   /// forth_in
 ostringstream   fout;  /// forth_out
-string strbuf;
+string strbuf;         /// fixed size allocation
 ///
-/// input token
+/// get token from input stream
 ///
-const char *next_idiom(char delim=0) {
-    delim ? getline(fin, strbuf, delim) : fin >> strbuf; return strbuf.c_str();
+const char *next_idiom(char delim=' ') {
+	strbuf.clear();
+    getline(fin, strbuf, delim);
+    return strbuf.length() ? strbuf.c_str() : NULL;
 }
 ///
 /// debug functions
@@ -213,7 +216,8 @@ void ss_dump() {
 void to_s(IU c) {
     fout << dict[c]->name << " " << c << (dict[c]->immd ? "* " : " ");
 }
-void see(IU c) {
+void see(IU c, int dp=0) {
+	if (c<0) return;
 	to_s(c);
 	if (!dict[c]->def) return;
 	for (int n=dict[c]->len, i=0; i<n; i+=sizeof(IU)) {
@@ -478,10 +482,8 @@ static Code prim[] = {
     CODE("here",  PUSH(dict.idx)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
-    CODE("'",     IU w = find(next_idiom()); PUSH(w)),
-    CODE("see",
-        IU w = find(next_idiom());
-        if (w>=0) see(w)),
+    CODE("'",     PUSH(find(next_idiom()))),
+    CODE("see",   see(find(next_idiom()))),
     CODE("forget",
         IU w = find(next_idiom());
         if (w<0) return;
@@ -514,12 +516,12 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 /// outer interpreter
 ///
 int forth_outer() {
-    while (fin >> strbuf) {
-        const char *idiom = strbuf.c_str();
-        // printf("%s=>", idiom);
+	const char *idiom;
+    while (idiom=next_idiom()) {
+        printf("%s=>", idiom);
         int w = find(idiom);           /// * search through dictionary
         if (w>=0) {                                 /// * word found?
-            // printf("%s\n", dict[w]->name);
+            printf("%s\n", dict[w]->name);
             if (compile && !dict[w]->immd) {        /// * in compile mode?
                 addcode(w);                         /// * add to colon word
             }
@@ -529,7 +531,7 @@ int forth_outer() {
         // try as a number
         char *p;
         int n = static_cast<int>(strtol(idiom, &p, base));
-        // printf("%d\n", n);
+        printf("%d\n", n);
         if (*p != '\0') {                           /// * not number
             fout << idiom << "? " << ENDL;          ///> display error prompt
             compile = false;                        ///> reset to interpreter mode
@@ -552,12 +554,14 @@ void forth_init() {
 int main(int ac, char* av[]) {
     forth_init();
     cout << unitbuf << "eForth8" << ENDL;
-    while (cin >> strbuf) {
+
+    string line;
+    while (getline(cin, line)) {					/// create IO interface for Forth VM
         fout.str("");
         fin.clear();
-        fin.str(strbuf.c_str());
-        forth_outer();
-        cout << fout.str();
+        fin.str(line);                              /// send line to Forth VM input stream
+        forth_outer();								/// invoke output interpreter of Forth VM
+        cout << fout.str();                         /// fetch result from Forth VM output stream
     }
     cout << "Done." << ENDL;
     return 0;
