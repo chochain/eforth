@@ -203,8 +203,7 @@ string strbuf;         /// fixed size allocation
 const char *next_idiom(char delim=0) {
 	strbuf.clear();
     delim ? getline(fin, strbuf, delim) : fin >> strbuf;
-    const char *s = strbuf.length() ? strbuf.c_str() : NULL;
-    return s;
+    return strbuf.length() ? strbuf.c_str() : NULL;
 }
 ///
 /// debug functions
@@ -220,13 +219,13 @@ void see(IU c, int dp=0) {
 	to_s(c);
 	if (!dict[c].def) return;
 	for (int n=dict[c].len, i=0; i<n; i+=sizeof(IU)) {
-
+		// TODO:
 	}
 }
 void words() {
-    for (int i=dict.idx - 1; i>=0; i--) {
-        to_s(i);
+    for (int i=0; i<dict.idx; i++) {
         if ((i%10)==0) fout << ENDL;
+        to_s(i);
     }
 }
 void ss_dump() {
