@@ -73,6 +73,7 @@ struct Code {
         xt = new XT<F>(f);
         immd = im ? 1 : 0;
     }
+    Code() {}               /// blank struct
 };
 ///
 /// main storages in RAM
@@ -86,7 +87,7 @@ struct Code {
 ///
 List<DU,    64>      ss;   /// data stack, can reside in registers for some processors
 List<DU,    64>      rs;   /// return stack
-List<Code*, 1024>    dict; /// fixed sized dictionary (RISC vs CISC)
+List<Code,  1024>    dict; /// fixed sized dictionary (RISC vs CISC)
 List<U8,    48*1024> pmem; /// parameter memory i.e. storage for all colon definitions
 ///
 /// system variables
@@ -99,7 +100,7 @@ IU  WP = 0, IP = 0;
 ///
 int find(const char *s) {
     for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
-        if (strcmp(s, dict[i]->name)==0) return i;
+        if (strcmp(s, dict[i].name)==0) return i;
     }
     return -1;
 }
@@ -114,32 +115,32 @@ void colon(const char *name) {
     const char *nfd = (const char*)&pmem[pmem.idx];      // current pmem pointer
     int sz = ALIGN(strlen(name)+1);         // IU (16-bit) alignment
     pmem.push((U8*)name, sz);               // setup raw name field
-    Code *c = new Code(nfd, [](int){});     // create a new word with name field
-    c->def = 1;                             // specify a colon word
-    c->len = 0;                             // advance counter (by number of U16)
-    c->pf  = pmem.idx;                      // capture code field index
-    dict.push(c);                           // create a new word on dictionary
+    Code c(nfd, [](int){}, false);          // create a new word with name field
+    c.def = 1;                              // specify a colon word
+    c.len = 0;                              // advance counter (by number of U16)
+    c.pf  = pmem.idx;                       // capture code field index
+    dict.push(c);                           // copy the new word into dictionary
 };
 void addcode(IU c) {
     pmem.push((U8*)&c, sizeof(IU));         // add an opcode to pf
-    dict[-1]->len += sizeof(IU);            // advance by instruction size
+    dict[-1].len += sizeof(IU);             // advance by instruction size
 }
 void addvar() {                             // add a dovar (variable)
     DU n = 0;                               // default variable value
     addcode(find("dovar"));                 // dovar (+parameter field)
     pmem.push((U8*)&n, sizeof(DU));         // data storage (32-bit integer now)
-    dict[-1]->len += sizeof(DU);            // skip to next field
+    dict[-1].len += sizeof(DU);             // skip to next field
 }
 void addlit(DU n) {                         // add a dolit (constant)
     addcode(find("dolit"));                 // dovar (+parameter field)
     pmem.push((U8*)&n, sizeof(DU));         // data storage (32-bit integer now)
-    dict[-1]->len += sizeof(DU);            // skip to next field
+    dict[-1].len += sizeof(DU);             // skip to next field
 }
 void addstr(const char *s) {                // add a string
     int sz = ALIGN(strlen(s)+1);            // IU (16-bit) alignment
     addcode(find("dotstr"));                // dostr, (+parameter field)
     pmem.push((U8*)s, sz);                  // byte0, byte1, byte2, ..., byteN
-    dict[-1]->len += sz;                    // skip to next field
+    dict[-1].len += sz;                     // skip to next field
 }
 ///
 /// Forth inner interpreter
@@ -149,16 +150,16 @@ void nest(IU c) {
     ///
     /// by not using any temp variable here can prevent auto stack allocation
     ///
-    if (!dict[c]->def) {                    // is a primitive?
-        (*(fop*)(((uintptr_t)dict[c]->xt)&~0x3))(c);  // mask out immd (and def), and execute
+    if (!dict[c].def) {                    // is a primitive?
+        (*(fop*)(((uintptr_t)dict[c].xt)&~0x3))(c);  // mask out immd (and def), and execute
         return;
     }
     // is a colon words
     rs.push(WP); rs.push(IP); WP=c; IP=0;   // setup call frame
     if (rs.idx > maxbss) maxbss = rs.idx;   // keep rs sizing matrics
     try {
-        while (IP < dict[c]->len) {         // in instruction range
-            nest(pmem[dict[c]->pf + IP]);   // fetch/exec instruction from pmem space
+        while (IP < dict[c].len) {          // in instruction range
+            nest(pmem[dict[c].pf + IP]);    // fetch/exec instruction from pmem space
             IP += sizeof(IU);               // advance to next instruction
         }
     }
@@ -212,13 +213,13 @@ void dot_r(int n, DU v) {
     fout << setw(n) << setfill(' ') << v;
 }
 void to_s(IU c) {
-    fout << dict[c]->name << " " << c << (dict[c]->immd ? "* " : " ");
+    fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
 }
 void see(IU c, int dp=0) {
 	if (c<0) return;
 	to_s(c);
-	if (!dict[c]->def) return;
-	for (int n=dict[c]->len, i=0; i<n; i+=sizeof(IU)) {
+	if (!dict[c].def) return;
+	for (int n=dict[c].len, i=0; i<n; i+=sizeof(IU)) {
 
 	}
 }
@@ -257,7 +258,7 @@ void mem_dump(IU p0, U16 sz) {
 ///
 inline DU   PUSH(DU v) { ss.push(top); return top = v;         }
 inline DU   POP()      { DU n=top; top=ss.pop(); return n;     }
-#define     PFID       (dict[WP]->pf+IP+sizeof(IU))  /* get parameter field index */
+#define     PFID       (dict[WP].pf+IP+sizeof(IU))  /* get parameter field index */
 #define     CELL(a)    (*(DU*)&pmem[a])
 #define     CODE(s, g) { s, [&](IU c){ g; }, 0 }
 #define     IMMD(s, g) { s, [&](IU c){ g; }, 1 }
@@ -375,15 +376,15 @@ static Code prim[] = {
     /// @{
     IMMD("bran", bool f = POP() != 0; call(f ? c.pf : c.pf1)),
     IMMD("if",
-        dict[-1]->addcode(BRAN("bran"));
+        dict[-1].addcode(BRAN("bran"));
         dict.push(TEMP())),      // use last cell of dictionay as scratch pad
     IMMD("else",
-        CodeP temp = dict[-1]; CodeP last = dict[-2]->pf[-1];
+        CodeP temp = dict[-1]; CodeP last = dict[-2].pf[-1];
         last->pf.merge(temp->pf);
         temp->pf.clear();
         last->stage = 1),
     IMMD("then",
-        CodeP temp = dict[-1]; CodeP last = dict[-2]->pf[-1];
+        CodeP temp = dict[-1]; CodeP last = dict[-2].pf[-1];
         if (last->stage == 0) {                     // if...then
             last->pf.merge(temp->pf);
             dict.pop();
@@ -407,10 +408,10 @@ static Code prim[] = {
             call(c.pf1);
         }),
     IMMD("begin",
-        dict[-1]->addcode(BRAN("loop"));
+        dict[-1].addcode(BRAN("loop"));
         dict.push(TEMP())),
     IMMD("while",
-        CodeP last = dict[-2]->pf[-1]; CodeP temp = dict[-1];
+        CodeP last = dict[-2].pf[-1]; CodeP temp = dict[-1];
         last->pf.merge(temp->pf);
         temp->pf.clear(); last->stage = 2),
     IMMD("repeat",
@@ -544,8 +545,8 @@ int forth_outer() {
         printf("%s=>", idiom);
         int w = find(idiom);           /// * search through dictionary
         if (w>=0) {                                 /// * word found?
-            printf("%s\n", dict[w]->name);
-            if (compile && !dict[w]->immd) {        /// * in compile mode?
+            printf("%s\n", dict[w].name);
+            if (compile && !dict[w].immd) {         /// * in compile mode?
                 addcode(w);                         /// * add to colon word
             }
             else { nest(w); ss_dump(); }            /// * execute forth word
@@ -568,9 +569,8 @@ int forth_outer() {
 }
 void forth_init() {
     for (int i=0; i<PSZ; i++) {                     /// copy prim(ROM) into RAM dictionary,
-        dict.push(&prim[i]);                        /// we don't need to do this if modify
+        dict.push(prim[i]);                         /// we don't need to do this if modify
     }                                               /// find to support both
-    words();
 }
 
 #include <iostream>		// cin, cout
