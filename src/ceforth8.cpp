@@ -18,6 +18,7 @@ typedef uint8_t  U8;    // byte, unsigned character
 ///
 #define ALIGN(sz)       ((sz) + (-(sz) & 0x1))
 //#define ALIGN4(sz)        ((sz) + (-(sz) & 0x3))
+#define ALIGN32(sz)   ((sz) + (-(sz) & 0x1f))
 ///
 /// array class template (so we don't have dependency on C++ STL)
 /// Note:
@@ -26,9 +27,11 @@ typedef uint8_t  U8;    // byte, unsigned character
 ///
 template<class T, int N>
 struct List {
-    T   v[N];           /// fixed-size array storage
+    T   *v;             /// fixed-size array storage
     int idx = 0;        /// current index of array
 
+    List()  { v = new T[N]; }      /// dynamically allocate array storage
+    ~List() { delete[] v;   }      /// free memory
     T& operator[](int i)   { return i < 0 ? v[idx + i] : v[i]; }
     T pop() {
         if (idx>0) return v[--idx];
@@ -233,7 +236,6 @@ void ss_dump() {
     for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
     fout << top << "> ok" << ENDL;
 }
-#define ALIGN32(sz)   ((sz) + (-(sz) & 0x1f))
 void mem_dump(IU p0, U16 sz) {
     fout << setbase(16) << setfill('0');
     for (IU i=ALIGN32(p0); i<=ALIGN32(p0+sz); i+=0x20) {
@@ -571,17 +573,15 @@ void forth_init() {
         dict.push(prim[i]);                         /// we don't need to do this if modify
     }                                               /// find to support both
 }
-
 #include <iostream>		// cin, cout
 int main(int ac, char* av[]) {
     forth_init();
-    cout << unitbuf << "eForth8" << ENDL;
-
+    cout << unitbuf << "ceForth8" << ENDL;
     string line;
-    while (getline(cin, line)) {					/// create IO interface for Forth VM
-        fout.str("");
-        fin.clear();
-        fin.str(line);                              /// send line to Forth VM input stream
+    while (getline(cin, line)) {					/// fetch line from user console input
+        fout.str("");                               /// clear output stream for next round
+        fin.clear();                                /// clear input stream error bits
+        fin.str(line);                              /// reload Forth VM input stream
         forth_outer();								/// invoke output interpreter of Forth VM
         cout << fout.str();                         /// fetch result from Forth VM output stream
     }
