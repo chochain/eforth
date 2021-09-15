@@ -10,6 +10,7 @@
 ///
 typedef uint16_t IU;    // instruction pointer unit
 typedef int32_t  DU;    // data unit
+typedef uint32_t U32;   // unsigned 32-bit integer
 typedef uint16_t U16;   // unsigned 16-bit integer
 typedef uint8_t  U8;    // byte, unsigned character
 ///
@@ -86,7 +87,7 @@ struct Code {
 List<DU,    64>      ss;   /// data stack, can reside in registers for some processors
 List<DU,    64>      rs;   /// return stack
 List<Code*, 1024>    dict; /// fixed sized dictionary (RISC vs CISC)
-List<U8,    48*1024> pmem; /// storage for all colon definitions
+List<U8,    48*1024> pmem; /// parameter memory i.e. storage for all colon definitions
 ///
 /// system variables
 ///
@@ -198,20 +199,17 @@ string strbuf;         /// fixed size allocation
 ///
 /// get token from input stream
 ///
-const char *next_idiom(char delim=' ') {
+const char *next_idiom(char delim=0) {
 	strbuf.clear();
-    getline(fin, strbuf, delim);
-    return strbuf.length() ? strbuf.c_str() : NULL;
+    delim ? getline(fin, strbuf, delim) : fin >> strbuf;
+    const char *s = strbuf.length() ? strbuf.c_str() : NULL;
+    return s;
 }
 ///
 /// debug functions
 ///
 void dot_r(int n, DU v) {
     fout << setw(n) << setfill(' ') << v;
-}
-void ss_dump() {
-    fout << " <"; for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
-    fout << top << "> ok" << ENDL;
 }
 void to_s(IU c) {
     fout << dict[c]->name << " " << c << (dict[c]->immd ? "* " : " ");
@@ -226,17 +224,41 @@ void see(IU c, int dp=0) {
 }
 void words() {
     for (int i=dict.idx - 1; i>=0; i--) {
-        if ((i%10)==0) fout << ENDL;
         to_s(i);
+        if ((i%10)==0) fout << ENDL;
     }
+}
+void ss_dump() {
+    fout << " <";
+    for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
+    fout << top << "> ok" << ENDL;
+}
+#define ALIGN32(sz)   ((sz) + (-(sz) & 0x1f))
+void mem_dump(IU p0, U16 sz) {
+    fout << setbase(16) << setfill('0');
+    for (IU i=ALIGN32(p0); i<=ALIGN32(p0+sz); i+=0x20) {
+        fout << setw(4) << i << ':';
+        U8 *p = &pmem[i];
+        for (int j=0; j<0x20; j++) {
+        	fout << setw(2) << (U16)*(p+j);
+        	if ((j%4)==3) fout << ' ';
+        }
+        fout << ' ';
+        for (int j=0; j<0x20; j++) {   // print and advance to next byte
+            char c = *(p+j) & 0x7f;
+            fout << (char)((c==0x7f||c<0x20) ? '_' : c);
+        }
+    	fout << ENDL;
+    }
+    fout << setbase(10);
 }
 ///
 /// macros to reduce verbosity
 ///
 inline DU   PUSH(DU v) { ss.push(top); return top = v;         }
 inline DU   POP()      { DU n=top; top=ss.pop(); return n;     }
-inline IU   PARAM()    { return (dict[WP]->pf+IP+sizeof(IU));  }  // get parameter field
-#define     MEM(a)     (*(DU*)&pmem[a])
+#define     PFID       (dict[WP]->pf+IP+sizeof(IU))  /* get parameter field index */
+#define     CELL(a)    (*(DU*)&pmem[a])
 #define     CODE(s, g) { s, [&](IU c){ g; }, 0 }
 #define     IMMD(s, g) { s, [&](IU c){ g; }, 1 }
 #define     BOOL(f)    ((f)?-1:0)
@@ -331,12 +353,12 @@ static Code prim[] = {
     /// @defgroup Literal ops
     /// @{
     CODE("dovar",
-        PUSH(PARAM()); IP += sizeof(DU)),   // push and advance to next instruction
+    	PUSH(PFID); IP += sizeof(DU)),      // push and advance to next instruction
     CODE("dolit",
-    	DU *i = (DU*)&pmem[PARAM()];        // fetch the value
+    	DU *i = (DU*)&pmem[PFID];           // fetch the value
         PUSH(*i); IP += sizeof(DU)),        // push and advance to next instruction
     CODE("dotstr",
-        const char *s = (char*)&pmem[PARAM()];    // get string pointer
+        char *s = (char*)&pmem[PFID];       // get string pointer
         fout << s;                          // send to output console
         IP += ALIGN(strlen(s)+1)),          // advance to next instruction
     CODE("[", compile = false),
@@ -430,22 +452,22 @@ static Code prim[] = {
     /// @defgrouop Compiler ops
     /// @{
     CODE("exit", int x = top; throw domain_error(string())),  // need x=top, Arduino bug
-    CODE("exec", int n = INT(top); call(dict[n])),
 #endif
+    CODE("exec",   nest(top)),
     CODE(":",      colon(next_idiom()); compile=true),        // create a new word
     IMMD(";",      compile = false),
     CODE("variable", colon(next_idiom()); addvar()),
     CODE("constant", colon(next_idiom()); addlit(POP())),
-    CODE("@",      DU a = POP(); PUSH(MEM(a))),               // w -- n
-    CODE("!",      DU a = POP(); MEM(a) = POP()),             // n w --
-    CODE("+!",     DU a = POP(); MEM(a) += POP()),            // n w --
-    CODE("?",      DU a = POP(); fout << MEM(a) << " "),      // w --
-    CODE("array@", DU a = POP(); DU w = POP()*sizeof(DU);     // w a -- n
-		 PUSH(MEM(a+w))),
-    CODE("array!", DU a = POP(); DU w = POP()*sizeof(DU);     // n w a --
-		 MEM(a+w) = POP()),
+    CODE("@",      IU a = POP(); PUSH(CELL(a))),              // w -- n
+    CODE("!",      IU a = POP(); CELL(a) = POP()),            // n w --
+    CODE("+!",     IU a = POP(); CELL(a) += POP()),           // n w --
+    CODE("?",      IU a = POP(); fout << CELL(a) << " "),     // w --
+    CODE("array@", IU a = POP(); DU w = POP();                // w a -- n
+		 PUSH(CELL(a + w*sizeof(DU)))),
+    CODE("array!", IU a = POP(); DU w = POP();                // n w a --
+		 CELL(a + w*sizeof(DU)) = POP()),
     CODE("allot",                                             // n --
-		 for (DU n = POP(), i = 0; i < n; i++) {
+		 for (IU n = POP(), i = 0; i < n; i++) {
 			 pmem.push((U8*)&i, sizeof(DU));
 		 }),
     CODE(",", DU v = POP(); pmem.push((U8*)&v, sizeof(DU))),
@@ -478,12 +500,13 @@ static Code prim[] = {
     /// @}
     /// @defgroup Debug ops
     /// @{
+    CODE("'",     PUSH(find(next_idiom()))),
     CODE("bye",   exit(0)),
-    CODE("here",  PUSH(dict.idx)),
+    CODE("here",  PUSH(pmem.idx)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
-    CODE("'",     PUSH(find(next_idiom()))),
     CODE("see",   see(find(next_idiom()))),
+    CODE("dump",  DU sz = POP(); IU a = POP(); mem_dump(a, sz)),
     CODE("forget",
         IU w = find(next_idiom());
         if (w<0) return;
