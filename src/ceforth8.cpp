@@ -5,6 +5,30 @@
 #include <stdlib.h>     // strtol
 #include <string.h>     // strcmp
 #include <exception>    // try...catch, throw
+using namespace std;
+///
+/// conditional compilation for different platforms
+///
+#if _WIN32 || _WIN64
+#define ENDL "\r\n"
+#else
+#define ENDL endl
+#endif // _WIN32 || _WIN64
+
+#if ARDUINO
+#include <Arduino.h>
+#if ESP32
+#define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
+#endif // ESP32
+#else
+#include <chrono>
+#include <thread>
+#define millis()        chrono::duration_cast<chrono::milliseconds>( \
+                            chrono::steady_clock::now().time_since_epoch()).count()
+#define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
+#define yield()         this_thread::yield()
+#define PROGMEM
+#endif // ARDUINO
 ///
 /// logical units (instead of physical) for type check and portability
 ///
@@ -124,7 +148,6 @@ inline void ADD_HALF(U16 w){ pmem.push((U8*)&w, sizeof(U16)); XIP+=sizeof(U16); 
 inline void ADD_STR(const char *s) {                                               /** add a string to pmem         */
     int sz = STRLEN(s); pmem.push((U8*)s,  sz); XIP += sz;
 }
-inline void ADD_WORD(const char *s) { ADD_IU(find(s)); }                           /** find a word and add to pmem  */
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
@@ -137,6 +160,7 @@ int find(const char *s) {
     }
     return -1;
 }
+inline void ADD_WORD(const char *s) { ADD_IU(find(s)); }                           /** find a word and add to pmem  */
 ///
 /// colon word compiler
 /// Note:
@@ -206,31 +230,9 @@ void nest(IU c) {
 #include <sstream>      // iostream, stringstream
 #include <iomanip>      // setbase
 #include <string>       // string class
-using namespace std;    // default to C++ standard template library
 istringstream   fin;    // forth_in
 ostringstream   fout;   // forth_out
 string strbuf;          // input string buffer
-
-#if _WIN32 || _WIN64
-#define ENDL "\r\n"
-#else
-#define ENDL endl
-#endif // _WIN32 || _WIN64
-
-#if ARDUINO
-#include <Arduino.h>
-#if ESP32
-#define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
-#endif // ESP32
-#else
-#include <chrono>
-#include <thread>
-#define millis()        chrono::duration_cast<chrono::milliseconds>( \
-                            chrono::steady_clock::now().time_since_epoch()).count()
-#define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
-#define yield()         this_thread::yield()
-#define PROGMEM 
-#endif // ARDUINO
 ///
 /// get token from input stream
 ///
@@ -246,13 +248,24 @@ void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
 void to_s(IU c) {
     fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
 }
-void see(IU c, int dp=0) {
-    if (c<0) return;
-    to_s(c);
-    if (!dict[c].def) return;
-    for (int n=dict[c].len, i=0; i<n; i+=sizeof(IU)) {
-        // TODO:
+void see(IU c, IU *ip, int dp=0) {
+	static IU _dovar  = find("dovar"),  _dolit  = find("dolit");  	// DU
+	static IU _dotstr = find("dotstr"), _dostr  = find("dostr");	// STR
+    static IU _bran   = find("branch"), _0bran  = find("0branch");
+    static IU _donext = find("donext");
+    auto tab = [&]() { int i = dp; fout << ENDL; while (i--) fout << "  "; };
+    tab(); fout << "[ "; to_s(c);
+    if (dict[c].def) {
+    	if (IU n=dict[c].len, i=0; i<n; i+=sizeof(IU)) {
+    	    IU *w = (IU*)&pmem[dict[c].pfa + i];
+    	    see(w, &i, dp+1);
+    	}
     }
+    switch (c) {
+    case _dovar: case _dolit:  fout << "=" << *(DU*)w; ip+=sizeof(DU);       break;
+    case _dostr: case _dotstr: fout << "=" << (char*)w ip+=STRLEN((char*)c); break;
+    }
+    fout << "] ";
 }
 void words() {
     for (int i=0; i<dict.idx; i++) {
@@ -286,7 +299,7 @@ void mem_dump(IU p0, U16 sz) {
 ///
 /// macros to reduce verbosity
 ///
-inline void NEW_WORD()    { fin >> strbuf; colon(strbuf.c_str()); }  // create a colon word
+inline char *NEXT_WORD()  { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
 inline char *SCAN(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   PUSH(DU v)    { ss.push(top); return top = v;         }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n;     }
@@ -384,7 +397,7 @@ static Code prim[] PROGMEM = {
     CODE(".r",      DU n = POP(); dot_r(n, POP())),
     CODE("u.r",     DU n = POP(); dot_r(n, abs(POP()))),
     CODE(".f",      DU n = POP(); fout << setprecision(n) << POP()),
-    CODE("key",     PUSH(SCAN(' ')[0])),
+    CODE("key",     PUSH(NEXT_WORD()[0])),
     CODE("emit",    char b = (char)POP(); fout << b),
     CODE("space",   fout << " "),
     CODE("spaces",  for (DU n = POP(), i = 0; i < n; i++) fout << " "),
@@ -410,7 +423,6 @@ static Code prim[] PROGMEM = {
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
     /// @{
-    CODE("exit",    throw " "),
     CODE("branch" , IP = JMPIP),                                 // unconditional branch
     CODE("0branch", IP = POP() ? IP + sizeof(IU) : JMPIP),       // conditional branch
     IMMD("if",      ADD_WORD("0branch"); PUSH(XIP); ADD_IU(0)),  // if    ( -- here ) 
@@ -444,13 +456,13 @@ static Code prim[] PROGMEM = {
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE(":",       NEW_WORD(); compile=true),
+    CODE(":",       colon(NEXT_WORD()); compile=true),
     IMMD(";",       compile = false),
-    CODE("create",  NEW_WORD();
+    CODE("create",  colon(NEXT_WORD());
          ADD_WORD("dovar");                                      // dovar (+parameter field) 
          XIP -= sizeof(DU)),                                     // backup one field
-    CODE("variable",NEW_WORD(); addvar()),
-    CODE("constant",NEW_WORD(); addlit(POP())),
+    CODE("variable",colon(NEXT_WORD()); addvar()),
+    CODE("constant",colon(NEXT_WORD()); addlit(POP())),
     CODE("c@",    IU w = POP(); PUSH(BYTE(w));),                 // w -- n
     CODE("c!",    IU w = POP(); BYTE(w) = POP()),
     CODE("c,",    DU n = POP(); ADD_BYTE(n)), 
@@ -466,6 +478,8 @@ static Code prim[] PROGMEM = {
     /// @}
     /// @defgroup metacompiler
     /// @{
+    CODE("exit",    throw " "),
+    CODE("exec",    nest(POP())),
     CODE("does",  /* TODO */),
     CODE("to",    /* TODO */),
     CODE("is",    /* TODO */),
@@ -476,19 +490,20 @@ static Code prim[] PROGMEM = {
     CODE("here",  PUSH(HERE)),
     CODE("ucase", ucase = POP()),
     CODE("words", words()),
-    CODE("'",     IU w = find(SCAN(' ')); PUSH(w)),
+    CODE("'",     IU w = find(NEXT_WORD()); PUSH(w)),
     CODE(".s",    ss_dump()),
-    CODE("see",   see(find(SCAN(' ')))),
+    CODE("see",   see(find(NEXT_WORD()))),
     CODE("dump",  DU sz = POP(); IU a = POP(); mem_dump(a, sz)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
     CODE("forget",
-        IU w = find(SCAN(' '));
+        IU w = find(NEXT_WORD());
         if (w<0) return;
         IU b = find("boot")+1;
         dict.clear(w > b ? w : b)),
     CODE("clock", PUSH(millis())),
     CODE("delay", delay(POP())),
+#if ARDUINO
     /// @}
     /// @defgroup Arduino specific ops
     /// @{
@@ -500,6 +515,7 @@ static Code prim[] PROGMEM = {
     CODE("attach",DU p  = POP(); ledcAttachPin(p, POP())),
     CODE("setup", DU ch = POP(); DU freq=POP(); ledcSetup(ch, freq, POP())),
     CODE("tone",  DU ch = POP(); ledcWriteTone(ch, POP())),
+#endif // ARDUINO
     /// @}
     CODE("bye",   exit(0)),
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear())
