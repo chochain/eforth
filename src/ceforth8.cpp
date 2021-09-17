@@ -40,7 +40,7 @@ typedef uint8_t  U8;    // byte, unsigned character
 /// alignment macros
 ///
 #define ALIGN(sz)       ((sz) + (-(sz) & 0x1))
-//#define ALIGN4(sz)        ((sz) + (-(sz) & 0x3))
+#define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 ///
 /// array class template (so we don't have dependency on C++ STL)
@@ -139,16 +139,6 @@ IU   WP = 0, IP = 0;
 #define JMPIP     (*(IU*)&pmem[PFA] - sizeof(IU))   /** get jump target address                  */
 #define HERE      (pmem.idx)                        /** current parameter memory index           */
 ///
-/// inline functions to abstract and reduce verbosity
-///
-inline void ADD_IU(IU i)   { pmem.push((U8*)&i, sizeof(IU));  XIP+=sizeof(IU);  }  /** add an instruction into pmem */
-inline void ADD_DU(DU v)   { pmem.push((U8*)&v, sizeof(DU)),  XIP+=sizeof(DU);  }  /** add a cell into pmem         */
-inline void ADD_BYTE(U8 b) { pmem.push((U8*)&b, sizeof(U8));  XIP+=sizeof(U8);  }
-inline void ADD_HALF(U16 w){ pmem.push((U8*)&w, sizeof(U16)); XIP+=sizeof(U16); }
-inline void ADD_STR(const char *s) {                                               /** add a string to pmem         */
-    int sz = STRLEN(s); pmem.push((U8*)s,  sz); XIP += sz;
-}
-///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
 inline int  STREQ(const char *s1, const char *s2) {
@@ -160,6 +150,16 @@ int find(const char *s) {
     }
     return -1;
 }
+///
+/// inline functions to abstract and reduce verbosity
+///
+inline void ADD_IU(IU i)   { pmem.push((U8*)&i, sizeof(IU));  XIP+=sizeof(IU);  }  /** add an instruction into pmem */
+inline void ADD_DU(DU v)   { pmem.push((U8*)&v, sizeof(DU)),  XIP+=sizeof(DU);  }  /** add a cell into pmem         */
+inline void ADD_HALF(U16 w){ pmem.push((U8*)&w, sizeof(U16)); XIP+=sizeof(U16); }
+inline void ADD_BYTE(U8 b) { pmem.push((U8*)&b, sizeof(U8));  XIP+=sizeof(U8);  }
+inline void ADD_STR(const char *s) {                                               /** add a string to pmem         */
+    int sz = STRLEN(s); pmem.push((U8*)s,  sz); XIP += sz;
+}
 inline void ADD_WORD(const char *s) { ADD_IU(find(s)); }                           /** find a word and add to pmem  */
 ///
 /// colon word compiler
@@ -170,7 +170,8 @@ inline void ADD_WORD(const char *s) { ADD_IU(find(s)); }                        
 ///
 void colon(const char *name) {
     char *nfa = STR(HERE);                  // current pmem pointer
-    ADD_STR(name);                          // setup raw name field
+    int sz = STRLEN(name);					// string length, aligned
+    pmem.push((U8*)name,  sz);				// setup raw name field
     Code c(nfa, [](int){});                 // create a new word on dictionary
     c.def = 1;                              // specify a colon word
     c.len = 0;                              // advance counter (by number of U16)
@@ -234,37 +235,37 @@ istringstream   fin;    // forth_in
 ostringstream   fout;   // forth_out
 string strbuf;          // input string buffer
 ///
-/// get token from input stream
-///
-const char *next_idiom(char delim=0) {
-	strbuf.clear();
-    delim ? getline(fin, strbuf, delim) : fin >> strbuf;
-    return strbuf.length() ? strbuf.c_str() : NULL;
-}
-///
 /// debug functions
 ///
 void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
 void to_s(IU c) {
     fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
 }
-void see(IU c, IU *ip, int dp=0) {
-	static IU _dovar  = find("dovar"),  _dolit  = find("dolit");  	// DU
-	static IU _dotstr = find("dotstr"), _dostr  = find("dostr");	// STR
+///
+/// recursively disassemble colon word
+///
+void see(IU *wp, IU *ip, int dp=0) {
+    static IU _dovar  = find("dovar"),  _dolit  = find("dolit");    // DU
+	static IU _dostr  = find("dostr"),  _dotstr = find("dotstr");	// STR
     static IU _bran   = find("branch"), _0bran  = find("0branch");
     static IU _donext = find("donext");
-    auto tab = [&]() { int i = dp; fout << ENDL; while (i--) fout << "  "; };
-    tab(); fout << "[ "; to_s(c);
-    if (dict[c].def) {
-    	if (IU n=dict[c].len, i=0; i<n; i+=sizeof(IU)) {
-    	    IU *w = (IU*)&pmem[dict[c].pfa + i];
-    	    see(w, &i, dp+1);
-    	}
-    }
-    switch (c) {
-    case _dovar: case _dolit:  fout << "=" << *(DU*)w; ip+=sizeof(DU);       break;
-    case _dostr: case _dotstr: fout << "=" << (char*)w ip+=STRLEN((char*)c); break;
-    }
+    IU c = *wp;
+    fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";			// indentation
+    if (dp) fout << setw(4) << *ip;									// ip offset
+    fout << "[ "; to_s(c);											// name field
+	if (dict[c].def) {												// a colon word
+		for (IU n=dict[c].len, ip1=0; ip1<n; ip1+=sizeof(IU)) {		// walk through children
+			IU *wp1 = (IU*)&pmem[dict[c].pfa + ip1];				// wp of next children node
+			see(wp1, &ip1, dp+1);									// dive recursively
+		}
+	}
+    if (c==_dovar || c==_dolit) {
+    	fout << "= " << *(DU*)(wp+1); *ip += sizeof(DU); }
+    else if (c==_dostr || c==_dotstr) {
+    	fout << "= \"" << (char*)(wp+1) << '"';
+    	*ip += STRLEN((char*)(wp+1)); }
+    else if (c==_bran || c==_0bran || c==_donext)  {
+    	fout << "j" << *(wp+1); *ip += sizeof(IU); }
     fout << "] ";
 }
 void words() {
@@ -279,15 +280,15 @@ void ss_dump() {
 }
 void mem_dump(IU p0, U16 sz) {
     fout << setbase(16) << setfill('0');
-    for (IU i=ALIGN32(p0); i<=ALIGN32(p0+sz); i+=0x20) {
+    for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=0x10) {
         fout << setw(4) << i << ':';
         char *p = STR(i);
-        for (int j=0; j<0x20; j++) {
+        for (int j=0; j<0x10; j++) {
             fout << setw(2) << (U16)*(p+j);
             if ((j%4)==3) fout << ' ';
         }
         fout << ' ';
-        for (int j=0; j<0x20; j++) {   // print and advance to next byte
+        for (int j=0; j<0x10; j++) {   // print and advance to next byte
             char c = *(p+j) & 0x7f;
             fout << (char)((c==0x7f||c<0x20) ? '_' : c);
         }
@@ -444,7 +445,7 @@ static Code prim[] PROGMEM = {
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    CODE("donext" ,
+    CODE("donext",
          DU i = rs.pop() - 1;                                    // decrement counter
          if (i<0) { IP += sizeof(IU);       }                    // break
          else     { IP = JMPIP; rs.push(i); }),                  // loop back
@@ -492,7 +493,7 @@ static Code prim[] PROGMEM = {
     CODE("words", words()),
     CODE("'",     IU w = find(NEXT_WORD()); PUSH(w)),
     CODE(".s",    ss_dump()),
-    CODE("see",   see(find(NEXT_WORD()))),
+    CODE("see",   IU wp=find(NEXT_WORD()); IU ip=0; see(&wp, &ip)),
     CODE("dump",  DU sz = POP(); IU a = POP(); mem_dump(a, sz)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
@@ -535,10 +536,10 @@ void forth_init() {
 void forth_outer() {
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
-        printf("%s=>", idiom);
+        printf("%s=>",idiom);
         int w = find(idiom);                 /// * search through dictionary
         if (w>=0) {                          /// * word found?
-            printf("%s\n", dict[w].name);
+            printf("%s %d\n", dict[w].name, w);
             if (compile && !dict[w].immd) {  /// * in compile mode?
                 ADD_IU(w);                   /// * add found word to new colon word
             }
