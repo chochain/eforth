@@ -178,23 +178,6 @@ void colon(const char *name) {
     c.pfa = HERE;                           // capture code field index
     dict.push(c);                           // deep copy Code struct into dictionary
 };
-void addvar() {                             // add a dovar (variable)
-    DU n = 0;                               // default variable value
-    ADD_WORD("dovar");                      // dovar (+parameter field)
-    ADD_DU(n);                              // data storage (32-bit integer now)
-}
-void addlit(DU n) {                         // add a dolit (constant)
-    ADD_WORD("dolit");                      // dovar (+parameter field)
-    ADD_DU(n);                              // data storage (32-bit integer now)
-}
-void adddotstr(const char *s) {             // print a string
-    ADD_WORD("dotstr");                     // dostr, (+parameter field)
-    ADD_STR(s);                             // byte0, byte1, byte2, ..., byteN
-}
-void addstr(const char *s) {                // add a string
-    ADD_WORD("dostr");                      // dostr, (+parameter field)
-    ADD_STR(s);                             // byte0, byte1, byte2, ..., byteN
-}
 ///
 /// Forth inner interpreter
 ///
@@ -423,8 +406,14 @@ static Code prim[] PROGMEM = {
     IMMD("(",       SCAN(')')),
     IMMD(".(",      fout << SCAN(')')),
     CODE("\\",      SCAN('\n')),
-    CODE("$\"",     addstr(SCAN('"')+1)),
-    IMMD(".\"",     adddotstr(SCAN('"')+1)),
+    CODE("$\"",
+        const char *s = SCAN('"')+1;        // string skip first blank
+        ADD_WORD("dostr");                  // dostr, (+parameter field)
+        ADD_STR(s)),                        // byte0, byte1, byte2, ..., byteN
+    IMMD(".\"",
+        const char *s = SCAN('"')+1;        // string skip first blank
+        ADD_WORD("dotstr");                 // dostr, (+parameter field)
+        ADD_STR(s)),                        // byte0, byte1, byte2, ..., byteN
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -465,10 +454,17 @@ static Code prim[] PROGMEM = {
     CODE(":",       colon(NEXT_WORD()); compile=true),
     IMMD(";",       compile = false),
     CODE("create",  colon(NEXT_WORD());
-         ADD_WORD("dovar");                                      // dovar (+parameter field) 
-         XIP -= sizeof(DU)),                                     // backup one field
-    CODE("variable",colon(NEXT_WORD()); addvar()),
-    CODE("constant",colon(NEXT_WORD()); addlit(POP())),
+        ADD_WORD("dovar");                                       // dovar (+parameter field)
+        XIP -= sizeof(DU)),                                      // backup one field
+    CODE("variable",                                             // create a variable
+        colon(NEXT_WORD());
+        DU n = 0;                                                // default value
+        ADD_WORD("dovar");                                       // dovar (+parameter field)
+        ADD_DU(n)),                                              // data storage (32-bit integer now)
+    CODE("constant",                                             // create a constant
+        colon(NEXT_WORD());
+        ADD_WORD("dolit");                                       // dovar (+parameter field)
+        ADD_DU(POP())),                                          // data storage (32-bit integer now)
     CODE("c@",    IU w = POP(); PUSH(BYTE(w));),                 // w -- n
     CODE("c!",    IU w = POP(); BYTE(w) = POP()),
     CODE("c,",    DU n = POP(); ADD_BYTE(n)),
@@ -561,7 +557,10 @@ void forth_outer() {
             break;                           ///> skip the entire input buffer
         }
         // is a number
-        if (compile) addlit(n);              /// * add literal when in compile mode
+        if (compile) {                       /// * add literal when in compile mode
+            ADD_WORD("dolit");               ///> dovar (+parameter field)
+            ADD_DU(n);                       ///> data storage (32-bit integer now)
+        }
         else PUSH(n);                        ///> or, add value onto data stack
     }
     if (!compile) ss_dump();
