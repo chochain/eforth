@@ -114,7 +114,7 @@ struct Code {
 List<DU,   64>      ss;   /// data stack, can reside in registers for some processors
 List<DU,   64>      rs;   /// return stack
 List<Code, 1024>    dict; /// fixed sized dictionary (RISC vs CISC)
-List<U8,   64*1024> pmem; /// parameter memory i.e. storage for all colon definitions
+List<U8,   48*1024> pmem; /// parameter memory i.e. storage for all colon definitions
 ///
 /// system variables
 ///
@@ -170,8 +170,8 @@ inline void ADD_WORD(const char *s) { ADD_IU(find(s)); }                        
 ///
 void colon(const char *name) {
     char *nfa = STR(HERE);                  // current pmem pointer
-    int sz = STRLEN(name);					// string length, aligned
-    pmem.push((U8*)name,  sz);				// setup raw name field
+    int sz = STRLEN(name);                  // string length, aligned
+    pmem.push((U8*)name,  sz);              // setup raw name field
     Code c(nfa, [](int){});                 // create a new word on dictionary
     c.def = 1;                              // specify a colon word
     c.len = 0;                              // advance counter (by number of U16)
@@ -245,27 +245,32 @@ void to_s(IU c) {
 /// recursively disassemble colon word
 ///
 void see(IU *wp, IU *ip, int dp=0) {
-    static IU _dovar  = find("dovar"),  _dolit  = find("dolit");    // DU
-	static IU _dostr  = find("dostr"),  _dotstr = find("dotstr");	// STR
-    static IU _bran   = find("branch"), _0bran  = find("0branch");
-    static IU _donext = find("donext");
+    fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";            // indentation
+    if (dp) fout << "[" << setw(2) << *ip << ": ";                  // ip offset
+    else    fout << "[ ";
     IU c = *wp;
-    fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";			// indentation
-    if (dp) fout << setw(4) << *ip;									// ip offset
-    fout << "[ "; to_s(c);											// name field
-	if (dict[c].def) {												// a colon word
-		for (IU n=dict[c].len, ip1=0; ip1<n; ip1+=sizeof(IU)) {		// walk through children
-			IU *wp1 = (IU*)&pmem[dict[c].pfa + ip1];				// wp of next children node
-			see(wp1, &ip1, dp+1);									// dive recursively
-		}
-	}
-    if (c==_dovar || c==_dolit) {
-    	fout << "= " << *(DU*)(wp+1); *ip += sizeof(DU); }
-    else if (c==_dostr || c==_dotstr) {
-    	fout << "= \"" << (char*)(wp+1) << '"';
-    	*ip += STRLEN((char*)(wp+1)); }
-    else if (c==_bran || c==_0bran || c==_donext)  {
-    	fout << "j" << *(wp+1); *ip += sizeof(IU); }
+    to_s(c);                                                        // name field
+    if (dict[c].def) {                                              // a colon word
+        for (IU n=dict[c].len, ip1=0; ip1<n; ip1+=sizeof(IU)) {     // walk through children
+            IU *wp1 = (IU*)&pmem[dict[c].pfa + ip1];                // wp of next children node
+            see(wp1, &ip1, dp+1);                                   // dive recursively
+        }
+    }
+    static const char *nlist[7] = {           // even string compare is expensive
+        "dovar", "dolit", "dostr", "dotstr",  // but since see is a user timeframe
+        "branch", "0branch", "donext"         // function, so we can trade time
+    };                                        // with space keeping everything local
+    int i=0;
+    while (i++<7 && strcmp(nlist[i], dict[c].name));
+    switch (i) {
+    case 0: case 1:
+        fout << "= " << *(DU*)(wp+1); *ip += sizeof(DU); break;
+    case 2: case 3:
+        fout << "= \"" << (char*)(wp+1) << '"';
+        *ip += STRLEN((char*)(wp+1)); break;
+    case 4: case 5: case 6:
+        fout << "j" << *(wp+1); *ip += sizeof(IU); break;
+    }
     fout << "] ";
 }
 void words() {
@@ -280,15 +285,15 @@ void ss_dump() {
 }
 void mem_dump(IU p0, U16 sz) {
     fout << setbase(16) << setfill('0');
-    for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=0x10) {
+    for (IU i=ALIGN32(p0); i<=ALIGN32(p0+sz); i+=0x20) {
         fout << setw(4) << i << ':';
         char *p = STR(i);
-        for (int j=0; j<0x10; j++) {
+        for (int j=0; j<0x20; j++) {
             fout << setw(2) << (U16)*(p+j);
             if ((j%4)==3) fout << ' ';
         }
         fout << ' ';
-        for (int j=0; j<0x10; j++) {   // print and advance to next byte
+        for (int j=0; j<0x20; j++) {   // print and advance to next byte
             char c = *(p+j) & 0x7f;
             fout << (char)((c==0x7f||c<0x20) ? '_' : c);
         }
@@ -466,13 +471,13 @@ static Code prim[] PROGMEM = {
     CODE("constant",colon(NEXT_WORD()); addlit(POP())),
     CODE("c@",    IU w = POP(); PUSH(BYTE(w));),                 // w -- n
     CODE("c!",    IU w = POP(); BYTE(w) = POP()),
-    CODE("c,",    DU n = POP(); ADD_BYTE(n)), 
+    CODE("c,",    DU n = POP(); ADD_BYTE(n)),
     CODE("w@",    IU w = POP(); PUSH(HALF(w))),                  // w -- n
     CODE("w!",    IU w = POP(); HALF(w) = POP()),
     CODE("w,",    DU n = POP(); ADD_HALF(n)),
     CODE("@",     IU w = POP(); PUSH(CELL(w))),                  // w -- n
     CODE("!",     IU w = POP(); CELL(w) = POP();),               // n w --
-    CODE(",",     DU n = POP(); ADD_DU(n)), 
+    CODE(",",     DU n = POP(); ADD_DU(n)),
     CODE("allot", DU v = 0; for (IU n = POP(), i = 0; i < n; i++) ADD_DU(v)), // n --
     CODE("+!",    IU w = POP(); CELL(w) += POP()),               // n w --
     CODE("?",     IU w = POP(); fout << CELL(w) << " "),         // w --
@@ -536,10 +541,10 @@ void forth_init() {
 void forth_outer() {
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
-        printf("%s=>",idiom);
+        //printf("%s=>",idiom);
         int w = find(idiom);                 /// * search through dictionary
         if (w>=0) {                          /// * word found?
-            printf("%s %d\n", dict[w].name, w);
+            //printf("%s %d\n", dict[w].name, w);
             if (compile && !dict[w].immd) {  /// * in compile mode?
                 ADD_IU(w);                   /// * add found word to new colon word
             }
@@ -549,11 +554,10 @@ void forth_outer() {
         // try as a number
         char *p;
         int n = static_cast<int>(strtol(idiom, &p, base));
-        printf("%d\n", n);
+        //printf("%d\n", n);
         if (*p != '\0') {                    /// * not number
             fout << idiom << "? " << ENDL;   ///> display error prompt
             compile = false;                 ///> reset to interpreter mode
-            ss.clear(0); top = -1;
             break;                           ///> skip the entire input buffer
         }
         // is a number
@@ -563,16 +567,16 @@ void forth_outer() {
     if (!compile) ss_dump();
 }
 
-#include <iostream>		// cin, cout
+#include <iostream>     // cin, cout
 int main(int ac, char* av[]) {
     forth_init();
     cout << unitbuf << "ceForth8" << ENDL;
     string line;
-    while (getline(cin, line)) {					/// fetch line from user console input
+    while (getline(cin, line)) {                    /// fetch line from user console input
         fout.str("");                               /// clear output stream for next round
         fin.clear();                                /// clear input stream error bits
         fin.str(line);                              /// reload Forth VM input stream
-        forth_outer();								/// invoke output interpreter of Forth VM
+        forth_outer();                              /// invoke output interpreter of Forth VM
         cout << fout.str();                         /// fetch result from Forth VM output stream
     }
     cout << "Done." << ENDL;
