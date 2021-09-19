@@ -121,7 +121,8 @@ List<U8,   48*1024> pmem; /// parameter memory i.e. storage for all colon defini
 bool compile = false;
 DU   top = -1, base = 10;
 DU   ucase = 1;           /// case sensitivity control
-IU   WP = 0, IP = 0;
+IU   WP = 0;              /// current word pointer
+U8   *IP = 0, *IP0 = 0;   /// current instruction pointer and base pointer
 ///
 /// macros to abstract dict and pmem physical implementation
 /// Note:
@@ -129,14 +130,12 @@ IU   WP = 0, IP = 0;
 ///
 #define STRLEN(s) (ALIGN(strlen(s)+1))              /** calculate string size with alignment     */
 #define XIP       (dict[-1].len)                    /** parameter field tail of latest word      */
-#define PFA       (dict[WP].pfa + sizeof(IU) + IP)  /** get parameter field of current word      */
-#define NEXT_OP   (*(IU*)&pmem[dict[WP].pfa + IP])  /** fetch next word, for nest()              */
 #define CELL(a)   (*(DU*)&pmem[a])                  /** fetch a cell from parameter memory       */
 #define HALF(a)   (*(U16*)&pmem[a])                 /** fetch half a cell from parameter memory  */
 #define BYTE(a)   (*(U8*)&pmem[a])                  /** fetch a byte from parameter memory       */
 #define STR(a)    ((char*)&pmem[a])                 /** fetch string pointer to parameter memory */
+#define JMPIP     (IP0 + *(IU*)IP)                  /** branching target address                 */
 #define SETJMP(a) (*(IU*)&pmem[dict[-1].pfa + (a)]) /** address offset for branching opcodes     */
-#define JMPIP     (*(IU*)&pmem[PFA] - sizeof(IU))   /** get jump target address                  */
 #define HERE      (pmem.idx)                        /** current parameter memory index           */
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
@@ -191,17 +190,20 @@ void nest(IU c) {
         return;
     }
     // is a colon word
-    rs.push(WP); rs.push(IP); WP=c; IP=0;   // setup call frame
+    rs.push((DU)(IP - IP0)); rs.push(WP); WP=c;  // setup call frame
+    IP0 = IP = (U8*)&pmem[dict[c].pfa];
     if (rs.idx > rs_max) rs_max = rs.idx;   // keep rs sizing matrics
     try {
-        while (IP < dict[c].len) {          // in instruction range
-            nest(NEXT_OP);                  // fetch/exec instruction from code field
-            IP += sizeof(IU);               // advance to next instruction
+        int n = dict[c].len;				// CC: this saved 300ms/1M
+        while ((int)(IP - IP0) < n) {
+        	IU w = *IP; IP += sizeof(IU);   // at the cost of (n, w) on stack
+            nest(w);
         }                                   // can do IP++ if pmem unit is 16-bit
         yield();
     }
     catch(...) {}
-    IP = rs.pop(); WP = rs.pop();           // restore call frame
+    IP0 = (U8*)&pmem[dict[WP=rs.pop()].pfa];
+    IP  = IP0 + rs.pop();
 }
 ///==============================================================================
 ///
@@ -244,7 +246,7 @@ void see(IU *wp, IU *ip, int dp=0) {
         "branch", "0branch", "donext"         // function, so we can trade time
     };                                        // with space keeping everything local
     int i=0;
-    while (i++<7 && strcmp(nlist[i], dict[c].name));
+    while (i<7 && strcmp(nlist[i], dict[c].name)) i++;
     switch (i) {
     case 0: case 1:
         fout << "= " << *(DU*)(wp+1); *ip += sizeof(DU); break;
@@ -308,10 +310,9 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n;     }
 ///   * it can be stored in ROM, and only
 ///   * find() needs to be modified to support ROM+RAM
 ///
-auto _colon = [&](int c) {
-    fin >> strbuf;
-    colon(strbuf.c_str());
-    compile=true;
+auto _donext = [&](int c) {
+	if ((rs[-1]-=1)>=0) IP = JMPIP;
+	else { IP += sizeof(IU); rs.pop(); }
 };
 static Code prim[] PROGMEM = {
     ///
@@ -393,14 +394,14 @@ static Code prim[] PROGMEM = {
     /// @}
     /// @defgroup Literal ops
     /// @{
-    CODE("dovar",   PUSH(PFA);       IP += sizeof(DU)),
-    CODE("dolit",   PUSH(CELL(PFA)); IP += sizeof(DU)),
+    CODE("dovar", 	PUSH((DU)(IP - IP0)); IP += sizeof(DU)),
+    CODE("dolit",   PUSH(*(DU*)IP); IP += sizeof(DU)),
     CODE("dostr",
-        const char *s = STR(PFA);           // get string pointer
-        PUSH(PFA); IP += STRLEN(s)),        // put string pfa on stack
+        const char *s = (const char*)IP;           // get string pointer
+        DU v = (DU)(IP - IP0); PUSH(v); IP += STRLEN(s)),
     CODE("dotstr",
-        const char *s = STR(PFA);           // get string pointer
-        fout << s; IP += STRLEN(s)),        // send to output console
+        const char *s = (const char*)IP;           // get string pointer
+        fout << s;  IP += STRLEN(s)),              // send to output console
     CODE("[",       compile = false),
     CODE("]",       compile = true),
     IMMD("(",       SCAN(')')),
@@ -440,9 +441,8 @@ static Code prim[] PROGMEM = {
     /// @brief  - for...next, for...aft...then...next
     /// @{
     CODE("donext",
-         DU i = rs.pop() - 1;                                    // decrement counter
-         if (i<0) { IP += sizeof(IU);       }                    // break
-         else     { IP = JMPIP; rs.push(i); }),                  // loop back
+         if ((rs[-1] -= 1) >= 0) IP = JMPIP;                     // rs[-1]-=1 saved 2000ms/1M cycles
+         else { IP += sizeof(IU); rs.pop(); }),
     IMMD("for" ,    ADD_WORD(">r"); PUSH(XIP)),                  // for ( -- here )
     IMMD("next",    ADD_WORD("donext"); ADD_IU(POP())),          // next ( here -- )
     IMMD("aft",                                                  // aft ( here -- here there )
