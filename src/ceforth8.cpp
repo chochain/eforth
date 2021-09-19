@@ -52,6 +52,7 @@ template<class T, int N>
 struct List {
     T   *v;             /// fixed-size array storage
     int idx = 0;        /// current index of array
+    int max = 0;        /// high watermark for debugging
 
     List()  { v = new T[N]; }      /// dynamically allocate array storage
     ~List() { delete[] v;   }      /// free memory
@@ -61,7 +62,7 @@ struct List {
         throw "ERR: List empty";
     }
     T push(T t) {
-        if (idx<N) return v[idx++] = t;
+        if (idx<N) return v[max=idx++] = t;
         throw "ERR: List full";
     }
     void push(T *a, int n)  { for (int i=0; i<n; i++) push(*(a+i)); }
@@ -130,6 +131,7 @@ U8   *IP = 0, *IP0 = 0;   /// current instruction pointer and base pointer
 ///
 #define STRLEN(s) (ALIGN(strlen(s)+1))              /** calculate string size with alignment     */
 #define XIP       (dict[-1].len)                    /** parameter field tail of latest word      */
+#define PFA(w)    ((U8*)&pmem[dict[w].pfa])         /** parameter field of a word                */
 #define CELL(a)   (*(DU*)&pmem[a])                  /** fetch a cell from parameter memory       */
 #define HALF(a)   (*(U16*)&pmem[a])                 /** fetch half a cell from parameter memory  */
 #define BYTE(a)   (*(U8*)&pmem[a])                  /** fetch a byte from parameter memory       */
@@ -181,29 +183,25 @@ void colon(const char *name) {
 ///
 /// Forth inner interpreter
 ///
-int rs_max = 0;                             // rs watermark
 void nest(IU c) {
-    ///
-    /// by not using any temp variable here can prevent auto stack allocation
-    ///
-    if (!dict[c].def) {                     // is a primitive?
-        (*(fop*)(((uintptr_t)dict[c].xt)&~0x3))(c);  // mask out immd (and def), and execute
+	/// handles a primitive word
+    if (!dict[c].def) {                     /// * is a primitive?
+        (*(fop*)(((uintptr_t)dict[c].xt)&~0x3))(c);  ///> mask out immd (and def), then execute
         return;
     }
-    // is a colon word
-    rs.push((DU)(IP - IP0)); rs.push(WP);   // setup call frame
-    IP0 = IP = (U8*)&pmem[dict[WP=c].pfa];
-    if (rs.idx > rs_max) rs_max = rs.idx;   // keep rs sizing matrics
+    /// handles a colon word
+    rs.push((DU)(IP - IP0)); rs.push(WP);   /// * setup call frame
+    IP0 = IP = PFA(WP=c);
     try {
-        IU n = dict[c].len;                 // CC: this saved 300ms/1M
-        while ((IU)(IP - IP0) < n) {
-            IU w = *IP; IP += sizeof(IU);   // at the cost of (n, w) on stack
-            nest(w);
-        }                                   // can do IP++ if pmem unit is 16-bit
-        yield();                            // give other tasks some time
+        IU n = dict[c].len;                 ///> CC: this saved 300ms/1M
+        while ((IU)(IP - IP0) < n) {        /// * recursively into all children
+            IU c1 = *IP; IP += sizeof(IU);  ///> at the cost of (n, c1) on stack
+            nest(c1);                       ///> call child
+        }                                   ///> CC: can do IP++ if pmem unit is 16-bit
+        yield();                            ///> give other tasks some time
     }
-    catch(...) {}
-    IP0 = (U8*)&pmem[dict[WP=rs.pop()].pfa];  // restore call frame
+    catch(...) {}                           ///> protect from any inner exception
+    IP0 = PFA(WP=rs.pop());                 /// * restore call frame
     IP  = IP0 + rs.pop();
 }
 ///==============================================================================
@@ -230,32 +228,32 @@ void to_s(IU c) {
 ///
 /// recursively disassemble colon word
 ///
-void see(IU *wp, IU *ip, int dp=0) {
+void see(IU *cp, IU *ip, int dp=0) {
     fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";            // indentation
     if (dp) fout << "[" << setw(2) << *ip << ": ";                  // ip offset
     else    fout << "[ ";
-    IU c = *wp;
+    IU c = *cp;
     to_s(c);                                                        // name field
     if (dict[c].def) {                                              // a colon word
         for (IU n=dict[c].len, ip1=0; ip1<n; ip1+=sizeof(IU)) {     // walk through children
-            IU *wp1 = (IU*)&pmem[dict[c].pfa + ip1];                // wp of next children node
-            see(wp1, &ip1, dp+1);                                   // dive recursively
+            IU *cp1 = (IU*)(PFA(c) + ip1);                          // next children node
+            see(cp1, &ip1, dp+1);                                   // dive recursively
         }
     }
-    static const char *nlist[7] PROGMEM = {   // even string compare is expensive
-        "dovar", "dolit", "dostr", "dotstr",  // but since see is a user timeframe
-        "branch", "0branch", "donext"         // function, so we can trade time
-    };                                        // with space keeping everything local
+    static const char *nlist[7] PROGMEM = {   // though string compare is expensive
+        "dovar", "dolit", "dostr", "dotstr",  // but since see() is at user time-frame
+        "branch", "0branch", "donext"         // so we can trade time with space
+    };                                        // by keeping everything local
     int i=0;
     while (i<7 && strcmp(nlist[i], dict[c].name)) i++;
     switch (i) {
     case 0: case 1:
-        fout << "= " << *(DU*)(wp+1); *ip += sizeof(DU); break;
+        fout << "= " << *(DU*)(cp+1); *ip += sizeof(DU); break;
     case 2: case 3:
-        fout << "= \"" << (char*)(wp+1) << '"';
-        *ip += STRLEN((char*)(wp+1)); break;
+        fout << "= \"" << (char*)(cp+1) << '"';
+        *ip += STRLEN((char*)(cp+1)); break;
     case 4: case 5: case 6:
-        fout << "j" << *(wp+1); *ip += sizeof(IU); break;
+        fout << "j" << *(cp+1); *ip += sizeof(IU); break;
     }
     fout << "] ";
 }
@@ -452,20 +450,25 @@ static Code prim[] PROGMEM = {
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE(":",       colon(NEXT_WORD()); compile=true),
-    IMMD(";",       compile = false),
-    CODE("create",  colon(NEXT_WORD());
+    CODE(":", colon(NEXT_WORD()); compile=true),
+    IMMD(";", compile = false),
+    CODE("create",
+        colon(NEXT_WORD());                                      // create a new word on dictionary
         ADD_WORD("dovar");                                       // dovar (+parameter field)
         XIP -= sizeof(DU)),                                      // backup one field
     CODE("variable",                                             // create a variable
-        colon(NEXT_WORD());
+        colon(NEXT_WORD());                                      // create a new word on dictionary
         DU n = 0;                                                // default value
         ADD_WORD("dovar");                                       // dovar (+parameter field)
         ADD_DU(n)),                                              // data storage (32-bit integer now)
     CODE("constant",                                             // create a constant
-        colon(NEXT_WORD());
+        colon(NEXT_WORD());                                      // create a new word on dictionary
         ADD_WORD("dolit");                                       // dovar (+parameter field)
         ADD_DU(POP())),                                          // data storage (32-bit integer now)
+    ///
+    /// be careful with memory access, especially BYTE because
+    /// it could make access misaligned which slows the access speed by 2x
+    ///
     CODE("c@",    IU w = POP(); PUSH(BYTE(w));),                 // w -- n
     CODE("c!",    IU w = POP(); BYTE(w) = POP()),
     CODE("c,",    DU n = POP(); ADD_BYTE(n)),
@@ -495,8 +498,8 @@ static Code prim[] PROGMEM = {
     CODE("words", words()),
     CODE("'",     IU w = find(NEXT_WORD()); PUSH(w)),
     CODE(".s",    ss_dump()),
-    CODE("see",   IU wp=find(NEXT_WORD()); IU ip=0; see(&wp, &ip)),
-    CODE("dump",  DU sz = POP(); IU a = POP(); mem_dump(a, sz)),
+    CODE("see",   IU w = find(NEXT_WORD()); IU ip=0; see(&w, &ip)),
+    CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
     CODE("forget",
