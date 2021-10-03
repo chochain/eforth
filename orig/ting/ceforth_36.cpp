@@ -21,66 +21,58 @@
 /*   from c:/F#/ceforth_21                                                    */
 /* C compiler must be reminded that S and R are (char)                        */
 /******************************************************************************/
-
-//Preamble
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <tchar.h>
-#include <stdarg.h>
-#include <string>
-#include <iostream>
-#include <exception> 
+#include <string>       // string class
+#include <iostream>     // cin, cout
 #include <iomanip>      // setw, setbase, ...
-//using namespace std;
+using namespace std;
 
-# define  FALSE 0
-# define  TRUE  -1
-# define  LOGICAL ? -1 : 0
-# define  LOWER(x,y) ((unsigned long)(x)<(unsigned long)(y))
-# define  pop top = stack[(unsigned char)S--]
-# define  push stack[(unsigned char)++S] = top; top =
-# define  popR rack[(unsigned char)R--]
-# define  pushR rack[(unsigned char)++R]
-# define  ALIGN(sz) ((sz) + (-(sz) & 0x3))
-int  IMEDD = 0x80;
+#define  FALSE 0
+#define  TRUE  -1
+#define  LOGICAL ? -1 : 0
+#define  LOWER(x,y) ((unsigned long)(x)<(unsigned long)(y))
+#define  pop top = stack[(unsigned char)S--]
+#define  push stack[(unsigned char)++S] = top; top =
+#define  popR rack[(unsigned char)R--]
+#define  pushR rack[(unsigned char)++R]
+#define  ALIGN(sz) ((sz) + (-(sz) & 0x3))
+#define  IMEDD    0x80
 
 int rack[256] = { 0 };
 int stack[256] = { 0 };
-unsigned char R = 0, S = 0, bytecode, c;
-int* Pointer;
-int  P, IP, WP, top, len;
-int  lfa, nfa, cfa, pfa;
-int  DP, link, context;
+unsigned char R = 0, S = 0, bytecode, c;	// CC: bytecode should be U32, c is not used
+int* Pointer;								// CC: Pointer is unused
+int  P, IP, WP, top, len;					// CC: len can be local
+int  lfa, nfa, cfa, pfa;					// CC: pfa is unused; lfa, cfa can be local
+int  DP, link, context;						// CC: DP, context and link usage are interchangable
 int  ucase = 1, compile = 0, base = 16;
-std::string idiom, s;
+string idiom, s;                            // CC: s is unused; idiom can be local
 
-int data[16000] = {};
-unsigned char* cData = (unsigned char*)data;
+uint32_t data[16000] = {};
+uint8_t  *cData = (uint8_t*)data;
 
-void next() { P = data[IP >> 2]; WP = P; IP += 4; }
-void nest() { pushR = IP; IP = WP + 4; next(); }
-void unnest() { IP = popR; next(); }
+void next()       { P = data[IP >> 2]; WP = P; IP += 4; }
+void nest()       { pushR = IP; IP = WP + 4; next(); }
+void unnest()     { IP = popR; next(); }
 void comma(int n) { data[DP >> 2] = n; DP += 4; }
-void comma_s(int lex, std::string s) {
+void comma_s(int lex, string s) {
 	comma(lex); len = s.length(); cData[DP++] = len;
 	for (int i = 0; i < len; i++) { cData[DP++] = s[i]; }
 	while (DP & 3) { cData[DP++] = 0; }
 }
-std::string next_idiom(char delim = 0) {
-	std::string s; delim ? std::getline(std::cin, s, delim) : std::cin >> s; return s;
+string next_idiom(char delim = 0) {
+	string s; delim ? getline(cin, s, delim) : cin >> s; return s;
 }
 void dot_r(int n, int v) {
-	std::cout << std::setw(n) << std::setfill(' ') << v;
+	cout << setw(n) << setfill(' ') << v;
 }
-int find(std::string s) {
+int find(string s) {						// CC: nfa, lfa, cfa, len modified
 	int len_s = s.length();
 	nfa = context;
 	while (nfa) {
-        lfa = nfa - 4;
-        len = (int)cData[nfa] & 0x1f;
+        lfa = nfa - 4;           				// CC: 4 = sizeof(IU)
+        len = (int)cData[nfa] & 0x1f;			// CC: 0x1f = ~IMEDD
         if (len_s == len) {
-            int success = 1;
+            int success = 1;                    // CC: memcmp
             for (int i = 0; i < len; i++) {
                 if (s[i] != cData[nfa + 1 + i])
                 {
@@ -94,255 +86,274 @@ int find(std::string s) {
 	return 0;
 }
 void words() {
+	int n = 0;
 	nfa = context; // CONTEXT
 	while (nfa) {
         lfa = nfa - 4;
         len = (int)cData[nfa] & 0x1f;
         for (int i = 0; i < len; i++)
-            std::cout << cData[nfa + 1 + i];
-        std::cout << ' ';
+            cout << cData[nfa + 1 + i];
+        cout << ((++n%10==0) ? '\n' : ' ');
         nfa = data[lfa >> 2];
 	}
-	std::cout << std::endl;
+	cout << endl;
 }
-void CheckSum() {
-	int i; pushR = P; char sum = 0;
-	std::cout << std::setw(4) << std::setbase(16) << P << ": ";
-	for (i = 0; i < 16; i++) {
+void CheckSum() {                            // CC: P updated, but used as a local variable
+	pushR = P; char sum = 0;
+	cout << setw(4) << setbase(16) << P << ": ";
+	for (int i = 0; i < 16; i++) {
         sum += cData[P];
-        std::cout << std::setw(2) << (int)cData[P++] << ' ';
+        cout << setw(2) << (int)cData[P++] << ' ';
 	}
-	std::cout << std::setw(4) << (sum & 0XFF) << "  ";
+	cout << setw(4) << (sum & 0XFF) << "  ";
 	P = popR;
-	for (i = 0; i < 16; i++) {
+	for (int i = 0; i < 16; i++) {
         sum = cData[P++] & 0x7f;
-        std::cout << (char)((sum < 0x20) ? '_' : sum);
+        cout << (char)((sum < 0x20) ? '_' : sum);
 	}
-	std::cout << std::endl;
+	cout << endl;
 }
-void dump() {// a n --
-	std::cout << std::endl;
+void dump() {// a n --                       // CC: P updated, but used as a local variable
+	cout << endl;
 	len = top / 16; pop; P = top; pop;
 	for (int i = 0; i < len; i++) { CheckSum(); }
 }
 void ss_dump() {
-	std::cout << "< "; for (int i = S - 4; i < S + 1; i++) { std::cout << stack[i] << " "; }
-	std::cout << top << " >ok" << std::endl;
+	cout << "< "; for (int i = S - 4; i < S + 1; i++) { cout << stack[i] << " "; }
+	cout << top << " >ok" << endl;
 }
-void(*primitives[120])(void) = {
+///
+/// Code - data structure to keep primitive definitions
+///
+typedef struct {
+    string name;
+    void   (*xt)(void);
+    int    immd;
+} Code;
+#define CODE(s, g)  { s, []{ g; }, 0 }
+#define IMMD(s, g)  { s, []{ g; }, IMEDD }
+const static Code primitives[] = {
+	CODE("ret",   next()),
 	/// Stack ops
-	/* -1 "ret" */ [] {next(); },
-	/* 0 "opn" */ [] {},
-	/* 1 "nest" */ [] {nest(); },
-	/* 2 "unnest" */ [] {unnest(); },
-	/* 3 "dup" */ [] {stack[++S] = top; },
-	/* 4 "drop" */ [] {pop; },
-	/* 5 "over" */ [] {push stack[(S - 1)]; },
-	/* 6 "swap" */ [] {int n = top; top = stack[S];
-                       stack[S] = n; },
-	/* 7 "rot" */ [] {int n = stack[(S - 1)];
-                      stack[(S - 1)] = stack[S];
-                      stack[S] = top; top = n; },
-	/* 8 "pick" */ [] {top = stack[(S - top)]; },
-	/* 9 ">r" */ [] {rack[++R] = top; pop; },
-	/* 10 "r>" */ [] {push rack[R--]; },
-	/* 11 "r@" */ [] {push rack[R]; },
+	CODE("nop",   {}),
+	CODE("nest",  nest()),
+	CODE("unnest",unnest()),
+	CODE("dup",   stack[++S] = top),
+	CODE("drop",  pop),
+	CODE("over",  push stack[(S - 1)]),
+	CODE("swap",
+         int n = top;
+         top = stack[S];
+         stack[S] = n),
+	CODE("rot",
+         int n = stack[(S - 1)];
+         stack[(S - 1)] = stack[S];
+         stack[S] = top; top = n),
+	CODE("pick",  top = stack[(S - top)]),
+	CODE(">r",    rack[++R] = top; pop),
+	CODE("r>",    push rack[R--]),
+	CODE("r@",    push rack[R]),
 	/// Stack ops - double
-	/* 12 "2dup" */ [] {push stack[(S - 1)]; push stack[(S - 1)]; },
-	/* 13 "2drop" */ [] {pop; pop; },
-	/* 14 "2over"*/ [] {push stack[(S - 3)]; push stack[(S - 3)]; },
-	/* 15 "2swap" */ [] {
-        int n = top; pop; int m = top; pop; int l = top; pop; int i = top; pop;
-        push m; push n; push i; push l; },
+	CODE("2dup",  push stack[(S - 1)]; push stack[(S - 1)]),
+	CODE("2drop", pop; pop),
+	CODE("2over", push stack[(S - 3)]; push stack[(S - 3)]),
+	CODE("2swap", 
+         int n = top; pop; int m = top; pop; int l = top; pop; int i = top; pop;
+         push m; push n; push i; push l),
 	/// ALU ops
-	/* 16 "+" */ [] {int n = top; pop; top += n; },
-	/* 17 "-" */ [] {int n = top; pop; top -= n; },
-	/* 18 "*" */ [] {int n = top; pop; top *= n; },
-	/* 19 "/" */ [] {int n = top; pop; top /= n; },
-	/* 20 "mod" */ [] {int n = top; pop; top %= n; },
-	/* 21 "* /" */ [] {int n = top; pop; int m = top; pop;
-                       int l = top; pop; push(m * l) / n; },
-	/* 22 "/mod" */ [] {int n = top; pop; int m = top; pop;
-                        push(m % n); push(m / n); },
-	/* 23 "* /mod" */ [] {int n = top; pop; int m = top; pop;
-                          int l = top; pop; push((m * l) % n); push((m * l) / n); },
-	/* 24 "and" */ [] {top &= stack[S--]; },
-	/* 25 "or"  */ [] {top |= stack[S--]; },
-	/* 26 "xor" */ [] {top ^= stack[S--]; },
-	/* 27 "abs" */ [] {top = abs(top); },
-	/* 28 "negate" */ [] {top = -top; },
-	/* 29 "max" */ [] {int n = top; pop; top = std::max(top, n); },
-	/* 30 "min" */ [] {int n = top; pop; top = std::min(top, n); },
-	/* 31 "2*"  */ [] {top *= 2; },
-	/* 32 "2/"  */ [] {top /= 2; },
-	/* 33 "1+"  */ [] {top += 1; },
-	/* 34 "1-"  */ [] {top += -1; },
+	CODE("+",     int n = top; pop; top += n),
+	CODE("-",     int n = top; pop; top -= n),
+	CODE("*",     int n = top; pop; top *= n),
+	CODE("/",     int n = top; pop; top /= n),
+	CODE("mod",   int n = top; pop; top %= n),
+	CODE("*/",
+         int n = top; pop; int m = top; pop;
+         int l = top; pop; push(m * l) / n),
+	CODE("/mod",
+         int n = top; pop; int m = top; pop;
+         push(m % n); push(m / n)),
+	CODE("*/mod",
+         int n = top; pop; int m = top; pop;
+         int l = top; pop; push((m * l) % n); push((m * l) / n)),
+	CODE("and",   top &= stack[S--]),
+	CODE("or",    top |= stack[S--]),
+	CODE("xor",   top ^= stack[S--]),
+	CODE("abs",   top = abs(top)),
+	CODE("negate",top = -top),
+	CODE("max",   int n = top; pop; top = max(top, n)),
+	CODE("min",   int n = top; pop; top = min(top, n)),
+	CODE("2*",    top *= 2),
+	CODE("2/",    top /= 2),
+	CODE("1+",    top += 1),
+	CODE("1-",    top += -1),
 	/// Logic ops
-	/* 35 "0=" */ [] {top = (top == 0) LOGICAL; },
-	/* 36 "0<" */ [] {top = (top < 0) LOGICAL; },
-	/* 37 "0>" */ [] {top = (top > 0) LOGICAL; },
-	/* 38 "="  */ [] {int n = top; pop; top = (top == n) LOGICAL; },
-	/* 39 ">"  */ [] {int n = top; pop; top = (top > n) LOGICAL; },
-	/* 40 "<"  */ [] {int n = top; pop; top = (top < n) LOGICAL; },
-	/* 41 "<>" */ [] {int n = top; pop; top = (top != n) LOGICAL; },
-	/* 42 ">=" */ [] {int n = top; pop; top = (top >= n) LOGICAL; },
-	/* 43 "<=" */ [] {int n = top; pop; top = (top <= n) LOGICAL; },
+	CODE("0=",    top = (top == 0) LOGICAL),
+    CODE("0<",    top = (top < 0) LOGICAL),
+	CODE("0>",    top = (top > 0) LOGICAL),
+	CODE("=",     int n = top; pop; top = (top == n) LOGICAL),
+	CODE(">",     int n = top; pop; top = (top > n) LOGICAL),
+	CODE("<",     int n = top; pop; top = (top < n) LOGICAL),
+	CODE("<>",    int n = top; pop; top = (top != n) LOGICAL),
+	CODE(">=",    int n = top; pop; top = (top >= n) LOGICAL),
+	CODE("<=",    int n = top; pop; top = (top <= n) LOGICAL),
 	/// IO ops
-	/* 44 "base@" */ [] {push base; },
-	/* 45 "base!" */ [] {base = top; pop; std::cout << std::setbase(base); },
-	/* 46 "hex" */ [] {base = 16; std::cout << std::setbase(base); },
-	/* 47 "decimal" */ [] {base = 10; std::cout << std::setbase(base); },
-	/* 48 "cr" */ [] {std::cout << std::endl; },
-	/* 49 "." */ [] {std::cout << top << " "; pop; },
-	/* 50 ".r" */ [] {int n = top; pop; dot_r(n, top); pop; },
-	/* 51 "u.r" */ [] {int n = top; pop; dot_r(n, abs(top)); pop; },
-	/* 52 ".s" */ [] {ss_dump(); },
-	/* 53 "key" */ [] {push(next_idiom()[0]); },
-	/* 54 "emit" */ [] {char b = (char)top; pop; std::cout << b; },
-	/* 55 "space" */ [] {std::cout << " "; },
-	/* 56 "spaces" */ [] {int n = top; pop; for (int i = 0; i < n; i++) std::cout << " "; },
+	CODE("base@", push base),
+	CODE("base!", base = top; pop; cout << setbase(base)),
+	CODE("hex",   base = 16; cout << setbase(base)),
+	CODE("decimal", base = 10; cout << setbase(base)),
+	CODE("cr",    cout << endl),
+	CODE(".",     cout << top << " "; pop),
+	CODE(".r",    int n = top; pop; dot_r(n, top); pop),
+	CODE("u.r",   int n = top; pop; dot_r(n, abs(top)); pop),
+	CODE(".s",    ss_dump()),
+	CODE("key",   push(next_idiom()[0])),
+	CODE("emit",  char b = (char)top; pop; cout << b),
+	CODE("space", cout << " "),
+	CODE("spaces",int n = top; pop; for (int i = 0; i < n; i++) cout << " "),
 	/// Literal ops
-	/* 57 "dostr" */ [] {int p = IP; push p; len = cData[p];
-                         p += (len + 1); p += (-p & 3); IP = p; },
-	/* 58 "dotstr" */ [] {int p = IP; len = cData[p++];
-                          for (int i = 0; i < len; i++) std::cout << cData[p++];
-                          p += (-p & 3); IP = p; },
-	/* 59 "dolit" */ [] {push data[IP >> 2]; IP += 4; },
-	/* 60 "dovar" */ [] {push WP + 4; },
-	/* 61 [  */ [] {compile = 0; },
-	/* 62 ]  */ [] {compile = 1; },
-	/* 63 (  */ [] {next_idiom(')'); },
-	/* 64 .( */ [] {std::cout << next_idiom(')'); },
-	/* 65 \  */ [] {next_idiom('\n'); },
-	/* 66 $" */ [] {
-        std::string s = next_idiom('"'); len = s.length();
-        int n = find("dostr");
-        comma_s(n, s); },
-	/* 67 ." */ [] {
-        std::string s = next_idiom('"'); len = s.length();
-        int n = find("dotstr");
-        comma_s(n, s); },
+	CODE("dostr",
+         int p = IP; push p; len = cData[p];
+         p += (len + 1); p += (-p & 3); IP = p),
+	CODE("dotstr",
+         int p = IP; len = cData[p++];
+         for (int i = 0; i < len; i++) cout << cData[p++];
+         p += (-p & 3); IP = p),
+	CODE("dolit", push data[IP >> 2]; IP += 4),
+	CODE("dovar", push WP + 4),
+	IMMD("[",     compile = 0),
+	CODE("]",     compile = 1),
+    IMMD("(",     next_idiom(')')),
+    IMMD(".(",    cout << next_idiom(')')),
+    IMMD("\\",    next_idiom('\n')),
+    IMMD("$*", 
+         int n = find("dostr");
+         comma_s(n, next_idiom('"'))),
+    IMMD(".\"",
+         int n = find("dotstr");
+         comma_s(n, next_idiom('"'))),
 	/// Branching ops
-	/* 68 "branch" */ [] { IP = data[IP >> 2]; next(); },
-	/* 69 "0branch" */ [] {
+	CODE("branch", IP = data[IP >> 2]; next()),
+	CODE("0branch",
         if (top == 0) IP = data[IP >> 2];
-        else IP += 4;  pop; next(); },
-	/* 70 "donext" */ [] {
-        if (rack[R]) {
-            rack[R] -= 1; IP = data[IP >> 2];
-        }
-        else { IP += 4;  R--; }
-        next(); },
-	/* 71 "if" */ [] {
-        comma(find("0branch")); push DP;
-        comma(0); },
-	/* 72 "else" */ [] {
-        comma(find("branch")); data[top >> 2] = DP + 4;
-        top = DP; comma(0);  },
-	/* 73 "then" */ [] {
-        data[top >> 2] = DP; pop; },
+        else IP += 4;  pop; next()),
+	CODE("donext",
+         if (rack[R]) {
+             rack[R] -= 1; IP = data[IP >> 2];
+         }
+         else { IP += 4;  R--; }
+         next()),
+	IMMD("if", 
+         comma(find("0branch")); push DP;
+         comma(0)),
+    IMMD("else",
+         comma(find("branch")); data[top >> 2] = DP + 4;
+         top = DP; comma(0)),
+    IMMD("then", data[top >> 2] = DP; pop),
 	/// Loops
-	/* 74 "begin" */ [] { push DP; },
-	/* 75 "while" */ [] {
-        comma(find("0branch")); push DP;
-        comma(0); },
-	/* 76 "repeat" */ [] {
-        comma(find("branch")); int n = top; pop;
-        comma(top); pop; data[n >> 2] = DP; },
-	/* 77 "again" */ [] {
-        comma(find("branch"));
-        comma(top); pop; },
-	/* 78 "until" */ [] {
-        comma(find("0branch"));
-        comma(top); pop; },
+	IMMD("begin",  push DP),
+    IMMD("while",
+         comma(find("0branch")); push DP;
+         comma(0)),
+    IMMD("repeat",
+         comma(find("branch")); int n = top; pop;
+         comma(top); pop; data[n >> 2] = DP),
+	IMMD("again", 
+         comma(find("branch"));
+         comma(top); pop),
+    IMMD("until", 
+         comma(find("0branch"));
+         comma(top); pop),
 	///  For loops
-	/* 79 "for" */ [] {comma((find(">r"))); push DP; },
-	/* 80 "aft" */ [] {pop;
-                       comma((find("branch"))); comma(0); push DP; push DP - 4; },
-	/* 81 "next" */ [] {
-        comma(find("donext")); comma(top); pop; },
+	IMMD("for", comma((find(">r"))); push DP),
+	IMMD("aft",
+         pop;
+         comma((find("branch"))); comma(0); push DP; push DP - 4),
+    IMMD("next",
+         comma(find("donext")); comma(top); pop),
 	///  Compiler ops
-	/* 82 "exit" */ [] {IP = popR; next(); },
-	/* 83 "docon" */ [] {push data[(WP + 4) >> 2]; },
-	/* 84 ":" */ [] {
-        std::string s = next_idiom();
-        link = DP + 4; comma_s(context, s);
-        comma(cData[find("nest")]); compile = 1; },
-	/* 85 ";" */ [] {
-        context = link; compile = 0;
-        comma(find("unnest")); },
-	/* 86 "variable" */ [] {
-        std::string s = next_idiom();
-        link = DP + 4; comma_s(context, s);
-        context = link;
-        comma(cData[find("dovar")]); comma(0);
-	},
-	/* 87 "constant" */ [] {
-        std::string s = next_idiom();
-        link = DP + 4; comma_s(context, s);
-        context = link;
-        comma(cData[find("docon")]); comma(top); pop; },
-	/* 88 "@" */ [] {top = data[top >> 2]; },
-	/* 89 "!" */ [] {int a = top; pop; data[a >> 2] = top; pop; },
-	/* 90 "?" */ [] {std::cout << data[top >> 2] << " "; pop; },
-	/* 91 "+!" */ [] {int a = top; pop; data[a >> 2] += top; pop; },
-	/* 92 "allot" */ [] {int n = top; pop;
-                         for (int i = 0; i < n; i++) cData[DP++] = 0; },
-	/* 93 "," */ [] {comma(top); pop; },
+	CODE("exit",  IP = popR; next()),
+	CODE("docon", push data[(WP + 4) >> 2]),
+    CODE(":",
+         string s = next_idiom();
+         link = DP + 4; comma_s(context, s);
+         comma(cData[find("nest")]); compile = 1),
+	IMMD(";",
+         context = link; compile = 0;
+         comma(find("unnest"))),
+	CODE("variable", 
+         string s = next_idiom();
+         link = DP + 4; comma_s(context, s);
+         context = link;
+         comma(cData[find("dovar")]); comma(0)),
+	CODE("constant",
+         string s = next_idiom();
+         link = DP + 4; comma_s(context, s);
+         context = link;
+         comma(cData[find("docon")]); comma(top); pop),
+	CODE("@",  top = data[top >> 2]),
+	CODE("!",  int a = top; pop; data[a >> 2] = top; pop),
+	CODE("?",  cout << data[top >> 2] << " "; pop),
+	CODE("+!", int a = top; pop; data[a >> 2] += top; pop),
+	CODE("allot",
+         int n = top; pop;
+         for (int i = 0; i < n; i++) cData[DP++] = 0),
+	CODE(",",  comma(top); pop),
 	/// metacompiler
-	/* 94 "create" */ [] {
-        std::string s = next_idiom();
-        link = DP + 4; comma_s(context, s);
-        context = link;
-        comma(find("nest")); comma(find("dovar")); },
-	/* 95 "does" */ [] {
-        comma(find("nest")); }, // copy words after "does" to new the word
-	/* 96 "to" */ [] {// n -- , compile only
-        int n = find(next_idiom());
-        data[(cfa + 4) >> 2] = top; pop; },
-	/* 97 "is" */ [] {// w -- , execute only
-        int n = find(next_idiom());
-        data[cfa >> 2] = top; pop; },
-	/* 98 "[to]" */ [] {
-        int n = data[IP >> 2]; data[(n + 4) >> 2] = top; pop; },
+	CODE("create",
+         string s = next_idiom();
+         link = DP + 4; comma_s(context, s);
+         context = link;
+         comma(find("nest")); comma(find("dovar"))),
+	CODE("does", comma(find("nest"))), // copy words after "does" to new the word
+	CODE("to",                         // n -- , compile only
+         int n = find(next_idiom());
+         data[(cfa + 4) >> 2] = top; pop),
+	CODE("is",                         // w -- , execute only
+         int n = find(next_idiom());
+         data[cfa >> 2] = top; pop),
+	CODE("[to]",
+         int n = data[IP >> 2]; data[(n + 4) >> 2] = top; pop),
 	/// Debug ops
-	/* 99 "bye" */ [] {exit(0); },
-	/* 100 "here" */ [] {push DP; },
-	/* 101 "words" */ [] {words(); },
-	/* 102 "dump" */ [] {dump(); },
-	/* 103 "'" */ [] {push find(next_idiom()); },
-	/* 104 "see" */ [] {
-        int n = find(next_idiom());
-        for (int i = 0; i < 20; i++) std::cout << data[(n >> 2) + i];
-        std::cout << std::endl; },
-	/* 105 "ucase" */ [] {ucase = top; pop; },
-    /* 106 "boot" */ [] {DP = find("boot") + 4; link = nfa; }
+	CODE("bye",   exit(0)),
+	CODE("here",  push DP),
+	CODE("words", words()),
+	CODE("dump",  dump()),
+	CODE("'" ,    push find(next_idiom())),
+	CODE("see",
+         int n = find(next_idiom());
+         for (int i = 0; i < 20; i++) cout << data[(n >> 2) + i];
+         cout << endl),
+	CODE("ucase", ucase = top; pop),
+    CODE("boot",  DP = find("boot") + 4; link = nfa)
 };
 
 // Macro Assembler
-
-void CODE(int lex, const char seq[]) {
-	len = lex & 31;
-	comma(link); link = DP; cData[DP++] = lex;
+void encode(const Code *prim) {
+    string seq = prim->name;
+    int immd = prim->immd;
+	len = seq.length();
+	comma(link);                    // CC: link field (U32 now)
+	link = DP;
+	cData[DP++] = len | immd;		// CC: attribute byte = length(0x1f) + immediate(0x80)
 	for (int i = 0; i < len; i++) { cData[DP++] = seq[i]; }
 	while (DP & 3) { cData[DP++] = 0; }
-	comma(P++); /// sequential bytecode
-	std::cout << seq << ":" << P - 1 << ',' << DP - 4 << ' ';
+	comma(P++); 					/// CC: cfa = sequential bytecode (U32 now)
+	cout << P - 1 << ':' << DP - 4 << ' ' << seq << endl;
 }
 
-void run(int n) {
+void run(int n) {					/// inner interpreter, CC: P, WP, IP, R, bytecode modified
 	P = n; WP = n; IP = 0; R = 0;
 	do {
-        bytecode = cData[P++];
-        primitives[bytecode]();	/// execute colon
+        bytecode = cData[P++];		/// CC: bytecode is U8, storage is U32, using P++ is incorrect
+        primitives[bytecode].xt();	/// execute colon
 	} while (R != 0);
 }
 
 void outer() {
-	std::cout << "outer interpreter v3.6" << std::setbase(base) << std::endl;
-	while (std::cin >> idiom) {
+	cout << "outer interpreter v3.6" << setbase(base) << endl;
+	while (cin >> idiom) {
         if (find(idiom)) {
-            if (compile && (((int)cData[nfa] & 0x80) == 0))
+            if (compile && ((cData[nfa] & IMEDD)==0))
                 comma(cfa);
             else  run(cfa);
         }
@@ -350,16 +361,16 @@ void outer() {
             char* p;
             int n = (int)strtol(idiom.c_str(), &p, base);
             if (*p != '\0') {///  not number
-                std::cout << idiom << "? " << std::endl;///  display error prompt
+                cout << idiom << "? " << endl;///  display error prompt
                 compile = 0;///  reset to interpreter mode
-                std::getline(std::cin, idiom, '\n');///  skip the entire line
+                getline(cin, idiom, '\n');///  skip the entire line
             }
             else {
                 if (compile) { comma(find("dolit")); comma(n); }
                 else { push n; }
             }
         }
-        if (std::cin.peek() == '\0' && !compile) ss_dump();
+        if (cin.peek() == '\0' && !compile) ss_dump();
 	} ///  * dump stack and display ok prompt
 }
 
@@ -368,127 +379,19 @@ int main(int ac, char* av[]) {
 	cData = (unsigned char*)data;
 	IP = 0; link = 0; P = 0;
 	S = 0; R = 0;
-	std::cout << "Build dictionary" << std::setbase(16) << std::endl;
+	cout << "Build dictionary" << setbase(16) << endl;
+	for (int i=0; i<sizeof(primitives)/sizeof(Code); i++) encode(&primitives[i]);
 
-	// Kernel
-	CODE(3, "ret");
-	CODE(3, "nop");
-	CODE(4, "nest");
-	CODE(6, "unnest");
-	CODE(3, "dup");
-	CODE(4, "drop");
-	CODE(4, "over");
-	CODE(4, "swap");
-	CODE(3, "rot");
-	CODE(4, "pick");
-	CODE(2, ">r");
-	CODE(2, "r>");
-	CODE(2, "r@");
-	CODE(4, "2dup");
-	CODE(5, "2drop");
-	CODE(5, "2over");
-	CODE(5, "2swap");
-	CODE(1, "+");
-	CODE(1, "-");
-	CODE(1, "*");
-	CODE(1, "/");
-	CODE(3, "mod");
-	CODE(2, "*/");
-	CODE(4, "/mod");
-	CODE(5, "*/mod");
-	CODE(3, "and");
-	CODE(2, "or");
-	CODE(3, "xor");
-	CODE(3, "abs");
-	CODE(6, "negate");
-	CODE(3, "max");
-	CODE(3, "min");
-	CODE(2, "2*");
-	CODE(2, "2/");
-	CODE(2, "1+");
-	CODE(2, "1-");
-	CODE(2, "0=");
-	CODE(2, "0<");
-	CODE(2, "0>");
-	CODE(1, "=");
-	CODE(1, ">");
-	CODE(1, "<");
-	CODE(2, "<>");
-	CODE(2, ">=");
-	CODE(2, "<=");
-	CODE(5, "base@");
-	CODE(5, "base!");
-	CODE(3, "hex");
-	CODE(7, "decimal");
-	CODE(2, "cr");
-	CODE(1, ".");
-	CODE(2, ".r");
-	CODE(3, "u.r");
-	CODE(2, ".s");
-	CODE(3, "key");
-	CODE(4, "emit");
-	CODE(5, "space");
-	CODE(6, "spaces");
-	CODE(5, "dostr");
-	CODE(6, "dotstr");
-	CODE(5, "dolit");
-	CODE(5, "dovar");
-	CODE(1 + IMEDD, "[");
-	CODE(1, "]");
-	CODE(1 + IMEDD, "(");
-	CODE(2 + IMEDD, ".(");
-	CODE(1 + IMEDD, "\\");
-	CODE(2 + IMEDD, "$\"");
-	CODE(2 + IMEDD, ".\"");
-	CODE(6, "branch");
-	CODE(7, "0branch");
-	CODE(6, "donext");
-	CODE(2 + IMEDD, "if");
-	CODE(4 + IMEDD, "else");
-	CODE(4 + IMEDD, "then");
-	CODE(5 + IMEDD, "begin");
-	CODE(5 + IMEDD, "while");
-	CODE(6 + IMEDD, "repeat");
-	CODE(5 + IMEDD, "again");
-	CODE(5 + IMEDD, "until");
-	CODE(3 + IMEDD, "for");
-	CODE(3 + IMEDD, "aft");
-	CODE(4 + IMEDD, "next");
-	CODE(4, "exit");
-	CODE(5, "docon");
-	CODE(1, ":");
-	CODE(1 + IMEDD, ";");
-	CODE(8, "variable");
-	CODE(8, "constant");
-	CODE(1, "@");
-	CODE(1, "!");
-	CODE(1, "?");
-	CODE(2, "+!");
-	CODE(5, "allot");
-	CODE(1, ",");
-	CODE(6, "create");
-	CODE(4, "does");
-	CODE(2, "to");
-	CODE(2, "is");
-	CODE(4, "[to]");
-	CODE(3, "bye");
-	CODE(4, "here");
-	CODE(5, "words");
-	CODE(4, "dump");
-	CODE(1, "'");
-	CODE(3, "see");
-	CODE(5, "ucase");
-	CODE(4, "boot");
 	context = DP - 12;
-	std::cout << "\n\nPointers DP=" << DP << " Link=" << context << " Words=" << P << std::endl;
+	cout << "\n\nPointers DP=" << DP << " Link=" << context << " Words=" << P << endl;
 	// dump dictionary
-	std::cout << "\nDump dictionary\n" << std::setbase(16);
+	cout << "\nDump dictionary\n" << setbase(16);
 	P = 0;
 	for (len = 0; len < 100; len++) { CheckSum(); }
 	// Boot Up
 	P = 0; WP = 0; IP = 0; S = 0; R = 0;
 	top = -1;
-	std::cout << "\nceForth v3.6, 22sep21cht\n" << std::setbase(16);
+	cout << "\nceForth v3.6, 22sep21cht\n" << setbase(16);
 	words();
 	outer();
 }
