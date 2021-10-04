@@ -6,12 +6,8 @@
 #include <iomanip>      // setw, setbase, ...
 #include <sstream>      // iostringstream
 using namespace std;
-
 typedef uint8_t   U8;
 typedef uint32_t  U32;
-typedef uint32_t  IU;
-typedef int32_t   DU;
-
 #define FALSE     0
 #define TRUE      -1
 #define BOOL(f)   ((f) ? TRUE : FALSE)
@@ -27,25 +23,29 @@ string idiom;
 ///
 /// ForthVM global variables
 ///
-DU rack[256] = { 0 };
-DU stack[256] = { 0 };
+int rack[256] = { 0 };
+int stack[256] = { 0 };
+int top;
+int ucase = 1, compile = 0, base = 16;
 U8  R = 0, S = 0, bytecode;
-IU  P, IP, WP, nfa;
-DU  top;
-IU  DP, thread, context;                    // CC: DP, context and thread usage are interchangable
-U32 ucase = 1, compile = 0, base = 16;
+U32 P, IP, WP, nfa;
+U32 DP, thread, context;
 
-IU iData[16000] = {};
-U8 *cData = (U8*)iData;
-
-int  pop()        { int n = top; top = stack[(unsigned char)S--]; return n; }
-void push(int v)  { stack[(unsigned char)++S] = top; top = v; }
-int  popR()       { return rack[(unsigned char)R--]; }
-void pushR(int v) { rack[(unsigned char)++R] = v; }
-void next()       { P = iData[IP >> 2]; WP = P; IP += 4; }
-void nest()       { pushR(IP); IP = WP + 4; next(); }
+U8 cData[16000] = {};
+#define iData(a)  *(U32*)&cData[a]
+#define iSZ       sizeof(U32)
+#define dSZ       sizeof(int)
+///
+/// built-in functions
+///
+int  pop()        { int n = top; top = stack[(U8)S--]; return n; }
+void push(int v)  { stack[(U8)++S] = top; top = v; }
+int  popR()       { return rack[(U8)R--]; }
+void pushR(int v) { rack[(U8)++R] = v; }
+void next()       { P = iData(IP); WP = P; IP += iSZ; }
+void nest()       { pushR(IP); IP = WP + iSZ; next(); }
 void unnest()     { IP = popR(); next(); }
-void comma(int n) { iData[DP >> 2] = n; DP += 4; }
+void comma(int n) { iData(DP) = n; DP += iSZ; }
 void comma_s(int lex, string s) {
     int len = s.length();
     comma(lex);
@@ -60,17 +60,17 @@ void dot_r(int n, int v) {
     fout <<setw(n) << setfill(' ') << v;
 }
 ///
-/// scan through dictionary, return found cfa or 0
+/// dictionary scanner, return found cfa or 0
 ///
 int find(string s) {                // CC: nfa, lfa, cfa, len modified
     int len_s = s.length();
     nfa = context;                              // searching from tail
     while (nfa) {                               // break on (nfa == 0)
-        int lfa = nfa - sizeof(int);            // CC: 4 = sizeof(IU)
-        int len = (int)cData[nfa] & 0x1f;       // CC: 0x1f = ~IMMD_FLAG
+        int lfa = nfa - iSZ;            // CC: 4 = sizeof(IU)
+        int len = cData[nfa] & 0x1f;            // CC: 0x1f = ~IMMD_FLAG
         if (len_s == len) {
             bool ok = true;
-            const char *c = (const char*)&cData[nfa+1], *p = s.c_str();
+            U8 *c = &cData[nfa+1], *p = (U8*)s.c_str();
             for (int i=0; ok && i<len; i++, c++, p++) {
                 ok = (ucase && *c > 0x40)
                     ? ((*c & 0x5f) == (*p & 0x5f))
@@ -78,7 +78,7 @@ int find(string s) {                // CC: nfa, lfa, cfa, len modified
             }
             if (ok) return ALIGN(nfa + len + 1);
         }
-        nfa = iData[lfa >> 2];
+        nfa = iData(lfa);
     }
     return 0;                       // not found
 }
@@ -86,13 +86,13 @@ void words() {
     int i = 0;
     int n = context;                // CONTEXT, from tail of the dictionary
     while (n) {
-        int lfa = n - sizeof(int);
-        int len = (int)cData[n] & 0x1f;
+        int lfa = n - iSZ;
+        int len = cData[n] & 0x1f;
         for (int i = 0; i < len; i++)
             fout << cData[n + 1 + i];
         if ((++i % 10) == 0) { fout << ENDL; }
         else                 { fout << ' ';  }
-        n = iData[lfa >> 2];
+        n = iData(lfa);
     }
     fout << ENDL;
 }
@@ -121,7 +121,7 @@ void ss_dump() {
     fout << top << " >ok" << ENDL;
 }
 ///
-/// Code - data structure to keep primitive definitions
+/// data structure for primitive definitions
 ///
 struct Code {
     string name;
@@ -205,15 +205,13 @@ const static struct Code primitives[] = {
     CODE("space", fout << ' '),
     CODE("spaces",for (int n = pop(), i = 0; i < n; i++) fout << ' '),
     /// Literal ops
-    CODE("dostr",
-         int p = IP; push(p); int n = cData[p];
-         p += (n + 1); p += (-p & 3); IP = p),
+    CODE("dostr", push(IP); IP = ALIGN(IP + 1 + cData[IP])),
     CODE("dotstr",
-         int p = IP; int n = cData[p++];
-         for (int i = 0; i < n; i++) fout <<cData[p++];
-         p += (-p & 3); IP = p),
-    CODE("dolit", push(iData[IP >> 2]); IP += 4),
-    CODE("dovar", push(WP + 4)),
+         int n = cData[IP++];
+         for (int i = 0; i < n; i++) fout << cData[IP++];
+         IP = ALIGN(IP)),
+    CODE("dolit", push(iData(IP)); IP += dSZ),
+    CODE("dovar", push(WP + dSZ)),
     IMMD("[",     compile = 0),
     CODE("]",     compile = 1),
     IMMD("(",     next_idiom(')')),
@@ -222,27 +220,27 @@ const static struct Code primitives[] = {
     IMMD("$*",    comma_s(find("dostr"), next_idiom('"'))),
     IMMD(".\"",   comma_s(find("dotstr"), next_idiom('"'))),
     /// Branching ops
-    CODE("branch", IP = iData[IP >> 2]; next()),
+    CODE("branch", IP = iData(IP); next()),
     CODE("0branch",
-         IP = top ? IP + 4 : iData[IP >> 2];
+         IP = top ? IP + iSZ : iData(IP);
          pop(); next()),
     CODE("donext",
          if (rack[R]) {
-             rack[R] -= 1; IP = iData[IP >> 2];
+             rack[R] -= 1; IP = iData(IP);
          }
-         else { IP += 4;  R--; }
+         else { IP += iSZ;  R--; }
          next()),
     IMMD("if",    comma(find("0branch")); push(DP); comma(0)),
     IMMD("else",
-         comma(find("branch")); iData[top >> 2] = DP + 4;
+         comma(find("branch")); iData(top) = DP + iSZ;
          top = DP; comma(0)),
-    IMMD("then",  iData[pop() >> 2] = DP),
+    IMMD("then",  iData(pop()) = DP),
     /// Loops
     IMMD("begin", push(DP)),
     IMMD("while", comma(find("0branch")); push(DP); comma(0)),
     IMMD("repeat",
          int n = pop();
-         comma(find("branch")); comma(pop()); iData[n >> 2] = DP),
+         comma(find("branch")); comma(pop()); iData(n) = DP),
     IMMD("again", comma(find("branch")); comma(pop())),
     IMMD("until", comma(find("0branch")); comma(pop())),
     ///  For loops
@@ -253,37 +251,39 @@ const static struct Code primitives[] = {
     IMMD("next",  comma(find("donext")); comma(pop())),
     ///  Compiler ops
     CODE("exit",  IP = popR(); next()),
-    CODE("docon", push(iData[(WP + 4) >> 2])),
+    CODE("docon", push(iData(WP + iSZ))),
     CODE(":",
-         thread = DP + 4; comma_s(context, next_idiom());
+         thread = DP + iSZ; comma_s(context, next_idiom());
          comma(cData[find("nest")]); compile = 1),
     IMMD(";",
          context = thread; compile = 0;
          comma(find("unnest"))),
     CODE("variable",
-         thread = DP + 4; comma_s(context, next_idiom());
+         thread = DP + dSZ;        // skip parameter field
+         comma_s(context, next_idiom());
          context = thread;
          comma(cData[find("dovar")]); comma(0)),
     CODE("constant",
-         thread = DP + 4; comma_s(context, next_idiom());
+         thread = DP + dSZ;        // skip parameter field
+         comma_s(context, next_idiom());
          context = thread;
          comma(cData[find("docon")]); comma(pop())),
-    CODE("@",  top = iData[top >> 2]),
-    CODE("!",  int a = pop(); iData[a >> 2] = pop()),
-    CODE("?",  fout <<iData[pop() >> 2] << " "),
-    CODE("+!", int a = pop(); iData[a >> 2] += pop()),
+    CODE("@",  top = iData(top)),
+    CODE("!",  int a = pop(); iData(a) = pop()),
+    CODE("?",  fout << iData(pop()) << " "),
+    CODE("+!", int a = pop(); iData(a) += pop()),
     CODE("allot",
-         for (int n=pop(), i = 0; i < n; i++) cData[DP++] = 0),
+         for (int n = pop(), i = 0; i < n*dSZ; i++) cData[DP++] = 0),
     CODE(",",  comma(pop())),
     /// metacompiler
     CODE("create",
-         thread = DP + 4; comma_s(context, next_idiom());
+         thread = DP + iSZ; comma_s(context, next_idiom());
          context = thread;
          comma(find("nest")); comma(find("dovar"))),
     CODE("does", comma(find("nest"))), // copy words after "does" to new the word
-    CODE("to",   int n = find(next_idiom()); iData[(n + 4) >> 2] = pop()),
-    CODE("is",   int n = find(next_idiom()); iData[n >> 2] = pop()),
-    CODE("[to]", int n = iData[IP >> 2]; iData[(n + 4) >> 2] = pop()),
+    CODE("to",   int n = find(next_idiom()); iData(n + iSZ) = pop()),
+    CODE("is",   int n = find(next_idiom()); iData(n) = pop()),
+    CODE("[to]", int n = iData(IP); iData(n + iSZ) = pop()),
     /// Debug ops
     CODE("bye",   exit(0)),
     CODE("here",  push(DP)),
@@ -292,27 +292,27 @@ const static struct Code primitives[] = {
     CODE("'" ,    push(find(next_idiom()))),
     CODE("see",
          int n = find(next_idiom());
-         for (int i = 0; i < 20; i++) fout <<iData[(n >> 2) + i];
+         for (int i = 0; i < 80; i+=4) fout << iData(n + i);
          fout << ENDL),
     CODE("ucase", ucase = pop()),
-    CODE("boot",  DP = find("boot") + sizeof(int); thread = nfa)
+    CODE("boot",  DP = find("boot") + iSZ; thread = nfa)
 };
 // Macro Assembler
 void encode(const struct Code *prim) {
     const char *seq = prim->name.c_str();
     int sz = prim->name.length();
-    comma(thread);                    // CC: thread field (U32 now)
+    comma(thread);                  /// lfa: link field
     thread = DP;
-    cData[DP++] = sz | prim->immd;  // CC: attribute byte = length(0x1f) + immediate(0x80)
+    cData[DP++] = sz | prim->immd;  /// nfa: attribute byte = length(0x1f) + immediate(0x80)
     for (int i = 0; i < sz; i++) { cData[DP++] = seq[i]; }
     while (DP & 3) { cData[DP++] = 0; }
-    comma(P++);                     /// CC: cfa = sequential bytecode (U32 now)
-    fout << P - 1 << ':' << DP - 4 << ' ' << seq << ENDL;
+    comma(P++);                     /// cfa = sequential bytecode
+//  fout << P - 1 << ':' << DP - 4 << ' ' << seq << ENDL;
 }
 void run(int n) {                   /// inner interpreter, CC: P, WP, IP, R, bytecode modified
     P = n; WP = n; IP = 0; R = 0;
     do {
-        bytecode = cData[P++];      /// CC: bytecode is U8, storage is U32, using P++ is incorrect
+        bytecode = cData[P++];      /// CC: bytecode is U8, 0 as terminator
         primitives[bytecode].xt();  /// execute colon
     } while (R != 0);
 }
@@ -344,9 +344,8 @@ void forth_outer(const char *cmd) {
     if (!compile) ss_dump();  ///  * dump stack and display ok prompt
 }
 void forth_init() {
-    cData = (unsigned char*)iData;
-    IP = 0; thread = 0; P = 0;
-    S = 0; R = 0;
+    IP = thread = P = 0;
+    R  = S = 0;
 
     fout << setbase(16);
     for (int i=0; i<sizeof(primitives)/sizeof(Code); i++) encode(&primitives[i]);
@@ -354,9 +353,7 @@ void forth_init() {
     context = DP - 12;
     fout <<"\nhere=" << DP << " link=" << context << " words=" << P << ENDL;
 
-    dump(0, DP);
-
-    P = 0; WP = 0; IP = 0; S = 0; R = 0;
+    IP = P = WP = 0;
     top = -1;
     fout << setbase(base);
 }
@@ -365,7 +362,6 @@ int main(int ac, char* av[]) {
     /// setup ForthVM
     ///
     forth_init();
-    words();
     ///
     /// enter main loop
     ///
