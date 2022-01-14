@@ -62,12 +62,12 @@ void dot_r(int n, int v) {
 ///
 /// dictionary scanner, return found cfa or 0
 ///
-int find(string s) {                // CC: nfa, lfa, cfa, len modified
+int find(string s) {                    // CC: nfa, lfa, cfa, len modified
     int len_s = s.length();
-    nfa = context;                              // searching from tail
-    while (nfa) {                               // break on (nfa == 0)
+    nfa = context;                      // searching from tail
+    while (nfa) {                       // break on (nfa == 0)
         int lfa = nfa - iSZ;            // CC: 4 = sizeof(IU)
-        int len = cData[nfa] & 0x1f;            // CC: 0x1f = ~IMMD_FLAG
+        int len = cData[nfa] & 0x1f;    // CC: 0x1f = ~IMMD_FLAG
         if (len_s == len) {
             bool ok = true;
             U8 *c = &cData[nfa+1], *p = (U8*)s.c_str();
@@ -80,7 +80,7 @@ int find(string s) {                // CC: nfa, lfa, cfa, len modified
         }
         nfa = iData(lfa);
     }
-    return 0;                       // not found
+    return 0;                            // not found
 }
 void words() {
     int i = 0;
