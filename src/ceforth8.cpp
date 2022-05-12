@@ -1,5 +1,11 @@
 ///
-/// ceForth8
+/// ceForth8 - A token indirect threading Forth implemented in C++
+///
+/// Note: the threading method is very inefficient (slow) because
+///       callframe needs to be setup/teardown with multiple lookups, and
+///       every call will miss a branch prediction. Bad stuffs!
+///       However, the goal of eForth is to show how a Forth can be
+///       easily understood and constructed.
 ///
 #include <stdint.h>     // uintxx_t
 #include <stdlib.h>     // strtol
@@ -174,7 +180,10 @@ U8   *IP = PMEM0, *IP0 = PMEM0;   /// current instruction pointer and cached bas
 #define SETJMP(a) (*(IU*)(PFA(-1) + (a)))   /** address offset for branching opcodes     */
 #define HERE      (pmem.idx)                /** current parameter memory index           */
 #define IPOFF     ((IU)(IP - PMEM0))        /** IP offset relative parameter memory root */
-
+///
+/// TODO: token indirect threaded is portable
+///       but very expensive for pipelined design
+///
 #if LAMBDA_CAP
 #define CALL(c) \
 	if (dict[c].def) nest(c); \
@@ -184,7 +193,6 @@ U8   *IP = PMEM0, *IP0 = PMEM0;   /// current instruction pointer and cached bas
 	if (dict[c].def) nest(c); \
     else (*(fop)(((uintptr_t)dict[c].xt)&~0x3))()
 #endif // LAMBDA_CAP
-
 ///==============================================================================
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
@@ -235,20 +243,29 @@ void colon(const char *name) {
 ///
 /// Forth inner interpreter (colon word handler)
 ///
+/// TODO: move ENTER,EXIT to their own opcode (save PFLEN, PFA)
+///
 void nest(IU c) {
-    rs.push(IP - PMEM0); rs.push(WP);       /// * setup call frame
+	/// ENTER
+	rs.push(IP - PMEM0); rs.push(WP);       /// * setup call frame
     IP0 = IP = PFA(WP=c);                   // CC: this takes 30ms/1K, need work
-    try {                                   // CC: is dict[c] kept in cache?
+//PFA(w) : ((U8*)&pmem[dict[w].pfa])
+	try {                                   // CC: is dict[c] kept in cache?
         U8 *ipx = IP + PFLEN(c);            // CC: this saves 350ms/1M
-        while (IP < ipx) {        			/// * recursively call all children
-            IU c1 = *IP; IP += sizeof(IU);  // CC: cost of (ipx, c1) on stack?
-            CALL(c1);                       ///> execute child word
+//PFLEN(w) : (dict[w].len)
+    	while (IP < ipx) {        			/// * recursively call all children
+        	IU c1 = *IP; IP += sizeof(IU);  // CC: cost of (ipx, c1) on stack?
+	        CALL(c1);                       ///> execute child word
+//CALL : if (dict[c1].def) nest(c1);
+//       else (*(fop*)(((uintptr_t)dict[c1].xt)&~0x3))(c1)
         }                                   ///> can do IP++ if pmem unit is 16-bit
-    }
-    catch(...) {}                           ///> protect if any exeception
+	}
+	catch(...) {}                           ///> protect if any exeception
+	/// EXIT
+	IP0 = PFA(WP=rs.pop());                 /// * restore call frame (NEXT)
+//PFA(w) : ((U8*)&pmem[dict[w].pfa])
+	IP  = PMEM0 + rs.pop();
     yield();                                ///> give other tasks some time
-    IP0 = PFA(WP=rs.pop());                 /// * restore call frame
-    IP  = PMEM0 + rs.pop();
 }
 ///==============================================================================
 ///
