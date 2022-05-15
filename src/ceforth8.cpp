@@ -1,11 +1,17 @@
 ///
 /// ceForth8 - A token indirect threading Forth implemented in C++
 ///
-/// Note: the threading method is very inefficient (slow) because
-///       callframe needs to be setup/teardown with multiple lookups, and
-///       every call will miss a branch prediction. Bad stuffs!
-///       However, the goal of eForth is to show how a Forth can be
-///       easily understood and constructed.
+/// CC 20220512:
+///       Though the goal of eForth is to show how a Forth can be
+///       easily understood and cleanly constructed.
+///       However, the threading method used is very inefficient (slow)
+///       because each call needs 2 indirect lookups (token->dict, dict->xt)
+///       and a callframe needs to be setup/teardown. Plus, every call
+///       will miss the branch prediction stalling CPU pipeline. Bad stuffs!
+/// CC 20220514:
+///       Refactor to subroutine indirect threading.
+///       Using 16-bit offsets for pointer arithmatics in order to speed up
+///       while maintaining space consumption
 ///
 #include <stdint.h>     // uintxx_t
 #include <stdlib.h>     // strtol
@@ -43,14 +49,15 @@ using namespace std;
 ///
 /// logical units (instead of physical) for type check and portability
 ///
-typedef uint16_t IU;    // instruction pointer unit
-typedef int32_t  DU;    // data unit
-typedef uint16_t U16;   // unsigned 16-bit integer
-typedef uint8_t  U8;    // byte, unsigned character
+typedef uint16_t  IU;    // instruction pointer unit
+typedef int32_t   DU;    // data unit
+typedef uint16_t  U16;   // unsigned 16-bit integer
+typedef uint8_t   U8;    // byte, unsigned character
+typedef uintptr_t UPTR;
 ///
 /// alignment macros
 ///
-#define ALIGN(sz)       ((sz) + (-(sz) & 0x1))
+#define ALIGN(sz)       ((sz) + (-(sz) & 0x3))
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 ///
@@ -89,12 +96,12 @@ struct List {
 /// functor implementation - for lambda support (without STL)
 ///
 #if LAMBDA_CAP
-struct fop { virtual void operator()(IU) = 0; };
+struct fop { virtual void operator()() = 0; };
 template<typename F>
 struct XT : fop {           // universal functor
     F fp;
     XT(F &f) : fp(f) {}
-    void operator()(IU c) { fp(c); }
+    void inline operator()() { fp(); }
 };
 #else
 typedef void (*fop)();
@@ -159,39 +166,43 @@ List<U8,   48*1024> pmem; /// parameter memory i.e. storage for all colon defini
 ///
 /// system variables
 ///
-bool compile = false;
+bool compile = false, ucase = 1;  /// compiler and case sensitivity control
 DU   top = -1, base = 10;
-DU   ucase = 1;                   /// case sensitivity control
 IU   WP = 0;                      /// current word pointer
-U8   *PMEM0 = &pmem[0];           /// cached memory base (saved 200ms/1M cycles)
-U8   *IP = PMEM0, *IP0 = PMEM0;   /// current instruction pointer and cached base pointer
+U8   *MEM0 = &pmem[0];            /// cached memory base (saved 200ms/1M cycles)
+U8   *IP = MEM0;                  /// current instruction pointer and cached base pointer
+UPTR DICT0;
 ///
 /// macros to abstract dict and pmem physical implementation
 /// Note:
 ///   so we can change pmem implementation anytime without affecting opcodes defined below
 ///
 #define STRLEN(s) (ALIGN(strlen(s)+1))      /** calculate string size with alignment     */
-#define XIP       (dict[-1].len)            /** parameter field tail of latest word      */
 #define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
 #define PFLEN(w)  (dict[w].len)             /** parameter field length of a word         */
+#define XLEN      (dict[-1].len)            /** parameter field tail of latest word      */
+#define HERE      (pmem.idx)                /** current parameter memory index           */
 #define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
 #define STR(a)    ((char*)&pmem[a])         /** fetch string pointer to parameter memory */
-#define JMPIP     (IP0 + *(IU*)IP)          /** branching target address                 */
-#define SETJMP(a) (*(IU*)(PFA(-1) + (a)))   /** address offset for branching opcodes     */
-#define HERE      (pmem.idx)                /** current parameter memory index           */
-#define IPOFF     ((IU)(IP - PMEM0))        /** IP offset relative parameter memory root */
+#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
+#define IPOFF     ((IU)(IP - MEM0))         /** IP offset (index) in parameter memory    */
+#define MEMIP     (MEM0 + (*(IU*)IP & ~0x1))/** pointer to IP address fetched from pmem  */
+#define XIP       ((IU)(dict[-1].pfa + dict[-1].len))   /** current memory offset of last word */
 ///
 /// TODO: token indirect threaded is portable
 ///       but very expensive for pipelined design
 ///
 #if LAMBDA_CAP
-#define CALL(c) \
-	if (dict[c].def) nest(c); \
-    else (*(fop*)(((uintptr_t)dict[c].xt)&~0x3))(c)
+#define CALL(w) \
+    if (dict[w].def) { IP = MEM0 + dict[w].pfa; nest(); } \
+    else (*(fop*)((UPTR)dict[w].xt & ~0x3))()
+#define NEST() \
+    if (*(IU*)IP & 1) nest(); \
+    else (*(fop*)(DICT0 + (*(IU*)IP & ~0x3)))()
 #else
-#define CALL(c) \
-	if (dict[c].def) nest(c); \
-    else (*(fop)(((uintptr_t)dict[c].xt)&~0x3))()
+#define NEST() \
+    if (*(IU*)IP & 1) nest(); \
+    else (*(fop)(DICT0 + *(IU*)IP)(i)
 #endif // LAMBDA_CAP
 ///==============================================================================
 ///
@@ -206,16 +217,33 @@ int find(const char *s) {
     }
     return -1;
 }
+int pfa2word(U8 *ip) {
+    IU   ipx = *(IU*)ip;
+    U8   *fp = (U8*)(DICT0 + ipx);
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (ipx & 1) {
+            if (dict[i].pfa == (ipx & ~1)) return i;
+        }
+        else if ((U8*)dict[i].xt == fp) return i;
+    }
+    return -1;
+}
 ///
 /// inline functions to add (i.e. 'comma') object into parameter memory
 ///
-inline void add_iu(IU i)   { pmem.push((U8*)&i, sizeof(IU));  XIP += sizeof(IU); }  /** add an instruction into pmem */
-inline void add_du(DU v)   { pmem.push((U8*)&v, sizeof(DU)),  XIP += sizeof(DU); }  /** add a cell into pmem         */
-inline void add_str(const char *s) {                                                /** add a string to pmem         */
-    int sz = STRLEN(s); pmem.push((U8*)s,  sz); XIP += sz;
+inline void add_iu(IU i)   { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
+inline void add_du(DU v)   { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
+inline void add_str(const char *s) {                                                 /** add a string to pmem         */
+    int sz = STRLEN(s); pmem.push((U8*)s,  sz); XLEN += sz;
+}
+void add_w(IU w) {
+    Code *c  = &dict[w];
+    IU   ipx = c->def ? (c->pfa | 1) : (IU)((UPTR)c->xt - DICT0);
+    add_iu(ipx);
+    printf("add_w(%d) %p => %x %s\n", w, c->xt, ipx, c->name);
 }
 ///==============================================================================
-///                   
+///
 /// colon word compiler
 /// Note:
 ///   * we separate dict and pmem space to make word uniform in size
@@ -223,7 +251,7 @@ inline void add_str(const char *s) {                                            
 ///   * with an addition link field added.
 ///
 enum {
-    NOP = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
+    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
 } forth_opcode;
 
 void colon(const char *name) {
@@ -231,7 +259,7 @@ void colon(const char *name) {
     int sz = STRLEN(name);                  // string length, aligned
     pmem.push((U8*)name,  sz);              // setup raw name field
 #if LAMBDA_CAP
-    Code c(nfa, [](int){});                 // create a new word on dictionary
+    Code c(nfa, [](){});                 // create a new word on dictionary
 #else
     Code c(nfa, NULL);
 #endif // LAMBDA_CAP
@@ -239,32 +267,26 @@ void colon(const char *name) {
     c.len = 0;                              // advance counter (by number of U16)
     c.pfa = HERE;                           // capture code field index
     dict.push(c);                           // deep copy Code struct into dictionary
+    printf("%3d> xt=%p name=%p %s\n", dict.idx-1, dict[-1].xt, dict[-1].name, dict[-1].name);
 };
 ///
 /// Forth inner interpreter (colon word handler)
 ///
-/// TODO: move ENTER,EXIT to their own opcode (save PFLEN, PFA)
-///
-void nest(IU c) {
-	/// ENTER
-	rs.push(IP - PMEM0); rs.push(WP);       /// * setup call frame
-    IP0 = IP = PFA(WP=c);                   // CC: this takes 30ms/1K, need work
-//PFA(w) : ((U8*)&pmem[dict[w].pfa])
-	try {                                   // CC: is dict[c] kept in cache?
-        U8 *ipx = IP + PFLEN(c);            // CC: this saves 350ms/1M
-//PFLEN(w) : (dict[w].len)
-    	while (IP < ipx) {        			/// * recursively call all children
-        	IU c1 = *IP; IP += sizeof(IU);  // CC: cost of (ipx, c1) on stack?
-	        CALL(c1);                       ///> execute child word
-//CALL : if (dict[c1].def) nest(c1);
-//       else (*(fop*)(((uintptr_t)dict[c1].xt)&~0x3))(c1)
-        }                                   ///> can do IP++ if pmem unit is 16-bit
-	}
-	catch(...) {}                           ///> protect if any exeception
-	/// EXIT
-	IP0 = PFA(WP=rs.pop());                 /// * restore call frame (NEXT)
-//PFA(w) : ((U8*)&pmem[dict[w].pfa])
-	IP  = PMEM0 + rs.pop();
+void nest() {
+    /// ENTER
+    rs.push(IPOFF);                         /// * setup call frame
+    rs.push(WP);
+    while (*(IU*)IP) {                      /// step through all children
+        // NEST()
+        if (*(IU*)IP & 1) {
+            nest();
+        }
+        else (*(fop*)(DICT0 + (*(IU*)IP & ~3)))();
+        IP += sizeof(IU);
+    }
+    /// EXIT
+    WP = rs.pop();                          /// * restore call frame
+    IP = MEM0 + rs.pop();
     yield();                                ///> give other tasks some time
 }
 ///==============================================================================
@@ -293,31 +315,30 @@ void to_s(IU c) {
 ///
 /// recursively disassemble colon word
 ///
-void see(IU *cp, IU *ip, int dp=0) {
-    fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";            // indentation
-    if (dp) fout << "[" << setw(2) << *ip << ": ";                  // ip offset
-    else    fout << "[ ";
-    IU c = *cp;
-    to_s(c);                                                        // name field
-    if (dict[c].def) {                                              // a colon word
-        for (IU n=dict[c].len, ip1=0; ip1<n; ip1+=sizeof(IU)) {     // walk through children
-            IU *cp1 = (IU*)(PFA(c) + ip1);                          // next children node
-            see(cp1, &ip1, dp+1);                                   // dive recursively
+void see(U8 *ip, int dp=1) {
+    while (*(IU*)ip) {
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        // indentation
+        fout << setw(4) << (IU)(ip - MEM0) << "[ " << setw(-1);
+        IU c = pfa2word(ip);
+        to_s(c);                                                    // name field
+        if (dict[c].def && dp <= 2) {                               // is a colon word
+            see(PFA(c), dp+1);                                      // recursive into child PFA
         }
+        ip += sizeof(IU);
+        switch (c) {
+        case DOVAR: case DOLIT:
+            fout << "= " << *(DU*)ip; ip += sizeof(DU); break;
+        case DOSTR: case DOTSTR:
+            fout << "= \"" << (char*)ip << '"';
+            ip += STRLEN((char*)ip); break;
+        case BRAN: case ZBRAN: case DONEXT:
+            fout << "j" << *(IU*)ip; ip += sizeof(IU); break;
+        }
+        fout << "] ";
     }
-    switch (c) {
-    case DOVAR: case DOLIT:
-        fout << "= " << *(DU*)(cp+1); *ip += sizeof(DU); break;
-    case DOSTR: case DOTSTR:
-        fout << "= \"" << (char*)(cp+1) << '"';
-        *ip += STRLEN((char*)(cp+1)); break;
-    case BRAN: case ZBRAN: case DONEXT:
-        fout << "j" << *(cp+1); *ip += sizeof(IU); break;
-    }
-    fout << "] ";
 }
 void words() {
-	fout << setbase(16);
+    fout << setbase(16);
     for (int i=0; i<dict.idx; i++) {
         if ((i%10)==0) { fout << ENDL; yield(); }
         to_s(i);
@@ -345,8 +366,6 @@ void mem_dump(IU p0, DU sz) {
     }
     fout << setbase(base);
 }
-void _does() {
-}
 ///================================================================================
 ///
 /// macros to reduce verbosity
@@ -356,8 +375,8 @@ inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 #define     PUSH(v)       { ss.push(top); top = v; }
 #if LAMBDA_CAP
-#define     CODE(s, g)    { s, [](IU c){ g; }, 0 }
-#define     IMMD(s, g)    { s, [](IU c){ g; }, 1 }
+#define     CODE(s, g)    { s, [](){ g; }, 0 }
+#define     IMMD(s, g)    { s, [](){ g; }, 1 }
 #else
 #define     CODE(s, g)    { s, []{ g; }, 0 }
 #define     IMMD(s, g)    { s, []{ g; }, 1 }
@@ -366,8 +385,8 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///
 /// global memory access macros
 ///
-#define     PEEK(a)    (DU)(*(DU*)((uintptr_t)(a)))
-#define     POKE(a, c) (*(DU*)((uintptr_t)(a))=(DU)(c))
+#define     PEEK(a)    (DU)(*(DU*)((UPTR)(a)))
+#define     POKE(a, c) (*(DU*)((UPTR)(a))=(DU)(c))
 ///================================================================================
 ///
 /// primitives (ROMable)
@@ -378,23 +397,23 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///   * find() needs to be modified to support ROM+RAM
 ///
 static Code prim[] PROGMEM = {
-	///
-	/// @defgroup Execution flow ops
+    ///
+    /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
-	/// @{
-	CODE("nop",     {}),
-    CODE("dovar",   PUSH(IPOFF); IP += sizeof(DU)),
-    CODE("dolit",   PUSH(*(DU*)IP); IP += sizeof(DU)),
+    /// @{
+    CODE("exit",    {}),
+    CODE("dovar",   PUSH(IPOFF + sizeof(IU)); IP += sizeof(DU)),
+    CODE("dolit",   PUSH(*(DU*)(IP + sizeof(IU))); IP += sizeof(DU)),
     CODE("dostr",
-        const char *s = (const char*)IP;           // get string pointer
+        const char *s = (const char*)(IP + sizeof(IU));    // get string pointer
         PUSH(IPOFF); IP += STRLEN(s)),
     CODE("dotstr",
-        const char *s = (const char*)IP;           // get string pointer
+        const char *s = (const char*)(IP + sizeof(IU));    // get string pointer
         fout << s;  IP += STRLEN(s)),              // send to output console
-    CODE("branch" , IP = JMPIP),                           // unconditional branch
-    CODE("0branch", IP = POP() ? IP + sizeof(IU) : JMPIP), // conditional branch
+    CODE("branch" , IP = MEMIP),                   // unconditional branch
+    CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEMIP), // conditional branch
     CODE("donext",
-         if ((rs[-1] -= 1) >= 0) IP = JMPIP;       // rs[-1]-=1 saved 200ms/1M cycles
+         if ((rs[-1] -= 1) >= 0) IP = MEMIP;       // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); }),
     CODE("does",                                   // CREATE...DOES... meta-program
          U8 *ip  = PFA(WP);
@@ -489,71 +508,70 @@ static Code prim[] PROGMEM = {
     CODE("\\",      scan('\n')),
     CODE("$\"",
         const char *s = scan('"')+1;        // string skip first blank
-        add_iu(DOSTR);                      // dostr, (+parameter field)
+        add_w(DOSTR);                       // dostr, (+parameter field)
         add_str(s)),                        // byte0, byte1, byte2, ..., byteN
     IMMD(".\"",
         const char *s = scan('"')+1;        // string skip first blank
-        add_iu(DOTSTR);                     // dostr, (+parameter field)
+        add_w(DOTSTR);                      // dostr, (+parameter field)
         add_str(s)),                        // byte0, byte1, byte2, ..., byteN
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
     /// @{
-    IMMD("if",      add_iu(ZBRAN); PUSH(XIP); add_iu(0)),      // if    ( -- here ) 
-    IMMD("else",                                                 // else ( here -- there )
-        add_iu(BRAN);
-        IU h=XIP;   add_iu(0); SETJMP(POP()) = XIP; PUSH(h)),
-    IMMD("then",    SETJMP(POP()) = XIP),                        // backfill jump address
+    IMMD("if",      add_w(ZBRAN); PUSH(HERE); add_iu(0)),       // if    ( -- here )
+    IMMD("else",                                                // else ( here -- there )
+        add_w(BRAN);
+        IU h=HERE; add_iu(0); SETJMP(POP()) = HERE; PUSH(h)),
+    IMMD("then",    SETJMP(POP()) = HERE),                      // backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
-    IMMD("begin",   PUSH(XIP)),
-    IMMD("again",   add_iu(BRAN);  add_iu(POP())),               // again    ( there -- )
-    IMMD("until",   add_iu(ZBRAN); add_iu(POP())),               // until    ( there -- ) 
-    IMMD("while",   add_iu(ZBRAN); PUSH(XIP); add_iu(0)),        // while    ( there -- there here ) 
-    IMMD("repeat",  add_iu(BRAN);                                // repeat    ( there1 there2 -- ) 
-        IU t=POP(); add_iu(POP()); SETJMP(t) = XIP),             // set forward and loop back address
+    IMMD("begin",   PUSH(HERE)),
+    IMMD("again",   add_w(BRAN);  add_iu(POP())),               // again    ( there -- )
+    IMMD("until",   add_w(ZBRAN); add_iu(POP())),               // until    ( there -- )
+    IMMD("while",   add_w(ZBRAN); PUSH(HERE); add_iu(0)),       // while    ( there -- there here )
+    IMMD("repeat",  add_w(BRAN);                                // repeat    ( there1 there2 -- )
+        IU t=POP(); add_iu(POP()); SETJMP(t) = HERE),           // set forward and loop back address
     /// @}
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_iu(TOR); PUSH(XIP)),                     // for ( -- here )
-    IMMD("next",    add_iu(DONEXT); add_iu(POP())),              // next ( here -- )
-    IMMD("aft",                                                  // aft ( here -- here there )
-        POP(); add_iu(BRAN);
-        IU h=XIP; add_iu(0); PUSH(XIP); PUSH(h)),
+    IMMD("for" ,    add_w(TOR); PUSH(HERE)),                    // for ( -- here )
+    IMMD("next",    add_w(DONEXT); add_iu(POP())),              // next ( here -- )
+    IMMD("aft",                                                 // aft ( here -- here there )
+        POP(); add_w(BRAN);
+        IU h=HERE; add_iu(0); PUSH(HERE); PUSH(h)),
     /// @}
     /// @defgrouop Compiler ops
     /// @{
     CODE(":", colon(next_word()); compile=true),
-    IMMD(";", compile = false),
+    IMMD(";", add_w(EXIT); compile = false),
     CODE("variable",                                             // create a variable
         colon(next_word());                                      // create a new word on dictionary
-        add_iu(DOVAR);                                           // dovar (+parameter field)
+        add_w(DOVAR);                                            // dovar (+parameter field)
         int n = 0; add_du(n)),                                   // data storage (32-bit integer now)
     CODE("constant",                                             // create a constant
         colon(next_word());                                      // create a new word on dictionary
-        add_iu(DOLIT);                                           // dovar (+parameter field)
+        add_w(DOLIT);                                            // dovar (+parameter field)
         add_du(POP())),                                          // data storage (32-bit integer now)
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exit",  IP = PFA(WP) + PFLEN(WP)),                     // quit current word execution
     CODE("exec",  CALL(POP())),                                  // execute word
     CODE("create",
         colon(next_word());                                      // create a new word on dictionary
-        add_iu(DOVAR)),                                          // dovar (+ parameter field)
+        add_w(DOVAR)),                                           // dovar (+ parameter field)
     CODE("to",              // 3 to x                            // alter the value of a constant
-    	IU w = find(next_word());                                // to save the extra @ of a variable
-	    *(DU*)(PFA(w) + sizeof(IU)) = POP()),
-	CODE("is",              // ' y is x                          // alias a word
-		IU w = find(next_word());                                // can serve as a function pointer
+        IU w = find(next_word());                                // to save the extra @ of a variable
+        *(DU*)(PFA(w) + sizeof(IU)) = POP()),
+    CODE("is",              // ' y is x                          // alias a word
+        IU w = find(next_word());                                // can serve as a function pointer
         dict[POP()].pfa = dict[w].pfa),                          // but might leave a dangled block
     CODE("[to]",            // : xx 3 [to] y ;                   // alter constant in compile mode
         IU w = *(IU*)IP; IP += sizeof(IU);                       // fetch constant pfa from 'here'
-	    *(DU*)(PFA(w) + sizeof(IU)) = POP()),
+        *(DU*)(PFA(w) + sizeof(IU)) = POP()),
     ///
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
@@ -572,7 +590,9 @@ static Code prim[] PROGMEM = {
     CODE("words", words()),
     CODE("'",     IU w = find(next_word()); PUSH(w)),
     CODE(".s",    ss_dump()),
-    CODE("see",   IU w = find(next_word()); IU ip=0; see(&w, &ip)),
+    CODE("see",
+        IU w = find(next_word());
+        fout << "[ "; to_s(w); see(PFA(w)); fout << "]" << ENDL),
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
@@ -609,7 +629,9 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 void forth_init() {
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
+        printf("%3d> xt=%p name=%p %s\n", i, dict[i].xt, dict[i].name, dict[i].name);
     }                                        /// searching both spaces
+    DICT0 = (UPTR)dict[EXIT].xt;
 }
 ///
 /// outer interpreter
@@ -621,20 +643,28 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     fout.str("");                            /// clean output buffer, ready for next
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
-        //printf("%s=>",idiom);
+        printf("find(%s) => ",idiom);
         int w = find(idiom);                 /// * search through dictionary
         if (w>=0) {                          /// * word found?
-            //printf("%s %d\n", dict[w].name, w);
+            printf("%s %d\n", dict[w].name, w);
             if (compile && !dict[w].immd) {  /// * in compile mode?
-                add_iu(w);                   /// * add found word to new colon word
+                add_w(w);                    /// * add found word to new colon word
             }
-            else { CALL(w); }                /// * execute forth word
+            else {
+                //CALL(w);
+                if (dict[w].def) {
+                    WP = w;
+                    IP = MEM0 + dict[w].pfa;
+                    nest();
+                }
+                else (*(fop*)((UPTR)dict[w].xt & ~0x3))();
+            }
             continue;
         }
         // try as a number
         char *p;
         int n = static_cast<int>(strtol(idiom, &p, base));
-        //printf("%d\n", n);
+        printf("%d\n", n);
         if (*p != '\0') {                    /// * not number
             fout << idiom << "? " << ENDL;   ///> display error prompt
             compile = false;                 ///> reset to interpreter mode
@@ -642,7 +672,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
         }
         // is a number
         if (compile) {                       /// * add literal when in compile mode
-            add_iu(DOLIT);                   ///> dovar (+parameter field)
+            add_w(DOLIT);                    ///> dovar (+parameter field)
             add_du(n);                       ///> data storage (32-bit integer now)
         }
         else PUSH(n);                        ///> or, add value onto data stack
