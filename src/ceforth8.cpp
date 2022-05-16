@@ -22,7 +22,8 @@ using namespace std;
 /// conditional compililation options
 ///
 #define LAMBDA_CAP      1
-#define RANGE_CHECK     1
+#define RANGE_CHECK     0
+#define INLINE          __attribute__((always_inline))
 ///
 /// conditional compilation for different platforms
 ///
@@ -76,23 +77,23 @@ struct List {
 
     List()  { v = new T[N]; }      /// dynamically allocate array storage
     ~List() { delete[] v;   }      /// free memory
-    T& operator[](int i)   { return i < 0 ? v[idx + i] : v[i]; }
+    T& operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
 #if RANGE_CHECK
-    T pop() {
+    T pop() INLINE {
         if (idx>0) return v[--idx];
         throw "ERR: List empty";
     }
-    T push(T t) {
+    T push(T t) INLINE {
         if (idx<N) return v[max=idx++] = t;
         throw "ERR: List full";
     }
 #else
-    T pop()     { return v[--idx]; }
-    T push(T t) { return v[max=idx++] = t; }
+    T pop()     INLINE { return v[--idx]; }
+    T push(T t) INLINE { return v[max=idx++] = t; }
 #endif // RANGE_CHECK
-    void push(T *a, int n)  { for (int i=0; i<n; i++) push(*(a+i)); }
-    void merge(List& a)     { for (int i=0; i<a.idx; i++) push(a[i]);}
-    void clear(int i=0)     { idx=i; }
+    void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
+    void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]);}
+    void clear(int i=0)    INLINE { idx=i; }
 };
 ///
 /// functor implementation - for lambda support (without STL)
@@ -103,7 +104,7 @@ template<typename F>
 struct XT : fop {           // universal functor
     F fp;
     XT(F &f) : fp(f) {}
-    void inline operator()() { fp(); }
+    void operator()() INLINE { fp(); }
 };
 #else
 typedef void (*fop)();
@@ -206,7 +207,7 @@ UFP  DICT0;
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
-inline int  streq(const char *s1, const char *s2) {
+int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
 int find(const char *s) {
@@ -229,9 +230,9 @@ int pfa2word(U8 *ip) {
 ///
 /// inline functions to add (i.e. 'comma') object into parameter memory
 ///
-inline void add_iu(IU i)   { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
-inline void add_du(DU v)   { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
-inline void add_str(const char *s) {                                                 /** add a string to pmem         */
+void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
+void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
+void add_str(const char *s) {                                             /** add a string to pmem         */
     int sz = STRLEN(s); pmem.push((U8*)s,  sz); XLEN += sz;
 }
 void add_w(IU w) {
