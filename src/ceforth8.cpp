@@ -185,10 +185,9 @@ UFP  DICT0;
 #define XLEN      (dict[-1].len)            /** parameter field tail of latest word      */
 #define HERE      (pmem.idx)                /** current parameter memory index           */
 #define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
-#define STR(a)    ((char*)&pmem[a])         /** fetch string pointer to parameter memory */
 #define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
-#define IPOFF     ((IU)(IP - MEM0))         /** IP offset (index) in parameter memory    */
-#define MEMIP     (MEM0 + (*(IU*)IP & ~0x1))/** pointer to IP address fetched from pmem  */
+#define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
+#define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
 #define XIP       ((IU)(dict[-1].pfa + dict[-1].len))   /** current memory offset of last word */
 ///
 /// TODO: token indirect threaded is portable
@@ -198,11 +197,8 @@ UFP  DICT0;
 #define CALL(w) \
     if (dict[w].def) { WP = w; IP = MEM0 + dict[w].pfa; nest(); } \
     else (*(fop*)((UFP)dict[w].xt & ~0x3))()
-#define NEST() \
-    if (*(IU*)IP & 1) { IP = MEM0 + (*(IU*)IP & ~0x1); nest(); } \
-    else (*(fop*)(DICT0 + (*(IU*)IP & ~0x3)))()
 #else
-#define NEST() \
+#define CALL(w) \
     if (*(IU*)IP & 1) nest(); \
     else (*(fop)(DICT0 + *(IU*)IP)(i)
 #endif // LAMBDA_CAP
@@ -242,7 +238,7 @@ void add_w(IU w) {
     Code *c  = &dict[w];
     IU   ipx = c->def ? (c->pfa | 1) : (IU)((UFP)c->xt - DICT0);
     add_iu(ipx);
-    printf("add_w(%d) %p => %x %s\n", w, c->xt, ipx, c->name);
+    printf("add_w(%d) => %4x:%p %s\n", w, ipx, c->xt, c->name);
 }
 ///==============================================================================
 ///
@@ -257,11 +253,11 @@ enum {
 } forth_opcode;
 
 void colon(const char *name) {
-    char *nfa = STR(HERE);                  // current pmem pointer
+    char *nfa = (char*)&pmem[HERE];         // current pmem pointer
     int sz = STRLEN(name);                  // string length, aligned
     pmem.push((U8*)name,  sz);              // setup raw name field
 #if LAMBDA_CAP
-    Code c(nfa, [](){});                 // create a new word on dictionary
+    Code c(nfa, [](){});                    // create a new word on dictionary
 #else
     Code c(nfa, NULL);
 #endif // LAMBDA_CAP
@@ -269,27 +265,61 @@ void colon(const char *name) {
     c.len = 0;                              // advance counter (by number of U16)
     c.pfa = HERE;                           // capture code field index
     dict.push(c);                           // deep copy Code struct into dictionary
-    printf("%3d> xt=%p name=%p %s\n", dict.idx-1, dict[-1].xt, dict[-1].name, dict[-1].name);
+    printf("%3d> pfa=%x, name=%4x:%p %s\n", dict.idx-1,
+        dict[-1].pfa,
+        (U16)(dict[EXIT].name - (const char*)MEM0),
+        dict[-1].name, dict[-1].name);
 };
 ///
-/// Forth inner interpreter (colon word handler)
-///
+/// Forth inner interpreter - recursive (look nicer but use system stack)
+/// Note: superceded by iterator version below (~8% faster)
+/*
 void nest() {
     while (*(IU*)IP) {
         if (*(IU*)IP & 1) {
             /// ENTER
-            rs.push(IPOFF + sizeof(IU));         /// * setup call frame
             rs.push(WP);
+            rs.push(OFF(IP) + sizeof(IU));       /// * setup call frame
             IP = MEM0 + (*(IU*)IP & ~0x1);
             nest();
             /// EXIT
-            WP = rs.pop();                       /// * restore call frame
-            IP = MEM0 + rs.pop();
+            IP = MEM0 + rs.pop();                /// * restore call frame
+            WP = rs.pop();
         }
         else {
             UFP xt = DICT0 + (*(IU*)IP & ~0x3);  /// * function pointer
             IP += sizeof(IU);                    /// * advance to next opcode
             (*(fop*)xt)();
+        }
+    }
+    yield();                                ///> give other tasks some time
+}
+*/
+///
+/// Forth inner interpreter - interative (instead of recursive)
+///
+void nest() {
+    int dp = 0;                                      /// iterator depth control
+    while (dp >= 0) {
+        /// function core
+        auto ipx = *(IU*)IP;                         /// hopefully use register than cached line
+        while (ipx) {
+            if (ipx & 1) {
+                rs.push(WP);                         /// * setup callframe (ENTER)
+                rs.push(OFF(IP) + sizeof(IU));
+                IP = MEM0 + (ipx & ~0x1);            /// word pfa (def masked)
+                dp++;
+            }
+            else {
+                UFP xt = DICT0 + (ipx & ~0x3);       /// * function pointer
+                IP += sizeof(IU);                    /// advance to next pfa
+                (*(fop*)xt)();
+            }
+            ipx = *(IU*)IP;
+        }
+        if (dp-- > 0) {
+            IP = MEM0 + rs.pop();                    /// * restore call frame (EXIT)
+            WP = rs.pop();
         }
     }
     yield();                                ///> give other tasks some time
@@ -323,7 +353,7 @@ void to_s(IU c) {
 void see(U8 *ip, int dp=1) {
     while (*(IU*)ip) {
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        // indentation
-        fout << setw(4) << (IU)(ip - MEM0) << "[ " << setw(-1);
+        fout << setw(4) << OFF(ip) << "[ " << setw(-1);
         IU c = pfa2word(ip);
         to_s(c);                                                    // name field
         if (dict[c].def && dp <= 2) {                               // is a colon word
@@ -407,18 +437,18 @@ static Code prim[] PROGMEM = {
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
     CODE("exit",    {}),
-    CODE("dovar",   PUSH(IPOFF); IP += sizeof(DU)),
+    CODE("dovar",   PUSH(OFF(IP)); IP += sizeof(DU)),
     CODE("dolit",   PUSH(*(DU*)IP); IP += sizeof(DU)),
     CODE("dostr",
         const char *s = (const char*)IP;           // get string pointer
-        PUSH(IPOFF); IP += STRLEN(s)),
+        PUSH(OFF(IP)); IP += STRLEN(s)),
     CODE("dotstr",
         const char *s = (const char*)IP;           // get string pointer
         fout << s;  IP += STRLEN(s)),              // send to output console
-    CODE("branch" , IP = MEMIP),                   // unconditional branch
-    CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEMIP), // conditional branch
+    CODE("branch" , IP = MEM(IP)),           // unconditional branch
+    CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEM(IP)), // conditional branch
     CODE("donext",
-         if ((rs[-1] -= 1) >= 0) IP = MEMIP;       // rs[-1]-=1 saved 200ms/1M cycles
+         if ((rs[-1] -= 1) >= 0) IP = MEM(IP);     // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); }),
     CODE("does",                                   // CREATE...DOES... meta-program
          IU *ip = (IU*)PFA(WP);
@@ -632,7 +662,10 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 void forth_init() {
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
-        printf("%3d> xt=%p name=%p %s\n", i, dict[i].xt, dict[i].name, dict[i].name);
+        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
+            (U16)((UFP)dict[i].xt - (UFP)dict[EXIT].xt), dict[i].xt,
+            (U16)(dict[i].name - dict[EXIT].name),
+            dict[i].name, dict[i].name);
     }                                        /// searching both spaces
     DICT0 = (UFP)dict[EXIT].xt;
 }
@@ -653,15 +686,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
             if (compile && !dict[w].immd) {  /// * in compile mode?
                 add_w(w);                    /// * add found word to new colon word
             }
-            else {
-                //CALL(w);
-                if (dict[w].def) {
-                    WP = w;
-                    IP = MEM0 + dict[w].pfa;
-                    nest();
-                }
-                else (*(fop*)((UFP)dict[w].xt & ~3))();
-            }
+            else CALL(w);                    /// * execute word
             continue;
         }
         // try as a number
