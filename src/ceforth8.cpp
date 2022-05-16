@@ -53,13 +53,15 @@ typedef uint16_t  IU;    // instruction pointer unit
 typedef int32_t   DU;    // data unit
 typedef uint16_t  U16;   // unsigned 16-bit integer
 typedef uint8_t   U8;    // byte, unsigned character
-typedef uintptr_t UPTR;
+typedef uintptr_t UFP;
 ///
 /// alignment macros
 ///
-#define ALIGN(sz)       ((sz) + (-(sz) & 0x3))
+#define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
+#define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
+#define ALIGN(sz)       ALIGN2(sz)
 ///
 /// array class template (so we don't have dependency on C++ STL)
 /// Note:
@@ -171,7 +173,7 @@ DU   top = -1, base = 10;
 IU   WP = 0;                      /// current word pointer
 U8   *MEM0 = &pmem[0];            /// cached memory base (saved 200ms/1M cycles)
 U8   *IP = MEM0;                  /// current instruction pointer and cached base pointer
-UPTR DICT0;
+UFP  DICT0;
 ///
 /// macros to abstract dict and pmem physical implementation
 /// Note:
@@ -194,10 +196,10 @@ UPTR DICT0;
 ///
 #if LAMBDA_CAP
 #define CALL(w) \
-    if (dict[w].def) { IP = MEM0 + dict[w].pfa; nest(); } \
-    else (*(fop*)((UPTR)dict[w].xt & ~0x3))()
+    if (dict[w].def) { WP = w; IP = MEM0 + dict[w].pfa; nest(); } \
+    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
 #define NEST() \
-    if (*(IU*)IP & 1) nest(); \
+    if (*(IU*)IP & 1) { IP = MEM0 + (*(IU*)IP & ~0x1); nest(); } \
     else (*(fop*)(DICT0 + (*(IU*)IP & ~0x3)))()
 #else
 #define NEST() \
@@ -238,7 +240,7 @@ inline void add_str(const char *s) {                                            
 }
 void add_w(IU w) {
     Code *c  = &dict[w];
-    IU   ipx = c->def ? (c->pfa | 1) : (IU)((UPTR)c->xt - DICT0);
+    IU   ipx = c->def ? (c->pfa | 1) : (IU)((UFP)c->xt - DICT0);
     add_iu(ipx);
     printf("add_w(%d) %p => %x %s\n", w, c->xt, ipx, c->name);
 }
@@ -273,20 +275,23 @@ void colon(const char *name) {
 /// Forth inner interpreter (colon word handler)
 ///
 void nest() {
-    /// ENTER
-    rs.push(IPOFF);                         /// * setup call frame
-    rs.push(WP);
-    while (*(IU*)IP) {                      /// step through all children
-        // NEST()
+    while (*(IU*)IP) {
         if (*(IU*)IP & 1) {
+            /// ENTER
+            rs.push(IPOFF + sizeof(IU));         /// * setup call frame
+            rs.push(WP);
+            IP = MEM0 + (*(IU*)IP & ~0x1);
             nest();
+            /// EXIT
+            WP = rs.pop();                       /// * restore call frame
+            IP = MEM0 + rs.pop();
         }
-        else (*(fop*)(DICT0 + (*(IU*)IP & ~3)))();
-        IP += sizeof(IU);
+        else {
+            UFP xt = DICT0 + (*(IU*)IP & ~0x3);  /// * function pointer
+            IP += sizeof(IU);                    /// * advance to next opcode
+            (*(fop*)xt)();
+        }
     }
-    /// EXIT
-    WP = rs.pop();                          /// * restore call frame
-    IP = MEM0 + rs.pop();
     yield();                                ///> give other tasks some time
 }
 ///==============================================================================
@@ -385,8 +390,8 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///
 /// global memory access macros
 ///
-#define     PEEK(a)    (DU)(*(DU*)((UPTR)(a)))
-#define     POKE(a, c) (*(DU*)((UPTR)(a))=(DU)(c))
+#define     PEEK(a)    (DU)(*(DU*)((UFP)(a)))
+#define     POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
 ///================================================================================
 ///
 /// primitives (ROMable)
@@ -402,13 +407,13 @@ static Code prim[] PROGMEM = {
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
     CODE("exit",    {}),
-    CODE("dovar",   PUSH(IPOFF + sizeof(IU)); IP += sizeof(DU)),
-    CODE("dolit",   PUSH(*(DU*)(IP + sizeof(IU))); IP += sizeof(DU)),
+    CODE("dovar",   PUSH(IPOFF); IP += sizeof(DU)),
+    CODE("dolit",   PUSH(*(DU*)IP); IP += sizeof(DU)),
     CODE("dostr",
-        const char *s = (const char*)(IP + sizeof(IU));    // get string pointer
+        const char *s = (const char*)IP;           // get string pointer
         PUSH(IPOFF); IP += STRLEN(s)),
     CODE("dotstr",
-        const char *s = (const char*)(IP + sizeof(IU));    // get string pointer
+        const char *s = (const char*)IP;           // get string pointer
         fout << s;  IP += STRLEN(s)),              // send to output console
     CODE("branch" , IP = MEMIP),                   // unconditional branch
     CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEMIP), // conditional branch
@@ -416,11 +421,9 @@ static Code prim[] PROGMEM = {
          if ((rs[-1] -= 1) >= 0) IP = MEMIP;       // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); }),
     CODE("does",                                   // CREATE...DOES... meta-program
-         U8 *ip  = PFA(WP);
-         U8 *ipx = ip + PFLEN(WP);                 // range check
-         while (ip < ipx && *(IU*)ip != DOES) ip+=sizeof(IU);  // find DOES
-         while ((ip += sizeof(IU)) < ipx) add_iu(*(IU*)ip);    // copy&paste code
-         IP = ipx),                                            // done
+         IU *ip = (IU*)PFA(WP);
+         while (*ip != DOES) ip++;                 // find DOES
+         while (*ip) add_iu(*ip);),                // copy&paste code
     CODE(">r",   rs.push(POP())),
     CODE("r>",   PUSH(rs.pop())),
     CODE("r@",   PUSH(rs[-1])),
@@ -631,7 +634,7 @@ void forth_init() {
         dict.push(prim[i]);                  /// find() can be modified to support
         printf("%3d> xt=%p name=%p %s\n", i, dict[i].xt, dict[i].name, dict[i].name);
     }                                        /// searching both spaces
-    DICT0 = (UPTR)dict[EXIT].xt;
+    DICT0 = (UFP)dict[EXIT].xt;
 }
 ///
 /// outer interpreter
@@ -657,7 +660,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
                     IP = MEM0 + dict[w].pfa;
                     nest();
                 }
-                else (*(fop*)((UPTR)dict[w].xt & ~0x3))();
+                else (*(fop*)((UFP)dict[w].xt & ~3))();
             }
             continue;
         }
