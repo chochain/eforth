@@ -1,9 +1,18 @@
-//#include <string.h>         // strcasecmp
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
 #define APP_NAME         "eForth"
 #define MAJOR_VERSION    "8"
 #define MINOR_VERSION    "1"
+///==============================================================================
+///
+/// global memory blocks
+///
+List<DU,   E4_SS_SZ>   rs;                  /// return stack
+List<DU,   E4_RS_SZ>   ss;                  /// parameter stack
+List<Code, E4_DICT_SZ> dict;                /// dictionary
+List<U8,   E4_PMEM_SZ> pmem;                /// parameter memory (for colon definitions)
+U8  *MEM0   = &pmem[0];                     /// base of parameter memory block
+UFP DICT0;                                  /// base of dictionary
 ///==============================================================================
 ///
 /// colon word compiler
@@ -12,7 +21,7 @@
 ///   * if they are combined then can behaves similar to classic Forth
 ///   * with an addition link field added.
 ///
-string& ForthVM::next_idiom(char delim) {
+string &ForthVM::next_idiom(char delim) {
     delim ? getline(fin, idiom, delim) : fin >> idiom; return idiom;
 }
 void  ForthVM::colon(const char *name) {
@@ -60,9 +69,21 @@ int ForthVM::find(const char *s) {
 ///
 /// VM ops
 ///
-inline void ForthVM::PUSH(DU v) { ss.push(top); top = v; }
-inline DU   ForthVM::POP()      { DU n = top; top = ss.pop(); return n; }
-void nest() {
+void ForthVM::call(IU w) {
+    if (dict[w].def) {
+        WP = w;
+        IP = MEM0 + dict[w].pfa;
+        nest();
+    }
+    else {
+#if LAMBDA_OK
+        (*(fop*)((UFP)dict[w].xt & ~0x3))();
+#else  // LAMBDA_OK
+        (*(fop)(DICT0 + (*(IU*)IP & ~0x3))();
+#endif // LAMBDA_OK
+    }
+}
+void ForthVM::nest() {
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
         /// function core
@@ -101,7 +122,7 @@ void ForthVM::to_s(IU c) {
 ///
 /// recursively disassemble colon word
 ///
-void ForthVM::see(U8 *ip, int dp=1) {
+void ForthVM::see(U8 *ip, int dp) {
     while (*(IU*)ip) {
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        // indentation
         fout << setw(4) << OFF(ip) << "[ " << setw(-1);
