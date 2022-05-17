@@ -21,7 +21,7 @@ using namespace std;
 ///
 /// conditional compililation options
 ///
-#define LAMBDA_CAP      1
+#define LAMBDA_OK       1
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
 ///
@@ -29,7 +29,7 @@ using namespace std;
 ///
 #if _WIN32 || _WIN64
 #define ENDL "\r\n"
-#else
+#else  // _WIN32 || _WIN64
 #define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
 #endif // _WIN32 || _WIN64
 
@@ -38,7 +38,7 @@ using namespace std;
 #if ESP32
 #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
 #endif // ESP32
-#else
+#else  // ARDUINO
 #include <chrono>
 #include <thread>
 #define millis()        chrono::duration_cast<chrono::milliseconds>( \
@@ -77,9 +77,12 @@ struct List {
 
     List()  { v = new T[N]; }      /// dynamically allocate array storage
     ~List() { delete[] v;   }      /// free memory
-    T& operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
+    
+    List &operator=(T *a)   INLINE { v = a; return *this; }
+    T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
+    
 #if RANGE_CHECK
-    T pop() INLINE {
+    T pop()     INLINE {
         if (idx>0) return v[--idx];
         throw "ERR: List empty";
     }
@@ -87,7 +90,7 @@ struct List {
         if (idx<N) return v[max=idx++] = t;
         throw "ERR: List full";
     }
-#else
+#else  // RANGE_CHECK
     T pop()     INLINE { return v[--idx]; }
     T push(T t) INLINE { return v[max=idx++] = t; }
 #endif // RANGE_CHECK
@@ -98,7 +101,7 @@ struct List {
 ///
 /// functor implementation - for lambda support (without STL)
 ///
-#if LAMBDA_CAP
+#if LAMBDA_OK
 struct fop { virtual void operator()() = 0; };
 template<typename F>
 struct XT : fop {           // universal functor
@@ -106,15 +109,15 @@ struct XT : fop {           // universal functor
     XT(F &f) : fp(f) {}
     void operator()() INLINE { fp(); }
 };
-#else
+#else  // LAMBDA_OK
 typedef void (*fop)();
-#endif // LAMBDA_CAP
+#endif // LAMBDA_OK
 ///
 /// universal Code class
 /// Note:
 ///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
-#if LAMBDA_CAP
+#if LAMBDA_OK
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -133,7 +136,7 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
-#else
+#else  // LAMBDA_OK
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -150,7 +153,7 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
-#endif // LAMBDA_CAP
+#endif // LAMBDA_OK
 ///==============================================================================
 ///
 /// main storages in RAM
@@ -194,15 +197,15 @@ UFP  DICT0;
 /// TODO: token indirect threaded is portable
 ///       but very expensive for pipelined design
 ///
-#if LAMBDA_CAP
+#if LAMBDA_OK
 #define CALL(w) \
     if (dict[w].def) { WP = w; IP = MEM0 + dict[w].pfa; nest(); } \
     else (*(fop*)((UFP)dict[w].xt & ~0x3))()
-#else
+#else  // LAMBDA_OK
 #define CALL(w) \
     if (*(IU*)IP & 1) nest(); \
     else (*(fop)(DICT0 + *(IU*)IP)(i)
-#endif // LAMBDA_CAP
+#endif // LAMBDA_OK
 ///==============================================================================
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
@@ -230,9 +233,9 @@ int pfa2word(U8 *ip) {
 ///
 /// inline functions to add (i.e. 'comma') object into parameter memory
 ///
-void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
-void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
-void add_str(const char *s) {                                             /** add a string to pmem         */
+inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
+inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
+inline void add_str(const char *s) {                                             /** add a string to pmem         */
     int sz = STRLEN(s); pmem.push((U8*)s,  sz); XLEN += sz;
 }
 void add_w(IU w) {
@@ -257,11 +260,11 @@ void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];         // current pmem pointer
     int sz = STRLEN(name);                  // string length, aligned
     pmem.push((U8*)name,  sz);              // setup raw name field
-#if LAMBDA_CAP
+#if LAMBDA_OK
     Code c(nfa, [](){});                    // create a new word on dictionary
-#else
+#else  // LAMBDA_OK
     Code c(nfa, NULL);
-#endif // LAMBDA_CAP
+#endif // LAMBDA_OK
     c.def = 1;                              // specify a colon word
     c.len = 0;                              // advance counter (by number of U16)
     c.pfa = HERE;                           // capture code field index
@@ -406,17 +409,17 @@ void mem_dump(IU p0, DU sz) {
 ///
 /// macros to reduce verbosity
 ///
-inline char *next_word()  { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
+inline char *next_ideiom(){ fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
 inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 #define     PUSH(v)       { ss.push(top); top = v; }
-#if LAMBDA_CAP
+#if LAMBDA_OK
 #define     CODE(s, g)    { s, [](){ g; }, 0 }
 #define     IMMD(s, g)    { s, [](){ g; }, 1 }
-#else
+#else  // LAMBDA_OK
 #define     CODE(s, g)    { s, []{ g; }, 0 }
 #define     IMMD(s, g)    { s, []{ g; }, 1 }
-#endif // LAMBDA_CAP
+#endif // LAMBDA_OK
 #define     BOOL(f)       ((f)?-1:0)
 ///
 /// global memory access macros
@@ -528,10 +531,10 @@ static Code prim[] PROGMEM = {
     CODE(".r",      DU n = POP(); dot_r(n, POP())),
     CODE("u.r",     DU n = POP(); dot_r(n, abs(POP()))),
     CODE(".f",      DU n = POP(); fout << setprecision(n) << POP()),
-    CODE("key",     PUSH(next_word()[0])),
+    CODE("key",     PUSH(next_idiom()[0])),
     CODE("emit",    char b = (char)POP(); fout << b),
     CODE("space",   fout << " "),
-    CODE("spaces",  for (DU n = POP(), i = 0; i < n; i++) fout << " "),
+    CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) fout << " "),
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -579,14 +582,14 @@ static Code prim[] PROGMEM = {
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE(":", colon(next_word()); compile=true),
+    CODE(":", colon(next_idiom()); compile=true),
     IMMD(";", add_w(EXIT); compile = false),
     CODE("variable",                                             // create a variable
-        colon(next_word());                                      // create a new word on dictionary
+        colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOVAR);                                            // dovar (+parameter field)
         int n = 0; add_du(n)),                                   // data storage (32-bit integer now)
     CODE("constant",                                             // create a constant
-        colon(next_word());                                      // create a new word on dictionary
+        colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOLIT);                                            // dovar (+parameter field)
         add_du(POP())),                                          // data storage (32-bit integer now)
     /// @}
@@ -595,13 +598,13 @@ static Code prim[] PROGMEM = {
     /// @{
     CODE("exec",  CALL(POP())),                                  // execute word
     CODE("create",
-        colon(next_word());                                      // create a new word on dictionary
+        colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOVAR)),                                           // dovar (+ parameter field)
     CODE("to",              // 3 to x                            // alter the value of a constant
-        IU w = find(next_word());                                // to save the extra @ of a variable
+        IU w = find(next_idiom());                               // to save the extra @ of a variable
         *(DU*)(PFA(w) + sizeof(IU)) = POP()),
     CODE("is",              // ' y is x                          // alias a word
-        IU w = find(next_word());                                // can serve as a function pointer
+        IU w = find(next_idiom());                               // can serve as a function pointer
         dict[POP()].pfa = dict[w].pfa),                          // but might leave a dangled block
     CODE("[to]",            // : xx 3 [to] y ;                   // alter constant in compile mode
         IU w = *(IU*)IP; IP += sizeof(IU);                       // fetch constant pfa from 'here'
@@ -622,16 +625,16 @@ static Code prim[] PROGMEM = {
     CODE("here",  PUSH(HERE)),
     CODE("ucase", ucase = POP()),
     CODE("words", words()),
-    CODE("'",     IU w = find(next_word()); PUSH(w)),
+    CODE("'",     IU w = find(next_idiom()); PUSH(w)),
     CODE(".s",    ss_dump()),
     CODE("see",
-        IU w = find(next_word());
+        IU w = find(next_idiom());
         fout << "[ "; to_s(w); see(PFA(w)); fout << "]" << ENDL),
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
     CODE("forget",
-        IU w = find(next_word());
+        IU w = find(next_idiom());
         if (w<0) return;
         IU b = find("boot")+1;
         dict.clear(w > b ? w : b)),
@@ -714,10 +717,12 @@ int main(int ac, char* av[]) {
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
     forth_init();
     cout << unitbuf << "ceForth8" << endl;
+/*
     string line;
     while (getline(cin, line)) {             /// fetch line from user console input
         forth_outer(line.c_str(), send_to_con);
     }
+*/
     cout << "Done." << endl;
     return 0;
 }
