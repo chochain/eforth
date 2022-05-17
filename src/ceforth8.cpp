@@ -409,7 +409,7 @@ void mem_dump(IU p0, DU sz) {
 ///
 /// macros to reduce verbosity
 ///
-inline char *next_ideiom(){ fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
+inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
 inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 #define     PUSH(v)       { ss.push(top); top = v; }
