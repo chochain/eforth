@@ -4,6 +4,23 @@
 #include <sstream>          // istream, ostream
 #include <exception>        // try...catch, throw
 
+#include <string.h>         // strcasecmp
+///
+/// conditional compililation options
+///
+#define LAMBDA_OK       1
+#define RANGE_CHECK     0
+#define INLINE          __attribute__((always_inline))
+///
+/// configuation
+///
+#define E4_SS_SZ        64
+#define E4_RS_SZ        64
+#define E4_DICT_SZ      1024
+#define E4_PMEM_SZ      (48*1024)
+///
+/// multi-platform support
+///
 #if _WIN32 || _WIN64
 #define ENDL "\r\n"
 #else  // _WIN32 || _WIN64
@@ -23,24 +40,25 @@
                             chrono::steady_clock::now().time_since_epoch()).count()
 #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
 #define yield()         this_thread::yield()
+#define PROGRAM
 #endif // ARDUINO
 
 using namespace std;
 ///
 /// logical units (instead of physical) for type check and portability
 ///
+typedef uint32_t        U32;   // unsigned 32-bit integer
+typedef uint16_t        U16;   // unsigned 16-bit integer
+typedef uint8_t         U8;    // byte, unsigned character
+typedef uintptr_t       UFP;
 #ifdef USE_FLOAT
-typedef float     DU;
-#define DVAL  0.0f
+typedef float           DU;
+#define DVAL            0.0f
 #else // USE_FLOAT
-typedef int32_t   DU;
-#define DVAL  0
+typedef int32_t         DU;
+#define DVAL            0
 #endif // USE_FLOAT
-typedef uint16_t  IU;    // instruction pointer unit
-typedef uint16_t  U16;   // unsigned 16-bit integer
-typedef uint8_t   U8;    // byte, unsigned character
-typedef uintptr_t UFP;
-#define BOOL(f)         ((f)?-1:0)
+typedef uint16_t        IU;    // instruction pointer unit
 ///
 /// alignment macros
 ///
@@ -49,6 +67,7 @@ typedef uintptr_t UFP;
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 #define ALIGN(sz)       ALIGN2(sz)
+#define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
 ///
 /// array class template (so we don't have dependency on C++ STL)
 /// Note:
@@ -63,10 +82,10 @@ struct List {
 
     List()  { v = N ? new T[N] : 0; }  /// dynamically allocate array storage
     ~List() { delete[] v;   }          /// free memory
-    
+
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
-    
+
 #if RANGE_CHECK
     T pop()     INLINE {
         if (idx>0) return v[--idx];
@@ -123,8 +142,8 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
-#define CODE(s, g) { s, [](){ g; }, 0 }
-#define IMMD(s, g) { s, [](){ g; }, 1 }
+#define CODE(s, g) { s, [&](){ g; }, 0 }
+#define IMMD(s, g) { s, [&](){ g; }, 1 }
 #else  // LAMBDA_OK
 struct Code {
     const char *name = 0;   /// name field
@@ -142,41 +161,53 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
-#define CODE(s, g) { s, []{ g; }, 0 }
-#define IMMD(s, g) { s, []{ g; }, 1 }
+#define CODE(s, g) { s, [&]{ g; }, 0 }
+#define IMMD(s, g) { s, [&]{ g; }, 1 }
 #endif // LAMBDA_OK
 ///
-/// global memory access macros
-///
-#define PEEK(a)    (DU)(*(DU*)((UFP)(a)))
-#define POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
-///
 /// Forth virtual machine class
+///
+///
+/// macros to abstract dict and pmem physical implementation
+/// Note:
+///   so we can change pmem implementation anytime without affecting opcodes defined below
+///
+#define BOOL(f)   ((f)?-1:0)
+#define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
+#define HERE      (pmem.idx)                /** current parameter memory index           */
+#define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
+#define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
+#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
+#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
+///
+/// opcode index
 ///
 enum {
     EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
 } forth_opcode;
+///
+/// global memory blocks
+///
+extern List<DU,   E4_SS_SZ>   rs;             /// return stack
+extern List<DU,   E4_RS_SZ>   ss;             /// parameter stack
+extern List<Code, E4_DICT_SZ> dict;           /// dictionary
+extern List<U8,   E4_PMEM_SZ> pmem;           /// parameter memory (for colon definitions)
+extern U8  *MEM0;                             /// base of cached memory
+extern UFP DICT0;                             /// base of dictionary
 
 class ForthVM {
 public:
-    istream             &fin;               /// VM stream input
-    ostream             &fout;              /// VM stream output
+    istream &fin;                             /// VM stream input
+    ostream &fout;                            /// VM stream output
 
-    List<DU, 64>        rs;                 /// return stack
-    List<DU, 64         ss;                 /// parameter stack
-    List<Code, 1024>    dict;               /// dictionary
-    List<U8,   48*1024> pmem;               /// parameter memory (for colon definitions)
-    
-    bool  compile = false;                  /// compiling flag
-    bool  ucase   = true;                   /// case sensitivity control
-    DU    base    = 10;                     /// numeric radix
-    DU    top     = DVAL;                   /// top of stack (cached)
-    IU    WP      = 0;                      /// current word
-    U8    *MEM0   = &pmem[0];               /// cached memory base
-    U8    *IP     = MEM0;                   /// current intruction pointer
-    UFP   DICT0;
-    
-    string idiom;
+    bool    compile = false;                  /// compiling flag
+    bool    ucase   = true;                   /// case sensitivity control
+    DU      base    = 10;                     /// numeric radix
+    DU      top     = DVAL;                   /// top of stack (cached)
+    IU      WP      = 0;                      /// current word
+    U8      *IP;                              /// current intruction pointer
+
+    string  idiom;
 
     ForthVM(istream &in, ostream &out) : fin(in), fout(out) {}
 
@@ -187,10 +218,10 @@ private:
     ///
     /// compiler methods
     ///
-    void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
-    void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
-    void add_str(const char *s) {                                               /** add a string to pmem         */
-        int sz = STRLEN(s); pmem.push((U8*)s,  sz); XLEN += sz;
+    void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
+    void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
+    void add_str(const char *s) {                                                       /** add a string to pmem         */
+        int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
     }
     void add_w(IU w) {
         Code *c  = &dict[w];
@@ -198,20 +229,23 @@ private:
         add_iu(ipx);
         printf("add_w(%d) => %4x:%p %s\n", w, ipx, c->xt, c->name);
     }
-    string &next_idiom(char c);
+    string &next_idiom(char c=0);
     void  colon(const char *name);
+    void  colon(string &s) { colon(s.c_str()); }
     ///
     /// dictionary search methods
     ///
     int   pfa2word(U8 *ip);
-    int   streq(const char *s1, const char s2);
+    int   streq(const char *s1, const char *s2);
     int   find(const char *s);
+    int   find(string &s) { return find(s.c_str()); }
     ///
     /// VM ops
     ///
+    void  PUSH(DU v) { ss.push(top); top = v; }
+    DU    POP()      { DU n = top; top = ss.pop(); return n; }
+    void  call(IU w);
     void  nest();
-    DU    POP();
-    DU    PUSH(DU v);
     ///
     /// debug methods
     ///
