@@ -2,13 +2,11 @@
 #define __EFORTH_SRC_CEFORTH_H
 #include <memory>           // shared_ptr, make_shared
 #include <sstream>          // istream, ostream
-#include <vector>           // vector
-#include <functional>       // function
 #include <exception>        // try...catch, throw
 
 #if _WIN32 || _WIN64
 #define ENDL "\r\n"
-#else
+#else  // _WIN32 || _WIN64
 #define ENDL endl
 #endif // _WIN32 || _WIN64
 
@@ -18,7 +16,7 @@
 #if ESP32
 #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
 #endif // ESP32
-#else
+#else  // ARDUINO
 #include <chrono>
 #include <thread>
 #define millis()        chrono::duration_cast<chrono::milliseconds>( \
@@ -28,120 +26,200 @@
 #endif // ARDUINO
 
 using namespace std;
-
+///
+/// logical units (instead of physical) for type check and portability
+///
 #ifdef USE_FLOAT
-typedef float DTYPE;
+typedef float     DU;
 #define DVAL  0.0f
 #else // USE_FLOAT
-typedef int   DTYPE;
+typedef int32_t   DU;
 #define DVAL  0
 #endif // USE_FLOAT
+typedef uint16_t  IU;    // instruction pointer unit
+typedef uint16_t  U16;   // unsigned 16-bit integer
+typedef uint8_t   U8;    // byte, unsigned character
+typedef uintptr_t UFP;
+#define BOOL(f)         ((f)?-1:0)
+///
+/// alignment macros
+///
+#define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
+#define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
+#define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
+#define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
+#define ALIGN(sz)       ALIGN2(sz)
+///
+/// array class template (so we don't have dependency on C++ STL)
+/// Note:
+///   * using decorator pattern
+///   * this is similar to vector class but much simplified
+///
+template<class T, int N=0>
+struct List {
+    T   *v;             /// fixed-size array storage
+    int idx = 0;        /// current index of array
+    int max = 0;        /// high watermark for debugging
 
-template<class T>
-struct ForthList {          /// vector helper template class
-    vector<T> v;            /// use proxy pattern
-
-    T& operator[](int i) { return i < 0 ? v[v.size() + i] : v[i]; }
-    ForthList& operator<<(T t){ v.push_back(t); return *this; }
-
-    T dec_i() { return v.back() -= 1; }     /// decrement stack top
-    T pop()   {
-        if (v.empty()) throw underflow_error("ERR: stack empty");
-        T t = v.back(); v.pop_back(); return t;
+    List()  { v = N ? new T[N] : 0; }  /// dynamically allocate array storage
+    ~List() { delete[] v;   }          /// free memory
+    
+    List &operator=(T *a)   INLINE { v = a; return *this; }
+    T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
+    
+#if RANGE_CHECK
+    T pop()     INLINE {
+        if (idx>0) return v[--idx];
+        throw "ERR: List empty";
     }
-    int  size()               { return (int)v.size(); }
-    void push(T t)            { v.emplace_back(t); }
-    void merge(ForthList& a)  { v.insert(v.end(), a.v.begin(), a.v.end()); }
-    void merge(vector<T>& v2) { v.insert(v.end(), v2.begin(), v2.end()); }
-    void clear(int n=0)       { v.erase(v.begin() + n, v.end()); }
+    T push(T t) INLINE {
+        if (idx<N) return v[max=idx++] = t;
+        throw "ERR: List full";
+    }
+#else  // RANGE_CHECK
+    T pop()     INLINE { return v[--idx]; }
+    T push(T t) INLINE { return v[max=idx++] = t; }
+#endif // RANGE_CHECK
+    void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
+    void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]);}
+    void clear(int i=0)    INLINE { idx=i; }
 };
-
-class Code;
-#if NO_STD_FUNCTION
-struct fop {                                /// alternate solution for function
-    virtual void operator()(Code*) = 0;
-};
+///
+/// functor implementation - for lambda support (without STL)
+///
+#if LAMBDA_OK
+struct fop { virtual void operator()() = 0; };
 template<typename F>
-struct XT : fop {
+struct XT : fop {           // universal functor
     F fp;
     XT(F &f) : fp(f) {}
-    void operator()(Code *c) { fp(c); }
+    void operator()() INLINE { fp(); }
 };
-#else
-using CodeP = shared_ptr<Code>;
-using fop   = function<void(Code&)>;        /// Forth operator
-#endif // NO_STD_FUNCTION
+#else  // LAMBDA_OK
+typedef void (*fop)();
+#endif // LAMBDA_OK
 
-class Code {
-public:
-    static int fence, IP;                   /// token incremental counter
-    string name;                            /// name of word
-    int    token = 0;                       /// dictionary order token
-    bool   immd  = false;                   /// immediate flag
-    int    stage = 0;                       /// branching stage
-#if NO_STD_FUNCTION
-    fop    *xt   = NULL;
-#else // NO_STD_FUNCTION
-    fop    xt    = NULL;                    /// primitive function
-#endif // NO_STD_FUNCTION
-    string literal;                         /// string literal
-
-    ForthList<CodeP> pf;
-    ForthList<CodeP> pf1;
-    ForthList<CodeP> pf2;
-    ForthList<DTYPE> qf;
-
-#if NO_STD_FUNCTION
-    template<typename F>
-    Code(string n, F fn, bool im=false);    /// primitive
-#else // NO_STD_FUNCTION
-    Code(string n, fop fn, bool im=false);  /// primitive
-#endif // NO_STD_FUNCTION
-    Code(string n, bool f=false);           /// new colon word or temp
-    Code(CodeP c, DTYPE v);
-    Code(CodeP c, string s=string());
-    ~Code() { pf.clear(); pf1.clear(); pf2.clear(); qf.clear(); }
-    
-    Code&   addcode(CodeP w);           	/// append colon word
-    string  to_s();                         /// debugging
-    string  see(int dp=0);
-    void    nest();                         /// execute word
+///
+/// universal Code class
+/// Note:
+///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
+///
+#if LAMBDA_OK
+struct Code {
+    const char *name = 0;   /// name field
+    union {                 /// either a primitive or colon word
+        fop *xt = 0;        /// lambda pointer
+        struct {            /// a colon word
+            U16 def:  1;    /// colon defined word
+            U16 immd: 1;    /// immediate flag
+            U16 len:  14;   /// len of pfa
+            IU  pfa;         /// offset to pmem space
+        };
+    };
+    template<typename F>    /// template function for lambda
+    Code(const char *n, F f, bool im=false) : name(n) {
+        xt = new XT<F>(f);
+        immd = im ? 1 : 0;
+    }
+    Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, [](){ g; }, 0 }
+#define IMMD(s, g) { s, [](){ g; }, 1 }
+#else  // LAMBDA_OK
+struct Code {
+    const char *name = 0;   /// name field
+    union {                 /// either a primitive or colon word
+        fop xt = 0;         /// lambda pointer
+        struct {            /// a colon word
+            U16 def:  1;    /// colon defined word
+            U16 immd: 1;    /// immediate flag
+            U16 len:  14;   /// len of pf (16K max)
+            IU  pfa;        /// offset to pmem space (16-bit for 64K range)
+        };
+    };
+    Code(const char *n, fop f, bool im=false) : name(n), xt(f) {
+        immd = im ? 1 : 0;
+    }
+    Code() {}               /// create a blank struct (for initilization)
+};
+#define CODE(s, g) { s, []{ g; }, 0 }
+#define IMMD(s, g) { s, []{ g; }, 1 }
+#endif // LAMBDA_OK
 ///
-/// Forth virtual machine variables
+/// global memory access macros
 ///
+#define PEEK(a)    (DU)(*(DU*)((UFP)(a)))
+#define POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
+///
+/// Forth virtual machine class
+///
+enum {
+    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
+} forth_opcode;
+
 class ForthVM {
 public:
-    istream          &cin;                  /// stream input
-    ostream          &cout;                 /// stream output
+    istream             &fin;               /// VM stream input
+    ostream             &fout;              /// VM stream output
 
-    ForthList<DTYPE> rs;                    /// return stack
-    ForthList<DTYPE> ss;                    /// parameter stack
-    ForthList<CodeP> dict;                  /// dictionary
+    List<DU, 64>        rs;                 /// return stack
+    List<DU, 64         ss;                 /// parameter stack
+    List<Code, 1024>    dict;               /// dictionary
+    List<U8,   48*1024> pmem;               /// parameter memory (for colon definitions)
+    
     bool  compile = false;                  /// compiling flag
-    int   ucase   = 1;                      /// case sensitivity control
-    int   base    = 10;                     /// numeric radix
-    int   WP      = 0;                      /// instruction and parameter pointers
-    DTYPE top     = DVAL;                   /// cached top of stack
+    bool  ucase   = true;                   /// case sensitivity control
+    DU    base    = 10;                     /// numeric radix
+    DU    top     = DVAL;                   /// top of stack (cached)
+    IU    WP      = 0;                      /// current word
+    U8    *MEM0   = &pmem[0];               /// cached memory base
+    U8    *IP     = MEM0;                   /// current intruction pointer
+    UFP   DICT0;
+    
     string idiom;
 
-    ForthVM(istream &in, ostream &out);
+    ForthVM(istream &in, ostream &out) : fin(in), fout(out) {}
 
     void init();
     void outer();
 
 private:
-    DTYPE POP();
-    DTYPE PUSH(DTYPE v);
-    bool  STREQ(string& s1, string& s2);
-
-    string& next_idiom(char delim=0);
-    CodeP find(string s);                   /// search dictionary reversely
-    void call(CodeP w);                     /// execute a word
-    void call(ForthList<CodeP>& pf);        /// execute a word
-
-    void dot_r(int n, DTYPE v);
-    void ss_dump();
-    void words();
+    ///
+    /// compiler methods
+    ///
+    void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
+    void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
+    void add_str(const char *s) {                                               /** add a string to pmem         */
+        int sz = STRLEN(s); pmem.push((U8*)s,  sz); XLEN += sz;
+    }
+    void add_w(IU w) {
+        Code *c  = &dict[w];
+        IU   ipx = c->def ? (c->pfa | 1) : (IU)((UFP)c->xt - DICT0);
+        add_iu(ipx);
+        printf("add_w(%d) => %4x:%p %s\n", w, ipx, c->xt, c->name);
+    }
+    string &next_idiom(char c);
+    void  colon(const char *name);
+    ///
+    /// dictionary search methods
+    ///
+    int   pfa2word(U8 *ip);
+    int   streq(const char *s1, const char s2);
+    int   find(const char *s);
+    ///
+    /// VM ops
+    ///
+    void  nest();
+    DU    POP();
+    DU    PUSH(DU v);
+    ///
+    /// debug methods
+    ///
+    void  dot_r(int n, int v);
+    void  to_s(IU c);
+    void  see(U8 *ip, int dp=1);
+    void  words();
+    void  ss_dump();
+    void  mem_dump(IU p0, DU sz);
 };
 #endif // __EFORTH_SRC_CEFORTH_H
