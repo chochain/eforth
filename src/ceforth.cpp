@@ -10,15 +10,14 @@
 ///
 /// macros to reduce verbosity (but harder to single-step debug)
 ///
-#define CODE(s, g)     make_shared<Code>(string(s), [&](Code& c){ g; })
-#define IMMD(s, g)     make_shared<Code>(string(s), [&](Code& c){ g; }, true)
-#define WORD()         make_shared<Code>(next_idiom(), true)
-#define TEMP(s)        make_shared<Code>("temp")
+//#define CODE(s, g)     make_shared<Code>(string(s), [&](Code& c){ g; })
+//#define IMMD(s, g)     make_shared<Code>(string(s), [&](Code& c){ g; }, true)
+//#define WORD()         make_shared<Code>(next_idiom(), true)
 #define INT(f)         (static_cast<int>(f))
-#define ALU(a, OP, b)  (INT(a) OP INT(b))
-#define BOOL(f)        ((f) ? -1 : 0)
 ///
 /// dictionary initializer
+///
+/// Note: sequenced by enum forth_opcode (defined in ceforth.h)
 ///
 void ForthVM::init() {
     const Code prim[] PROGRAM {
@@ -50,10 +49,6 @@ void ForthVM::init() {
     /// @}
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
-    /// @{
-
-    ///
-    /// @defgroup Stack ops
     /// @{
     CODE("dup",  PUSH(top)),
     CODE("drop", top = ss.pop()),
@@ -118,7 +113,7 @@ void ForthVM::init() {
     CODE(".r",      int n = INT(POP()); dot_r(n, POP())),
     CODE("u.r",     int n = INT(POP()); dot_r(n, abs(POP()))),
     CODE(".f",      int n = INT(POP()); fout << setprecision(n) << POP()),
-    CODE("key",     PUSH(next_idiom()[0])),
+    CODE("key",     string s = next_idiom(); PUSH(s.c_str()[0])),
     CODE("emit",    char b = (char)POP(); fout << b),
     CODE("space",   fout << " "),
     CODE("spaces",  for (int n = INT(POP()), i = 0; i < n; i++) fout << " "),
@@ -133,11 +128,11 @@ void ForthVM::init() {
     CODE("$\"",
         string s = next_idiom('"').substr(1);
         add_w(DOSTR);
-        add_str(s)),
+        add_str(s.c_str())),
     IMMD(".\"",
         string s = next_idiom('"').substr(1);
         add_w(DOTSTR);
-        add_str(s)),
+        add_str(s.c_str())),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -174,17 +169,7 @@ void ForthVM::init() {
     CODE("variable",                                             // create a variable
         colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOVAR);                                            // dovar (+parameter field)
-        add_du(0)),                                              // data storage (32-bit integer now)
-    CODE("constant",                                             // create a constant
-        colon(next_idiom());                                     // create a new word on dictionary
-        add_w(DOLIT);                                            // dovar (+parameter field)
-        add_du(POP())),                                          // data storage (32-bit integer now)
-    CODE(":", dict.push(next_idiom()); compile = true),          // create new word
-    IMMD(";", compile = false),
-    CODE("variable",                                             // create a variable
-        colon(next_idiom());                                     // create a new word on dictionary
-        add_w(DOVAR);                                            // dovar (+parameter field)
-        add_du(0)),                                              // data storage (32-bit integer now)
+        DU n = 0; add_du(n)),                                    // data storage (32-bit integer now)
     CODE("constant",                                             // create a constant
         colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOLIT);                                            // dovar (+parameter field)
@@ -193,7 +178,7 @@ void ForthVM::init() {
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",  CALL(POP())),                                  // execute word
+    CODE("exec",  call(POP())),                                  // execute word
     CODE("create",
         colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOVAR)),                                           // dovar (+ parameter field)
@@ -255,10 +240,10 @@ void ForthVM::init() {
 #endif // ARDUINO || ESP32
     /// @}
     CODE("bye",  exit(0)),
-    CODE("boot", dict.clear(Code::fence=find("boot")->token + 1))
+    CODE("boot", dict.clear(find("boot") + 1); pmem.clear())
     };
     const int PSZ = sizeof(prim)/sizeof(Code);
-    
+
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
@@ -266,5 +251,6 @@ void ForthVM::init() {
             (U16)(dict[i].name - dict[EXIT].name),
             dict[i].name, dict[i].name);
     }                                        /// searching both spaces
+    IP    = &pmem[0];
     DICT0 = (UFP)dict[EXIT].xt;
 }
