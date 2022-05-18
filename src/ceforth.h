@@ -28,22 +28,7 @@
 #endif // ARDUINO
 
 using namespace std;
-///
-/// logical units (instead of physical) for type check and portability
-///
-typedef uint16_t  IU;    // instruction pointer unit
-typedef int32_t   DU;    // data unit
-typedef uint16_t  U16;   // unsigned 16-bit integer
-typedef uint8_t   U8;    // byte, unsigned character
-typedef uintptr_t UFP;
-///
-/// alignment macros
-///
-#define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
-#define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
-#define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
-#define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
-#define ALIGN(sz)       ALIGN2(sz)
+
 #ifdef USE_FLOAT
 typedef float DTYPE;
 #define DVAL  0.0f
@@ -52,7 +37,7 @@ typedef int   DTYPE;
 #define DVAL  0
 #endif // USE_FLOAT
 
-template<class T, int N>
+template<class T>
 struct ForthList {          /// vector helper template class
     vector<T> v;            /// use proxy pattern
 
