@@ -3,8 +3,7 @@
 #include <memory>           // shared_ptr, make_shared
 #include <sstream>          // istream, ostream
 #include <exception>        // try...catch, throw
-
-#include <string.h>         // strcasecmp
+#include <string.h>         // strlen, strcasecmp
 ///
 /// conditional compililation options
 ///
@@ -142,8 +141,6 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
-#define CODE(s, g) { s, [&](){ g; }, 0 }
-#define IMMD(s, g) { s, [&](){ g; }, 1 }
 #else  // LAMBDA_OK
 struct Code {
     const char *name = 0;   /// name field
@@ -161,8 +158,6 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
-#define CODE(s, g) { s, [&]{ g; }, 0 }
-#define IMMD(s, g) { s, [&]{ g; }, 1 }
 #endif // LAMBDA_OK
 ///
 /// Forth virtual machine class
@@ -220,7 +215,7 @@ private:
     ///
     void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
     void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
-    void add_str(const char *s) {                                                       /** add a string to pmem         */
+    void add_str(const char *s) {                                               /** add a string to pmem         */
         int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
     }
     void add_w(IU w) {
