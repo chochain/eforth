@@ -1,3 +1,4 @@
+#if !(ARDUINO || ESP32)
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
 #define APP_NAME         "eForth"
@@ -236,3 +237,4 @@ int main(int ac, char* av[]) {
     return 0;
 }
 #endif // !_WIN32 && !_WIN64 && !ARDUINO
+#endif // !(ARDUINO || ESP32)
