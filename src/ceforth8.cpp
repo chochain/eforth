@@ -13,11 +13,17 @@
 ///       Using 16-bit offsets for pointer arithmatics in order to speed up
 ///       while maintaining space consumption
 ///
+#if !(ARDUINO || ESP32)
 #include <stdint.h>     // uintxx_t
 #include <stdlib.h>     // strtol
 #include <string.h>     // strcmp
 #include <exception>    // try...catch, throw
+
 using namespace std;
+/// version
+#define APP_NAME        "eForth"
+#define MAJOR_VERSION   "8"
+#define MINOR_VERSION   "1"
 ///
 /// conditional compililation options
 ///
@@ -32,21 +38,15 @@ using namespace std;
 #else  // _WIN32 || _WIN64
 #define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
 #endif // _WIN32 || _WIN64
-
-#if ARDUINO
-#include <Arduino.h>
-#if ESP32
-#define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
-#endif // ESP32
-#else  // ARDUINO
+///
+/// system timing macros
+///
 #include <chrono>
 #include <thread>
 #define millis()        chrono::duration_cast<chrono::milliseconds>( \
                             chrono::steady_clock::now().time_since_epoch()).count()
 #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
 #define yield()         this_thread::yield()
-#define PROGMEM
-#endif // ARDUINO
 ///
 /// logical units (instead of physical) for type check and portability
 ///
@@ -435,7 +435,7 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///   * it can be stored in ROM, and only
 ///   * find() needs to be modified to support ROM+RAM
 ///
-static Code prim[] PROGMEM = {
+static Code prim[] = {
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
@@ -640,19 +640,6 @@ static Code prim[] PROGMEM = {
         dict.clear(w > b ? w : b)),
     CODE("clock", PUSH(millis())),
     CODE("delay", delay(POP())),
-#if ARDUINO
-    /// @}
-    /// @defgroup Arduino specific ops
-    /// @{
-    CODE("pin",   DU p = POP(); pinMode(p, POP())),
-    CODE("in",    PUSH(digitalRead(POP()))),
-    CODE("out",   DU p = POP(); digitalWrite(p, POP())),
-    CODE("adc",   PUSH(analogRead(POP()))),
-    CODE("duty",  DU p = POP(); analogWrite(p, POP(), 255)),
-    CODE("attach",DU p  = POP(); ledcAttachPin(p, POP())),
-    CODE("setup", DU ch = POP(); DU freq=POP(); ledcSetup(ch, freq, POP())),
-    CODE("tone",  DU ch = POP(); ledcWriteTone(ch, POP())),
-#endif // ARDUINO
     /// @}
     CODE("bye",   exit(0)),
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear())
@@ -716,13 +703,14 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
 int main(int ac, char* av[]) {
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
     forth_init();
-    cout << unitbuf << "ceForth8" << endl;
-/*
+    cout << unitbuf << APP_NAME << MAJOR_VERSION << endl;
+
     string line;
     while (getline(cin, line)) {             /// fetch line from user console input
         forth_outer(line.c_str(), send_to_con);
     }
-*/
     cout << "Done." << endl;
+
     return 0;
 }
+#endif // !(ARDUINO || ESP32)
