@@ -162,93 +162,11 @@ struct Code {
 ///
 /// Forth virtual machine class
 ///
-///
-/// macros to abstract dict and pmem physical implementation
-/// Note:
-///   so we can change pmem implementation anytime without affecting opcodes defined below
-///
-#define BOOL(f)   ((f)?-1:0)
-#define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
-#define HERE      (pmem.idx)                /** current parameter memory index           */
-#define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
-#define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
-#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
-#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
-///
-/// opcode index
-///
-enum {
-    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
-} forth_opcode;
-///
-/// global memory blocks
-///
-extern List<DU,   E4_SS_SZ>   rs;             /// return stack
-extern List<DU,   E4_RS_SZ>   ss;             /// parameter stack
-extern List<Code, E4_DICT_SZ> dict;           /// dictionary
-extern List<U8,   E4_PMEM_SZ> pmem;           /// parameter memory (for colon definitions)
-extern U8  *MEM0;                             /// base of cached memory
-extern UFP DICT0;                             /// base of dictionary
-
 class ForthVM {
 public:
-    istream &fin;                             /// VM stream input
-    ostream &fout;                            /// VM stream output
-
-    bool    compile = false;                  /// compiling flag
-    bool    ucase   = true;                   /// case sensitivity control
-    DU      base    = 10;                     /// numeric radix
-    DU      top     = DVAL;                   /// top of stack (cached)
-    IU      WP      = 0;                      /// current word
-    U8      *IP;                              /// current intruction pointer
-
-    string  idiom;
-
-    ForthVM(istream &in, ostream &out) : fin(in), fout(out) {}
+    ForthVM(istream &in, ostream &out);
 
     void init();
     void outer();
-
-private:
-    ///
-    /// compiler methods
-    ///
-    void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
-    void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
-    void add_str(const char *s) {                                               /** add a string to pmem         */
-        int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
-    }
-    void add_w(IU w) {
-        Code *c  = &dict[w];
-        IU   ipx = c->def ? (c->pfa | 1) : (IU)((UFP)c->xt - DICT0);
-        add_iu(ipx);
-        printf("add_w(%d) => %4x:%p %s\n", w, ipx, c->xt, c->name);
-    }
-    string &next_idiom(char c=0);
-    void  colon(const char *name);
-    void  colon(string &s) { colon(s.c_str()); }
-    ///
-    /// dictionary search methods
-    ///
-    int   pfa2word(U8 *ip);
-    int   streq(const char *s1, const char *s2);
-    int   find(const char *s);
-    int   find(string &s) { return find(s.c_str()); }
-    ///
-    /// VM ops
-    ///
-    void  PUSH(DU v) { ss.push(top); top = v; }
-    DU    POP()      { DU n = top; top = ss.pop(); return n; }
-    void  call(IU w);
-    void  nest();
-    ///
-    /// debug methods
-    ///
-    void  dot_r(int n, int v);
-    void  to_s(IU c);
-    void  see(U8 *ip, int dp=1);
-    void  words();
-    void  ss_dump();
-    void  mem_dump(IU p0, DU sz);
 };
 #endif // __EFORTH_SRC_CEFORTH_H
