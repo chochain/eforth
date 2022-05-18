@@ -342,7 +342,6 @@ void ForthVM::init() {
     /// @}
     /// @defgroup Debug ops
     /// @{
-    CODE("bye",   exit(0)),
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
@@ -374,6 +373,7 @@ void ForthVM::init() {
 #endif // ESP32
 #endif // ARDUINO || ESP32
     /// @}
+    //CODE("bye",   exit(0)),
     CODE("boot", dict.clear(Code::fence=find("boot")->token + 1))
     };
 }
