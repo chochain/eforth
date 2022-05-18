@@ -49,15 +49,16 @@ using namespace std;
 typedef uint32_t        U32;   // unsigned 32-bit integer
 typedef uint16_t        U16;   // unsigned 16-bit integer
 typedef uint8_t         U8;    // byte, unsigned character
-typedef uintptr_t       UFP;
+typedef uintptr_t       UFP;   // unsigned function pointer
+typedef int16_t         S16;   // signed 16-bit integer (calc mem offset)
+typedef U16             IU;    // instruction pointer unit
 #ifdef USE_FLOAT
-typedef float           DU;
+typedef float           DU;    // data unit
 #define DVAL            0.0f
 #else // USE_FLOAT
-typedef int32_t         DU;
+typedef U32             DU;
 #define DVAL            0
 #endif // USE_FLOAT
-typedef uint16_t        IU;    // instruction pointer unit
 ///
 /// alignment macros
 ///
@@ -103,26 +104,18 @@ struct List {
     void clear(int i=0)    INLINE { idx=i; }
 };
 ///
-/// functor implementation - for lambda support (without STL)
+/// functor and universal Code class
+/// Note:
+///   * Code: 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
 #if LAMBDA_OK
 struct fop { virtual void operator()() = 0; };
-template<typename F>
+template<typename F>        // function with lambda reference
 struct XT : fop {           // universal functor
-    F fp;
+     F fp;
     XT(F &f) : fp(f) {}
     void operator()() INLINE { fp(); }
 };
-#else  // LAMBDA_OK
-typedef void (*fop)();
-#endif // LAMBDA_OK
-
-///
-/// universal Code class
-/// Note:
-///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
-///
-#if LAMBDA_OK
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -131,21 +124,22 @@ struct Code {
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
             U16 len:  14;   /// len of pfa
-            IU  pfa;         /// offset to pmem space
+            IU  pfa;        /// offset to pmem space
         };
     };
     template<typename F>    /// template function for lambda
     Code(const char *n, F f, bool im=false) : name(n) {
-        xt = new XT<F>(f);
+        xt   = new XT<F>(f);
         immd = im ? 1 : 0;
     }
     Code() {}               /// create a blank struct (for initilization)
 };
 #else  // LAMBDA_OK
+typedef void (*fop)();      /// function pointer as functor
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
-        fop xt = 0;         /// lambda pointer
+        fop xt = 0;         /// function pointer
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
@@ -171,7 +165,7 @@ struct Code {
 #define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
 #define HERE      (pmem.idx)                /** current parameter memory index           */
 #define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
-#define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
+#define MEM(ip)   (MEM0 + (S16)*(IU*)(ip))  /** pointer to IP address fetched from pmem  */
 #define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
 #define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
 ///
@@ -183,24 +177,24 @@ enum {
 ///
 /// global memory blocks
 ///
-extern List<DU,   E4_SS_SZ>   rs;             /// return stack
-extern List<DU,   E4_RS_SZ>   ss;             /// parameter stack
-extern List<Code, E4_DICT_SZ> dict;           /// dictionary
-extern List<U8,   E4_PMEM_SZ> pmem;           /// parameter memory (for colon definitions)
-extern U8  *MEM0;                             /// base of cached memory
-extern UFP DICT0;                             /// base of dictionary
-
 class ForthVM {
 public:
-    istream &fin;                             /// VM stream input
-    ostream &fout;                            /// VM stream output
+    List<DU,   E4_SS_SZ>   rs;             /// return stack
+    List<DU,   E4_RS_SZ>   ss;             /// parameter stack
+    List<Code, E4_DICT_SZ> dict;           /// dictionary
+    List<U8,   E4_PMEM_SZ> pmem;           /// parameter memory (for colon definitions)
+    U8  *MEM0 = &pmem[0];                  /// base of cached memory
+    UFP DICT0;                             /// base of dictionary
 
-    bool    compile = false;                  /// compiling flag
-    bool    ucase   = true;                   /// case sensitivity control
-    DU      base    = 10;                     /// numeric radix
-    DU      top     = DVAL;                   /// top of stack (cached)
-    IU      WP      = 0;                      /// current word
-    U8      *IP;                              /// current intruction pointer
+    istream &fin;                          /// VM stream input
+    ostream &fout;                         /// VM stream output
+
+    bool    compile = false;               /// compiling flag
+    bool    ucase   = true;                /// case sensitivity control
+    DU      base    = 10;                  /// numeric radix
+    DU      top     = DVAL;                /// top of stack (cached)
+    IU      WP      = 0;                   /// current word
+    U8      *IP     = MEM0;                /// current intruction pointer
 
     string  idiom;
 
@@ -224,7 +218,7 @@ private:
         add_iu(ipx);
         printf("add_w(%d) => %4x:%p %s\n", w, ipx, c->xt, c->name);
     }
-    string &next_idiom(char c=0);
+    string &next_idiom(char delim=0);
     void  colon(const char *name);
     void  colon(string &s) { colon(s.c_str()); }
     ///

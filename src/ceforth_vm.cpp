@@ -1,18 +1,11 @@
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
+///
+/// version info
+///
 #define APP_NAME         "eForth"
 #define MAJOR_VERSION    "8"
 #define MINOR_VERSION    "1"
-///==============================================================================
-///
-/// global memory blocks
-///
-List<DU,   E4_SS_SZ>   rs;                  /// return stack
-List<DU,   E4_RS_SZ>   ss;                  /// parameter stack
-List<Code, E4_DICT_SZ> dict;                /// dictionary
-List<U8,   E4_PMEM_SZ> pmem;                /// parameter memory (for colon definitions)
-U8  *MEM0   = &pmem[0];                     /// base of parameter memory block
-UFP DICT0;                                  /// base of dictionary
 ///==============================================================================
 ///
 /// colon word compiler
@@ -69,26 +62,13 @@ int ForthVM::find(const char *s) {
 ///
 /// VM ops
 ///
-void ForthVM::call(IU w) {
-    if (dict[w].def) {
-        WP = w;
-        IP = MEM0 + dict[w].pfa;
-        nest();
-    }
-    else {
-#if LAMBDA_OK
-        (*(fop*)((UFP)dict[w].xt & ~0x3))();
-#else  // LAMBDA_OK
-        (*(fop)(DICT0 + (*(IU*)IP & ~0x3))();
-#endif // LAMBDA_OK
-    }
-}
 void ForthVM::nest() {
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
         /// function core
-        auto ipx = *(IU*)IP;                         /// hopefully use register than cached line
+        auto ipx = *(IU*)IP;                         /// register than cached line, we hope
         while (ipx) {
+            printf("IP=%4x:%p, ipx=%x ", OFF(IP), IP, ipx);
             if (ipx & 1) {
                 rs.push(WP);                         /// * setup callframe (ENTER)
                 rs.push(OFF(IP) + sizeof(IU));
@@ -108,6 +88,20 @@ void ForthVM::nest() {
         }
     }
     yield();                                ///> give other tasks some time
+}
+void ForthVM::call(IU w) {
+    if (dict[w].def) {
+        WP = w;
+        IP = MEM0 + dict[w].pfa;
+        nest();
+    }
+    else {
+#if LAMBDA_OK
+        (*(fop*)((UFP)dict[w].xt & ~0x3))();
+#else  // LAMBDA_OK
+        (*(fop)(DICT0 + (*(IU*)IP & ~0x3))();
+#endif // LAMBDA_OK
+    }
 }
 ///==============================================================================
 ///
@@ -178,12 +172,13 @@ void ForthVM::mem_dump(IU p0, DU sz) {
 ///
 void ForthVM::outer() {
     while (fin >> idiom) {
-        //printf("%s=>", idiom.c_str());
+        printf("find(%s) => ", idiom.c_str());
         int w = find(idiom);                        /// * search through dictionary
         if (w >= 0) {                               /// * word found?
-            //printf("%s(%ld)\n", w->to_s().c_str(), w.use_count());
-            if (compile && !dict[w].immd)           /// * in compile mode?
+            printf(" %ld\n", w);
+            if (compile && !dict[w].immd) {         /// * in compile mode?
                 add_w(w);                           /// * add to colon word
+            }
             else call(w);                           /// * execute forth word
             continue;
         }
@@ -196,7 +191,7 @@ void ForthVM::outer() {
 #else
         DU n = static_cast<DU>(strtol(idiom.c_str(), &p, base));
 #endif
-        //printf("%d\n", n);
+        printf("%d\n", n);
         if (*p != '\0') {                           /// * not number
             fout << idiom << "? " << ENDL;          ///> display error prompt
             compile = false;                        ///> reset to interpreter mode

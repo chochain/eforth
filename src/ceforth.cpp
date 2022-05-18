@@ -10,6 +10,8 @@
 ///
 /// macros to reduce verbosity (but harder to single-step debug)
 ///
+#define CODE(s, g)     { s, [&](){ g; } }
+#define IMMD(s, g)     { s, [&](){ g; }, true }
 //#define CODE(s, g)     make_shared<Code>(string(s), [&](Code& c){ g; })
 //#define IMMD(s, g)     make_shared<Code>(string(s), [&](Code& c){ g; }, true)
 //#define WORD()         make_shared<Code>(next_idiom(), true)
@@ -20,7 +22,7 @@
 /// Note: sequenced by enum forth_opcode (defined in ceforth.h)
 ///
 void ForthVM::init() {
-    const Code prim[] PROGRAM {
+    const Code prim[] = {
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
@@ -251,6 +253,6 @@ void ForthVM::init() {
             (U16)(dict[i].name - dict[EXIT].name),
             dict[i].name, dict[i].name);
     }                                        /// searching both spaces
-    IP    = &pmem[0];
     DICT0 = (UFP)dict[EXIT].xt;
+    printf("dict=%p, pmem=%p, sizeof(Code)=%ld\n", &dict[0], &pmem[0], sizeof(Code));
 }
