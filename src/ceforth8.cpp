@@ -18,6 +18,7 @@
 #include <stdlib.h>     // strtol
 #include <string.h>     // strcmp
 #include <exception>    // try...catch, throw
+#include <stdio.h>
 
 using namespace std;
 /// version
@@ -229,6 +230,15 @@ int find(const char *s) {
     }
     return -1;
 }
+int streq(const char *s1, const char *s2) {
+    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+}
+int find(const char *s) {
+    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
+        if (streq(s, dict[i].name)) return i;
+    }
+    return -1;
+}
 ///
 /// inline functions to add (i.e. 'comma') object into parameter memory
 ///
@@ -349,10 +359,12 @@ void (*fout_cb)(int, const char*);   // forth output callback function
 string strbuf;          // input string buffer
 ///==============================================================================
 ///
-/// debug functions
+/// IO and debug functions
 ///
-void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
-void to_s(IU c) {
+inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
+inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
+inline void dot_r(int n, int v)  { fout << setw(n) << setfill(' ') << v; }
+inline void to_s(IU c) {
     fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
 }
 ///
@@ -413,8 +425,6 @@ void mem_dump(IU p0, DU sz) {
 ///
 /// macros to reduce verbosity
 ///
-inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
-inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 inline void PUSH(DU v)    { ss.push(top); top = v; }
 ///
