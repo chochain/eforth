@@ -43,7 +43,7 @@
                             chrono::steady_clock::now().time_since_epoch()).count()
 #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
 #define yield()         this_thread::yield()
-#define PROGRAM
+#define PROGMEM
 #endif // ARDUINO
 
 using namespace std;

@@ -20,12 +20,12 @@
 /// Note: sequenced by enum forth_opcode (defined in ceforth.h)
 ///
 void ForthVM::init() {
-    const Code prim[] PROGRAM {
+    const Code prim[] PROGMEM = {
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
-    CODE("exit",    {}),
+    CODE("exit",    {}),                           // dummy, skip by nest()
     CODE("dovar",   PUSH(OFF(IP)); IP += sizeof(DU)),
     CODE("dolit",   PUSH(*(DU*)IP); IP += sizeof(DU)),
     CODE("dostr",
@@ -34,7 +34,7 @@ void ForthVM::init() {
     CODE("dotstr",
         const char *s = (const char*)IP;           // get string pointer
         fout << s;  IP += STRLEN(s)),              // send to output console
-    CODE("branch" , IP = MEM(IP)),           // unconditional branch
+    CODE("branch" , IP = MEM(IP)),                 // unconditional branch
     CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEM(IP)), // conditional branch
     CODE("donext",
          if ((rs[-1] -= 1) >= 0) IP = MEM(IP);     // rs[-1]-=1 saved 200ms/1M cycles
@@ -246,11 +246,13 @@ void ForthVM::init() {
 
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
+        if ((UFP)dict[i].xt < DICT0) DICT0 = (UFP)dict[i].xt;
+    }
+    printf("DICT0=%lx, sizeof(Code)=%ld\n", DICT0, sizeof(Code));
+    for (int i=0; i<PSZ; i++) {
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
-            (U16)((UFP)dict[i].xt - (UFP)dict[EXIT].xt), dict[i].xt,
+            (U16)((UFP)dict[i].xt - DICT0), dict[i].xt,
             (U16)(dict[i].name - dict[EXIT].name),
             dict[i].name, dict[i].name);
     }                                        /// searching both spaces
-    IP    = &pmem[0];
-    DICT0 = (UFP)dict[EXIT].xt;
 }
