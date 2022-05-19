@@ -18,6 +18,7 @@
 #include <stdlib.h>     // strtol
 #include <string.h>     // strcmp
 #include <exception>    // try...catch, throw
+#include <stdio.h>
 
 using namespace std;
 /// version
@@ -30,6 +31,13 @@ using namespace std;
 #define LAMBDA_OK       1
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
+///
+/// memory sizing configuration
+///
+#define E4_RS_SZ        64
+#define E4_SS_SZ        64
+#define E4_DICT_SZ      1024
+#define E4_PMEM_SZ      (48*1024)
 ///
 /// conditional compilation for different platforms
 ///
@@ -99,7 +107,9 @@ struct List {
     void clear(int i=0)    INLINE { idx=i; }
 };
 ///
-/// functor implementation - for lambda support (without STL)
+/// universal functor and Code class
+/// Note:
+///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
 #if LAMBDA_OK
 struct fop { virtual void operator()() = 0; };
@@ -109,15 +119,6 @@ struct XT : fop {           // universal functor
     XT(F &f) : fp(f) {}
     void operator()() INLINE { fp(); }
 };
-#else  // LAMBDA_OK
-typedef void (*fop)();
-#endif // LAMBDA_OK
-///
-/// universal Code class
-/// Note:
-///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
-///
-#if LAMBDA_OK
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -136,7 +137,10 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, [](){ g; }, 0 }
+#define IMMD(s, g) { s, [](){ g; }, 1 }
 #else  // LAMBDA_OK
+typedef void (*fop)();      /// function pointer
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -153,6 +157,8 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, []{ g; }, 0 }
+#define IMMD(s, g) { s, []{ g; }, 1 }
 #endif // LAMBDA_OK
 ///==============================================================================
 ///
@@ -165,19 +171,19 @@ struct Code {
 ///   * this makes IP increment by 2 instead of word size. If needed, it can be
 ///   * readjusted.
 ///
-List<DU,   64>      ss;   /// data stack, can reside in registers for some processors
-List<DU,   64>      rs;   /// return stack
-List<Code, 1024>    dict; /// fixed sized dictionary (RISC vs CISC)
-List<U8,   48*1024> pmem; /// parameter memory i.e. storage for all colon definitions
+List<DU,   E4_SS_SZ>      ss;     /// data stack, can reside in registers for some processors
+List<DU,   E4_RS_SZ>      rs;     /// return stack
+List<Code, E4_DICT_SZ>    dict;   /// fixed sized dictionary (RISC vs CISC)
+List<U8,   E4_PMEM_SZ>    pmem;   /// parameter memory i.e. storage for all colon definitions
+U8   *MEM0 = &pmem[0];            /// cached memory base (saved 200ms/1M cycles)
+UFP  DICT0;
 ///
 /// system variables
 ///
 bool compile = false, ucase = 1;  /// compiler and case sensitivity control
 DU   top = -1, base = 10;
 IU   WP = 0;                      /// current word pointer
-U8   *MEM0 = &pmem[0];            /// cached memory base (saved 200ms/1M cycles)
 U8   *IP = MEM0;                  /// current instruction pointer and cached base pointer
-UFP  DICT0;
 ///
 /// macros to abstract dict and pmem physical implementation
 /// Note:
@@ -193,32 +199,10 @@ UFP  DICT0;
 #define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
 #define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
 #define XIP       ((IU)(dict[-1].pfa + dict[-1].len))   /** current memory offset of last word */
-///
-/// TODO: token indirect threaded is portable
-///       but very expensive for pipelined design
-///
-#if LAMBDA_OK
-#define CALL(w) \
-    if (dict[w].def) { WP = w; IP = MEM0 + dict[w].pfa; nest(); } \
-    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
-#else  // LAMBDA_OK
-#define CALL(w) \
-    if (*(IU*)IP & 1) nest(); \
-    else (*(fop)(DICT0 + *(IU*)IP)(i)
-#endif // LAMBDA_OK
 ///==============================================================================
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
-int streq(const char *s1, const char *s2) {
-    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
-}
-int find(const char *s) {
-    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
-        if (streq(s, dict[i].name)) return i;
-    }
-    return -1;
-}
 int pfa2word(U8 *ip) {
     IU   ipx = *(IU*)ip;
     U8   *fp = (U8*)(DICT0 + ipx);
@@ -227,6 +211,15 @@ int pfa2word(U8 *ip) {
             if (dict[i].pfa == (ipx & ~1)) return i;
         }
         else if ((U8*)dict[i].xt == fp) return i;
+    }
+    return -1;
+}
+int streq(const char *s1, const char *s2) {
+    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+}
+int find(const char *s) {
+    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
+        if (streq(s, dict[i].name)) return i;
     }
     return -1;
 }
@@ -302,6 +295,19 @@ void nest() {
 ///
 /// Forth inner interpreter - interative (instead of recursive)
 ///
+///
+/// TODO: token indirect threaded is portable
+///       but very expensive for pipelined design
+///
+#if LAMBDA_OK
+#define CALL(w) \
+    if (dict[w].def) { WP = w; IP = MEM0 + dict[w].pfa; nest(); } \
+    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
+#else  // LAMBDA_OK
+#define CALL(w) \
+    if (*(IU*)IP & 1) nest(); \
+    else (*(fop)(DICT0 + *(IU*)IP)(i)
+#endif // LAMBDA_OK
 void nest() {
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
@@ -345,10 +351,12 @@ void (*fout_cb)(int, const char*);   // forth output callback function
 string strbuf;          // input string buffer
 ///==============================================================================
 ///
-/// debug functions
+/// IO and debug functions
 ///
-void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
-void to_s(IU c) {
+inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
+inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
+inline void dot_r(int n, int v)  { fout << setw(n) << setfill(' ') << v; }
+inline void to_s(IU c) {
     fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
 }
 ///
@@ -409,17 +417,8 @@ void mem_dump(IU p0, DU sz) {
 ///
 /// macros to reduce verbosity
 ///
-inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
-inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 #define     PUSH(v)       { ss.push(top); top = v; }
-#if LAMBDA_OK
-#define     CODE(s, g)    { s, [](){ g; }, 0 }
-#define     IMMD(s, g)    { s, [](){ g; }, 1 }
-#else  // LAMBDA_OK
-#define     CODE(s, g)    { s, []{ g; }, 0 }
-#define     IMMD(s, g)    { s, []{ g; }, 1 }
-#endif // LAMBDA_OK
 #define     BOOL(f)       ((f)?-1:0)
 ///
 /// global memory access macros
