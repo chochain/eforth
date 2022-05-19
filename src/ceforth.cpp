@@ -122,15 +122,15 @@ void ForthVM::init() {
     /// @{
     CODE("[",       compile = false),
     CODE("]",       compile = true),
-    IMMD("(",       next_idiom(')')),
-    IMMD(".(",      fout << next_idiom(')')),
-    CODE("\\",      next_idiom('\n')),
+    IMMD("(",       scan(')')),
+    IMMD(".(",      fout << scan(')')),
+    CODE("\\",      scan('\n')),
     CODE("$\"",
-        string s = next_idiom('"').substr(1);
+        string s = scan('"').substr(1);
         add_w(DOSTR);
         add_str(s.c_str())),
     IMMD(".\"",
-        string s = next_idiom('"').substr(1);
+        string s = scan('"').substr(1);
         add_w(DOTSTR);
         add_str(s.c_str())),
     /// @}
