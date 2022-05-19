@@ -14,20 +14,20 @@ List<DU,   E4_SS_SZ>   rs;                  /// return stack
 List<DU,   E4_RS_SZ>   ss;                  /// parameter stack
 List<Code, E4_DICT_SZ> dict;                /// dictionary
 List<U8,   E4_PMEM_SZ> pmem;                /// parameter memory (for colon definitions)
-U8  *MEM0   = &pmem[0];                     /// base of parameter memory block
-UFP DICT0;                                  /// base of dictionary
+U8  *MEM0 = &pmem[0];                       /// base of parameter memory block
+UFP DICT0 = ~0;                             /// base of dictionary
 ///==============================================================================
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
 int ForthVM::pfa2word(U8 *ip) {
     IU   ipx = *(IU*)ip;
-    U8   *xt = (U8*)XT(ipx);
+    UFP  xt  = DICT0 + ipx;
     for (int i = dict.idx - 1; i >= 0; --i) {
         if (ipx & 1) {
             if (dict[i].pfa == (ipx & ~1)) return i;
         }
-        else if ((U8*)dict[i].xt == xt) return i;
+        else if ((UFP)dict[i].xt == xt) return i;
     }
     return -1;
 }
@@ -53,7 +53,7 @@ void  ForthVM::colon(const char *name) {
     int sz = STRLEN(name);                  // string length, aligned
     pmem.push((U8*)name,  sz);              // setup raw name field
 #if LAMBDA_OK
-    Code c(nfa, [](){});                    // create a new word on dictionary
+    Code c(nfa, [](int){});                 // create a new word on dictionary
 #else  // LAMBDA_OK
     Code c(nfa, NULL);
 #endif // LAMBDA_OK
@@ -63,7 +63,7 @@ void  ForthVM::colon(const char *name) {
     dict.push(c);                           // deep copy Code struct into dictionary
     printf("%3d> pfa=%x, name=%4x:%p %s\n", dict.idx-1,
         dict[-1].pfa,
-        (U16)(dict[EXIT].name - (const char*)MEM0),
+        (U16)(dict[-1].name - (const char*)MEM0),
         dict[-1].name, dict[-1].name);
 }
 ///============================================================================
@@ -78,9 +78,9 @@ void ForthVM::call(IU w) {
     }
     else {
 #if LAMBDA_OK
-        (*(fop*)((UFP)dict[w].xt & ~0x3))();
+        (*(fop*)((UFP)dict[w].xt & ~0x3))(w);
 #else  // LAMBDA_OK
-        (*(fop)(DICT0 + (*(IU*)IP & ~0x3))();
+        (*(fop)((UFP)dict[w].xt & ~0x3))();
 #endif // LAMBDA_OK
     }
 }
@@ -90,17 +90,18 @@ void ForthVM::nest() {
         /// function core
         auto ipx = *(IU*)IP;                         /// hopefully use register than cached line
         while (ipx) {
+            IP += sizeof(IU);
             if (ipx & 1) {
                 rs.push(WP);                         /// * setup callframe (ENTER)
-                rs.push(OFF(IP) + sizeof(IU));
+                rs.push(OFF(IP));
                 IP = MEM0 + (ipx & ~0x1);            /// word pfa (def masked)
                 dp++;
             }
-            else {
-                UFP xt = DICT0 + (ipx & ~0x3);       /// * function pointer
-                IP += sizeof(IU);                    /// advance to next pfa
-                (*(fop*)xt)();
-            }
+#if LAMBDA_OK
+            else (*(fop*)(DICT0 + (ipx & ~0x3)))(ipx); /// * execute primitive word
+#else  // LAMBDA_OK
+            else (*(fop)(DICT0 + (ipx & ~0x3)))();   /// * execute primitive word
+#endif // LAMBDA_OK
             ipx = *(IU*)IP;
         }
         if (dp-- > 0) {
@@ -112,15 +113,11 @@ void ForthVM::nest() {
 }
 ///==============================================================================
 ///
-/// IO & debug functions
+/// debug functions
 ///
-string &ForthVM::next_idiom()     INLINE { fin >> idiom; return idiom; }
-string &ForthVM::scan(char delim) INLINE { getline(fin, idiom, delim); return idiom; }
-void ForthVM::dot_r(int n, int v) INLINE {
-    fout << setw(n) << setfill(' ') << v;
-}
-void ForthVM::to_s(IU c) INLINE {
-    fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
+void ForthVM::dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
+void ForthVM::to_s(IU w) {
+    fout << dict[w].name << " " << w << (dict[w].immd ? "* " : " ");
 }
 ///
 /// recursively disassemble colon word
@@ -148,7 +145,7 @@ void ForthVM::see(U8 *ip, int dp) {
     }
 }
 void ForthVM::words() {
-    fout << setbase(16);
+    fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
         if ((i%10)==0) { fout << ENDL; yield(); }
         to_s(i);
@@ -161,7 +158,7 @@ void ForthVM::ss_dump() {
 }
 void ForthVM::mem_dump(IU p0, DU sz) {
     fout << setbase(16) << setfill('0') << ENDL;
-    for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
+    for (int i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
         fout << setw(4) << i << ": ";
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
