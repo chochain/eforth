@@ -1,5 +1,8 @@
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
+///
+/// version info
+///
 #define APP_NAME         "eForth"
 #define MAJOR_VERSION    "8"
 #define MINOR_VERSION    "1"
@@ -15,15 +18,36 @@ U8  *MEM0   = &pmem[0];                     /// base of parameter memory block
 UFP DICT0;                                  /// base of dictionary
 ///==============================================================================
 ///
+/// dictionary search functions - can be adapted for ROM+RAM
+///
+int ForthVM::pfa2word(U8 *ip) {
+    IU   ipx = *(IU*)ip;
+    U8   *xt = (U8*)XT(ipx);
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (ipx & 1) {
+            if (dict[i].pfa == (ipx & ~1)) return i;
+        }
+        else if ((U8*)dict[i].xt == xt) return i;
+    }
+    return -1;
+}
+int ForthVM::streq(const char *s1, const char *s2) {
+    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+}
+int ForthVM::find(const char *s) {
+    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
+        if (streq(s, dict[i].name)) return i;
+    }
+    return -1;
+}
+///==============================================================================
+///
 /// colon word compiler
 /// Note:
 ///   * we separate dict and pmem space to make word uniform in size
 ///   * if they are combined then can behaves similar to classic Forth
 ///   * with an addition link field added.
 ///
-string &ForthVM::next_idiom(char delim) {
-    delim ? getline(fin, idiom, delim) : fin >> idiom; return idiom;
-}
 void  ForthVM::colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];         // current pmem pointer
     int sz = STRLEN(name);                  // string length, aligned
@@ -42,32 +66,9 @@ void  ForthVM::colon(const char *name) {
         (U16)(dict[EXIT].name - (const char*)MEM0),
         dict[-1].name, dict[-1].name);
 }
-///==============================================================================
+///============================================================================
 ///
-/// dictionary search functions - can be adapted for ROM+RAM
-///
-int ForthVM::pfa2word(U8 *ip) {
-    IU   ipx = *(IU*)ip;
-    U8   *fp = (U8*)(DICT0 + ipx);
-    for (int i = dict.idx - 1; i >= 0; --i) {
-        if (ipx & 1) {
-            if (dict[i].pfa == (ipx & ~1)) return i;
-        }
-        else if ((U8*)dict[i].xt == fp) return i;
-    }
-    return -1;
-}
-int ForthVM::streq(const char *s1, const char *s2) {
-    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
-}
-int ForthVM::find(const char *s) {
-    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
-        if (streq(s, dict[i].name)) return i;
-    }
-    return -1;
-}
-///
-/// VM ops
+/// Forth inner interpreter (handles a colon word)
 ///
 void ForthVM::call(IU w) {
     if (dict[w].def) {
@@ -111,12 +112,14 @@ void ForthVM::nest() {
 }
 ///==============================================================================
 ///
-/// debug functions
+/// IO & debug functions
 ///
-void ForthVM::dot_r(int n, int v) {
+string &ForthVM::next_idiom()     INLINE { fin >> idiom; return idiom; }
+string &ForthVM::scan(char delim) INLINE { getline(fin, idiom, delim); return idiom; }
+void ForthVM::dot_r(int n, int v) INLINE {
     fout << setw(n) << setfill(' ') << v;
 }
-void ForthVM::to_s(IU c) {
+void ForthVM::to_s(IU c) INLINE {
     fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
 }
 ///
