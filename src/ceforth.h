@@ -7,11 +7,15 @@
 ///
 /// conditional compililation options
 ///
+/// Note: use LAMBDA_OK=1 for full ForthVM class
+///       since lambda needs to capture [this] for Code
+///       * lambda slow down nest() by 2x,
+///       * with one extra parameter, it slows 160ms/100M cycles
 #define LAMBDA_OK       1
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
 ///
-/// configuation
+/// memory block configuation
 ///
 #define E4_SS_SZ        64
 #define E4_RS_SZ        64
@@ -108,12 +112,12 @@ struct List {
 ///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
 #if LAMBDA_OK
-struct fop { virtual void operator()() = 0; };
+struct fop { virtual void operator()(IU) = 0; };
 template<typename F>
 struct XT : fop {           // universal functor
     F fp;
     XT(F &f) : fp(f) {}
-    void operator()() INLINE { fp(); }
+    void operator()(IU c) INLINE { fp(c); }
 };
 struct Code {
     const char *name = 0;   /// name field
@@ -133,7 +137,12 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, [&](IU c) { g; }}
+#define IMMD(s, g) { s, [&](IU c) { g; }, true }
 #else  // LAMBDA_OK
+///
+/// a lambda without capture can degenerate into a function pointer
+///
 typedef void (*fop)();      /// function pointer
 struct Code {
     const char *name = 0;   /// name field
@@ -151,29 +160,9 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, []{ g; }}
+#define IMMD(s, g) { s, []{ g; }, true }
 #endif // LAMBDA_OK
-///
-/// Forth virtual machine class
-///
-///
-/// macros to abstract dict and pmem physical implementation
-/// Note:
-///   so we can change pmem implementation anytime without affecting opcodes defined below
-///
-#define BOOL(f)   ((f)?-1:0)
-#define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
-#define HERE      (pmem.idx)                /** current parameter memory index           */
-#define XT(ipx)   (DICT0 + (S16)ipx)        /** fetch xt from dictionary offset          */
-#define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
-#define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
-#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
-#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
-///
-/// opcode index
-///
-enum {
-    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
-} forth_opcode;
 ///
 /// global memory blocks
 ///
@@ -183,7 +172,26 @@ extern List<Code, E4_DICT_SZ> dict;           /// dictionary
 extern List<U8,   E4_PMEM_SZ> pmem;           /// parameter memory (for colon definitions)
 extern U8  *MEM0;                             /// base of cached memory
 extern UFP DICT0;                             /// base of dictionary
+///================================================================================
+///
+/// macros to abstract dict and pmem physical implementation
+/// Note:
+///   so we can change pmem implementation anytime without affecting opcodes defined below
+///
+#define BOOL(f)   ((f)?-1:0)
+#define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
+#define HERE      (pmem.idx)                /** current parameter memory index           */
+#define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
+#define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
+#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
+#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
 
+typedef enum {
+    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
+} forth_opcode;
+///
+/// Forth virtual machine class
+///
 class ForthVM {
 public:
     istream &fin;                             /// VM stream input
@@ -214,30 +222,34 @@ private:
     ///
     /// compiler methods
     ///
-    void  colon(const char *name);
-    void  colon(string &s) { colon(s.c_str()); }
-    void  add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
-    void  add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
-    void  add_str(const char *s) {                                               /** add a string to pmem         */
+    void  add_iu(IU i) INLINE { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
+    void  add_du(DU v) INLINE { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
+    void  add_str(const char *s) INLINE {                                                       /** add a string to pmem         */
         int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
     }
+    void  colon(const char *name);
+    void  colon(string &s) { colon(s.c_str()); }
     void  add_w(IU w) {
-        Code *c  = &dict[w];
-        IU   ipx = c->def ? (c->pfa | 1) : (IU)((UFP)c->xt - DICT0);
+        Code &c  = dict[w];
+        IU   ipx = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : (IU)((UFP)c.xt - DICT0));
         add_iu(ipx);
-        printf("add_w(%d) => %4x:%p %s\n", w, ipx, c->xt, c->name);
+        printf("add_w(%d) => %4x:%p %s\n", w, ipx, c.xt, c.name);
     }
     ///
     /// inner interpreter ops
     ///
-    void  PUSH(DU v) { ss.push(top); top = v; }
-    DU    POP()      { DU n = top; top = ss.pop(); return n; }
+    void  PUSH(DU v) INLINE { ss.push(top); top = v; }
+    DU    POP()      INLINE { DU n = top; top = ss.pop(); return n; }
     void  call(IU w);
     void  nest();
     ///
-    /// IO & debug methods
+    /// input methods
     ///
-    string &next_idiom(char c=0);
+    string &next_idiom()       INLINE { fin >> idiom; return idiom; }
+    string &scan(char delim=0) INLINE { getline(fin, idiom, delim); return idiom; }
+    ///
+    /// debug methods
+    ///
     void  dot_r(int n, int v);
     void  to_s(IU c);
     void  see(U8 *ip, int dp=1);
