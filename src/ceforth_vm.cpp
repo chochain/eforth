@@ -73,17 +73,39 @@ void  ForthVM::colon(const char *name) {
 void ForthVM::call(IU w) {
     if (dict[w].def) {
         WP = w;
-        IP = MEM0 + dict[w].pfa;
+        IP = PFA(w);
         nest();
     }
-    else {
-#if LAMBDA_OK
-        (*(fop*)((UFP)dict[w].xt & ~0x3))(w);
-#else  // LAMBDA_OK
-        (*(fop)((UFP)dict[w].xt & ~0x3))();
-#endif // LAMBDA_OK
-    }
+    else (*(FPTR)((UFP)dict[w].xt & ~0x3))(w);
 }
+///
+/// recursive version (look nicer but use system stack)
+/// Note: superceded by iterator version below (~8% faster)
+/*
+void nest() {
+    while (*(IU*)IP) {
+        if (*(IU*)IP & 1) {
+            /// ENTER
+            rs.push(WP);
+            rs.push(OFF(IP) + sizeof(IU));       /// * setup call frame
+            IP = MEM0 + (*(IU*)IP & ~0x1);
+            nest();
+            /// EXIT
+            IP = MEM0 + rs.pop();                /// * restore call frame
+            WP = rs.pop();
+        }
+        else {
+            UFP xt = DICT0 + (*(IU*)IP & ~0x3);  /// * function pointer
+            IP += sizeof(IU);                    /// * advance to next opcode
+            (*(FPTR)xt)();
+        }
+    }
+    yield();                                ///> give other tasks some time
+}
+*/
+///
+/// interative version
+///
 void ForthVM::nest() {
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
@@ -97,19 +119,15 @@ void ForthVM::nest() {
                 IP = MEM0 + (ipx & ~0x1);            /// word pfa (def masked)
                 dp++;
             }
-#if LAMBDA_OK
-            else (*(fop*)(DICT0 + (ipx & ~0x3)))(ipx); /// * execute primitive word
-#else  // LAMBDA_OK
-            else (*(fop)(DICT0 + (ipx & ~0x3)))();   /// * execute primitive word
-#endif // LAMBDA_OK
+            else (*(FPTR)(DICT0 + (ipx & ~0x3)))();  /// * execute primitive word
             ipx = *(IU*)IP;
         }
         if (dp-- > 0) {
             IP = MEM0 + rs.pop();                    /// * restore call frame (EXIT)
             WP = rs.pop();
         }
+        yield();                                     ///> give other tasks some time
     }
-    yield();                                ///> give other tasks some time
 }
 ///==============================================================================
 ///
@@ -223,7 +241,7 @@ int main(int ac, char* av[]) {
     ForthVM *vm = new ForthVM(forth_in, forth_out);     // create FVM instance
     vm->init();                                         // initialize dictionary
 
-    cout << APP_NAME << " " << MAJOR_VERSION << "." << MINOR_VERSION << ENDL;
+    cout << APP_NAME << " " << MAJOR_VERSION << "." << MINOR_VERSION << endl;
     while (getline(cin, cmd)) {                         // fetch user input
         //printf("cmd=<%s>\n", line.c_str());
         forth_in.clear();                               // clear any input stream error bit
@@ -232,7 +250,7 @@ int main(int ac, char* av[]) {
         cout << forth_out.str();                        // send VM result to output
         forth_out.str(string());                        // clear output buffer
     }
-    cout << "done!" << ENDL;
+    cout << "Done!" << endl;
     return 0;
 }
 #endif // !_WIN32 && !_WIN64 && !ARDUINO
