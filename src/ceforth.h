@@ -9,9 +9,9 @@
 ///
 /// Note: use LAMBDA_OK=1 for full ForthVM class
 ///       since lambda needs to capture [this] for Code
-///       * lambda slow down nest() by 2x,
-///       * with one extra parameter, it slows 160ms/100M cycles
-#define LAMBDA_OK       1
+///       * lambda slow down nest() by 2x (1200ms -> 2500ms per 100M)
+///       * with one extra parameter, it slows 160ms per 100M cycles
+#define LAMBDA_OK       1    /** set 1 for ForthVM.this */
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
 ///
@@ -172,7 +172,8 @@ extern List<DU,   E4_RS_SZ>   ss;             /// parameter stack
 extern List<Code, E4_DICT_SZ> dict;           /// dictionary
 extern List<U8,   E4_PMEM_SZ> pmem;           /// parameter memory (for colon definitions)
 extern U8  *MEM0;                             /// base of cached memory
-extern UFP DICT0;                             /// base of dictionary
+extern UFP XT0;                               /// base of function pointers
+extern IU  NXT;                               /// cached xt address of DONEXT
 ///================================================================================
 ///
 /// macros to abstract dict and pmem physical implementation
@@ -183,7 +184,9 @@ extern UFP DICT0;                             /// base of dictionary
 #define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
 #define HERE      (pmem.idx)                /** current parameter memory index           */
 #define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
-#define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
+#define MEM(ipx)  (MEM0 + (ipx))            /** pointer to IP address fetched from pmem  */
+#define XTOFF(xt) ((IU)((UFP)(xt) - XT0))   /** XT offset (index) in code space          */
+#define XT(xtx)   (XT0 + (xtx))             /** convert XT offset to function pointer    */
 #define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
 #define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
 
@@ -223,18 +226,18 @@ private:
     ///
     /// compiler methods
     ///
-    void  add_iu(IU i) INLINE { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
-    void  add_du(DU v) INLINE { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
-    void  add_str(const char *s) INLINE {                                                       /** add a string to pmem         */
+    void  add_iu(IU i) INLINE { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /// add an instruction into pmem
+    void  add_du(DU v) INLINE { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /// add a cell into pmem
+    void  add_str(const char *s) INLINE {                                                       /// add a string to pmem
         int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
     }
-    void  colon(const char *name);
+    void  colon(const char *name);                                                              /// create a colon word
     void  colon(string &s) { colon(s.c_str()); }
-    void  add_w(IU w) {
+    void  add_w(IU w) {                                                                         /// compile the pfa of a word
         Code &c  = dict[w];
-        IU   ipx = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : (IU)((UFP)c.xt - DICT0));
+        IU   ipx = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
         add_iu(ipx);
-        printf("add_w(%d) => %4x:%p %s\n", w, ipx, c.xt, c.name);
+        // printf("add_w(%d) => %4x:%p %s\n", w, ipx, c.xt, c.name);
     }
     ///
     /// inner interpreter ops
