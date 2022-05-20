@@ -27,9 +27,19 @@ using namespace std;
 ///
 /// conditional compililation options
 ///
-#define LAMBDA_OK       1
+/// Note: lambda enable VM taking parameters (with capture)
+///       but nest() becomes 2x slower
+///
+#define LAMBDA_OK       0
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
+///
+/// memory block configuation
+///
+#define E4_SS_SZ        64
+#define E4_RS_SZ        64
+#define E4_DICT_SZ      1024
+#define E4_PMEM_SZ      (48*1024)
 ///
 /// conditional compilation for different platforms
 ///
@@ -63,6 +73,7 @@ typedef uintptr_t UFP;
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 #define ALIGN(sz)       ALIGN2(sz)
+#define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
 ///
 /// array class template (so we don't have dependency on C++ STL)
 /// Note:
@@ -77,10 +88,10 @@ struct List {
 
     List()  { v = new T[N]; }      /// dynamically allocate array storage
     ~List() { delete[] v;   }      /// free memory
-    
+
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
-    
+
 #if RANGE_CHECK
     T pop()     INLINE {
         if (idx>0) return v[--idx];
@@ -99,7 +110,9 @@ struct List {
     void clear(int i=0)    INLINE { idx=i; }
 };
 ///
-/// functor implementation - for lambda support (without STL)
+/// universal functor (no STL) and Code class
+/// Note:
+///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
 #if LAMBDA_OK
 struct fop { virtual void operator()() = 0; };
@@ -109,15 +122,6 @@ struct XT : fop {           // universal functor
     XT(F &f) : fp(f) {}
     void operator()() INLINE { fp(); }
 };
-#else  // LAMBDA_OK
-typedef void (*fop)();
-#endif // LAMBDA_OK
-///
-/// universal Code class
-/// Note:
-///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
-///
-#if LAMBDA_OK
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -136,7 +140,13 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, []() { g; }}
+#define IMMD(s, g) { s, []() { g; }, true }
 #else  // LAMBDA_OK
+///
+/// a lambda without capture can degenerate into a function pointer
+///
+typedef void (*fop)();
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -153,6 +163,8 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, []{ g; }}
+#define IMMD(s, g) { s, []{ g; }, true }
 #endif // LAMBDA_OK
 ///==============================================================================
 ///
@@ -165,51 +177,52 @@ struct Code {
 ///   * this makes IP increment by 2 instead of word size. If needed, it can be
 ///   * readjusted.
 ///
-List<DU,   64>      ss;   /// data stack, can reside in registers for some processors
-List<DU,   64>      rs;   /// return stack
-List<Code, 1024>    dict; /// fixed sized dictionary (RISC vs CISC)
-List<U8,   48*1024> pmem; /// parameter memory i.e. storage for all colon definitions
+List<DU,   E4_RS_SZ>   rs;        /// return stack
+List<DU,   E4_SS_SZ>   ss;        /// data stack, can reside in registers for some processors
+List<Code, E4_DICT_SZ> dict;      /// fixed sized dictionary (RISC vs CISC)
+List<U8,   E4_PMEM_SZ> pmem;      /// parameter memory i.e. storage for all colon definitions
+U8   *MEM0 = &pmem[0];            /// cached memory base (saved 200ms/1M cycles)
+UFP  DICT0 = ~0;
 ///
 /// system variables
 ///
-bool compile = false, ucase = 1;  /// compiler and case sensitivity control
+bool compile = false;             /// compiler flag
+bool ucase   = true;              /// case sensitivity control
 DU   top = -1, base = 10;
 IU   WP = 0;                      /// current word pointer
-U8   *MEM0 = &pmem[0];            /// cached memory base (saved 200ms/1M cycles)
 U8   *IP = MEM0;                  /// current instruction pointer and cached base pointer
-UFP  DICT0;
 ///
 /// macros to abstract dict and pmem physical implementation
 /// Note:
 ///   so we can change pmem implementation anytime without affecting opcodes defined below
 ///
-#define STRLEN(s) (ALIGN(strlen(s)+1))      /** calculate string size with alignment     */
+#define BOOL(f)   ((f)?-1:0)
 #define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
-#define PFLEN(w)  (dict[w].len)             /** parameter field length of a word         */
-#define XLEN      (dict[-1].len)            /** parameter field tail of latest word      */
 #define HERE      (pmem.idx)                /** current parameter memory index           */
-#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
-#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
 #define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
 #define MEM(ip)   (MEM0 + *(IU*)(ip))       /** pointer to IP address fetched from pmem  */
-#define XIP       ((IU)(dict[-1].pfa + dict[-1].len))   /** current memory offset of last word */
-///
-/// TODO: token indirect threaded is portable
-///       but very expensive for pipelined design
-///
-#if LAMBDA_OK
-#define CALL(w) \
-    if (dict[w].def) { WP = w; IP = MEM0 + dict[w].pfa; nest(); } \
-    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
-#else  // LAMBDA_OK
-#define CALL(w) \
-    if (*(IU*)IP & 1) nest(); \
-    else (*(fop)(DICT0 + *(IU*)IP)(i)
-#endif // LAMBDA_OK
+#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
+#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
+
+typedef enum {
+    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
+} forth_opcode;
+
 ///==============================================================================
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
+int pfa2word(U8 *ip) {
+    IU   ipx = *(IU*)ip;
+    UFP  xt  = DICT0 + ipx;
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (ipx & 1) {
+            if (dict[i].pfa == (ipx & ~1)) return i;
+        }
+        else if ((UFP)dict[i].xt == xt) return i;
+    }
+    return -1;
+}
 int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
@@ -219,30 +232,19 @@ int find(const char *s) {
     }
     return -1;
 }
-int pfa2word(U8 *ip) {
-    IU   ipx = *(IU*)ip;
-    U8   *fp = (U8*)(DICT0 + ipx);
-    for (int i = dict.idx - 1; i >= 0; --i) {
-        if (ipx & 1) {
-            if (dict[i].pfa == (ipx & ~1)) return i;
-        }
-        else if ((U8*)dict[i].xt == fp) return i;
-    }
-    return -1;
-}
 ///
 /// inline functions to add (i.e. 'comma') object into parameter memory
 ///
-inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  XLEN += sizeof(IU); }  /** add an instruction into pmem */
-inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  XLEN += sizeof(DU); }  /** add a cell into pmem         */
+inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
+inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
 inline void add_str(const char *s) {                                             /** add a string to pmem         */
-    int sz = STRLEN(s); pmem.push((U8*)s,  sz); XLEN += sz;
+    int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
 }
 void add_w(IU w) {
-    Code *c  = &dict[w];
-    IU   ipx = c->def ? (c->pfa | 1) : (IU)((UFP)c->xt - DICT0);
+    Code &c  = dict[w];
+    IU   ipx = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : (IU)((UFP)c.xt - DICT0));
     add_iu(ipx);
-    printf("add_w(%d) => %4x:%p %s\n", w, ipx, c->xt, c->name);
+    //printf("add_w(%d) => %4x:%p %s\n", w, ipx, c.xt, c.name);
 }
 ///==============================================================================
 ///
@@ -252,10 +254,6 @@ void add_w(IU w) {
 ///   * if they are combined then can behaves similar to classic Forth
 ///   * with an addition link field added.
 ///
-enum {
-    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
-} forth_opcode;
-
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];         // current pmem pointer
     int sz = STRLEN(name);                  // string length, aligned
@@ -271,7 +269,7 @@ void colon(const char *name) {
     dict.push(c);                           // deep copy Code struct into dictionary
     printf("%3d> pfa=%x, name=%4x:%p %s\n", dict.idx-1,
         dict[-1].pfa,
-        (U16)(dict[EXIT].name - (const char*)MEM0),
+        (U16)(dict[-1].name - (const char*)MEM0),
         dict[-1].name, dict[-1].name);
 };
 ///
@@ -302,31 +300,40 @@ void nest() {
 ///
 /// Forth inner interpreter - interative (instead of recursive)
 ///
+#if LAMBDA_OK
+#define CALL(w) \
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
+    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
+#else  // LAMBDA_OK
+#define CALL(w) \
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
+    else (*(fop)((UFP)dict[w].xt & ~0x3))()
+#endif // LAMBDA_OK
 void nest() {
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
-        /// function core
-        auto ipx = *(IU*)IP;                         /// hopefully use register than cached line
-        while (ipx) {
-            if (ipx & 1) {
+        IU ipx = *(IU*)IP;                           /// hopefully use register than cached line
+        while (ipx) {                                /// fetch till EXIT
+            IP += sizeof(IU);                        /// advance instruction pointer
+            if (ipx & 1) {                           /// is a colon word?
                 rs.push(WP);                         /// * setup callframe (ENTER)
-                rs.push(OFF(IP) + sizeof(IU));
+                rs.push(OFF(IP));
                 IP = MEM0 + (ipx & ~0x1);            /// word pfa (def masked)
-                dp++;
+                dp++;                                /// one level deeper
             }
-            else {
-                UFP xt = DICT0 + (ipx & ~0x3);       /// * function pointer
-                IP += sizeof(IU);                    /// advance to next pfa
-                (*(fop*)xt)();
-            }
+#if LAMBDA_OK
+            else (*(fop*)(DICT0 + (ipx & ~0x3)))();  /// * execute primitive word
+#else  // LAMBDA_OK
+            else (*(fop)(DICT0 + (ipx & ~0x3)))();   /// * execute primitive word
+#endif // LAMBDA_OK
             ipx = *(IU*)IP;
         }
         if (dp-- > 0) {
             IP = MEM0 + rs.pop();                    /// * restore call frame (EXIT)
             WP = rs.pop();
         }
+        yield();                                     ///> give other tasks some time
     }
-    yield();                                ///> give other tasks some time
 }
 ///==============================================================================
 ///
@@ -377,7 +384,7 @@ void see(U8 *ip, int dp=1) {
     }
 }
 void words() {
-    fout << setbase(16);
+    fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
         if ((i%10)==0) { fout << ENDL; yield(); }
         to_s(i);
@@ -412,15 +419,7 @@ void mem_dump(IU p0, DU sz) {
 inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
 inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
-#define     PUSH(v)       { ss.push(top); top = v; }
-#if LAMBDA_OK
-#define     CODE(s, g)    { s, [](){ g; }, 0 }
-#define     IMMD(s, g)    { s, [](){ g; }, 1 }
-#else  // LAMBDA_OK
-#define     CODE(s, g)    { s, []{ g; }, 0 }
-#define     IMMD(s, g)    { s, []{ g; }, 1 }
-#endif // LAMBDA_OK
-#define     BOOL(f)       ((f)?-1:0)
+inline void PUSH(DU v)    { ss.push(top); top = v; }
 ///
 /// global memory access macros
 ///
@@ -653,12 +652,17 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 void forth_init() {
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
+        if ((UFP)dict[i].xt < DICT0) DICT0 = (UFP)dict[i].xt;
+    }
+    printf("DICT0=%lx, sizeof(Code)=%ld byes\n", DICT0, sizeof(Code));
+    /*
+    for (int i=0; i<PSZ; i++) {
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
-            (U16)((UFP)dict[i].xt - (UFP)dict[EXIT].xt), dict[i].xt,
-            (U16)(dict[i].name - dict[EXIT].name),
+            (U16)((UFP)dict[i].xt - DICT0), dict[i].xt,
+            (U16)(dict[i].name - dict[0].name),
             dict[i].name, dict[i].name);
-    }                                        /// searching both spaces
-    DICT0 = (UFP)dict[EXIT].xt;
+    }
+    */
 }
 ///
 /// outer interpreter
@@ -670,10 +674,10 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     fout.str("");                            /// clean output buffer, ready for next
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
-        printf("find(%s) => ",idiom);
+        // printf("find(%s) => ",idiom);
         int w = find(idiom);                 /// * search through dictionary
         if (w>=0) {                          /// * word found?
-            printf("%s %d\n", dict[w].name, w);
+            // printf("%s %d\n", dict[w].name, w);
             if (compile && !dict[w].immd) {  /// * in compile mode?
                 add_w(w);                    /// * add found word to new colon word
             }
@@ -683,7 +687,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
         // try as a number
         char *p;
         int n = static_cast<int>(strtol(idiom, &p, base));
-        printf("%d\n", n);
+        // printf("%d\n", n);
         if (*p != '\0') {                    /// * not number
             fout << idiom << "? " << ENDL;   ///> display error prompt
             compile = false;                 ///> reset to interpreter mode
@@ -703,7 +707,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
 int main(int ac, char* av[]) {
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
     forth_init();
-    cout << unitbuf << APP_NAME << MAJOR_VERSION << endl;
+    cout << unitbuf << APP_NAME << " " << MAJOR_VERSION << "." << MINOR_VERSION << endl;
 
     string line;
     while (getline(cin, line)) {             /// fetch line from user console input
