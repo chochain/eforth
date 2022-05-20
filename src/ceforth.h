@@ -119,6 +119,7 @@ struct XT : fop {           // universal functor
     XT(F &f) : fp(f) {}
     void operator()(IU c) INLINE { fp(c); }
 };
+typedef fop* FPTR;          // lambda function pointer
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -143,11 +144,11 @@ struct Code {
 ///
 /// a lambda without capture can degenerate into a function pointer
 ///
-typedef void (*fop)();      /// function pointer
+typedef void (*FPTR)();
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
-        fop xt = 0;         /// lambda pointer
+        FPTR xt = 0;        /// lambda pointer
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
@@ -155,7 +156,7 @@ struct Code {
             IU  pfa;        /// offset to pmem space (16-bit for 64K range)
         };
     };
-    Code(const char *n, fop f, bool im=false) : name(n), xt(f) {
+    Code(const char *n, FPTR f, bool im=false) : name(n), xt(f) {
         immd = im ? 1 : 0;
     }
     Code() {}               /// create a blank struct (for initilization)
