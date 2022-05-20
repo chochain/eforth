@@ -25,7 +25,7 @@ void ForthVM::init() {
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
-    CODE("exit",    {}),                           // dummy, skip by nest()
+    CODE("exit",    IP = MEM(rs.pop()); WP = rs.pop()), // cached in nest()
     CODE("dovar",   PUSH(OFF(IP)); IP += sizeof(DU)),
     CODE("dolit",   PUSH(*(DU*)IP); IP += sizeof(DU)),
     CODE("dostr",
@@ -34,10 +34,10 @@ void ForthVM::init() {
     CODE("dotstr",
         const char *s = (const char*)IP;           // get string pointer
         fout << s;  IP += STRLEN(s)),              // send to output console
-    CODE("branch" , IP = MEM(IP)),                 // unconditional branch
-    CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEM(IP)), // conditional branch
-    CODE("donext",
-         if ((rs[-1] -= 1) >= 0) IP = MEM(IP);     // rs[-1]-=1 saved 200ms/1M cycles
+    CODE("branch" , IP = MEM(*(IU*)IP)),           // unconditional branch
+    CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEM(*(IU*)IP)), // conditional branch
+    CODE("donext",                                 // cached in nest()
+         if ((rs[-1] -= 1) >= 0) IP = MEM(*(IU*)IP); // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); }),
     CODE("does",                                   // CREATE...DOES... meta-program
          IU *ip = (IU*)PFA(WP);
@@ -246,12 +246,14 @@ void ForthVM::init() {
 
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
-        if ((UFP)dict[i].xt < DICT0) DICT0 = (UFP)dict[i].xt;
+        if ((UFP)dict[i].xt < XT0) XT0 = (UFP)dict[i].xt;
     }
-    printf("DICT0=%lx, sizeof(Code)=%ld\n", DICT0, sizeof(Code));
+    NXT = XTOFF(dict[DONEXT].xt);            /// cached DONEXT xt address
+
+    printf("XT0=%lx, sizeof(Code)=%ld\n", XT0, sizeof(Code));
     for (int i=0; i<PSZ; i++) {
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
-            (U16)((UFP)dict[i].xt - DICT0), dict[i].xt,
+            XTOFF(dict[i].xt), dict[i].xt,
             (U16)(dict[i].name - dict[EXIT].name),
             dict[i].name, dict[i].name);
     }                                        /// searching both spaces

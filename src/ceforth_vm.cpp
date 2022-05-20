@@ -15,19 +15,22 @@ List<DU,   E4_RS_SZ>   ss;                  /// parameter stack
 List<Code, E4_DICT_SZ> dict;                /// dictionary
 List<U8,   E4_PMEM_SZ> pmem;                /// parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];                       /// base of parameter memory block
-UFP DICT0 = ~0;                             /// base of dictionary
+UFP XT0   = ~0;                             /// base of function pointers
+IU  NXT   = 0;                              /// cached DONEXT xt address
 ///==============================================================================
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
 int ForthVM::pfa2word(U8 *ip) {
     IU   ipx = *(IU*)ip;
-    UFP  xt  = DICT0 + ipx;
+    IU   def = ipx & 0x1;
+    IU   pfa = ipx & ~0x1;     /// TODO: handle immediate colon word (when > 64K needed)
+    UFP  xt  = XT(ipx);
     for (int i = dict.idx - 1; i >= 0; --i) {
-        if (ipx & 1) {
-            if (dict[i].pfa == (ipx & ~1)) return i;
+        if (def) {
+        	if (dict[i].pfa == pfa) return i;      /// compare pfa in PMEM
         }
-        else if ((UFP)dict[i].xt == xt) return i;
+        else if ((UFP)dict[i].xt == xt) return i;  /// compare xt (no immediate?)
     }
     return -1;
 }
@@ -62,9 +65,7 @@ void  ForthVM::colon(const char *name) {
     c.pfa = HERE;                           // capture code field index
     dict.push(c);                           // deep copy Code struct into dictionary
     printf("%3d> pfa=%x, name=%4x:%p %s\n", dict.idx-1,
-        dict[-1].pfa,
-        (U16)(dict[-1].name - (const char*)MEM0),
-        dict[-1].name, dict[-1].name);
+        dict[-1].pfa, OFF(dict[-1].name), dict[-1].name, dict[-1].name);
 }
 ///============================================================================
 ///
@@ -86,17 +87,16 @@ void nest() {
     while (*(IU*)IP) {
         if (*(IU*)IP & 1) {
             /// ENTER
-            rs.push(WP);
-            rs.push(OFF(IP) + sizeof(IU));       /// * setup call frame
-            IP = MEM0 + (*(IU*)IP & ~0x1);
+            rs.push(WP);                        /// * setup callframe
+            IP = MEM(*(IU*)IP & ~0x1);
             nest();
             /// EXIT
-            IP = MEM0 + rs.pop();                /// * restore call frame
-            WP = rs.pop();
+            IP = MEM(rs.pop());                 /// * restore call frame
+            WP =rs.pop();
         }
         else {
-            UFP xt = DICT0 + (*(IU*)IP & ~0x3);  /// * function pointer
-            IP += sizeof(IU);                    /// * advance to next opcode
+            UFP xt = XT(*(IU*)IP & ~0x3);       /// * function pointer
+            IP += sizeof(IU);                   /// * advance to next opcode
             (*(FPTR)xt)();
         }
     }
@@ -116,14 +116,18 @@ void ForthVM::nest() {
             if (ipx & 1) {
                 rs.push(WP);                         /// * setup callframe (ENTER)
                 rs.push(OFF(IP));
-                IP = MEM0 + (ipx & ~0x1);            /// word pfa (def masked)
+                IP = MEM(ipx & ~0x1);                /// word pfa (def masked)
                 dp++;
             }
-            else (*(FPTR)(DICT0 + (ipx & ~0x3)))();  /// * execute primitive word
-            ipx = *(IU*)IP;
+            else if (ipx == NXT) {                   /// check cached DONEXT (save 600ms / 100M cycles)
+                if ((rs[-1] -= 1) >= 0) IP = MEM(*(IU*)IP);
+                else { IP += sizeof(IU); rs.pop(); }
+            }
+            else (*(FPTR)XT(ipx & ~0x3))(ipx);       /// * execute primitive word
+            ipx = *(IU*)IP;                          /// * fetch next opcode
         }
         if (dp-- > 0) {
-            IP = MEM0 + rs.pop();                    /// * restore call frame (EXIT)
+            IP = MEM(rs.pop());                      /// * restore call frame (EXIT)
             WP = rs.pop();
         }
         yield();                                     ///> give other tasks some time
