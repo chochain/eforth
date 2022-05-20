@@ -273,7 +273,19 @@ void colon(const char *name) {
         dict[-1].name, dict[-1].name);
 };
 ///
-/// Forth inner interpreter - recursive (look nicer but use system stack)
+/// Forth inner interpreter
+///
+#if LAMBDA_OK
+#define CALL(w) \
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
+    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
+#else  // LAMBDA_OK
+#define CALL(w) \
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
+    else (*(fop)((UFP)dict[w].xt & ~0x3))()
+#endif // LAMBDA_OK
+///
+/// recursive version (look nicer but use system stack)
 /// Note: superceded by iterator version below (~8% faster)
 /*
 void nest() {
@@ -298,17 +310,8 @@ void nest() {
 }
 */
 ///
-/// Forth inner interpreter - interative (instead of recursive)
+/// interative version
 ///
-#if LAMBDA_OK
-#define CALL(w) \
-    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
-    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
-#else  // LAMBDA_OK
-#define CALL(w) \
-    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
-    else (*(fop)((UFP)dict[w].xt & ~0x3))()
-#endif // LAMBDA_OK
 void nest() {
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
@@ -419,7 +422,11 @@ void mem_dump(IU p0, DU sz) {
 inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
 inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
-inline void PUSH(DU v)    { ss.push(top); top = v; }
+///
+/// This is a killer!!! 3400ms vs 1200ms per 100M cycles, TODO: why?
+/// inline PUSH(DU v)     { ss.push(top); top = v; }
+///
+#define     PUSH(v)       { ss.push(top); top = (v); }
 ///
 /// global memory access macros
 ///
