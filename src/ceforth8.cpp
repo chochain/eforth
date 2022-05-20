@@ -27,7 +27,10 @@ using namespace std;
 ///
 /// conditional compililation options
 ///
-#define LAMBDA_OK       1
+/// Note: lambda enable VM taking parameters (with capture)
+///       but nest() becomes 2x slower
+///
+#define LAMBDA_OK       0
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
 ///
@@ -174,8 +177,8 @@ struct Code {
 ///   * this makes IP increment by 2 instead of word size. If needed, it can be
 ///   * readjusted.
 ///
-List<DU,   E4_SS_SZ>   ss;        /// data stack, can reside in registers for some processors
 List<DU,   E4_RS_SZ>   rs;        /// return stack
+List<DU,   E4_SS_SZ>   ss;        /// data stack, can reside in registers for some processors
 List<Code, E4_DICT_SZ> dict;      /// fixed sized dictionary (RISC vs CISC)
 List<U8,   E4_PMEM_SZ> pmem;      /// parameter memory i.e. storage for all colon definitions
 U8   *MEM0 = &pmem[0];            /// cached memory base (saved 200ms/1M cycles)
@@ -303,8 +306,8 @@ void nest() {
     else (*(fop*)((UFP)dict[w].xt & ~0x3))()
 #else  // LAMBDA_OK
 #define CALL(w) \
-    if (dict[w].def) nest(); \
-    else (*(fop)((UFP)dict[w].xt & ~0x3)()
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
+    else (*(fop)((UFP)dict[w].xt & ~0x3))()
 #endif // LAMBDA_OK
 void nest() {
     int dp = 0;                                      /// iterator depth control
