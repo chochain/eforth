@@ -27,10 +27,10 @@ using namespace std;
 ///
 /// conditional compililation options
 ///
-/// Note: lambda enable VM taking parameters (with capture)
-///       but nest() becomes 2x slower
+/// Note: lambda enables VM taking parameters (with capture)
+///       but slows nest() by 3%
 ///
-#define LAMBDA_OK       0
+#define LAMBDA_OK       1
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
 ///
@@ -122,10 +122,11 @@ struct XT : fop {           // universal functor
     XT(F &f) : fp(f) {}
     void operator()() INLINE { fp(); }
 };
+typedef fop* FPTR;          // lambda function pointer
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
-        fop *xt = 0;        /// lambda pointer
+        FPTR xt = 0;        /// lambda pointer
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
@@ -146,11 +147,11 @@ struct Code {
 ///
 /// a lambda without capture can degenerate into a function pointer
 ///
-typedef void (*fop)();
+typedef void (*FPTR)();
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
-        fop xt = 0;         /// lambda pointer
+        FPTR xt = 0;        /// lambda pointer
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
@@ -158,7 +159,7 @@ struct Code {
             IU  pfa;        /// offset to pmem space (16-bit for 64K range)
         };
     };
-    Code(const char *n, fop f, bool im=false) : name(n), xt(f) {
+    Code(const char *n, FPTR f, bool im=false) : name(n), xt(f) {
         immd = im ? 1 : 0;
     }
     Code() {}               /// create a blank struct (for initilization)
@@ -275,15 +276,9 @@ void colon(const char *name) {
 ///
 /// Forth inner interpreter
 ///
-#if LAMBDA_OK
 #define CALL(w) \
     if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
-    else (*(fop*)((UFP)dict[w].xt & ~0x3))()
-#else  // LAMBDA_OK
-#define CALL(w) \
-    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
-    else (*(fop)((UFP)dict[w].xt & ~0x3))()
-#endif // LAMBDA_OK
+    else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
 ///
 /// recursive version (look nicer but use system stack)
 /// Note: superceded by iterator version below (~8% faster)
@@ -303,7 +298,7 @@ void nest() {
         else {
             UFP xt = DICT0 + (*(IU*)IP & ~0x3);  /// * function pointer
             IP += sizeof(IU);                    /// * advance to next opcode
-            (*(fop*)xt)();
+            (*(FPTR)xt)();
         }
     }
     yield();                                ///> give other tasks some time
@@ -324,11 +319,7 @@ void nest() {
                 IP = MEM0 + (ipx & ~0x1);            /// word pfa (def masked)
                 dp++;                                /// one level deeper
             }
-#if LAMBDA_OK
-            else (*(fop*)(DICT0 + (ipx & ~0x3)))();  /// * execute primitive word
-#else  // LAMBDA_OK
-            else (*(fop)(DICT0 + (ipx & ~0x3)))();   /// * execute primitive word
-#endif // LAMBDA_OK
+            else (*(FPTR)(DICT0 + (ipx & ~0x3)))();  /// * execute primitive word
             ipx = *(IU*)IP;
         }
         if (dp-- > 0) {
