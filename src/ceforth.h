@@ -1,6 +1,5 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
-#include <memory>           // shared_ptr, make_shared
 #include <sstream>          // istream, ostream
 #include <exception>        // try...catch, throw
 #include <string.h>         // strlen, strcasecmp
@@ -164,36 +163,6 @@ struct Code {
 #define CODE(s, g) { s, []{ g; }}
 #define IMMD(s, g) { s, []{ g; }, true }
 #endif // LAMBDA_OK
-///
-/// global memory blocks
-///
-<<<<<<< HEAD
-extern List<DU,   E4_SS_SZ>   rs;             /// return stack
-extern List<DU,   E4_RS_SZ>   ss;             /// parameter stack
-extern List<Code, E4_DICT_SZ> dict;           /// dictionary
-extern List<U8,   E4_PMEM_SZ> pmem;           /// parameter memory (for colon definitions)
-extern U8  *MEM0;                             /// base of cached memory
-extern UFP XT0;                               /// base of function pointers
-extern IU  NXT;                               /// cached xt address of DONEXT
-///================================================================================
-///
-/// macros to abstract dict and pmem physical implementation
-/// Note:
-///   so we can change pmem implementation anytime without affecting opcodes defined below
-///
-#define BOOL(f)   ((f)?-1:0)
-#define PFA(w)    ((U8*)&pmem[dict[w].pfa]) /** parameter field pointer of a word        */
-#define HERE      (pmem.idx)                /** current parameter memory index           */
-#define OFF(ip)   ((IU)((U8*)(ip) - MEM0))  /** IP offset (index) in parameter memory    */
-#define MEM(ipx)  (MEM0 + (ipx))            /** pointer to IP address fetched from pmem  */
-#define XTOFF(xt) ((IU)((UFP)(xt) - XT0))   /** XT offset (index) in code space          */
-#define XT(xtx)   (XT0 + (xtx))             /** convert XT offset to function pointer    */
-#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
-#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
-
-typedef enum {
-    EXIT = 0, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DONEXT, DOES, TOR
-} forth_opcode;
 ///
 /// Forth virtual machine class
 ///
