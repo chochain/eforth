@@ -1,7 +1,14 @@
 ///
 /// eForth - implemented in C/C++ for portability
 ///
+/// Benchmark: 1M test case on NodeMCU ESP32S
+///    1440ms Dr. Ting's orig/esp32forth_82
+///    1240ms ~/Download/forth/esp32/esp32forth8_exp9 
+///    1045ms orig/esp32forth8_1
+///     735ms + INLINE List methods
+///
 #include <iomanip>          // setbase, setw, setfill
+#include <string.h>
 #include "ceforth.h"
 ///
 /// version info
@@ -12,6 +19,14 @@
 ///==============================================================================
 ///
 /// global memory blocks
+///
+/// Note:
+///   1.By separating pmem from dictionary, it makes dictionary uniform size
+///   * (i.e. the RISC vs CISC debate) which eliminates the need for link field
+///   * however, it requires size tuning manually
+///   2.For ease of byte counting, we use U8 for pmem instead of U16.
+///   * this makes IP increment by 2 instead of word size. If needed, it can be
+///   * readjusted.
 ///
 List<DU,   E4_SS_SZ>   rs;         /// return stack
 List<DU,   E4_RS_SZ>   ss;         /// parameter stack
@@ -173,23 +188,37 @@ void add_w(IU w) {
 }
 ///==============================================================================
 ///
-/// debug functions
+/// utilize C++ standard template libraries for core IO functions only
+/// Note:
+///   * we use STL for its convinence, but
+///   * if it takes too much memory for target MCU,
+///   * these functions can be replaced with our own implementation
 ///
-istream *fin;                          /// VM stream input
-ostream *fout;                         /// VM stream output
-string  strbuf;
+#include <sstream>                  // iostream, stringstream
+#include <iomanip>                  // setbase
+#include <string>                   // string class
+using namespace std;                // default to C++ standard template library
+istringstream   fin;                // forth_in
+ostringstream   fout;               // forth_out
+string strbuf;                      // input string buffer
+void (*fout_cb)(int, const char*);  // forth output callback function
+///================================================================================
 ///
-void dot_r(int n, int v) { *fout << setw(n) << setfill(' ') << v; }
-void to_s(IU c) {
-    *fout << dict[c].name << " " << c << (dict[c].immd ? "* " : " ");
+/// IO & debug functions
+///
+inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
+inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
+inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
+inline void to_s(IU w) {
+    fout << dict[w].name << " " << w << (dict[w].immd ? "* " : " ");
 }
 ///
 /// recursively disassemble colon word
 ///
 void see(U8 *ip, int dp=1) {
     while (*(IU*)ip) {
-        *fout << ENDL; for (int i=dp; i>0; i--) *fout << "  ";        // indentation
-        *fout << setw(4) << OFF(ip) << "[ " << setw(-1);
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        // indentation
+        fout << setw(4) << OFF(ip) << "[ " << setw(-1);
         IU c = pfa2word(ip);
         to_s(c);                                                    // name field
         if (dict[c].def && dp <= 2) {                               // is a colon word
@@ -198,51 +227,49 @@ void see(U8 *ip, int dp=1) {
         ip += sizeof(IU);
         switch (c) {
         case DOVAR: case DOLIT:
-            *fout << "= " << *(DU*)ip; ip += sizeof(DU); break;
+            fout << "= " << *(DU*)ip; ip += sizeof(DU); break;
         case DOSTR: case DOTSTR:
-            *fout << "= \"" << (char*)ip << '"';
+            fout << "= \"" << (char*)ip << '"';
             ip += STRLEN((char*)ip); break;
         case BRAN: case ZBRAN: case DONEXT:
-            *fout << "j" << *(IU*)ip; ip += sizeof(IU); break;
+            fout << "j" << *(IU*)ip; ip += sizeof(IU); break;
         }
-        *fout << "] ";
+        fout << "] ";
     }
 }
 void words() {
-    *fout << setbase(10);
+    fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
-        if ((i%10)==0) { *fout << ENDL; yield(); }
+        if ((i%10)==0) { fout << ENDL; yield(); }
         to_s(i);
     }
-    *fout << setbase(base);
+    fout << setbase(base);
 }
 void ss_dump() {
-    *fout << " <"; for (int i=0; i<ss.idx; i++) { *fout << ss[i] << " "; }
-    *fout << top << "> ok" << ENDL;
+    fout << " <"; for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
+    fout << top << "> ok" << ENDL;
 }
 void mem_dump(IU p0, DU sz) {
-    *fout << setbase(16) << setfill('0') << ENDL;
+    fout << setbase(16) << setfill('0') << ENDL;
     for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
-        *fout << setw(4) << i << ": ";
+        fout << setw(4) << i << ": ";
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
-            *fout << setw(2) << (int)c << (j%4==3 ? "  " : " ");
+            fout << setw(2) << (int)c << (j%4==3 ? "  " : " ");
         }
         for (int j=0; j<16; j++) {   // print and advance to next byte
             U8 c = pmem[i+j] & 0x7f;
-            *fout << (char)((c==0x7f||c<0x20) ? '_' : c);
+            fout << (char)((c==0x7f||c<0x20) ? '_' : c);
         }
-        *fout << ENDL;
+        fout << ENDL;
         yield();
     }
-    *fout << setbase(base);
+    fout << setbase(base);
 }
 ///================================================================================
 ///
 /// macros to reduce verbosity
 ///
-inline char *next_idiom() { *fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
-inline char *scan(char c) { getline(*fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///
 /// This is a killer!!! 3400ms vs 1200ms per 100M cycles, TODO: why?
@@ -271,7 +298,7 @@ static Code prim[] = {
         PUSH(OFF(IP)); IP += STRLEN(s)),
     CODE("dotstr",
         const char *s = (const char*)IP;           // get string pointer
-        *fout << s;  IP += STRLEN(s)),             // send to output console
+        fout << s;  IP += STRLEN(s)),             // send to output console
     CODE("branch" , IP = MEM(*(IU*)IP)),           // unconditional branch
     CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEM(*(IU*)IP)), // conditional branch
     CODE("donext",                                 // cached in nest()
@@ -346,24 +373,24 @@ static Code prim[] = {
     /// @defgroup IO ops
     /// @{
     CODE("base@",   PUSH(base)),
-    CODE("base!",   *fout << setbase(base = POP())),
-    CODE("hex",     *fout << setbase(base = 16)),
-    CODE("decimal", *fout << setbase(base = 10)),
-    CODE("cr",      *fout << ENDL),
-    CODE(".",       *fout << POP() << " "),
+    CODE("base!",   fout << setbase(base = POP())),
+    CODE("hex",     fout << setbase(base = 16)),
+    CODE("decimal", fout << setbase(base = 10)),
+    CODE("cr",      fout << ENDL),
+    CODE(".",       fout << POP() << " "),
     CODE(".r",      DU n = POP(); dot_r(n, POP())),
     CODE("u.r",     DU n = POP(); dot_r(n, abs(POP()))),
     CODE("key",     PUSH(next_idiom()[0])),
-    CODE("emit",    char b = (char)POP(); *fout << b),
-    CODE("space",   *fout << " "),
-    CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) *fout << " "),
+    CODE("emit",    char b = (char)POP(); fout << b),
+    CODE("space",   fout << " "),
+    CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) fout << " "),
     /// @}
     /// @defgroup Literal ops
     /// @{
     CODE("[",       compile = false),
     CODE("]",       compile = true),
     IMMD("(",       scan(')')),
-    IMMD(".(",      *fout << scan(')')),
+    IMMD(".(",      fout << scan(')')),
     CODE("\\",      scan('\n')),
     CODE("$\"",
         const char *s = scan('"')+1;        // string skip first blank
@@ -440,7 +467,7 @@ static Code prim[] = {
     CODE(",",     DU n = POP(); add_du(n)),
     CODE("allot", DU v = 0; for (IU n = POP(), i = 0; i < n; i++) add_du(v)), // n --
     CODE("+!",    IU w = POP(); CELL(w) += POP()),               // n w --
-    CODE("?",     IU w = POP(); *fout << CELL(w) << " "),         // w --
+    CODE("?",     IU w = POP(); fout << CELL(w) << " "),         // w --
     /// @}
     /// @defgroup Debug ops
     /// @{
@@ -451,7 +478,7 @@ static Code prim[] = {
     CODE(".s",    ss_dump()),
     CODE("see",
         IU w = find(next_idiom());
-        *fout << "[ "; to_s(w); see(PFA(w)); *fout << "]" << ENDL),
+        fout << "[ "; to_s(w); see(PFA(w)); fout << "]" << ENDL),
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
@@ -472,40 +499,58 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 ///
 ///   dictionary initialization
 ///
-void forth_init() {
-    for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
-        dict.push(prim[i]);                  /// find() can be modified to support
-        if ((UFP)dict[i].xt < XT0) XT0 = (UFP)dict[i].xt; /// collect xt base
-    }
-    NXT = XTOFF(dict[DONEXT].xt);
+#if (ARDUINO || ESP32)
+void dict_dump() {
+    LOGF("dict0=");         LOGX(DICT0);
+    LOGF(", sizeof(Code)="); LOG(sizeof(Code));
+    LOGF("\n");
+    for (int i=0; i<PSZ; i++) {
+        Code &c = dict[i];
+        LOG(i);
+        LOGF("> xt=");   LOGX((UFP)c.xt - DICT0);
+        LOGF(":");       LOGX((UFP)c.xt);
+        LOGF(", name="); LOGX(c.name - dict[EXIT].name);
+        LOGF(":");       LOGX((UFP)c.name);
+        LOG(" ");        LOG(c.name);
+        LOGF("\n");
+    }                                        /// searching both spaces
+}
+#else  // (ARDUINO || ESP32)
+void dict_dump() {
     printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
-    /*
     for (int i=0; i<PSZ; i++) {
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
             XTOFF(dict[i].xt), dict[i].xt,
             (U16)(dict[i].name - dict[0].name),
             dict[i].name, dict[i].name);
     }
-    */
 }
-ForthVM::ForthVM(istream &in, ostream &out) {
-    fin  = &in;
-    fout = &out;
+#endif // (ARDUINO || ESP32)
+
+void forth_init() {
+    for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
+        dict.push(prim[i]);                  /// find() can be modified to support
+        if ((UFP)dict[i].xt < XT0) XT0 = (UFP)dict[i].xt; /// collect xt base
+    }
+    NXT = XTOFF(dict[DONEXT].xt);
+    
+    dict_dump();
 }
-///
-/// ForthVM dictionary setup
-///
-void ForthVM::init() { forth_init(); }
 ///
 /// ForthVM Outer interpreter
 ///
-void ForthVM::outer() {
-    string idiom;
-    while (*fin >> idiom) {
-        //printf("%s=>", idiom.c_str());
+void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
+    fin.clear();                             /// clear input stream error bit if any
+    fin.str(cmd);                            /// feed user command into input stream
+    fout_cb = callback;                      /// setup callback function
+    fout.str("");                            /// clean output buffer, ready for next run
+    while (fin >> strbuf) {
+        const char *idiom = strbuf.c_str();
         int w = find(idiom);                        /// * search through dictionary
+        // LOGF("find("); LOG(idiom); LOGF(") => ");
         if (w >= 0) {                               /// * word found?
             //printf("%s(%ld)\n", w->to_s().c_str(), w.use_count());
+            // LOG(dict[w].name); LOG(" "); LOG(w); LOGF("\n");
             if (compile && !dict[w].immd)           /// * in compile mode?
                 add_w(w);                           /// * add to colon word
             else CALL(w);                           /// * execute forth word
@@ -515,14 +560,15 @@ void ForthVM::outer() {
         char *p;
 #if DU==float
         DU n = (base==10)
-            ? static_cast<DU>(strtof(idiom.c_str(), &p))
-            : static_cast<DU>(strtol(idiom.c_str(), &p, base));
+            ? static_cast<DU>(strtof(idiom, &p))
+            : static_cast<DU>(strtol(idiom, &p, base));
 #else
-        DU n = static_cast<DU>(strtol(idiom.c_str(), &p, base));
+        DU n = static_cast<DU>(strtol(idiom, &p, base));
 #endif
         //printf("%d\n", n);
+        // LOG(n); LOGF("\n");
         if (*p != '\0') {                           /// * not number
-            *fout << idiom << "? " << ENDL;         ///> display error prompt
+            fout << idiom << "? " << ENDL;         ///> display error prompt
             compile = false;                        ///> reset to interpreter mode
             break;                                  ///> skip the entire input buffer
         }
@@ -534,6 +580,76 @@ void ForthVM::outer() {
         else PUSH(n);                               ///> or, add value onto data stack
     }
     if (!compile) ss_dump();   /// * dump stack and display ok prompt
+}
+
+///==========================================================================
+#if  !(ARDUINO || ESP32)
+static int forth_load(const char *fname) { return 0; }
+void ForthVM::version()  {}
+void ForthVM::mem_stat() {}
+#else  // !(ARDUINO || ESP32)
+#include <SPIFFS.h>
+///==========================================================================
+///
+/// Forth bootstrap loader (from Flash)
+///
+static int forth_load(const char *fname) {
+    auto dummy = [](int, const char *) { /* do nothing */ };
+    if (!SPIFFS.begin()) {
+        LOGF("Error mounting SPIFFS"); return 1; }
+    File file = SPIFFS.open(fname, "r");
+    if (!file) {
+        LOGF("Error opening file:"); LOG(fname); return 1; }
+    LOGF("Loading file: "); LOG(fname); LOGF("...");
+    while (file.available()) {
+        char cmd[256], *p = cmd, c;
+        while ((c = file.read())!='\n') *p++ = c;   // one line a time
+        *p = '\0';
+        LOGF("\n<< "); LOG(cmd);                    // show bootstrap command
+        forth_outer(cmd, dummy); }
+    LOGF("Done loading.\n");
+    file.close();
+    SPIFFS.end();
+    return 0;
+}
+void ForthVM::version() {
+    LOGF("\n");
+    LOGF(APP_NAME);      LOGF(" ");
+    LOGF(MAJOR_VERSION); LOGF(".");
+    LOGF(MINOR_VERSION);
+    LOGF("\n");
+}
+///
+/// memory statistics dump - for heap and stack debugging
+///
+void ForthVM::mem_stat() {
+    LOGF("Core:");           LOG(xPortGetCoreID());
+    LOGF(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    LOGF(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    LOGF(", ss_max=");       LOG(ss.max);
+    LOGF(", rs_max=");       LOG(rs.max);
+    LOGF(", pmem=");         LOG(HERE);
+    LOGF("], lowest[heap="); LOG(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    LOGF(", stack=");        LOG(uxTaskGetStackHighWaterMark(NULL));
+    LOGF("]\n");
+    if (!heap_caps_check_integrity_all(true)) {
+//        heap_trace_dump();     // dump memory, if we have to
+        abort();                 // bail, on any memory error
+    }
+}
+#endif // !(ARDUINO || ESP32)
+///===================================================================================================
+///
+/// ForthVM front-end handlers
+///
+void ForthVM::init() {
+    forth_init();
+    //forth_load("/load.txt");    // compile /data/load.txt
+
+    mem_stat();
+}
+void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
+    forth_outer(cmd, callback);
 }
 
 #if !(ARDUINO || ESP32)
@@ -552,7 +668,7 @@ int main(int ac, char* av[]) {
         //printf("cmd=<%s>\n", line.c_str());
         forth_in.clear();                               // clear any input stream error bit
         forth_in.str(cmd);                              // send command to FVM
-        vm->outer();                                    // execute outer interpreter
+        vm->outer(cmd.c_str(), NULL);                   // execute outer interpreter
         cout << forth_out.str();                        // send VM result to output
         forth_out.str(string());                        // clear output buffer
     }
