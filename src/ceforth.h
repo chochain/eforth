@@ -1,15 +1,20 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
-#include <sstream>          // istream, ostream
+#include <stdint.h>         // uintxx_t
+#include <sstream>
 #include <exception>        // try...catch, throw
-#include <string.h>         // strlen, strcasecmp
 ///
 /// conditional compililation options
 ///
 /// Note: use LAMBDA_OK=1 for full ForthVM class
-///       since lambda needs to capture [this] for Code
-///       * lambda slow down nest() by 2x (1200ms -> 2500ms per 100M)
-///       * with one extra parameter, it slows 160ms per 100M cycles
+///    since lambda needs to capture [this] for Code
+///    * lambda slow down nest() by 2x (1200ms -> 2500ms per 100M)
+///    * with one extra parameter, it slows 160ms per 100M cycles
+/// benchmark:
+///    LAMBDA_OK       0 cut 80ms/1M cycles
+///    RANGE_CHECK     0 cut 100ms/1M cycles
+///    INLINE            cut 545ms/1M cycles
+///
 #define LAMBDA_OK       0    /** set 1 for ForthVM.this */
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
@@ -18,8 +23,8 @@
 ///
 #define E4_SS_SZ        64
 #define E4_RS_SZ        64
-#define E4_DICT_SZ      1024
-#define E4_PMEM_SZ      (48*1024)
+#define E4_DICT_SZ      2048
+#define E4_PMEM_SZ      (64*1024)
 ///
 /// multi-platform support
 ///
@@ -32,8 +37,12 @@
 #if ARDUINO
 #include <Arduino.h>
 #define to_string(i)    string(String(i).c_str())
+#define LOGF(s)         Serial.print(F(s))
+#define LOG(v)          Serial.print(v)
+#define LOGX(v)         Serial.print(v, HEX)
 #if ESP32
 #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
+#define ENDL                endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str
 #endif // ESP32
 #else  // ARDUINO
 #include <chrono>
@@ -168,9 +177,11 @@ struct Code {
 ///
 class ForthVM {
 public:
-    ForthVM(istream &in, ostream &out);
+    ForthVM(istream &in, ostream &out) {}
 
     void init();
-    void outer();
+    void outer(const char *cmd, void(*callback)(int, const char*));
+    void version();
+    void mem_stat();
 };
 #endif // __EFORTH_SRC_CEFORTH_H
