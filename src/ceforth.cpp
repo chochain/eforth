@@ -1,3 +1,6 @@
+///
+/// eForth - implemented in C/C++ for portability
+///
 #include <iomanip>          // setbase, setw, setfill
 #include "ceforth.h"
 ///
@@ -268,7 +271,7 @@ static Code prim[] = {
         PUSH(OFF(IP)); IP += STRLEN(s)),
     CODE("dotstr",
         const char *s = (const char*)IP;           // get string pointer
-        fout << s;  IP += STRLEN(s)),              // send to output console
+        *fout << s;  IP += STRLEN(s)),             // send to output console
     CODE("branch" , IP = MEM(*(IU*)IP)),           // unconditional branch
     CODE("0branch", IP = POP() ? IP + sizeof(IU) : MEM(*(IU*)IP)), // conditional branch
     CODE("donext",                                 // cached in nest()
