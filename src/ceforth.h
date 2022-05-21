@@ -11,7 +11,7 @@
 ///       since lambda needs to capture [this] for Code
 ///       * lambda slow down nest() by 2x (1200ms -> 2500ms per 100M)
 ///       * with one extra parameter, it slows 160ms per 100M cycles
-#define LAMBDA_OK       1    /** set 1 for ForthVM.this */
+#define LAMBDA_OK       0    /** set 1 for ForthVM.this */
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
 ///
@@ -114,16 +114,16 @@ struct List {
 #if LAMBDA_OK
 struct fop { virtual void operator()(IU) = 0; };
 template<typename F>
-struct XT : fop {           // universal functor
+struct XT : fop {           /// universal functor
     F fp;
     XT(F &f) : fp(f) {}
     void operator()(IU c) INLINE { fp(c); }
 };
-typedef fop* FPTR;          // lambda function pointer
+typedef fop* FPTR;          /// lambda function pointer
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
-        fop *xt = 0;        /// lambda pointer
+        FPTR xt = 0;        /// lambda pointer
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
@@ -144,7 +144,7 @@ struct Code {
 ///
 /// a lambda without capture can degenerate into a function pointer
 ///
-typedef void (*FPTR)();
+typedef void (*FPTR)();     /// function pointer
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
@@ -167,6 +167,7 @@ struct Code {
 ///
 /// global memory blocks
 ///
+<<<<<<< HEAD
 extern List<DU,   E4_SS_SZ>   rs;             /// return stack
 extern List<DU,   E4_RS_SZ>   ss;             /// parameter stack
 extern List<Code, E4_DICT_SZ> dict;           /// dictionary
@@ -198,67 +199,9 @@ typedef enum {
 ///
 class ForthVM {
 public:
-    istream &fin;                             /// VM stream input
-    ostream &fout;                            /// VM stream output
-
-    bool    compile = false;                  /// compiling flag
-    bool    ucase   = true;                   /// case sensitivity control
-    DU      base    = 10;                     /// numeric radix
-    DU      top     = DVAL;                   /// top of stack (cached)
-    IU      WP      = 0;                      /// current word
-    U8      *IP;                              /// current intruction pointer
-
-    string  idiom;
-
-    ForthVM(istream &in, ostream &out) : fin(in), fout(out) {}
+    ForthVM(istream &in, ostream &out);
 
     void init();
     void outer();
-
-private:
-    ///
-    /// dictionary search methods
-    ///
-    int   pfa2word(U8 *ip);
-    int   streq(const char *s1, const char *s2);
-    int   find(const char *s);
-    int   find(string &s) { return find(s.c_str()); }
-    ///
-    /// compiler methods
-    ///
-    void  add_iu(IU i) INLINE { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /// add an instruction into pmem
-    void  add_du(DU v) INLINE { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /// add a cell into pmem
-    void  add_str(const char *s) INLINE {                                                       /// add a string to pmem
-        int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
-    }
-    void  colon(const char *name);                                                              /// create a colon word
-    void  colon(string &s) { colon(s.c_str()); }
-    void  add_w(IU w) {                                                                         /// compile the pfa of a word
-        Code &c  = dict[w];
-        IU   ipx = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
-        add_iu(ipx);
-        // printf("add_w(%d) => %4x:%p %s\n", w, ipx, c.xt, c.name);
-    }
-    ///
-    /// inner interpreter ops
-    ///
-    void  PUSH(DU v) INLINE { ss.push(top); top = v; }
-    DU    POP()      INLINE { DU n = top; top = ss.pop(); return n; }
-    void  call(IU w);
-    void  nest();
-    ///
-    /// input methods
-    ///
-    string &next_idiom()       INLINE { fin >> idiom; return idiom; }
-    string &scan(char delim=0) INLINE { getline(fin, idiom, delim); return idiom; }
-    ///
-    /// debug methods
-    ///
-    void  dot_r(int n, int v);
-    void  to_s(IU c);
-    void  see(U8 *ip, int dp=1);
-    void  words();
-    void  ss_dump();
-    void  mem_dump(IU p0, DU sz);
 };
 #endif // __EFORTH_SRC_CEFORTH_H
