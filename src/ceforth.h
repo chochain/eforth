@@ -31,7 +31,7 @@
 #if _WIN32 || _WIN64
 #define ENDL "\r\n"
 #else  // _WIN32 || _WIN64
-#define ENDL endl
+#define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
 #endif // _WIN32 || _WIN64
 
 #if ARDUINO
@@ -42,7 +42,6 @@
 #define LOGX(v)         Serial.print(v, HEX)
 #if ESP32
 #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
-#define ENDL                endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str
 #endif // ESP32
 #else  // ARDUINO
 #include <chrono>
@@ -177,11 +176,10 @@ struct Code {
 ///
 class ForthVM {
 public:
-    ForthVM(istream &in, ostream &out) {}
-
     void init();
     void outer(const char *cmd, void(*callback)(int, const char*));
     void version();
     void mem_stat();
+    void dict_dump();
 };
 #endif // __EFORTH_SRC_CEFORTH_H
