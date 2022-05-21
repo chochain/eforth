@@ -7,11 +7,15 @@
 ///
 /// conditional compililation options
 ///
-#define LAMBDA_OK       1
+/// Note: use LAMBDA_OK=1 for full ForthVM class
+///       since lambda needs to capture [this] for Code
+///       * lambda slow down nest() by 2x (1200ms -> 2500ms per 100M)
+///       * with one extra parameter, it slows 160ms per 100M cycles
+#define LAMBDA_OK       0    /** set 1 for ForthVM.this */
 #define RANGE_CHECK     0
 #define INLINE          __attribute__((always_inline))
 ///
-/// configuation
+/// memory block configuation
 ///
 #define E4_SS_SZ        64
 #define E4_RS_SZ        64
@@ -39,7 +43,7 @@
                             chrono::steady_clock::now().time_since_epoch()).count()
 #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
 #define yield()         this_thread::yield()
-#define PROGRAM
+#define PROGMEM
 #endif // ARDUINO
 
 using namespace std;
@@ -103,30 +107,23 @@ struct List {
     void clear(int i=0)    INLINE { idx=i; }
 };
 ///
-/// functor implementation - for lambda support (without STL)
-///
-#if LAMBDA_OK
-struct fop { virtual void operator()() = 0; };
-template<typename F>
-struct XT : fop {           // universal functor
-    F fp;
-    XT(F &f) : fp(f) {}
-    void operator()() INLINE { fp(); }
-};
-#else  // LAMBDA_OK
-typedef void (*fop)();
-#endif // LAMBDA_OK
-
-///
-/// universal Code class
+/// universal functor (no STL) and Code class
 /// Note:
 ///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
 #if LAMBDA_OK
+struct fop { virtual void operator()(IU) = 0; };
+template<typename F>
+struct XT : fop {           /// universal functor
+    F fp;
+    XT(F &f) : fp(f) {}
+    void operator()(IU c) INLINE { fp(c); }
+};
+typedef fop* FPTR;          /// lambda function pointer
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
-        fop *xt = 0;        /// lambda pointer
+        FPTR xt = 0;        /// lambda pointer
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
@@ -141,11 +138,17 @@ struct Code {
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, [](IU c) { g; }}
+#define IMMD(s, g) { s, [](IU c) { g; }, true }
 #else  // LAMBDA_OK
+///
+/// a lambda without capture can degenerate into a function pointer
+///
+typedef void (*FPTR)();     /// function pointer
 struct Code {
     const char *name = 0;   /// name field
     union {                 /// either a primitive or colon word
-        fop xt = 0;         /// lambda pointer
+        FPTR xt = 0;        /// lambda pointer
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
@@ -153,11 +156,13 @@ struct Code {
             IU  pfa;        /// offset to pmem space (16-bit for 64K range)
         };
     };
-    Code(const char *n, fop f, bool im=false) : name(n), xt(f) {
+    Code(const char *n, FPTR f, bool im=false) : name(n), xt(f) {
         immd = im ? 1 : 0;
     }
     Code() {}               /// create a blank struct (for initilization)
 };
+#define CODE(s, g) { s, []{ g; }}
+#define IMMD(s, g) { s, []{ g; }, true }
 #endif // LAMBDA_OK
 ///
 /// Forth virtual machine class
