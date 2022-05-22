@@ -123,8 +123,11 @@ void nest() {
 ///
 /// interative version
 ///
+/// Note: use local stack, 840ms => 784ms, but allot 4*64 bytes extra
+///
 void nest() {
 	static IU _NXT = XTOFF(dict[find("donext")].xt); /// cache offset to subroutine address
+    static IU _rs[E4_RS_SZ];                         /// * local stack (instead of global rs)
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
         IU ix = *(IU*)MEM(IP);                       /// hopefully use register than cached line
@@ -132,7 +135,8 @@ void nest() {
             IP += sizeof(IU);
             if (ix & 1) {
                 rs.push(WP);                         /// * setup callframe (ENTER)
-                rs.push(IP);
+                //rs.push(IP);
+                _rs[dp] = IP;
                 IP = ix & ~0x1;                      /// word pfa (def masked)
                 dp++;
             }
@@ -144,7 +148,8 @@ void nest() {
             ix = *(IU*)MEM(IP);                      /// * fetch next opcode
         }
         if (dp-- > 0) {
-            IP = rs.pop();                           /// * restore call frame (EXIT)
+            IP = _rs[dp];
+            //IP = rs.pop();                           /// * restore call frame (EXIT)
             WP = rs.pop();
         }
         yield();                                     ///> give other tasks some time
@@ -171,8 +176,6 @@ void  colon(const char *name) {
     c.len = 0;                              // advance counter (by number of U16)
     c.pfa = HERE;                           // capture code field index
     dict.push(c);                           // deep copy Code struct into dictionary
-    printf("%3d> pfa=%x, name=%4x:%p %s\n", dict.idx-1,
-        dict[-1].pfa, (IU)((U8*)dict[-1].name - MEM0), dict[-1].name, dict[-1].name);
 }
 void  colon(string &s) { colon(s.c_str()); }
 inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
@@ -277,6 +280,10 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 //#define     PUSH(v)       { ss.push(top); top = (v); }
 ///
 /// global memory access macros
+///
+/// macros for ESP memory space access (be very careful of these)
+/// note: 4000_0000 is instruction bus, access needs to be 32-bit aligned
+///       3fff_ffff and below is data bus, no alignment requirement
 ///
 #define     PEEK(a)    (DU)(*(DU*)((UFP)(a)))
 #define     POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
