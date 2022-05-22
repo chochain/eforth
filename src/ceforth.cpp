@@ -3,7 +3,7 @@
 ///
 /// Benchmark: 1M test case on NodeMCU ESP32S
 ///    1440ms Dr. Ting's orig/esp32forth_82
-///    1240ms ~/Download/forth/esp32/esp32forth8_exp9 
+///    1240ms ~/Download/forth/esp32/esp32forth8_exp9
 ///    1045ms orig/esp32forth8_1
 ///     755ms + INLINE List methods
 ///
@@ -98,7 +98,7 @@ int find(string &s) { return find(s.c_str()); }
 /// Note: superceded by iterator version below (~8% faster)
 /*
 void nest() {
-	IU *ip = (IU*)MEM(IP);                      /// cached pointer
+    IU *ip = (IU*)MEM(IP);                      /// cached pointer
     while (*ip) {
         if (*ip & 1) {
             /// ENTER
@@ -125,7 +125,7 @@ void nest() {
 /// Note: use local stack, 840ms => 784ms, but allot 4*64 bytes extra
 ///
 void nest() {
-	static IU _NXT = XTOFF(dict[find("donext")].xt); /// cache offset to subroutine address
+    static IU _NXT = XTOFF(dict[find("donext")].xt); /// cache offset to subroutine address
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
         IU ix = *(IU*)MEM(IP);                       /// fetch opcode
@@ -217,7 +217,7 @@ inline void to_s(IU w) {
 /// recursively disassemble colon word
 ///
 void see(IU pfa, int dp=1) {
-	U8 *ip = MEM(pfa);
+    U8 *ip = MEM(pfa);
     while (*(IU*)ip) {
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        // indentation
         fout << setw(4) << (ip - MEM0) << "[ " << setw(-1);
@@ -318,8 +318,8 @@ int forth_load(const char *fname) {
 }
 #else  // (ARDUINO || ESP32)
 int forth_load(const char *fname) {
-	printf("TODO: load resident applications from %s...\n", fname);
-	return 0;
+    printf("TODO: load resident applications from %s...\n", fname);
+    return 0;
 }
 #endif // (ARDUINO || ESP32)
 ///
@@ -600,8 +600,8 @@ void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
     forth_outer(cmd, callback);
 }
 const char *ForthVM::version(){
-	static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
-	return ver.c_str();
+    static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
+    return ver.c_str();
 }
 ///
 /// memory statistics - for heap and stack debugging
