@@ -497,104 +497,21 @@ static Code prim[] = {
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear())
 };
 const int PSZ = sizeof(prim)/sizeof(Code);
-///==========================================================================
-#if  !(ARDUINO || ESP32)
-static int forth_load(const char *fname) { return 0; }
-void ForthVM::version()   {}
-void ForthVM::mem_stat()  {}
-void ForthVM::dict_dump() {
-    printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
-    for (int i=0; i<PSZ; i++) {
-        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
-            XTOFF(dict[i].xt), dict[i].xt,
-            (U16)(dict[i].name - dict[0].name),
-            dict[i].name, dict[i].name);
-    }
-}
-#else  // !(ARDUINO || ESP32)
-#include <SPIFFS.h>
-///==========================================================================
 ///
-/// Forth bootstrap loader (from Flash)
-///
-static int forth_load(const char *fname) {
-    auto dummy = [](int, const char *) { /* do nothing */ };
-    if (!SPIFFS.begin()) {
-        LOGF("Error mounting SPIFFS"); return 1; }
-    File file = SPIFFS.open(fname, "r");
-    if (!file) {
-        LOGF("Error opening file:"); LOG(fname); return 1; }
-    LOGF("Loading file: "); LOG(fname); LOGF("...");
-    while (file.available()) {
-        char cmd[256], *p = cmd, c;
-        while ((c = file.read())!='\n') *p++ = c;   // one line a time
-        *p = '\0';
-        LOGF("\n<< "); LOG(cmd);                    // show bootstrap command
-        forth_outer(cmd, dummy); }
-    LOGF("Done loading.\n");
-    file.close();
-    SPIFFS.end();
-    return 0;
-}
-void ForthVM::version() {
-    LOGF("\n");
-    LOGF(APP_NAME);      LOGF(" ");
-    LOGF(MAJOR_VERSION); LOGF(".");
-    LOGF(MINOR_VERSION);
-    LOGF("\n");
-}
-///
-/// memory statistics dump - for heap and stack debugging
-///
-void ForthVM::mem_stat() {
-    LOGF("Core:");           LOG(xPortGetCoreID());
-    LOGF(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    LOGF(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    LOGF(", ss_max=");       LOG(ss.max);
-    LOGF(", rs_max=");       LOG(rs.max);
-    LOGF(", pmem=");         LOG(HERE);
-    LOGF("], lowest[heap="); LOG(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-    LOGF(", stack=");        LOG(uxTaskGetStackHighWaterMark(NULL));
-    LOGF("]\n");
-    if (!heap_caps_check_integrity_all(true)) {
-//        heap_trace_dump();     // dump memory, if we have to
-        abort();                 // bail, on any memory error
-    }
-}
-void ForthVM::dict_dump() {
-    LOGF("dict0=");         LOGX(DICT0);
-    LOGF(", sizeof(Code)="); LOG(sizeof(Code));
-    LOGF("\n");
-    for (int i=0; i<PSZ; i++) {
-        Code &c = dict[i];
-        LOG(i);
-        LOGF("> xt=");   LOGX((UFP)c.xt - DICT0);
-        LOGF(":");       LOGX((UFP)c.xt);
-        LOGF(", name="); LOGX(c.name - dict[EXIT].name);
-        LOGF(":");       LOGX((UFP)c.name);
-        LOG(" ");        LOG(c.name);
-        LOGF("\n");
-    }                                        /// searching both spaces
-}
-#endif // !(ARDUINO || ESP32)
-///===================================================================================================
-///
-/// ForthVM dictionary initializer
-///
-void ForthVM::init() {
+/// eForth dictionary initializer
+/// 
+void forth_init() {
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
         if ((UFP)dict[i].xt < XT0) XT0 = (UFP)dict[i].xt; /// collect xt base
     }
-    dict_dump();
     //forth_load("/load.txt");    // compile /data/load.txt
-
-    mem_stat();
 }
+///==========================================================================
 ///
 /// ForthVM Outer interpreter
 ///
-void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
+void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     fin.clear();                             /// clear input stream error bit if any
     fin.str(cmd);                            /// feed user command into input stream
     fout_cb = callback;                      /// setup callback function
@@ -636,6 +553,97 @@ void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
     }
     if (!compile) ss_dump();   /// * dump stack and display ok prompt
 }
+///==========================================================================
+#if  !(ARDUINO || ESP32)
+int forth_load(const char *fname) { return 0; }
+void version()   {}
+void mem_stat()  {}
+void dict_dump() {
+    printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
+    for (int i=0; i<PSZ; i++) {
+        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
+            XTOFF(dict[i].xt), dict[i].xt,
+            (U16)(dict[i].name - dict[0].name),
+            dict[i].name, dict[i].name);
+    }
+}
+#else  // !(ARDUINO || ESP32)
+#include <SPIFFS.h>
+///
+/// eForth bootstrap loader (from Flash)
+///
+int forth_load(const char *fname) {
+    auto dummy = [](int, const char *) { /* do nothing */ };
+    if (!SPIFFS.begin()) {
+        LOGF("Error mounting SPIFFS"); return 1; }
+    File file = SPIFFS.open(fname, "r");
+    if (!file) {
+        LOGF("Error opening file:"); LOG(fname); return 1; }
+    LOGF("Loading file: "); LOG(fname); LOGF("...");
+    while (file.available()) {
+        char cmd[256], *p = cmd, c;
+        while ((c = file.read())!='\n') *p++ = c;   // one line a time
+        *p = '\0';
+        LOGF("\n<< "); LOG(cmd);                    // show bootstrap command
+        forth_outer(cmd, dummy);
+    }
+    LOGF("Done loading.\n");
+    file.close();
+    SPIFFS.end();
+    return 0;
+}
+void version() {
+    LOGF("\n");
+    LOGF(APP_NAME);      LOGF(" ");
+    LOGF(MAJOR_VERSION); LOGF(".");
+    LOGF(MINOR_VERSION);
+    LOGF("\n");
+}
+///
+/// memory statistics dump - for heap and stack debugging
+///
+void mem_stat() {
+    LOGF("Core:");           LOG(xPortGetCoreID());
+    LOGF(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    LOGF(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    LOGF(", ss_max=");       LOG(ss.max);
+    LOGF(", rs_max=");       LOG(rs.max);
+    LOGF(", pmem=");         LOG(HERE);
+    LOGF("], lowest[heap="); LOG(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    LOGF(", stack=");        LOG(uxTaskGetStackHighWaterMark(NULL));
+    LOGF("]\n");
+    if (!heap_caps_check_integrity_all(true)) {
+//        heap_trace_dump();     // dump memory, if we have to
+        abort();                 // bail, on any memory error
+    }
+}
+void dict_dump() {
+    LOGF("XT0=");        LOGX(XT0);
+    LOGF(", sizeof(Code)="); LOG(sizeof(Code));
+    LOGF("\n");
+    for (int i=0; i<PSZ; i++) {
+        Code &c = dict[i];
+        LOG(i);
+        LOGF("> xt=");   LOGX((UFP)c.xt - XT0);
+        LOGF(":");       LOGX((UFP)c.xt);
+        LOGF(", name="); LOGX(c.name - dict[0].name);
+        LOGF(":");       LOGX((UFP)c.name);
+        LOG(" ");        LOG(c.name);
+        LOGF("\n");
+    }                                        /// searching both spaces
+}
+#endif // !(ARDUINO || ESP32)
+///===================================================================================================
+///
+/// ForthVM front-end proxy methods
+///
+void ForthVM::init() { forth_init(); }
+void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
+    forth_outer(cmd, callback);
+}
+void ForthVM::version()   { version();   }
+void ForthVM::mem_stat()  { mem_stat();  }
+void ForthVM::dict_dump() { dict_dump(); }
 
 #if !(ARDUINO || ESP32)
 /// main program
