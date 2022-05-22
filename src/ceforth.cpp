@@ -127,29 +127,26 @@ void nest() {
 ///
 void nest() {
 	static IU _NXT = XTOFF(dict[find("donext")].xt); /// cache offset to subroutine address
-    static IU _rs[E4_RS_SZ];                         /// * local stack (instead of global rs)
     int dp = 0;                                      /// iterator depth control
     while (dp >= 0) {
-        IU ix = *(IU*)MEM(IP);                       /// hopefully use register than cached line
+        IU ix = *(IU*)MEM(IP);                       /// fetch opcode
         while (ix) {                                 /// fetch till EXIT
             IP += sizeof(IU);
             if (ix & 1) {
                 rs.push(WP);                         /// * setup callframe (ENTER)
-                //rs.push(IP);
-                _rs[dp] = IP;
+                rs.push(IP);
                 IP = ix & ~0x1;                      /// word pfa (def masked)
                 dp++;
             }
-            else if (ix == _NXT) {                   /// DONEXT (save 600ms / 100M cycles)
-                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);
+            else if (ix == _NXT) {                   /// cached DONEXT handler (save 600ms / 100M cycles)
+                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);   /// hopefully, kept in L1
                 else { IP += sizeof(IU); rs.pop(); }
             }
             else (*(FPTR)XT(ix))();                  /// * execute primitive word
             ix = *(IU*)MEM(IP);                      /// * fetch next opcode
         }
         if (dp-- > 0) {
-            IP = _rs[dp];
-            //IP = rs.pop();                           /// * restore call frame (EXIT)
+            IP = rs.pop();                           /// * restore call frame (EXIT)
             WP = rs.pop();
         }
         yield();                                     ///> give other tasks some time
