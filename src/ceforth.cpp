@@ -5,7 +5,7 @@
 ///    1440ms Dr. Ting's orig/esp32forth_82
 ///    1240ms ~/Download/forth/esp32/esp32forth8_exp9 
 ///    1045ms orig/esp32forth8_1
-///     735ms + INLINE List methods
+///     755ms + INLINE List methods
 ///
 #include <iomanip>          // setbase, setw, setfill
 #include <string.h>
@@ -28,8 +28,8 @@
 ///   * this makes IP increment by 2 instead of word size. If needed, it can be
 ///   * readjusted.
 ///
-List<DU,   E4_SS_SZ>   rs;         /// return stack
-List<DU,   E4_RS_SZ>   ss;         /// parameter stack
+List<DU,   E4_RS_SZ>   rs;         /// return stack
+List<DU,   E4_SS_SZ>   ss;         /// parameter stack
 List<Code, E4_DICT_SZ> dict;       /// dictionary
 List<U8,   E4_PMEM_SZ> pmem;       /// parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              /// base of parameter memory block
@@ -40,7 +40,7 @@ UFP XT0   = ~0;                    /// base of function pointers
 bool compile = false;             /// compiler flag
 bool ucase   = true;              /// case sensitivity control
 DU   top = -1, base = 10;
-IU   WP  = 0;                     /// current word pointer
+IU   WP  = 0;                     /// current word pointer (used by DOES only)
 IU   IP  = 0;                     /// current instruction pointer and cached base pointer
 ///
 /// macros to abstract dict and pmem physical implementation
@@ -50,9 +50,9 @@ IU   IP  = 0;                     /// current instruction pointer and cached bas
 #define BOOL(f)   ((f)?-1:0)
 #define PFA(w)    (dict[w].pfa)             /** parameter field pointer of a word        */
 #define HERE      (pmem.idx)                /** current parameter memory index           */
-#define MEM(ip)   (MEM0 + (ip))             /** pointer to IP address fetched from pmem  */
+#define MEM(ip)   (MEM0 + (IU)(ip))         /** pointer to IP address fetched from pmem  */
 #define XTOFF(xp) ((IU)((UFP)(xp) - XT0))   /** XT offset (index) in code space          */
-#define XT(xt)    (XT0 + (xt))              /** convert XT offset to function pointer    */
+#define XT(xt)    (XT0 + ((UFP)(xt) & ~0x3))/** convert XT offset to function pointer    */
 #define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
 #define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
 
@@ -98,7 +98,7 @@ int find(string &s) { return find(s.c_str()); }
 /// Note: superceded by iterator version below (~8% faster)
 /*
 void nest() {
-    IU *ip = (IU*)MEM(IP);
+	IU *ip = (IU*)MEM(IP);                      /// cached pointer
     while (*ip) {
         if (*ip & 1) {
             /// ENTER
@@ -111,7 +111,6 @@ void nest() {
             WP = rs.pop();
         }
         else {
-            UFP xt = XT(*ip);                   /// * function pointer
             IP += sizeof(IU);                   /// * advance to next opcode
             (*(FPTR)XT(*ip))();
         }
@@ -136,16 +135,18 @@ void nest() {
                 rs.push(WP);                         /// * setup callframe (ENTER)
                 rs.push(IP);
                 IP = ix & ~0x1;                      /// word pfa (def masked)
-                dp++;
+                dp++;                                /// go one level deeper
             }
-            else if (ix == _NXT) {                   /// cached DONEXT handler (save 600ms / 100M cycles)
-                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);   /// hopefully, kept in L1
-                else { IP += sizeof(IU); rs.pop(); }
+#if  !(ARDUINO || ESP32)
+            else if (ix == _NXT) {                          /// cached DONEXT handler (save 600ms / 100M cycles on Intel)
+                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); /// but on ESP32, it slows down 100ms / 1M cycles
+                else { IP += sizeof(IU); rs.pop(); }        /// most likely due to its shallow pipeline
             }
+#endif // !(ARDUINO || ESP32)
             else (*(FPTR)XT(ix))();                  /// * execute primitive word
             ix = *(IU*)MEM(IP);                      /// * fetch next opcode
         }
-        if (dp-- > 0) {
+        if (dp-- > 0) {                              /// pop off a level
             IP = rs.pop();                           /// * restore call frame (EXIT)
             WP = rs.pop();
         }
@@ -184,7 +185,7 @@ void add_w(IU w) {
     Code &c = dict[w];
     IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
     add_iu(ip);
-    //printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
+    // printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
 }
 ///==============================================================================
 ///
@@ -194,14 +195,14 @@ void add_w(IU w) {
 ///   * if it takes too much memory for target MCU,
 ///   * these functions can be replaced with our own implementation
 ///
-#include <sstream>                  // iostream, stringstream
-#include <iomanip>                  // setbase
-#include <string>                   // string class
-using namespace std;                // default to C++ standard template library
-istringstream   fin;                // forth_in
-ostringstream   fout;               // forth_out
-string strbuf;                      // input string buffer
-void (*fout_cb)(int, const char*);  // forth output callback function (see ENDL macro)
+#include <sstream>                  /// iostream, stringstream
+#include <iomanip>                  /// setbase
+#include <string>                   /// string class
+using namespace std;                /// default to C++ standard template library
+istringstream   fin;                /// forth_in
+ostringstream   fout;               /// forth_out
+string strbuf;                      /// input string buffer
+void (*fout_cb)(int, const char*);  /// forth output callback function (see ENDL macro)
 ///================================================================================
 ///
 /// IO & debug functions
@@ -284,8 +285,45 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///
 #define     PEEK(a)    (DU)(*(DU*)((UFP)(a)))
 #define     POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
+///==========================================================================
 ///
-/// dictionary initializer
+/// eForth core implementation
+///
+void forth_outer(const char *cmd, void(*callback)(int, const char*)); // forward declaration
+
+#if  (ARDUINO || ESP32)
+#include <SPIFFS.h>
+///
+/// eForth bootstrap loader (from Flash memory)
+///
+int forth_load(const char *fname) {
+    auto dummy = [](int, const char *) { /* do nothing */ };
+    if (!SPIFFS.begin()) {
+        LOGF("Error mounting SPIFFS"); return 1; }
+    File file = SPIFFS.open(fname, "r");
+    if (!file) {
+        LOGF("Error opening file:"); LOG(fname); return 1; }
+    LOGF("Loading file: "); LOG(fname); LOGF("...");
+    while (file.available()) {
+        char cmd[256], *p = cmd, c;
+        while ((c = file.read())!='\n') *p++ = c;   // one line a time
+        *p = '\0';
+        LOGF("\n<< "); LOG(cmd);                    // show bootstrap command
+        forth_outer(cmd, dummy);
+    }
+    LOGF("Done loading.\n");
+    file.close();
+    SPIFFS.end();
+    return 0;
+}
+#else  // (ARDUINO || ESP32)
+int forth_load(const char *fname) {
+	printf("TODO: load resident applications from %s...\n", fname);
+	return 0;
+}
+#endif // (ARDUINO || ESP32)
+///
+/// eForth - dictionary initializer
 ///
 /// Note: sequenced by enum forth_opcode as following
 static Code prim[] = {
@@ -503,9 +541,9 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 void forth_init() {
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
-        if ((UFP)dict[i].xt < XT0) XT0 = (UFP)dict[i].xt; /// collect xt base
+        if ((UFP)prim[i].xt < XT0) XT0 = (UFP)prim[i].xt;  /// collect xt base
     }
-    //forth_load("/load.txt");    // compile /data/load.txt
+    forth_load("/load.txt");                 /// compile /data/load.txt
 }
 ///==========================================================================
 ///
@@ -553,56 +591,23 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     }
     if (!compile) ss_dump();   /// * dump stack and display ok prompt
 }
-///==========================================================================
-#if  !(ARDUINO || ESP32)
-int forth_load(const char *fname) { return 0; }
-void version()   {}
-void mem_stat()  {}
-void dict_dump() {
-    printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
-    for (int i=0; i<PSZ; i++) {
-        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
-            XTOFF(dict[i].xt), dict[i].xt,
-            (U16)(dict[i].name - dict[0].name),
-            dict[i].name, dict[i].name);
-    }
-}
-#else  // !(ARDUINO || ESP32)
-#include <SPIFFS.h>
+///===================================================================================================
 ///
-/// eForth bootstrap loader (from Flash)
+/// ForthVM front-end proxy methods
 ///
-int forth_load(const char *fname) {
-    auto dummy = [](int, const char *) { /* do nothing */ };
-    if (!SPIFFS.begin()) {
-        LOGF("Error mounting SPIFFS"); return 1; }
-    File file = SPIFFS.open(fname, "r");
-    if (!file) {
-        LOGF("Error opening file:"); LOG(fname); return 1; }
-    LOGF("Loading file: "); LOG(fname); LOGF("...");
-    while (file.available()) {
-        char cmd[256], *p = cmd, c;
-        while ((c = file.read())!='\n') *p++ = c;   // one line a time
-        *p = '\0';
-        LOGF("\n<< "); LOG(cmd);                    // show bootstrap command
-        forth_outer(cmd, dummy);
-    }
-    LOGF("Done loading.\n");
-    file.close();
-    SPIFFS.end();
-    return 0;
+void ForthVM::init()      { forth_init(); }
+void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
+    forth_outer(cmd, callback);
 }
-void version() {
-    LOGF("\n");
-    LOGF(APP_NAME);      LOGF(" ");
-    LOGF(MAJOR_VERSION); LOGF(".");
-    LOGF(MINOR_VERSION);
-    LOGF("\n");
+const char *ForthVM::version(){
+	static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
+	return ver.c_str();
 }
 ///
-/// memory statistics dump - for heap and stack debugging
+/// memory statistics - for heap and stack debugging
 ///
-void mem_stat() {
+#if  (ARDUINO || ESP32)
+void ForthVM::mem_stat()  {
     LOGF("Core:");           LOG(xPortGetCoreID());
     LOGF(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     LOGF(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
@@ -617,11 +622,11 @@ void mem_stat() {
         abort();                 // bail, on any memory error
     }
 }
-void dict_dump() {
+void ForthVM::dict_dump() {
     LOGF("XT0=");        LOGX(XT0);
     LOGF(", sizeof(Code)="); LOG(sizeof(Code));
     LOGF("\n");
-    for (int i=0; i<PSZ; i++) {
+    for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         LOG(i);
         LOGF("> xt=");   LOGX((UFP)c.xt - XT0);
@@ -630,37 +635,36 @@ void dict_dump() {
         LOGF(":");       LOGX((UFP)c.name);
         LOG(" ");        LOG(c.name);
         LOGF("\n");
-    }                                        /// searching both spaces
+    }
 }
-#endif // !(ARDUINO || ESP32)
-///===================================================================================================
-///
-/// ForthVM front-end proxy methods
-///
-void ForthVM::init() { forth_init(); }
-void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
-    forth_outer(cmd, callback);
+#else  // (ARDUINO || ESP32)
+void ForthVM::mem_stat()  {}
+void ForthVM::dict_dump() {
+    printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
+    for (int i=0; i<dict.idx; i++) {
+        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
+            XTOFF(dict[i].xt), dict[i].xt,
+            (U16)(dict[i].name - dict[0].name),
+            dict[i].name, dict[i].name);
+    }
 }
-void ForthVM::version()   { version();   }
-void ForthVM::mem_stat()  { mem_stat();  }
-void ForthVM::dict_dump() { dict_dump(); }
-
-#if !(ARDUINO || ESP32)
-/// main program
+///
+/// main program for testing on PC
+///
 #include <iostream>               // cin, cout
 int main(int ac, char* av[]) {
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
+    ForthVM vm;                                         // create FVM instance
+    vm.init();                                          // initialize dictionary
+    vm.dict_dump();
 
-    ForthVM *vm = new ForthVM();                        // create FVM instance
-    vm->init();                                         // initialize dictionary
-
-    cout << APP_NAME << " " << MAJOR_VERSION << "." << MINOR_VERSION << endl;
+    cout << vm.version() << endl;
     while (getline(cin, cmd)) {                         // fetch user input
-        //printf("cmd=<%s>\n", cmd.c_str());
-        vm->outer(cmd.c_str(), send_to_con);            // execute outer interpreter
+        // printf("cmd=<%s>\n", cmd.c_str());
+        vm.outer(cmd.c_str(), send_to_con);             // execute outer interpreter
     }
     cout << "Done!" << endl;
     return 0;
 }
-#endif // !(ARDUINO || ESP32)
+#endif // (ARDUINO || ESP32)
