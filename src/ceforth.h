@@ -21,8 +21,8 @@
 ///
 /// memory block configuation
 ///
-#define E4_SS_SZ        64
 #define E4_RS_SZ        64
+#define E4_SS_SZ        64
 #define E4_DICT_SZ      2048
 #define E4_PMEM_SZ      (64*1024)
 ///
@@ -90,8 +90,11 @@ struct List {
     int idx = 0;        /// current index of array
     int max = 0;        /// high watermark for debugging
 
-    List()  { v = N ? new T[N] : 0; }  /// dynamically allocate array storage
-    ~List() { delete[] v;   }          /// free memory
+    List()  {
+    	v = N ? new T[N] : 0;                      /// dynamically allocate array storage
+    	if (!v) throw "ERR: List allot failed";
+    }
+    ~List() { if (v) delete[] v;   }               /// free memory
 
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
@@ -178,7 +181,9 @@ class ForthVM {
 public:
     void init();
     void outer(const char *cmd, void(*callback)(int, const char*));
-    void version();
+
+    const char *version();
+
     void mem_stat();
     void dict_dump();
 };
