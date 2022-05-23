@@ -162,7 +162,7 @@ struct Code {
         struct {            /// a colon word
             U16 def:  1;    /// colon defined word
             U16 immd: 1;    /// immediate flag
-            U16 len:  14;   /// len of pf (16K max)
+            U16 xxx:  14;   /// reserved
             IU  pfa;        /// offset to pmem space (16-bit for 64K range)
         };
     };

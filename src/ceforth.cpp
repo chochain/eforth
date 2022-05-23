@@ -171,16 +171,13 @@ void  colon(const char *name) {
     Code c(nfa, NULL);
 #endif // LAMBDA_OK
     c.def = 1;                              // specify a colon word
-    c.len = 0;                              // advance counter (by number of U16)
     c.pfa = HERE;                           // capture code field index
     dict.push(c);                           // deep copy Code struct into dictionary
 }
 void  colon(string &s) { colon(s.c_str()); }
-inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU));  dict[-1].len += sizeof(IU); }  /** add an instruction into pmem */
-inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)),  dict[-1].len += sizeof(DU); }  /** add a cell into pmem         */
-inline void add_str(const char *s) {                                                       /** add a string to pmem         */
-    int sz = STRLEN(s); pmem.push((U8*)s,  sz); dict[-1].len += sz;
-}
+inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU)); }                       /** add an instruction into pmem */
+inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)); }                       /** add a cell into pmem         */
+inline void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); } /** add a string to pmem         */
 void add_w(IU w) {
     Code &c = dict[w];
     IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
