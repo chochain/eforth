@@ -204,7 +204,7 @@ IU   IP  = 0;                     /// current instruction pointer and cached bas
 #define XTOFF(xp) ((IU)((UFP)(xp) - XT0))   /** XT offset (index) in code space          */
 #define XT(xt)    (XT0 + ((xt) & ~0x3))     /** convert XT offset to function pointer    */
 #define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
-#define SETJMP(a) (*(IU*)&pmem[a])          /** address offset for branching opcodes     */
+#define SETJMP(a) (*(IU*)&pmem[a] = HERE)   /** address offset for branching opcodes     */
 
 typedef enum {
     EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DOES, TOR
@@ -557,8 +557,8 @@ static Code prim[] = {
     IMMD("if",      add_w(ZBRAN); PUSH(HERE); add_iu(0)),       // if    ( -- here )
     IMMD("else",                                                // else ( here -- there )
         add_w(BRAN);
-        IU h=HERE; add_iu(0); SETJMP(POP()) = HERE; PUSH(h)),
-    IMMD("then",    SETJMP(POP()) = HERE),                      // backfill jump address
+        IU h=HERE; add_iu(0); SETJMP(POP()); PUSH(h)),
+    IMMD("then",    SETJMP(POP())),                             // backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
@@ -568,7 +568,7 @@ static Code prim[] = {
     IMMD("until",   add_w(ZBRAN); add_iu(POP())),               // until    ( there -- )
     IMMD("while",   add_w(ZBRAN); PUSH(HERE); add_iu(0)),       // while    ( there -- there here )
     IMMD("repeat",  add_w(BRAN);                                // repeat    ( there1 there2 -- )
-        IU t=POP(); add_iu(POP()); SETJMP(t) = HERE),           // set forward and loop back address
+        IU t=POP(); add_iu(POP()); SETJMP(t)),                  // set forward and loop back address
     /// @}
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
@@ -586,11 +586,13 @@ static Code prim[] = {
     CODE("variable",                                             // create a variable
         colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOVAR);                                            // dovar (+parameter field)
-        int n = 0; add_du(n)),                                   // data storage (32-bit integer now)
+        int n = 0; add_du(n);                                    // data storage (32-bit integer now)
+        add_w(EXIT)),
     CODE("constant",                                             // create a constant
         colon(next_idiom());                                     // create a new word on dictionary
         add_w(DOLIT);                                            // dovar (+parameter field)
-        add_du(POP())),                                          // data storage (32-bit integer now)
+        add_du(POP());                                           // data storage (32-bit integer now)
+        add_w(EXIT)),
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -623,12 +625,12 @@ static Code prim[] = {
     /// @{
     CODE("here",  PUSH(HERE)),
     CODE("ucase", ucase = POP()),
-    CODE("words", words()),
     CODE("'",     IU w = find(next_idiom()); PUSH(w)),
     CODE(".s",    ss_dump()),
+    CODE("words", words()),
     CODE("see",
         IU w = find(next_idiom());
-        fout << "[ "; to_s(w); see(PFA(w)); fout << "]" << ENDL),
+        fout << "[ "; to_s(w); if (dict[w].def) see(PFA(w)); fout << "]" << ENDL),
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
