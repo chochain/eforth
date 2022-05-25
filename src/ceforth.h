@@ -62,9 +62,11 @@ typedef uint16_t        U16;   // unsigned 16-bit integer
 typedef uint8_t         U8;    // byte, unsigned character
 typedef uintptr_t       UFP;
 #ifdef USE_FLOAT
+typedef double          DU2;
 typedef float           DU;
 #define DVAL            0.0f
 #else // USE_FLOAT
+typedef int64_t         DU2;
 typedef int32_t         DU;
 #define DVAL            0
 #endif // USE_FLOAT

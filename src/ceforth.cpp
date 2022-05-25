@@ -376,14 +376,14 @@ static Code prim[] = {
     CODE("-",    top =  ss.pop() - top),
     CODE("/",    top =  ss.pop() / top),
     CODE("mod",  top =  ss.pop() % top),
-    CODE("*/",   top =  ss.pop() * ss.pop() / top),
+    CODE("*/",   top =  (DU2)ss.pop() * ss.pop() / top),
     CODE("/mod",
         DU n = ss.pop(); DU t = top;
         ss.push(n % t); top = (n / t)),
     CODE("*/mod",
-        DU n = ss.pop() * ss.pop();
-        DU t = top;
-        ss.push(n % t); top = (n / t)),
+        DU2 n = (DU2)ss.pop() * ss.pop();
+        DU2 t = top;
+        ss.push((DU)(n % t)); top = (DU)(n / t)),
     CODE("and",  top = ss.pop() & top),
     CODE("or",   top = ss.pop() | top),
     CODE("xor",  top = ss.pop() ^ top),

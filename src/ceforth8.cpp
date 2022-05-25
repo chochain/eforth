@@ -62,6 +62,7 @@ using namespace std;
 ///
 typedef uint16_t  IU;    // instruction pointer unit
 typedef int32_t   DU;    // data unit
+typedef int64_t   DU2;   // double precision data unit
 typedef uint16_t  U16;   // unsigned 16-bit integer
 typedef uint8_t   U8;    // byte, unsigned character
 typedef uintptr_t UFP;
@@ -487,14 +488,14 @@ static Code prim[] = {
     CODE("-",    top =  ss.pop() - top),
     CODE("/",    top =  ss.pop() / top),
     CODE("mod",  top =  ss.pop() % top),
-    CODE("*/",   top =  ss.pop() * ss.pop() / top),
+    CODE("*/",   top =  (DU2)ss.pop() * ss.pop() / top),
     CODE("/mod",
         DU n = ss.pop(); DU t = top;
         ss.push(n % t); top = (n / t)),
     CODE("*/mod",
-        DU n = ss.pop() * ss.pop();
-        DU t = top;
-        ss.push(n % t); top = (n / t)),
+        DU2 n = (DU2)ss.pop() * ss.pop();
+        DU2 t = top;
+        ss.push((DU)(n % t)); top = (DU)(n / t)),
     CODE("and",  top = ss.pop() & top),
     CODE("or",   top = ss.pop() | top),
     CODE("xor",  top = ss.pop() ^ top),
