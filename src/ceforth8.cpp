@@ -368,7 +368,7 @@ void see(IU pfa, int dp=1) {
         fout << setw(4) << (ip - MEM0) << "[ " << setw(-1);
         IU c = pfa2word(*(IU*)ip);
         to_s(c);                                               // name field
-        if (dict[c].def && dp <= 2) {                          // is a colon word
+        if (dict[c].def && dp < 2) {                           // is a colon word
             see(PFA(c), dp+1);                                 // recursive into child PFA
         }
         ip += sizeof(IU);
@@ -379,7 +379,7 @@ void see(IU pfa, int dp=1) {
             fout << "= \"" << (char*)ip << '"';
             ip += STRLEN((char*)ip); break;
         case DONEXT: case BRAN: case ZBRAN:
-            fout << "j" << *(IU*)ip; ip += sizeof(IU);
+            fout << "j" << *(IU*)ip; ip += sizeof(IU); break;
         }
         fout << "] ";
     }
@@ -655,7 +655,7 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 void forth_init() {
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
-        if ((UFP)dict[i].xt < XT0) XT0 = (UFP)dict[i].xt; /// collect xt base
+        if (((UFP)dict[i].xt - 4) < XT0) XT0 = ((UFP)dict[i].xt - 4); /// collect xt base
     }
     printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
 

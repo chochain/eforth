@@ -540,7 +540,7 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 void forth_init() {
     for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  /// find() can be modified to support
-        if ((UFP)prim[i].xt < XT0) XT0 = (UFP)prim[i].xt;  /// collect xt base
+        if (((UFP)prim[i].xt - 4) < XT0) XT0 = ((UFP)prim[i].xt - 4);  /// collect xt base
     }
     forth_load("/load.txt");                 /// compile /data/load.txt
 }
