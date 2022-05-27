@@ -1,11 +1,15 @@
 ///
-/// eForth - implemented in C/C++ for portability
+/// @file eForth
+/// @brief implemented in C/C++ for portability
 ///
-/// Benchmark: 1M test case on NodeMCU ESP32S
-///    1440ms Dr. Ting's orig/esp32forth_82
-///    1240ms ~/Download/forth/esp32/esp32forth8_exp9
-///    1045ms orig/esp32forth8_1
-///     755ms + INLINE List methods
+/// @benchmark: 10K*10K cycles on desktop (3.2GHz AMD)
+/// + 1200ms - orig/esp32forth8_1, token threading
+/// +  981ms - subroutine threading, inline list methods
+///
+/// @benchmark: 1K*1K cycles on NodeMCU ESP32S
+/// + 1440ms - Dr. Ting's orig/esp32forth_82
+/// + 1045ms - orig/esp32forth8_1, token threading
+/// +  839ms - subroutine threading, inline list methods
 ///
 #include <iomanip>          // setbase, setw, setfill
 #include <string.h>
@@ -166,7 +170,7 @@ void  colon(const char *name) {
     int sz = STRLEN(name);                  // string length, aligned
     pmem.push((U8*)name,  sz);              // setup raw name field
 #if LAMBDA_OK
-    Code c(nfa, [](IU){});                  // create a new word on dictionary
+    Code c(nfa, [](){});                    // create a new word on dictionary
 #else  // LAMBDA_OK
     Code c(nfa, NULL);
 #endif // LAMBDA_OK
@@ -556,10 +560,21 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
         int w = find(idiom);                        /// * search through dictionary
-        // LOGF("find("); LOG(idiom); LOGF(") => ");
+#if CC_DEBUG
+#if (ARDUINO || ESP32)
+        LOGF("find("); LOG(idiom); LOGF(") => ");
+#else  // (ARDUINO || ESP32)
+        printf("find(%s) => ", idiom);
+#endif // (ARDUINO || ESP32)
+#endif // CC_DEBUG
         if (w >= 0) {                               /// * word found?
-            //printf("%s(%ld)\n", w->to_s().c_str(), w.use_count());
-            // LOG(dict[w].name); LOG(" "); LOG(w); LOGF("\n");
+#if CC_DEBUG
+#if (ARDUINO || ESP32)
+            LOG(dict[w].name); LOG(" "); LOG(w); LOGF("\n");
+#else  // (ARDUINO || ESP32)
+            printf("%s %d\n", dict[w].name, w);
+#endif // (ARDUINO || ESP32)
+#endif // CC_DEBUG
             if (compile && !dict[w].immd)           /// * in compile mode?
                 add_w(w);                           /// * add to colon word
             else CALL(w);                           /// * execute forth word
@@ -574,8 +589,13 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
 #else
         DU n = static_cast<DU>(strtol(idiom, &p, base));
 #endif
-        //printf("%d\n", n);
-        // LOG(n); LOGF("\n");
+#if CC_DEBUG
+#if (ARDUINO || ESP32)
+        LOG(n); LOGF("\n");
+#else  // (ARDUINO || ESP32)
+        printf("%d\n", n);
+#endif // (ARDUINO || ESP32)
+#endif // CC_DEBUG
         if (*p != '\0') {                           /// * not number
             fout << idiom << "? " << ENDL;         ///> display error prompt
             compile = false;                        ///> reset to interpreter mode
@@ -639,6 +659,7 @@ void ForthVM::dict_dump() {
 #else  // (ARDUINO || ESP32)
 void ForthVM::mem_stat()  {}
 void ForthVM::dict_dump() {
+#if CC_DEBUG
     printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
     for (int i=0; i<dict.idx; i++) {
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
@@ -646,6 +667,7 @@ void ForthVM::dict_dump() {
             (U16)(dict[i].name - dict[0].name),
             dict[i].name, dict[i].name);
     }
+#endif // CC_DEBUG
 }
 ///
 /// main program for testing on PC
