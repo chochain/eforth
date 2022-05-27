@@ -4,19 +4,21 @@
 #include <sstream>
 #include <exception>        // try...catch, throw
 ///
-/// conditional compililation options
+/// Conditional compililation options
+///
+/// Benchmark: 10K*10K cycles on desktop (3.2G AMD)
+///    LAMBDA_OK       0 cut 80ms
+///    RANGE_CHECK     0 cut 100ms
+///    INLINE            cut 545ms
 ///
 /// Note: use LAMBDA_OK=1 for full ForthVM class
-///    since lambda needs to capture [this] for Code
-///    * lambda slow down nest() by 2x (1200ms -> 2500ms per 100M)
-///    * with one extra parameter, it slows 160ms per 100M cycles
-/// benchmark:
-///    LAMBDA_OK       0 cut 80ms/1M cycles
-///    RANGE_CHECK     0 cut 100ms/1M cycles
-///    INLINE            cut 545ms/1M cycles
+///    if lambda needs to capture [this] for Code
+///    * it slow down nest() by 2x (1200ms -> 2500ms)
+///    * with one parameter, it slows 160ms extra
 ///
 #define LAMBDA_OK       0    /** set 1 for ForthVM.this */
 #define RANGE_CHECK     0
+#define CC_DEBUG        0
 #define INLINE          __attribute__((always_inline))
 ///
 /// memory block configuation
@@ -124,12 +126,12 @@ struct List {
 ///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
 #if LAMBDA_OK
-struct fop { virtual void operator()(IU) = 0; };
+struct fop { virtual void operator()() = 0; };
 template<typename F>
 struct XT : fop {           /// universal functor
     F fp;
     XT(F &f) : fp(f) {}
-    void operator()(IU c) INLINE { fp(c); }
+    void operator()() INLINE { fp(); }
 };
 typedef fop* FPTR;          /// lambda function pointer
 struct Code {
@@ -144,14 +146,13 @@ struct Code {
         };
     };
     template<typename F>    /// template function for lambda
-    Code(const char *n, F f, bool im=false) : name(n) {
-        xt = new XT<F>(f);
+    Code(const char *n, F f, bool im=false) : name(n), xt(new XT<F>(f)) {
         immd = im ? 1 : 0;
     }
     Code() {}               /// create a blank struct (for initilization)
 };
-#define CODE(s, g) { s, [&](IU c) { g; }}
-#define IMMD(s, g) { s, [&](IU c) { g; }, true }
+#define CODE(s, g) { s, []() { g; }}
+#define IMMD(s, g) { s, []() { g; }, true }
 #else  // LAMBDA_OK
 ///
 /// a lambda without capture can degenerate into a function pointer
