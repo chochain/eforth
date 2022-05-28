@@ -1,6 +1,6 @@
 ///
-/// @file eForth
-/// @brief implemented in C/C++ for portability
+/// @file
+/// @brief eForth implemented in C/C++ for portability
 ///
 /// @benchmark: 10K*10K cycles on desktop (3.2GHz AMD)
 /// + 1200ms - orig/esp32forth8_1, token threading
@@ -32,34 +32,37 @@
 ///   * this makes IP increment by 2 instead of word size. If needed, it can be
 ///   * readjusted.
 ///
-List<DU,   E4_RS_SZ>   rs;         /// return stack
-List<DU,   E4_SS_SZ>   ss;         /// parameter stack
-List<Code, E4_DICT_SZ> dict;       /// dictionary
-List<U8,   E4_PMEM_SZ> pmem;       /// parameter memory (for colon definitions)
-U8  *MEM0 = &pmem[0];              /// base of parameter memory block
-UFP XT0   = ~0;                    /// base of function pointers
+List<DU,   E4_RS_SZ>   rs;         ///< return stack
+List<DU,   E4_SS_SZ>   ss;         ///< parameter stack
+List<Code, E4_DICT_SZ> dict;       ///< dictionary
+List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
+U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
+UFP XT0   = ~0;                    ///< base of function pointers
 ///
 /// system variables
 ///
-bool compile = false;             /// compiler flag
-bool ucase   = true;              /// case sensitivity control
-DU   top = -1, base = 10;
-IU   WP  = 0;                     /// current word pointer (used by DOES only)
-IU   IP  = 0;                     /// current instruction pointer and cached base pointer
+bool compile = false;              ///< compiler flag
+bool ucase   = true;               ///< case sensitivity control
+DU   top = -1;                     ///< top of stack (cached)
+DU   base = 10;                    ///< numeric radix
+IU   WP  = 0;                      ///< current word pointer (used by DOES only)
+IU   IP  = 0;                      ///< current instruction pointer and cached base pointer
 ///
 /// macros to abstract dict and pmem physical implementation
 /// Note:
 ///   so we can change pmem implementation anytime without affecting opcodes defined below
 ///
-#define BOOL(f)   ((f)?-1:0)
-#define PFA(w)    (dict[w].pfa)             /** parameter field pointer of a word        */
-#define HERE      (pmem.idx)                /** current parameter memory index           */
-#define MEM(ip)   (MEM0 + (IU)(ip))         /** pointer to IP address fetched from pmem  */
-#define XTOFF(xp) ((IU)((UFP)(xp) - XT0))   /** XT offset (index) in code space          */
-#define XT(xt)    (XT0 + ((UFP)(xt) & ~0x3))/** convert XT offset to function pointer    */
-#define CELL(a)   (*(DU*)&pmem[a])          /** fetch a cell from parameter memory       */
-#define SETJMP(a) (*(IU*)&pmem[a] = HERE)   /** address offset for branching opcodes     */
-
+///@name Dictionary access macros
+///@{
+#define BOOL(f)   ((f)?-1:0)                /**< Forth boolean representation            */
+#define PFA(w)    (dict[w].pfa)             /**< parameter field pointer of a word       */
+#define HERE      (pmem.idx)                /**< current parameter memory index          */
+#define MEM(ip)   (MEM0 + (IU)(ip))         /**< pointer to IP address fetched from pmem */
+#define XTOFF(xp) ((IU)((UFP)(xp) - XT0))   /**< XT offset (index) in code space         */
+#define XT(xt)    (XT0 + ((UFP)(xt) & ~0x3))/**< convert XT offset to function pointer   */
+#define CELL(a)   (*(DU*)&pmem[a])          /**< fetch a cell from parameter memory      */
+#define SETJMP(a) (*(IU*)&pmem[a] = HERE)   /**< address offset for branching opcodes    */
+///@}
 typedef enum {
     EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DOES, TOR
 } forth_opcode;
@@ -70,13 +73,13 @@ typedef enum {
 ///
 int pfa2word(IU ix) {
     IU   def = ix & 1;
-    IU   pfa = ix & ~0x1;             /// TODO: handle colon immediate words when > 64K
-    UFP  xt  = XT(ix);                /// can xt be immediate? i.e. ix & ~0x3
+    IU   pfa = ix & ~0x1;             ///> TODO: handle colon immediate words when > 64K
+    UFP  xt  = XT(ix);                ///> can xt be immediate? i.e. ix & ~0x3
     for (int i = dict.idx - 1; i >= 0; --i) {
         if (def) {
-            if (dict[i].pfa == pfa) return i;      /// compare pfa in PMEM
+            if (dict[i].pfa == pfa) return i;      ///> compare pfa in PMEM
         }
-        else if ((UFP)dict[i].xt == xt) return i;  /// compare xt (no immediate?)
+        else if ((UFP)dict[i].xt == xt) return i;  ///> compare xt (no immediate?)
     }
     return -1;
 }
@@ -98,7 +101,7 @@ int find(string &s) { return find(s.c_str()); }
     if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
     else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
 ///
-/// recursive version (look nicer but use system stack)
+/// recursive version (looks nicer but use system stack)
 /// Note: superceded by iterator version below (~8% faster)
 /*
 void nest() {
@@ -129,29 +132,29 @@ void nest() {
 /// Note: use local stack, 840ms => 784ms, but allot 4*64 bytes extra
 ///
 void nest() {
-    static IU _NXT = XTOFF(dict[find("donext")].xt); /// cache offset to subroutine address
-    int dp = 0;                                      /// iterator depth control
+    static IU _NXT = XTOFF(dict[find("donext")].xt); ///> cache offset to subroutine address
+    int dp = 0;                                      ///> iterator depth control
     while (dp >= 0) {
-        IU ix = *(IU*)MEM(IP);                       /// fetch opcode
-        while (ix) {                                 /// fetch till EXIT
+        IU ix = *(IU*)MEM(IP);                       ///> fetch opcode
+        while (ix) {                                 ///> fetch till EXIT
             IP += sizeof(IU);
-            if (ix & 1) {
-                rs.push(WP);                         /// * setup callframe (ENTER)
+            if (ix & 1) {                            ///> is it a colon word?
+                rs.push(WP);                         ///> * setup callframe (ENTER)
                 rs.push(IP);
-                IP = ix & ~0x1;                      /// word pfa (def masked)
-                dp++;                                /// go one level deeper
+                IP = ix & ~0x1;                      ///> word pfa (def masked)
+                dp++;                                ///> go one level deeper
             }
 #if  !(ARDUINO || ESP32)
-            else if (ix == _NXT) {                          /// cached DONEXT handler (save 600ms / 100M cycles on Intel)
-                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); /// but on ESP32, it slows down 100ms / 1M cycles
-                else { IP += sizeof(IU); rs.pop(); }        /// most likely due to its shallow pipeline
+            else if (ix == _NXT) {                          ///> cached DONEXT handler (save 600ms / 100M cycles on Intel)
+                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but on ESP32, it slows down 100ms / 1M cycles
+                else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
             }
 #endif // !(ARDUINO || ESP32)
-            else (*(FPTR)XT(ix))();                  /// * execute primitive word
-            ix = *(IU*)MEM(IP);                      /// * fetch next opcode
+            else (*(FPTR)XT(ix))();                  ///> execute primitive word
+            ix = *(IU*)MEM(IP);                      ///> fetch next opcode
         }
-        if (dp-- > 0) {                              /// pop off a level
-            IP = rs.pop();                           /// * restore call frame (EXIT)
+        if (dp-- > 0) {                              ///> pop off a level
+            IP = rs.pop();                           ///> * restore call frame (EXIT)
             WP = rs.pop();
         }
         yield();                                     ///> give other tasks some time
@@ -166,23 +169,23 @@ void nest() {
 ///   * with an addition link field added.
 ///
 void  colon(const char *name) {
-    char *nfa = (char*)&pmem[HERE];         // current pmem pointer
-    int sz = STRLEN(name);                  // string length, aligned
-    pmem.push((U8*)name,  sz);              // setup raw name field
+    char *nfa = (char*)&pmem[HERE];         ///> current pmem pointer
+    int sz = STRLEN(name);                  ///> string length, aligned
+    pmem.push((U8*)name,  sz);              ///> setup raw name field
 #if LAMBDA_OK
-    Code c(nfa, [](){});                    // create a new word on dictionary
+    Code c(nfa, [](){});                    ///> create a new word on dictionary
 #else  // LAMBDA_OK
     Code c(nfa, NULL);
 #endif // LAMBDA_OK
-    c.def = 1;                              // specify a colon word
-    c.pfa = HERE;                           // capture code field index
-    dict.push(c);                           // deep copy Code struct into dictionary
+    c.def = 1;                              ///> specify a colon word
+    c.pfa = HERE;                           ///> capture code field index
+    dict.push(c);                           ///> deep copy Code struct into dictionary
 }
-void  colon(string &s) { colon(s.c_str()); }
-inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU)); }                       /** add an instruction into pmem */
-inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)); }                       /** add a cell into pmem         */
-inline void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); } /** add a string to pmem         */
-void add_w(IU w) {
+void  colon(string &s)   { colon(s.c_str()); }
+inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU)); }                       /**< add an instruction into pmem */
+inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)); }                       /**< add a cell into pmem         */
+inline void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); } /**< add a string to pmem         */
+inline void add_w(IU w)  {                                                         /**< add a word index into pmem   */
     Code &c = dict[w];
     IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
     add_iu(ip);
@@ -200,15 +203,15 @@ void add_w(IU w) {
 #include <iomanip>                  /// setbase
 #include <string>                   /// string class
 using namespace std;                /// default to C++ standard template library
-istringstream   fin;                /// forth_in
-ostringstream   fout;               /// forth_out
-string strbuf;                      /// input string buffer
-void (*fout_cb)(int, const char*);  /// forth output callback function (see ENDL macro)
+istringstream   fin;                ///< forth_in
+ostringstream   fout;               ///< forth_out
+string strbuf;                      ///< input string buffer
+void (*fout_cb)(int, const char*);  ///< forth output callback function (see ENDL macro)
 ///================================================================================
 ///
 /// IO & debug functions
 ///
-inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } // get next idiom
+inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } ///< get next idiom
 inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
 inline void to_s(IU w) {
@@ -220,12 +223,12 @@ inline void to_s(IU w) {
 void see(IU pfa, int dp=1) {
     U8 *ip = MEM(pfa);
     while (*(IU*)ip) {
-        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        // indentation
-        fout << setw(4) << (ip - MEM0) << "[ " << setw(-1);
-        IU c = pfa2word(*(IU*)ip);
-        to_s(c);                                                    // name field
-        if (dict[c].def && dp <= 2) {                               // is a colon word
-            see(PFA(c), dp+1);                                      // recursive into child PFA
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        ///> indentation
+        fout << setw(4) << (ip - MEM0) << "[ " << setw(-1);         ///> display word offset
+        IU c = pfa2word(*(IU*)ip);                                  ///> fetch word index by pfa
+        to_s(c);                                                    ///> display name
+        if (dict[c].def && dp < 2) {                                ///> is a colon word
+            see(PFA(c), dp+1);                                      ///> recursive into child PFA
         }
         ip += sizeof(IU);
         switch (c) {
@@ -332,7 +335,7 @@ static Code prim[] = {
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
-    CODE("exit",    IP = rs.pop(); WP = rs.pop()), // handled in nest()
+    CODE("exit",    IP = rs.pop(); WP = rs.pop()),      // handled in nest()
     CODE("donext",                                      // handled in nest()
          if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);    // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); }),
@@ -542,24 +545,24 @@ const int PSZ = sizeof(prim)/sizeof(Code);
 /// eForth dictionary initializer
 /// 
 void forth_init() {
-    for (int i=0; i<PSZ; i++) {              /// copy prim(ROM) into fast RAM dictionary,
-        dict.push(prim[i]);                  /// find() can be modified to support
-        if (((UFP)prim[i].xt - 4) < XT0) XT0 = ((UFP)prim[i].xt - 4);  /// collect xt base
+    for (int i=0; i<PSZ; i++) {              ///> copy prim(ROM) into fast RAM dictionary,
+        dict.push(prim[i]);                  ///> find() can be modified to support
+        if (((UFP)prim[i].xt - 4) < XT0) XT0 = ((UFP)prim[i].xt - 4);  ///> collect xt base
     }
-    forth_load("/load.txt");                 /// compile /data/load.txt
+    forth_load("/load.txt");                 ///> compile /data/load.txt
 }
 ///==========================================================================
 ///
 /// ForthVM Outer interpreter
 ///
 void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
-    fin.clear();                             /// clear input stream error bit if any
-    fin.str(cmd);                            /// feed user command into input stream
-    fout_cb = callback;                      /// setup callback function
-    fout.str("");                            /// clean output buffer, ready for next run
+    fin.clear();                             ///> clear input stream error bit if any
+    fin.str(cmd);                            ///> feed user command into input stream
+    fout_cb = callback;                      ///> setup callback function
+    fout.str("");                            ///> clean output buffer, ready for next run
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
-        int w = find(idiom);                        /// * search through dictionary
+        int w = find(idiom);                        ///> * search through dictionary
 #if CC_DEBUG
 #if (ARDUINO || ESP32)
         LOGF("find("); LOG(idiom); LOGF(") => ");
@@ -567,7 +570,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
         printf("find(%s) => ", idiom);
 #endif // (ARDUINO || ESP32)
 #endif // CC_DEBUG
-        if (w >= 0) {                               /// * word found?
+        if (w >= 0) {                               ///> * word found?
 #if CC_DEBUG
 #if (ARDUINO || ESP32)
             LOG(dict[w].name); LOG(" "); LOG(w); LOGF("\n");
@@ -597,7 +600,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
 #endif // (ARDUINO || ESP32)
 #endif // CC_DEBUG
         if (*p != '\0') {                           /// * not number
-            fout << idiom << "? " << ENDL;         ///> display error prompt
+            fout << idiom << "? " << ENDL;          ///> display error prompt
             compile = false;                        ///> reset to interpreter mode
             break;                                  ///> skip the entire input buffer
         }
