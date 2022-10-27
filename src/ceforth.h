@@ -17,7 +17,7 @@
 ///@}
 #define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
 #define RANGE_CHECK     0     /**< vector range check                     */
-#define CC_DEBUG        0     /**< debug tracing flag                     */
+#define CC_DEBUG        1     /**< debug tracing flag                     */
 #define INLINE          __attribute__((always_inline))
 ///@}
 ///@name Memory block configuation
@@ -29,22 +29,22 @@
 ///@}
 ///@name Multi-platform support
 ///@{
-#if _WIN32 || _WIN64
+#if    _WIN32 || _WIN64
 #define ENDL "\r\n"
-#else  // _WIN32 || _WIN64
+#else  // !(_WIN32 || _WIN64)
 #define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
 #endif // _WIN32 || _WIN64
 
-#if ARDUINO
+#if    ARDUINO
 #include <Arduino.h>
 #define to_string(i)    string(String(i).c_str())
 #define LOGF(s)         Serial.print(F(s))
 #define LOG(v)          Serial.print(v)
 #define LOGX(v)         Serial.print(v, HEX)
-#if ESP32
+#if    ESP32
 #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
 #endif // ESP32
-#else  // ARDUINO
+#else  // !ARDUINO
 #include <chrono>
 #include <thread>
 #define millis()        chrono::duration_cast<chrono::milliseconds>( \
@@ -111,7 +111,7 @@ struct List {
         if (idx<N) return v[max=idx++] = t;
         throw "ERR: List full";
     }
-#else  // RANGE_CHECK
+#else  // !RANGE_CHECK
     T pop()     INLINE { return v[--idx]; }
     T push(T t) INLINE { return v[max=idx++] = t; }
 #endif // RANGE_CHECK
@@ -152,7 +152,7 @@ struct Code {
 };
 #define CODE(s, g) { s, []() { g; }}
 #define IMMD(s, g) { s, []() { g; }, true }
-#else  // LAMBDA_OK
+#else  // !LAMBDA_OK
 ///
 /// a lambda without capture can degenerate into a function pointer
 ///

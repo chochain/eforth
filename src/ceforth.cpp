@@ -97,12 +97,35 @@ int pfa2word(IU ix) {
 int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
+#if CC_DEBUG
+int find(const char *s) {
+#if    (ARDUINO || ESP32)
+    LOGF("find("); LOG(s); LOGF(") => ");
+    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
+        if (streq(s, dict[i].name)) {
+            LOG(dict[i].name); LOG(" "); LOG(i); LOGF("\n");
+            return i;
+        }
+    }
+#else   // !(ARDUINO || ESP32)
+    printf("find(%s) => ", s);
+    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
+        if (streq(s, dict[i].name)) {
+            printf("%s %d\n", dict[i].name, i);
+            return i;
+        }
+    }
+#endif  // (ARDUINO || ESP32)
+    return -1;
+}
+#else // !CC_DEBUG
 int find(const char *s) {
     for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
         if (streq(s, dict[i].name)) return i;
     }
     return -1;
 }
+#endif // CC_DEBUG    
 int find(string &s) { return find(s.c_str()); }
 ///==============================================================================
 ///
@@ -116,9 +139,9 @@ void  colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];         ///> current pmem pointer
     int sz = STRLEN(name);                  ///> string length, aligned
     pmem.push((U8*)name,  sz);              ///> setup raw name field
-#if LAMBDA_OK
+#if    LAMBDA_OK
     Code c(nfa, [](){});                    ///> create a new word on dictionary
-#else  // LAMBDA_OK
+#else  // !LAMBDA_OK
     Code c(nfa, NULL);
 #endif // LAMBDA_OK
     c.def = 1;                              ///> specify a colon word
@@ -334,7 +357,7 @@ int forth_load(const char *fname) {
     SPIFFS.end();
     return 0;
 }
-#else  // (ARDUINO || ESP32)
+#else  // !(ARDUINO || ESP32)
 int forth_load(const char *fname) {
     printf("TODO: load resident applications from %s...\n", fname);
     return 0;
@@ -563,12 +586,38 @@ void forth_init() {
         dict.push(prim[i]);                  ///> find() can be modified to support
         if (((UFP)prim[i].xt - 4) < XT0) XT0 = ((UFP)prim[i].xt - 4);  ///> collect xt base
     }
+    printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
+
+    for (int i=0; i<PSZ; i++) {
+        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
+            XTOFF(dict[i].xt), dict[i].xt,
+            (U16)(dict[i].name - dict[0].name),
+            dict[i].name, dict[i].name);
+    }
     forth_load("/load.txt");                 ///> compile /data/load.txt
 }
 ///==========================================================================
 ///
 /// ForthVM Outer interpreter
 ///
+DU parse_number(const char *idiom, char *p) {
+#if DU==float
+    DU n = (base==10)
+        ? static_cast<DU>(strtof(idiom, &p))
+        : static_cast<DU>(strtol(idiom, &p, base));
+#else
+    DU n = static_cast<DU>(strtol(idiom, &p, base));
+#endif
+#if CC_DEBUG
+#if     (ARDUINO || ESP32)
+    LOG(n); LOGF("\n");
+#else  // !(ARDUINO || ESP32)
+    printf("%d\n", n);
+#endif // (ARDUINO || ESP32)
+#endif // CC_DEBUG
+    return n;
+}
+
 void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     fin.clear();                             ///> clear input stream error bit if any
     fin.str(cmd);                            ///> feed user command into input stream
@@ -577,21 +626,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
         int w = find(idiom);                        ///> * search through dictionary
-#if CC_DEBUG
-#if (ARDUINO || ESP32)
-        LOGF("find("); LOG(idiom); LOGF(") => ");
-#else  // (ARDUINO || ESP32)
-        printf("find(%s) => ", idiom);
-#endif // (ARDUINO || ESP32)
-#endif // CC_DEBUG
         if (w >= 0) {                               ///> * word found?
-#if CC_DEBUG
-#if (ARDUINO || ESP32)
-            LOG(dict[w].name); LOG(" "); LOG(w); LOGF("\n");
-#else  // (ARDUINO || ESP32)
-            printf("%s %d\n", dict[w].name, w);
-#endif // (ARDUINO || ESP32)
-#endif // CC_DEBUG
             if (compile && !dict[w].immd)           /// * in compile mode?
                 add_w(w);                           /// * add to colon word
             else CALL(w);                           /// * execute forth word
@@ -599,20 +634,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
         }
         // try as a number
         char *p;
-#if DU==float
-        DU n = (base==10)
-            ? static_cast<DU>(strtof(idiom, &p))
-            : static_cast<DU>(strtol(idiom, &p, base));
-#else
-        DU n = static_cast<DU>(strtol(idiom, &p, base));
-#endif
-#if CC_DEBUG
-#if (ARDUINO || ESP32)
-        LOG(n); LOGF("\n");
-#else  // (ARDUINO || ESP32)
-        printf("%d\n", n);
-#endif // (ARDUINO || ESP32)
-#endif // CC_DEBUG
+        DU n = parse_number(idiom, p);
         if (*p != '\0') {                           /// * not number
             fout << idiom << "? " << ENDL;          ///> display error prompt
             compile = false;                        ///> reset to interpreter mode
