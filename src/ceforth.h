@@ -1,7 +1,8 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
-#include <stdint.h>         // uintxx_t
-#include <exception>        // try...catch, throw
+#include <stdint.h>                          // uintxx_t
+#include <exception>                         // try...catch, throw
+#pragma GCC optimize("align-functions=4")    // we need fn alignment
 ///
 /// Benchmark: 10K*10K cycles on desktop (3.2G AMD)
 ///    LAMBDA_OK       0 cut 80ms
@@ -164,7 +165,7 @@ struct Code {
         struct {            ///< a colon word
             U16 def:  1;    ///< colon defined word
             U16 immd: 1;    ///< immediate flag
-            U16 xxx:  14;   ///< reserved
+            U16 len:  14;   ///< reserved
             IU  pfa;        ///< offset to pmem space (16-bit for 64K range)
         };
     };
