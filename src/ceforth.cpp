@@ -36,9 +36,9 @@
 /// global memory blocks
 ///
 /// Note:
-///   1.By separating pmem from dictionary, it makes dictionary uniform size
-///   * (i.e. the RISC vs CISC debate) which eliminates the need for link field
-///   * however, it requires size tuning manually
+///   1.By separating pmem from dictionary,
+///   * it makes dictionary uniform size which eliminates the need for link field
+///   * however, it requires array size tuning manually
 ///   2.For ease of byte counting, we use U8 for pmem instead of U16.
 ///   * this makes IP increment by 2 instead of word size. If needed, it can be
 ///   * readjusted.
@@ -49,6 +49,7 @@ List<Code, E4_DICT_SZ> dict;       ///< dictionary
 List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 UFP XT0   = ~0;                    ///< base of function pointers
+UFP NM0   = ~0;                    ///< base of name string
 ///
 /// system variables
 ///
@@ -166,33 +167,7 @@ inline void add_w(IU w)  {                                                      
     if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
     else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
 ///
-/// recursive version (looks nicer but use system stack)
-/// Note: superceded by iterator version below (~8% faster)
-/*
-void nest() {
-    IU *ip = (IU*)MEM(IP);                      /// cached pointer
-    while (*ip) {
-        if (*ip & 1) {
-            /// ENTER
-            rs.push(WP);                        /// * setup callframe
-            rs.push(IP);
-            IP = *ip & ~0x1;
-            nest();
-            /// EXIT
-            IP = rs.pop();                      /// * restore call frame
-            WP = rs.pop();
-        }
-        else {
-            IP += sizeof(IU);                   /// * advance to next opcode
-            (*(FPTR)XT(*ip))();
-        }
-        ip = (IU*)MEM(IP);
-    }
-    yield();                                    ///> give other tasks some time
-}
-*/
-///
-/// interative version
+/// interative version (8% faster than recursive version)
 /// TODO: performance tuning
 ///   1. Just-in-time code(ip, dp) for inner loop
 ///      * use local stack, 840ms => 784ms, but allot 4*64 bytes extra
@@ -580,19 +555,12 @@ static Code prim[] = {
 const int PSZ = sizeof(prim)/sizeof(Code);
 ///
 /// eForth dictionary initializer
-/// 
+///
 void forth_init() {
     for (int i=0; i<PSZ; i++) {              ///> copy prim(ROM) into fast RAM dictionary,
         dict.push(prim[i]);                  ///> find() can be modified to support
         if (((UFP)prim[i].xt - 4) < XT0) XT0 = ((UFP)prim[i].xt - 4);  ///> collect xt base
-    }
-    printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
-
-    for (int i=0; i<PSZ; i++) {
-        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
-            XTOFF(dict[i].xt), dict[i].xt,
-            (U16)(dict[i].name - dict[0].name),
-            dict[i].name, dict[i].name);
+        if ((UFP)prim[i].name < NM0) NM0 = (UFP)prim[i].name;
     }
     forth_load("/load.txt");                 ///> compile /data/load.txt
 }
@@ -651,7 +619,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
 }
 ///===================================================================================================
 ///
-/// ForthVM front-end proxy methods
+/// ForthVM - front-end proxy class
 ///
 void ForthVM::init()      { forth_init(); }
 void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
@@ -682,6 +650,7 @@ void ForthVM::mem_stat()  {
 }
 void ForthVM::dict_dump() {
     LOGF("XT0=");        LOGX(XT0);
+    LOGF("NM0=");        LOGX(NM0);
     LOGF(", sizeof(Code)="); LOG(sizeof(Code));
     LOGF("\n");
     for (int i=0; i<dict.idx; i++) {
@@ -689,7 +658,7 @@ void ForthVM::dict_dump() {
         LOG(i);
         LOGF("> xt=");   LOGX((UFP)c.xt - XT0);
         LOGF(":");       LOGX((UFP)c.xt);
-        LOGF(", name="); LOGX(c.name - dict[0].name);
+        LOGF(", name="); LOGX((UFP)c.name - NM0);
         LOGF(":");       LOGX((UFP)c.name);
         LOG(" ");        LOG(c.name);
         LOGF("\n");
@@ -699,11 +668,11 @@ void ForthVM::dict_dump() {
 void ForthVM::mem_stat()  {}
 void ForthVM::dict_dump() {
 #if CC_DEBUG
-    printf("XT0=%lx, sizeof(Code)=%ld byes\n", XT0, sizeof(Code));
+    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
     for (int i=0; i<dict.idx; i++) {
-        printf("%3d> xt=%4x:%p name=%4x:%p %s\n", i,
-            XTOFF(dict[i].xt), dict[i].xt,
-            (U16)(dict[i].name - dict[0].name),
+        printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
+            i, XTOFF(dict[i].xt), dict[i].xt,
+            (U16)((UFP)dict[i].name - NM0),
             dict[i].name, dict[i].name);
     }
 #endif // CC_DEBUG

@@ -177,7 +177,7 @@ struct Code {
 #define IMMD(s, g) { s, []{ g; }, true }
 #endif // LAMBDA_OK
 ///
-/// Forth virtual machine class
+/// Forth Virtual Machine (front-end proxy) class
 ///
 class ForthVM {
 public:
