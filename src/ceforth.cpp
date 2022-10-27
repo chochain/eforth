@@ -149,23 +149,20 @@ void  colon(const char *name) {
     c.pfa = HERE;                           ///> capture code field index
     dict.push(c);                           ///> deep copy Code struct into dictionary
 }
-void  colon(string &s)   { colon(s.c_str()); }
-inline void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU)); }                       /**< add an instruction into pmem */
-inline void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)); }                       /**< add a cell into pmem         */
-inline void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); } /**< add a string to pmem         */
-inline void add_w(IU w)  {                                                         /**< add a word index into pmem   */
+void colon(string &s) { colon(s.c_str()); }
+void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                   /**< add an instruction into pmem */
+void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                   /**< add a cell into pmem         */
+void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); } /**< add a string to pmem         */
+void add_w(IU w) {                                                          /**< add a word index into pmem   */
     Code &c = dict[w];
     IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
     add_iu(ip);
-    // printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
+    printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
 }
 ///============================================================================
 ///
 /// Forth inner interpreter (handles a colon word)
 ///
-#define CALL(w) \
-    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
-    else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
 ///
 /// interative version (8% faster than recursive version)
 /// TODO: performance tuning
@@ -173,7 +170,6 @@ inline void add_w(IU w)  {                                                      
 ///      * use local stack, 840ms => 784ms, but allot 4*64 bytes extra
 ///   2. computed label
 ///   3. co-routine
-///
 ///
 void nest() {
     static IU _NXT = XTOFF(dict[find("donext")].xt); ///> cache offset to subroutine address
@@ -204,6 +200,13 @@ void nest() {
         yield();                                     ///> give other tasks some time
     }
 }
+///
+/// CALL macro (inline to speed-up)
+///
+#define CALL(w)                                       \
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
+    else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
+
 ///==============================================================================
 ///
 /// utilize C++ standard template libraries for core IO functions only
@@ -217,7 +220,7 @@ void nest() {
 using namespace std;                /// default to C++ standard template library
 istringstream   fin;                ///< forth_in
 ostringstream   fout;               ///< forth_out
-string strbuf;                      ///< input string buffer
+string          strbuf;             ///< input string buffer
 void (*fout_cb)(int, const char*);  ///< forth output callback function (see ENDL macro)
 ///================================================================================
 ///
@@ -568,7 +571,9 @@ void forth_init() {
 ///
 /// ForthVM Outer interpreter
 ///
-DU parse_number(const char *idiom, char *p) {
+DU parse_number(const char *idiom, int *err) {
+    char *p;
+    *err = errno = 0;
 #if DU==float
     DU n = (base==10)
         ? static_cast<DU>(strtof(idiom, &p))
@@ -576,6 +581,7 @@ DU parse_number(const char *idiom, char *p) {
 #else
     DU n = static_cast<DU>(strtol(idiom, &p, base));
 #endif
+    if (errno || *p != '\0') *err = 1;
 #if CC_DEBUG
 #if     (ARDUINO || ESP32)
     LOG(n); LOGF("\n");
@@ -593,27 +599,27 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
     fout.str("");                            ///> clean output buffer, ready for next run
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
-        int w = find(idiom);                        ///> * search through dictionary
-        if (w >= 0) {                               ///> * word found?
-            if (compile && !dict[w].immd)           /// * in compile mode?
-                add_w(w);                           /// * add to colon word
-            else CALL(w);                           /// * execute forth word
+        int w = find(idiom);                 ///> * search through dictionary
+        if (w >= 0) {                        ///> * word found?
+            if (compile && !dict[w].immd)    /// * in compile mode?
+                add_w(w);                    /// * add to colon word
+            else CALL(w);                    /// * execute forth word
             continue;
         }
         // try as a number
-        char *p;
-        DU n = parse_number(idiom, p);
-        if (*p != '\0') {                           /// * not number
-            fout << idiom << "? " << ENDL;          ///> display error prompt
-            compile = false;                        ///> reset to interpreter mode
-            break;                                  ///> skip the entire input buffer
+        int err = 0;
+        DU  n   = parse_number(idiom, &err);
+        if (err) {                           /// * not number
+            fout << idiom << "? " << ENDL;   ///> display error prompt
+            compile = false;                 ///> reset to interpreter mode
+            break;                           ///> skip the entire input buffer
         }
         // is a number
-        if (compile) {                              /// * a number in compile mode?
-            add_w(DOLIT);                           ///> add to current word
+        if (compile) {                       /// * a number in compile mode?
+            add_w(DOLIT);                    ///> add to current word
             add_du(n);
         }
-        else PUSH(n);                               ///> or, add value onto data stack
+        else PUSH(n);                        ///> or, add value onto data stack
     }
     if (!compile) ss_dump();   /// * dump stack and display ok prompt
 }
@@ -670,10 +676,11 @@ void ForthVM::dict_dump() {
 #if CC_DEBUG
     printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
     for (int i=0; i<dict.idx; i++) {
+        Code &c = dict[i];
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
-            i, XTOFF(dict[i].xt), dict[i].xt,
-            (U16)((UFP)dict[i].name - NM0),
-            dict[i].name, dict[i].name);
+            i, XTOFF(c.xt), c.xt,
+            (U16)((UFP)c.name - NM0),
+            c.name, c.name);
     }
 #endif // CC_DEBUG
 }
