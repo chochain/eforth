@@ -2,6 +2,18 @@
 /// @file
 /// @brief eForth implemented in C/C++ for portability
 ///
+/// CC 20220512:
+///       Though the goal of eForth is to show how a Forth can be
+///       easily understood and cleanly constructed.
+///       However, the threading method used is very inefficient (slow)
+///       because each call needs 2 indirect lookups (token->dict, dict->xt)
+///       and a callframe needs to be setup/teardown. Plus, every call
+///       will miss the branch prediction stalling CPU pipeline. Bad stuffs!
+/// CC 20220514:
+///       Refactor to subroutine indirect threading.
+///       Using 16-bit offsets for pointer arithmatics in order to speed up
+///       while maintaining space consumption
+///
 /// @benchmark: 10K*10K cycles on desktop (3.2GHz AMD)
 /// + 1200ms - orig/esp32forth8_1, token threading
 /// +  981ms - subroutine threading, inline list methods
@@ -11,8 +23,7 @@
 /// + 1045ms - orig/esp32forth8_1, token threading
 /// +  839ms - subroutine threading, inline list methods
 ///
-#include <iomanip>          // setbase, setw, setfill
-#include <string.h>
+#include <string.h>         // strcmp, strcasecmp
 #include "ceforth.h"
 ///
 /// version info
@@ -43,10 +54,10 @@ UFP XT0   = ~0;                    ///< base of function pointers
 ///
 bool compile = false;              ///< compiler flag
 bool ucase   = true;               ///< case sensitivity control
-DU   top = -1;                     ///< top of stack (cached)
-DU   base = 10;                    ///< numeric radix
-IU   WP  = 0;                      ///< current word pointer (used by DOES only)
-IU   IP  = 0;                      ///< current instruction pointer and cached base pointer
+DU   top     = -1;                 ///< top of stack (cached)
+DU   base    = 10;                 ///< numeric radix
+IU   WP      = 0;                  ///< current word pointer (used by DOES only)
+IU   IP      = 0;                  ///< current instruction pointer and cached base pointer
 ///
 /// macros to abstract dict and pmem physical implementation
 /// Note:
@@ -93,73 +104,6 @@ int find(const char *s) {
     return -1;
 }
 int find(string &s) { return find(s.c_str()); }
-///============================================================================
-///
-/// Forth inner interpreter (handles a colon word)
-///
-#define CALL(w) \
-    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
-    else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
-///
-/// recursive version (looks nicer but use system stack)
-/// Note: superceded by iterator version below (~8% faster)
-/*
-void nest() {
-    IU *ip = (IU*)MEM(IP);                      /// cached pointer
-    while (*ip) {
-        if (*ip & 1) {
-            /// ENTER
-            rs.push(WP);                        /// * setup callframe
-            rs.push(IP);
-            IP = *ip & ~0x1;
-            nest();
-            /// EXIT
-            IP = rs.pop();                      /// * restore call frame
-            WP = rs.pop();
-        }
-        else {
-            IP += sizeof(IU);                   /// * advance to next opcode
-            (*(FPTR)XT(*ip))();
-        }
-        ip = (IU*)MEM(IP);
-    }
-    yield();                                ///> give other tasks some time
-}
-*/
-///
-/// interative version
-///
-/// Note: use local stack, 840ms => 784ms, but allot 4*64 bytes extra
-///
-void nest() {
-    static IU _NXT = XTOFF(dict[find("donext")].xt); ///> cache offset to subroutine address
-    int dp = 0;                                      ///> iterator depth control
-    while (dp >= 0) {
-        IU ix = *(IU*)MEM(IP);                       ///> fetch opcode
-        while (ix) {                                 ///> fetch till EXIT
-            IP += sizeof(IU);
-            if (ix & 1) {                            ///> is it a colon word?
-                rs.push(WP);                         ///> * setup callframe (ENTER)
-                rs.push(IP);
-                IP = ix & ~0x1;                      ///> word pfa (def masked)
-                dp++;                                ///> go one level deeper
-            }
-#if  !(ARDUINO || ESP32)
-            else if (ix == _NXT) {                          ///> cached DONEXT handler (save 600ms / 100M cycles on Intel)
-                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but on ESP32, it slows down 100ms / 1M cycles
-                else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
-            }
-#endif // !(ARDUINO || ESP32)
-            else (*(FPTR)XT(ix))();                  ///> execute primitive word
-            ix = *(IU*)MEM(IP);                      ///> fetch next opcode
-        }
-        if (dp-- > 0) {                              ///> pop off a level
-            IP = rs.pop();                           ///> * restore call frame (EXIT)
-            WP = rs.pop();
-        }
-        yield();                                     ///> give other tasks some time
-    }
-}
 ///==============================================================================
 ///
 /// colon word compiler
@@ -191,6 +135,77 @@ inline void add_w(IU w)  {                                                      
     add_iu(ip);
     // printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
 }
+///============================================================================
+///
+/// Forth inner interpreter (handles a colon word)
+///
+#define CALL(w) \
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
+    else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
+///
+/// recursive version (looks nicer but use system stack)
+/// Note: superceded by iterator version below (~8% faster)
+/*
+void nest() {
+    IU *ip = (IU*)MEM(IP);                      /// cached pointer
+    while (*ip) {
+        if (*ip & 1) {
+            /// ENTER
+            rs.push(WP);                        /// * setup callframe
+            rs.push(IP);
+            IP = *ip & ~0x1;
+            nest();
+            /// EXIT
+            IP = rs.pop();                      /// * restore call frame
+            WP = rs.pop();
+        }
+        else {
+            IP += sizeof(IU);                   /// * advance to next opcode
+            (*(FPTR)XT(*ip))();
+        }
+        ip = (IU*)MEM(IP);
+    }
+    yield();                                    ///> give other tasks some time
+}
+*/
+///
+/// interative version
+/// TODO: performance tuning
+///   1. Just-in-time code(ip, dp) for inner loop
+///      * use local stack, 840ms => 784ms, but allot 4*64 bytes extra
+///   2. computed label
+///   3. co-routine
+///
+///
+void nest() {
+    static IU _NXT = XTOFF(dict[find("donext")].xt); ///> cache offset to subroutine address
+    int dp = 0;                                      ///> iterator depth control
+    while (dp >= 0) {
+        IU ix = *(IU*)MEM(IP);                       ///> fetch opcode
+        while (ix) {                                 ///> fetch till EXIT
+            IP += sizeof(IU);
+            if (ix & 1) {                            ///> is it a colon word?
+                rs.push(WP);                         ///> * setup callframe (ENTER)
+                rs.push(IP);
+                IP = ix & ~0x1;                      ///> word pfa (def masked)
+                dp++;                                ///> go one level deeper
+            }
+#if  !(ARDUINO || ESP32)
+            else if (ix == _NXT) {                          ///> cached DONEXT handler (save 600ms / 100M cycles on AMD)
+                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but on ESP32, it slows down 100ms / 1M cycles
+                else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
+            }
+#endif // !(ARDUINO || ESP32)
+            else (*(FPTR)XT(ix))();                  ///> execute primitive word
+            ix = *(IU*)MEM(IP);                      ///> fetch next opcode
+        }
+        if (dp-- > 0) {                              ///> pop off a level
+            IP = rs.pop();                           ///> * restore call frame (EXIT)
+            WP = rs.pop();
+        }
+        yield();                                     ///> give other tasks some time
+    }
+}
 ///==============================================================================
 ///
 /// utilize C++ standard template libraries for core IO functions only
@@ -199,9 +214,8 @@ inline void add_w(IU w)  {                                                      
 ///   * if it takes too much memory for target MCU,
 ///   * these functions can be replaced with our own implementation
 ///
+#include <iomanip>                  /// setbase, setw, setfill
 #include <sstream>                  /// iostream, stringstream
-#include <iomanip>                  /// setbase
-#include <string>                   /// string class
 using namespace std;                /// default to C++ standard template library
 istringstream   fin;                ///< forth_in
 ostringstream   fout;               ///< forth_out
@@ -211,8 +225,6 @@ void (*fout_cb)(int, const char*);  ///< forth output callback function (see END
 ///
 /// IO & debug functions
 ///
-inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } ///< get next idiom
-inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
 inline void to_s(IU w) {
     fout << dict[w].name << " " << w << (dict[w].immd ? "* " : " ");
@@ -276,6 +288,8 @@ void mem_dump(IU p0, DU sz) {
 ///
 /// macros to reduce verbosity
 ///
+inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } ///< get next idiom
+inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline void PUSH(DU v)    { ss.push(top); top = v; }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///

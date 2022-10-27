@@ -1,7 +1,6 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
 #include <stdint.h>         // uintxx_t
-#include <sstream>
 #include <exception>        // try...catch, throw
 ///
 /// Benchmark: 10K*10K cycles on desktop (3.2G AMD)
@@ -11,7 +10,7 @@
 ///
 /// Note: use LAMBDA_OK=1 for full ForthVM class
 ///    if lambda needs to capture [this] for Code
-///    * it slow down nest() by 2x (1200ms -> 2500ms)
+///    * it slow down nest() by 2x (1200ms -> 2500ms) on AMD
 ///    * with one parameter, it slows 160ms extra
 ///
 ///@name Conditional compililation options
@@ -59,10 +58,10 @@ using namespace std;
 ///
 ///@name Logical units (instead of physical) for type check and portability
 ///@{
-typedef uint32_t        U32;   // unsigned 32-bit integer
-typedef uint16_t        U16;   // unsigned 16-bit integer
-typedef uint8_t         U8;    // byte, unsigned character
-typedef uintptr_t       UFP;
+typedef uint32_t        U32;   ///< unsigned 32-bit integer
+typedef uint16_t        U16;   ///< unsigned 16-bit integer
+typedef uint8_t         U8;    ///< byte, unsigned character
+typedef uintptr_t       UFP;   ///< function pointer as integer
 #ifdef USE_FLOAT
 typedef double          DU2;
 typedef float           DU;
@@ -72,7 +71,7 @@ typedef int64_t         DU2;
 typedef int32_t         DU;
 #define DVAL            0
 #endif // USE_FLOAT
-typedef uint16_t        IU;    // instruction pointer unit
+typedef uint16_t        IU;    ///< instruction pointer unit
 ///@}
 ///@name Alignment macros
 ///@{
