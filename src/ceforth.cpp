@@ -15,13 +15,13 @@
 ///       while maintaining space consumption
 ///
 /// @benchmark: 10K*10K cycles on desktop (3.2GHz AMD)
-/// + 1200ms - orig/esp32forth8_1, token threading
-/// +  981ms - subroutine threading, inline list methods
+/// + 1200ms - orig/esp32forth8_1, token call threading
+/// +  981ms - call threading, inline list methods
 ///
 /// @benchmark: 1K*1K cycles on NodeMCU ESP32S
 /// + 1440ms - Dr. Ting's orig/esp32forth_82
-/// + 1045ms - orig/esp32forth8_1, token threading
-/// +  839ms - subroutine threading, inline list methods
+/// + 1045ms - orig/esp32forth8_1, token call threading
+/// +  839ms - call threading, inline list methods
 ///
 #include <string.h>         // strcmp, strcasecmp
 #include "ceforth.h"
@@ -157,12 +157,12 @@ void add_w(IU w) {                                                          /**<
     Code &c = dict[w];
     IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
     add_iu(ip);
-    printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
+    // printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
 }
 ///============================================================================
 ///
 /// Forth inner interpreter (handles a colon word)
-///
+/// Note: call threading is slower with call/return
 ///
 /// interative version (8% faster than recursive version)
 /// TODO: performance tuning
@@ -177,7 +177,7 @@ void nest() {
     while (dp >= 0) {
         IU ix = *(IU*)MEM(IP);                       ///> fetch opcode
         while (ix) {                                 ///> fetch till EXIT
-            IP += sizeof(IU);
+            IP += sizeof(IU);                        /// * advance inst. ptr
             if (ix & 1) {                            ///> is it a colon word?
                 rs.push(WP);                         ///> * setup callframe (ENTER)
                 rs.push(IP);
@@ -638,7 +638,8 @@ const char *ForthVM::version(){
 ///
 /// memory statistics - for heap and stack debugging
 ///
-#if  (ARDUINO || ESP32)
+#if CC_DEBUG
+#if    (ARDUINO || ESP32)
 void ForthVM::mem_stat()  {
     LOGF("Core:");           LOG(xPortGetCoreID());
     LOGF(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
@@ -670,10 +671,19 @@ void ForthVM::dict_dump() {
         LOGF("\n");
     }
 }
-#else  // (ARDUINO || ESP32)
-void ForthVM::mem_stat()  {}
+#else  // !(ARDUINO || ESP32)
+void ForthVM::mem_stat()  {
+    printf("Core: %x", xPortGetCoreID());
+    printf(" heap[maxblk=%x", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    printf(", avail=%x", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    printf(", ss_max=%x", ss.max);
+    printf(", rs_max=%x", rs.max);
+    printf(", pmem=%x", HERE);
+    printf("], lowest[heap=%x", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    printf(", stack=%x", uxTaskGetStackHighWaterMark(NULL));
+    printf("]\n");
+}
 void ForthVM::dict_dump() {
-#if CC_DEBUG
     printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
@@ -682,10 +692,26 @@ void ForthVM::dict_dump() {
             (U16)((UFP)c.name - NM0),
             c.name, c.name);
     }
-#endif // CC_DEBUG
 }
+#endif // (ARDUINO || ESP32)
+#else  // !CC_DEBUG
+void ForthVM::mem_stat()  {}
+void ForthVM::dict_dump() {
+    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
+    for (int i=0; i<dict.idx; i++) {
+        Code &c = dict[i];
+        printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
+            i, XTOFF(c.xt), c.xt,
+            (U16)((UFP)c.name - NM0),
+            c.name, c.name);
+    }
+}
+#endif // CC_DEBUG
+
+#if !(ARDUINO || ESP32)
 ///
 /// main program for testing on PC
+/// Arduino and ESP32 have their own main
 ///
 #include <iostream>               // cin, cout
 int main(int ac, char* av[]) {
@@ -703,4 +729,4 @@ int main(int ac, char* av[]) {
     cout << "Done!" << endl;
     return 0;
 }
-#endif // (ARDUINO || ESP32)
+#endif // !(ARDUINO || ESP32)
