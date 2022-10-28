@@ -1,10 +1,9 @@
 ### ting - Dr. Ting's original ceForth
   + _23
   + _33
-  + _36
 
 ### ting - Dr. Ting's adaptation by my input
-  + _36b, _36c, _36x
+  + _36, _36b, _36c, _36x
   + _40, _40b, _40c
   + _401, _402, _403
 
