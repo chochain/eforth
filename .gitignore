@@ -49,3 +49,6 @@ Thumbs.db
 *.wmv
 
 /Debug/
+/.settings
+.project
+.cproject
