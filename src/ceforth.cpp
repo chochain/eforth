@@ -371,7 +371,7 @@ static Code prim[] = {
     CODE("does",                                   // CREATE...DOES... meta-program
          IU *ip = (IU*)MEM(PFA(WP));
          while (*ip != DOES) ip++;                 // find DOES
-         while (*ip) add_iu(*ip);),                // copy&paste code
+         while (*++ip) add_iu(*ip)),               // copy&paste code
     CODE(">r",   rs.push(POP())),
     CODE("r>",   PUSH(rs.pop())),
     CODE("r@",   PUSH(rs[-1])),
@@ -519,8 +519,8 @@ static Code prim[] = {
         IU w = find(next_idiom());                               // to save the extra @ of a variable
         *(DU*)(PFA(w) + sizeof(IU)) = POP()),
     CODE("is",              // ' y is x                          // alias a word
-        IU w = find(next_idiom());                               // can serve as a function pointer
-        dict[POP()].pfa = dict[w].pfa),                          // but might leave a dangled block
+        IU w = find(next_idiom());                               // copy entire union struct
+        dict[POP()].xt = dict[w].xt),
     CODE("[to]",            // : xx 3 [to] y ;                   // alter constant in compile mode
         IU w = *(IU*)MEM(IP); IP += sizeof(IU);                  // fetch constant pfa from 'here'
         *(DU*)MEM(PFA(w) + sizeof(IU)) = POP()),
@@ -544,7 +544,9 @@ static Code prim[] = {
     CODE("words", words()),
     CODE("see",
         IU w = find(next_idiom());
-        fout << "[ "; to_s(w); if (dict[w].def) see(PFA(w)); fout << "]" << ENDL),
+        fout << "[ "; to_s(w);
+        if (dict[w].def) see(PFA(w));                           // recursive
+        fout << "]" << ENDL),
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n)),
     CODE("peek",  DU a = POP(); PUSH(PEEK(a))),
     CODE("poke",  DU a = POP(); POKE(a, POP())),
@@ -677,15 +679,12 @@ void ForthVM::dict_dump() {
 }
 #else  // !(ARDUINO || ESP32)
 void ForthVM::mem_stat()  {
-    printf("Core: %x", xPortGetCoreID());
-    printf(" heap[maxblk=%x", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    printf(", avail=%x", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    printf("heap[maxblk=%x", E4_PMEM_SZ);
+    printf(", avail=%x", E4_PMEM_SZ - HERE);
     printf(", ss_max=%x", ss.max);
     printf(", rs_max=%x", rs.max);
     printf(", pmem=%x", HERE);
-    printf("], lowest[heap=%x", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-    printf(", stack=%x", uxTaskGetStackHighWaterMark(NULL));
-    printf("]\n");
+    printf("], stack_sz=%x\n", E4_SS_SZ);
 }
 void ForthVM::dict_dump() {
     printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
