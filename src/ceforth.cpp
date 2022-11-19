@@ -228,7 +228,11 @@ void (*fout_cb)(int, const char*);  ///< forth output callback function (see END
 ///
 inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
 inline void to_s(IU w) {
+#if CC_DEBUG
     fout << dict[w].name << " " << w << (dict[w].immd ? "* " : " ");
+#else  // !CC_DEBUG
+    fout << " " << dict[w].name;
+#endif // CC_DEBUG
 }
 ///
 /// recursively disassemble colon word
