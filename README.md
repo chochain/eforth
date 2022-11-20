@@ -18,7 +18,7 @@
 
 ### Compile
 #### Linux
-> g++ -Isrc -o tests/eforth src/ceforth.cpp
+> g++ -O3 -Isrc -o tests/eforth src/ceforth.cpp
 
 ### Version History
 * CC 20220512:
