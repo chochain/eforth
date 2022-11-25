@@ -261,9 +261,16 @@ void see(IU pfa, int dp=1) {
     }
 }
 void words() {
+    const int WIDTH = 60;
+    int sz = 0;
     fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
-        if ((i%10)==0) { fout << ENDL; yield(); }
+        sz += STRLEN(dict[i].name);
+        if (sz > WIDTH) {
+            sz = 0;
+            fout << ENDL;
+            yield();
+        }
         to_s(i);
     }
     fout << setbase(base);
@@ -699,16 +706,7 @@ void ForthVM::dict_dump() {
 #endif // (ARDUINO || ESP32)
 #else  // !CC_DEBUG
 void ForthVM::mem_stat()  {}
-void ForthVM::dict_dump() {
-    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
-    for (int i=0; i<dict.idx; i++) {
-        Code &c = dict[i];
-        printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
-            i, XTOFF(c.xt), c.xt,
-            (U16)((UFP)c.name - NM0),
-            c.name, c.name);
-    }
-}
+void ForthVM::dict_dump() {}
 #endif // CC_DEBUG
 
 #if !(ARDUINO || ESP32)
