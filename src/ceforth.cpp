@@ -167,7 +167,6 @@ void nest() {
         while (ix) {                                 ///> fetch till EXIT
             IP += sizeof(IU);                        /// * advance inst. ptr
             if (ix & 1) {                            ///> is it a colon word?
-                rs.push(WP);                         ///> * setup callframe (ENTER)
                 rs.push(IP);
                 IP = ix & ~0x1;                      ///> word pfa (def masked)
                 dp++;                                ///> go one level deeper
@@ -181,10 +180,8 @@ void nest() {
             else (*(FPTR)XT(ix))();                  ///> execute primitive word
             ix = *(IU*)MEM(IP);                      ///> fetch next opcode
         }
-        if (dp-- > 0) {                              ///> pop off a level
-            IP = rs.pop();                           ///> * restore call frame (EXIT)
-            WP = rs.pop();
-        }
+        if (dp-- > 0) IP = rs.pop();                 ///> pop off a level
+        
         yield();                                     ///> give other tasks some time
     }
 }
@@ -364,7 +361,7 @@ static Code prim[] = {
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
-    CODE("_exit",    IP = rs.pop(); WP = rs.pop()),     // handled in nest()
+    CODE("_exit",    IP = rs.pop()),                    // handled in nest()
     CODE("_donext",                                     // handled in nest()
          if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);    // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); }),
