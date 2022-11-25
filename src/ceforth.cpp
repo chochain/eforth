@@ -265,13 +265,16 @@ void words() {
     int sz = 0;
     fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
-        sz += STRLEN(dict[i].name);
+        const char *nm = dict[i].name;
+        if (nm[0] != '_') {
+            sz += strlen(dict[i].name) + 1;
+            to_s(i);
+        }
         if (sz > WIDTH) {
             sz = 0;
             fout << ENDL;
             yield();
         }
-        to_s(i);
     }
     fout << setbase(base);
 }
@@ -361,20 +364,20 @@ static Code prim[] = {
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
-    CODE("exit",    IP = rs.pop(); WP = rs.pop()),      // handled in nest()
-    CODE("donext",                                      // handled in nest()
+    CODE("_exit",    IP = rs.pop(); WP = rs.pop()),     // handled in nest()
+    CODE("_donext",                                     // handled in nest()
          if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);    // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); }),
-    CODE("dovar",   PUSH(IP);            IP += sizeof(DU)),
-    CODE("dolit",   PUSH(*(DU*)MEM(IP)); IP += sizeof(DU)),
-    CODE("dostr",
+    CODE("_dovar",   PUSH(IP);            IP += sizeof(DU)),
+    CODE("_dolit",   PUSH(*(DU*)MEM(IP)); IP += sizeof(DU)),
+    CODE("_dostr",
         const char *s = (const char*)MEM(IP);      // get string pointer
         PUSH(IP); IP += STRLEN(s)),
-    CODE("dotstr",
+    CODE("_dotstr",
         const char *s = (const char*)MEM(IP);      // get string pointer
         fout << s;  IP += STRLEN(s)),              // send to output console
-    CODE("branch" , IP = *(IU*)MEM(IP)),           // unconditional branch
-    CODE("0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)), // conditional branch
+    CODE("_branch" , IP = *(IU*)MEM(IP)),          // unconditional branch
+    CODE("_0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)), // conditional branch
     CODE("does",                                   // CREATE...DOES... meta-program
          IU *ip = (IU*)MEM(PFA(WP));
          while (*ip != DOES) ip++;                 // find DOES
