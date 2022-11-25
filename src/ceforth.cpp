@@ -83,18 +83,6 @@ typedef enum {
 ///
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
-int pfa2word(IU ix) {
-    IU   def = ix & 1;
-    IU   pfa = ix & ~0x1;             ///> TODO: handle colon immediate words when > 64K
-    UFP  xt  = XT(ix);                ///> can xt be immediate? i.e. ix & ~0x3
-    for (int i = dict.idx - 1; i >= 0; --i) {
-        if (def) {
-            if (dict[i].pfa == pfa) return i;      ///> compare pfa in PMEM
-        }
-        else if ((UFP)dict[i].xt == xt) return i;  ///> compare xt (no immediate?)
-    }
-    return -1;
-}
 int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
@@ -237,6 +225,18 @@ inline void to_s(IU w) {
 ///
 /// recursively disassemble colon word
 ///
+int pfa2word(IU ix) {
+    IU   def = ix & 1;
+    IU   pfa = ix & ~0x1;             ///> TODO: handle colon immediate words when > 64K
+    UFP  xt  = XT(ix);                ///> can xt be immediate? i.e. ix & ~0x3
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (def) {
+            if (dict[i].pfa == pfa) return i;      ///> compare pfa in PMEM
+        }
+        else if ((UFP)dict[i].xt == xt) return i;  ///> compare xt (no immediate?)
+    }
+    return -1;
+}
 void see(IU pfa, int dp=1) {
     U8 *ip = MEM(pfa);
     while (*(IU*)ip) {
@@ -455,8 +455,8 @@ static Code prim[] = {
     CODE("]",       compile = true),
     IMMD("(",       scan(')')),
     IMMD(".(",      fout << scan(')')),
-    CODE("\\",      scan('\n')),
-    CODE("$\"",
+    IMMD("\\",      scan('\n')),
+    IMMD("$\"",
         const char *s = scan('"')+1;        // string skip first blank
         add_w(DOSTR);                       // dostr, (+parameter field)
         add_str(s)),                        // byte0, byte1, byte2, ..., byteN
@@ -540,7 +540,7 @@ static Code prim[] = {
     CODE("here",  PUSH(HERE)),
     CODE("ucase", ucase = POP()),
     CODE("'",     IU w = find(next_idiom()); PUSH(w)),
-    CODE(".s",    ss_dump()),
+    CODE(".$",    fout << (char*)MEM(POP())),
     CODE("words", words()),
     CODE("see",
         IU w = find(next_idiom());
