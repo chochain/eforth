@@ -109,12 +109,12 @@ int find(const char *s) {
 }
 #else // !CC_DEBUG
 int find(const char *s) {
-    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
+    for (int i = dict.idx - 1; i >= 0; --i) {
         if (streq(s, dict[i].name)) return i;
     }
     return -1;
 }
-#endif // CC_DEBUG    
+#endif // CC_DEBUG
 int find(string &s) { return find(s.c_str()); }
 ///==============================================================================
 ///
@@ -124,7 +124,7 @@ int find(string &s) { return find(s.c_str()); }
 ///   * if they are combined then can behaves similar to classic Forth
 ///   * with an addition link field added.
 ///
-void  colon(const char *name) {
+void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];         ///> current pmem pointer
     int sz = STRLEN(name);                  ///> string length, aligned
     pmem.push((U8*)name,  sz);              ///> setup raw name field
@@ -138,10 +138,10 @@ void  colon(const char *name) {
     dict.push(c);                           ///> deep copy Code struct into dictionary
 }
 void colon(string &s) { colon(s.c_str()); }
-void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                   /**< add an instruction into pmem */
-void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                   /**< add a cell into pmem         */
-void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); } /**< add a string to pmem         */
-void add_w(IU w) {                                                          /**< add a word index into pmem   */
+void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                    /**< add an instruction into pmem */
+void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    /**< add a cell into pmem         */
+void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  /**< add a string to pmem         */
+void add_w(IU w) {                                                           /**< add a word index into pmem   */
     Code &c = dict[w];
     IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
     add_iu(ip);
@@ -181,7 +181,7 @@ void nest() {
             ix = *(IU*)MEM(IP);                      ///> fetch next opcode
         }
         if (dp-- > 0) IP = rs.pop();                 ///> pop off a level
-        
+
         yield();                                     ///> give other tasks some time
     }
 }
@@ -300,7 +300,16 @@ void mem_dump(IU p0, DU sz) {
 ///
 /// macros to reduce verbosity
 ///
-inline char *next_idiom() { fin >> strbuf; return (char*)strbuf.c_str(); } ///< get next idiom
+int def_word(const char* name) {                ///< display if redefined
+    if (name[0]=='\0')   { fout << " name?" << ENDL; return 0; }  /// * missing name?
+    if (find(name) >= 0) { fout << name << " reDef? " << ENDL; }  /// * word redefined?
+    colon(name);                                                  /// * create a colon word
+    return 1;                                                     /// * created OK
+}
+char *next_idiom() {                            ///< get next idiom
+    if (!(fin >> strbuf)) strbuf.clear();       /// * input buffer exhausted?
+    return (char*)strbuf.c_str();
+}
 inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline void PUSH(DU v)    { ss.push(top); top = v; }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
@@ -507,26 +516,31 @@ static Code prim[] = {
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE(":", colon(next_idiom()); compile=true),
+    CODE(":",
+        compile = true;
+        if (!def_word(next_idiom())) compile = false),
     IMMD(";", add_w(EXIT); compile = false),
     CODE("variable",                                             // create a variable
-        colon(next_idiom());                                     // create a new word on dictionary
-        add_w(DOVAR);                                            // dovar (+parameter field)
-        int n = 0; add_du(n);                                    // data storage (32-bit integer now)
-        add_w(EXIT)),
+        if (def_word(next_idiom())) {                            // create a new word on dictionary
+            add_w(DOVAR);                                        // dovar (+parameter field)
+            int n = 0; add_du(n);                                // data storage (32-bit integer now)
+            add_w(EXIT);
+        }),
     CODE("constant",                                             // create a constant
-        colon(next_idiom());                                     // create a new word on dictionary
-        add_w(DOLIT);                                            // dovar (+parameter field)
-        add_du(POP());                                           // data storage (32-bit integer now)
-        add_w(EXIT)),
+        if (def_word(next_idiom())) {                            // create a new word on dictionary
+            add_w(DOLIT);                                        // dovar (+parameter field)
+            add_du(POP());                                       // data storage (32-bit integer now)
+            add_w(EXIT);
+        }),
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",  CALL(POP())),                                  // execute word
-    CODE("create",
-        colon(next_idiom());                                     // create a new word on dictionary
-        add_w(DOVAR)),                                           // dovar (+ parameter field)
+    CODE("create",                                               // dovar (+ parameter field)
+        if (def_word(next_idiom())) {                            // create a new word on dictionary
+            add_w(DOVAR);
+        }),
     CODE("to",              // 3 to x                            // alter the value of a constant
         IU w = find(next_idiom());                               // to save the extra @ of a variable
         *(DU*)(PFA(w) + sizeof(IU)) = POP()),
@@ -616,8 +630,9 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
         const char *idiom = strbuf.c_str();
         int w = find(idiom);                 ///> * search through dictionary
         if (w >= 0) {                        ///> * word found?
-            if (compile && !dict[w].immd)    /// * in compile mode?
+            if (compile && !dict[w].immd) {  /// * in compile mode?
                 add_w(w);                    /// * add to colon word
+            }
             else CALL(w);                    /// * execute forth word
             continue;
         }
