@@ -3,7 +3,7 @@
 ### next generation of ceForth
 * ~/src common source for esp32forth and wineForth
 * ~/orig/33b refactored 32-bit asm+vm implementation.
-  > Originated from Dr. Ting's eForth site http://forth.org/OffeteStore/OffeteStore.html
+  > Originated from <a href="http://forth.org/OffeteStore/OffeteStore.html" target="_blank">Dr. Ting's eForth site</a>
 * shared source with Dr. Ting in ~/orig/ting
 
 ### Benchmark
@@ -20,7 +20,11 @@
 #### Linux
 > g++ -O3 -Isrc -o tests/eforth src/ceforth.cpp
 
+###
+
 ### Version History
+* Dr. Ting's work on eForth between 1995~2011
+  <a href="http://forth.org/library/eforth_SOC" target="_blank">[eForth references]</a> and their <a href="http://forth.org/library/eforth_SOC/eforth_SOC_source" target="_blank">[Source Code Repo]</a>
 * CC 20220512:
   >  Though the goal of eForth is to show how a Forth can be easily understood and cleanly constructed. However, the threading method used is very inefficient (slow) because each call needs 2 indirect lookups (token->dict, dict->xt) and a callframe needs to be setup/teardown. Plus, every call will miss the branch prediction stalling CPU pipeline. Bad stuffs!
 * CC 20220514:
