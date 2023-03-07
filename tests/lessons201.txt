@@ -78,6 +78,7 @@ variable width                  ( number of asterisks to print )
 ( this example shows you how to build a hiararchical structure in forth)
 
 decimal
+0 ucase!
 
 : the           ." the " ;
 : that          cr ." that " ;
@@ -342,7 +343,7 @@ computer:
         2drop ;
 
 : multiply ( -- )
-        cr cr 7 spaces
+        cr cr 6 spaces
         1 11
         for     dup 4 .r 1 +
         next drop 

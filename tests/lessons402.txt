@@ -133,6 +133,7 @@ then    [ -- ]                  terminate an if-else-then structure
                                 or an if-then structure.
 )
 : cloaked cloak saved based hiding lay rest ;
+0 ucase!
 : THEORY
         cr this theory rest
         this flaw lay rest
@@ -342,7 +343,7 @@ cr .( example 10.  print the multiplication table )
         2drop ;
 
 : multiply ( -- )
-        cr cr 7 spaces
+        cr cr 6 spaces
         1 11
         for     dup 4 .r 1 +
         next drop 
