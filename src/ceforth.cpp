@@ -375,7 +375,7 @@ static Code prim[] = {
         fout << s;  IP += STRLEN(s)),              // send to output console
     CODE("_branch" , IP = *(IU*)MEM(IP)),          // unconditional branch
     CODE("_0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)), // conditional branch
-    CODE("does",                                   // CREATE...DOES... meta-program
+    CODE("does>",                                  // CREATE...DOES>... meta-program
          IU *ip = (IU*)MEM(PFA(WP));
          while (*ip != DOES) ip++;                 // find DOES
          while (*++ip) add_iu(*ip)),               // copy&paste code
@@ -463,7 +463,7 @@ static Code prim[] = {
     IMMD("(",       scan(')')),
     IMMD(".(",      fout << scan(')')),
     IMMD("\\",      scan('\n')),
-    IMMD("$\"",
+    IMMD("s\"",
         const char *s = scan('"')+1;        // string skip first blank
         add_w(DOSTR);                       // dostr, (+parameter field)
         add_str(s)),                        // byte0, byte1, byte2, ..., byteN
@@ -494,6 +494,11 @@ static Code prim[] = {
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
+/*
+  do
+  loop
+  +loop
+*/    
     IMMD("for" ,    add_w(TOR); PUSH(HERE)),                    // for ( -- here )
     IMMD("next",    add_w(DONEXT); add_iu(POP())),              // next ( here -- )
     IMMD("aft",                                                 // aft ( here -- here there )
@@ -528,9 +533,6 @@ static Code prim[] = {
     CODE("is",              // ' y is x                          // alias a word
         IU w = find(next_idiom());                               // copy entire union struct
         dict[POP()].xt = dict[w].xt),
-    CODE("[to]",            // : xx 3 [to] y ;                   // alter constant in compile mode
-        IU w = *(IU*)MEM(IP); IP += sizeof(IU);                  // fetch constant pfa from 'here'
-        *(DU*)MEM(PFA(w) + sizeof(IU)) = POP()),
     ///
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
@@ -545,9 +547,9 @@ static Code prim[] = {
     /// @defgroup Debug ops
     /// @{
     CODE("here",  PUSH(HERE)),
-    CODE("ucase", ucase = POP()),
+    CODE("ucase!",ucase = POP()),
     CODE("'",     IU w = find(next_idiom()); PUSH(w)),
-    CODE(".$",    fout << (char*)MEM(POP())),
+    CODE(".s",    fout << (char*)MEM(POP())),
     CODE("words", words()),
     CODE("see",
         IU w = find(next_idiom());
@@ -562,7 +564,7 @@ static Code prim[] = {
         if (w<0) return;
         IU b = find("boot")+1;
         dict.clear(w > b ? w : b)),
-    CODE("clock", PUSH(millis())),
+    CODE("ms",    PUSH(millis())),
     CODE("delay", delay(POP())),
     /// @}
     CODE("bye",   exit(0)),
