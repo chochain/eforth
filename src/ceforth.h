@@ -174,12 +174,14 @@ struct Code {
             IU  pfa;        ///< offset to pmem space (16-bit for 64K range)
         };
     };
+    static FPTR XT(IU ix) INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
     Code(const char *n, FPTR f, bool im) : name(n), xt(f) {
         immd = im ? 1 : 0;
-        if (((UFP)f - 4) < XT0) XT0 = ((UFP)f - 4);  ///> collect xt base
-        if ((UFP)n < NM0) NM0 = (UFP)n;              ///> collect name string base
+        if (((UFP)f - 4) < XT0) XT0 = (UFP)f - 4;        ///> collect xt base
+        if ((UFP)n < NM0) NM0 = (UFP)n;                  ///> collect name string base
     }
     Code() {}               ///< create a blank struct (for initilization)
+    IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }    ///< xt offset in code space
 };
 #define ADD_CODE(n, g, im) {    \
     Code c(n, []{ g; }, im);	\

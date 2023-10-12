@@ -70,8 +70,6 @@ IU   IP      = 0;                  ///< current instruction pointer and cached b
 #define MEM(ip)   (MEM0 + (IU)(ip))       /**< pointer to IP address fetched from pmem */
 #define CELL(a)   (*(DU*)&pmem[a])        /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE) /**< address offset for branching opcodes    */
-#define XTOFF(xp) ((IU)((UFP)(xp) - Code::XT0))    /**< XT offset (index) in code space*/
-#define XT(xt)    (Code::XT0 + ((UFP)(xt) & ~0x3)) /**< convert offset to a fptr XT    */
 ///@}
 typedef enum {
     EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DOES, TOR
@@ -141,7 +139,7 @@ void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    /**
 void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  /**< add a string to pmem         */
 void add_w(IU w) {                                                           /**< add a word index into pmem   */
     Code &c = dict[w];
-    IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
+    IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : c.xtoff());
     add_iu(ip);
     // printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
 }
@@ -158,7 +156,7 @@ void add_w(IU w) {                                                           /**
 ///   3. co-routine
 ///
 void nest() {
-    static IU _NXT = XTOFF(dict[find("donext")].xt); ///> cache offset to subroutine address
+    static IU _NXT = dict[find("donext")].xtoff();   ///> cache offset to subroutine address
     int dp = 0;                                      ///> iterator depth control
     while (dp >= 0) {
         IU ix = *(IU*)MEM(IP);                       ///> fetch opcode
@@ -175,7 +173,7 @@ void nest() {
                 else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
             }
 #endif // !(ARDUINO || ESP32)
-            else (*(FPTR)XT(ix))();                  ///> execute primitive word
+            else (*Code::XT(ix))();                  ///> execute primitive word
             ix = *(IU*)MEM(IP);                      ///> fetch next opcode
         }
         if (dp-- > 0) IP = rs.pop();                 ///> pop off a level
@@ -223,12 +221,12 @@ inline void to_s(IU w) {
 int pfa2word(IU ix) {
     IU   def = ix & 1;
     IU   pfa = ix & ~0x1;             ///> TODO: handle colon immediate words when > 64K
-    UFP  xt  = XT(ix);                ///> can xt be immediate? i.e. ix & ~0x3
+    FPTR xt  = Code::XT(ix);          ///> can xt be immediate? i.e. ix & ~0x3
     for (int i = dict.idx - 1; i >= 0; --i) {
         if (def) {
             if (dict[i].pfa == pfa) return i;      ///> compare pfa in PMEM
         }
-        else if ((UFP)dict[i].xt == xt) return i;  ///> compare xt (no immediate?)
+        else if (dict[i].xt == xt) return i;       ///> compare xt
     }
     return -1;
 }
@@ -706,7 +704,7 @@ void ForthVM::dict_dump() {
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
-            i, XTOFF(c.xt), c.xt,
+            i, c.xtoff(), c.xt,
             (U16)((UFP)c.name - NM0),
             c.name, c.name);
     }
