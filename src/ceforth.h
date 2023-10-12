@@ -163,6 +163,7 @@ struct Code {
 ///
 typedef void (*FPTR)();     ///< function pointer
 struct Code {
+	static UFP XT0, NM0;
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
@@ -175,6 +176,8 @@ struct Code {
     };
     Code(const char *n, FPTR f, bool im) : name(n), xt(f) {
         immd = im ? 1 : 0;
+        if (((UFP)f - 4) < XT0) XT0 = ((UFP)f - 4);  ///> collect xt base
+        if ((UFP)n < NM0) NM0 = (UFP)n;              ///> collect name string base
     }
     Code() {}               ///< create a blank struct (for initilization)
 };
