@@ -95,10 +95,10 @@ struct List {
     int max = 0;        ///< high watermark for debugging
 
     List()  {
-    	v = N ? new T[N] : 0;                      ///< dynamically allocate array storage
+    	v = N ? new T[N] : 0;                         ///< dynamically allocate array storage
     	if (!v) throw "ERR: List allot failed";
     }
-    ~List() { if (v) delete[] v;   }               ///< free memory
+    ~List() { if (v) delete[] v;   }                  ///< free memory
 
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
@@ -114,10 +114,10 @@ struct List {
     }
 #else  // !RANGE_CHECK
     T pop()     INLINE { return v[--idx]; }
-    T push(T t) INLINE { return v[max=idx++] = t; }
+    T push(T t) INLINE { return v[max=idx++] = t; }   ///< deep copy element
 #endif // RANGE_CHECK
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
-    void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]);}
+    void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
     void clear(int i=0)    INLINE { idx=i; }
 };
 ///
@@ -126,6 +126,7 @@ struct List {
 ///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
 ///
 #if LAMBDA_OK
+
 struct fop { virtual void operator()() = 0; };
 template<typename F>
 struct XT : fop {           ///< universal functor
@@ -146,13 +147,16 @@ struct Code {
         };
     };
     template<typename F>    ///< template function for lambda
-    Code(const char *n, F f, bool im=false) : name(n), xt(new XT<F>(f)) {
+    Code(const char *n, F f, bool im) : name(n), xt(new XT<F>(f)) {
         immd = im ? 1 : 0;
     }
     Code() {}               ///< create a blank struct (for initilization)
 };
-#define CODE(s, g) { s, []() { g; }}
-#define IMMD(s, g) { s, []() { g; }, true }
+#define ADD_CODE(n, g, im) {     \
+    Code c(n, []() { g; }, im);  \
+    dict.push(c);                \
+    }
+
 #else  // !LAMBDA_OK
 ///
 /// a lambda without capture can degenerate into a function pointer
@@ -169,14 +173,20 @@ struct Code {
             IU  pfa;        ///< offset to pmem space (16-bit for 64K range)
         };
     };
-    Code(const char *n, FPTR f, bool im=false) : name(n), xt(f) {
+    Code(const char *n, FPTR f, bool im) : name(n), xt(f) {
         immd = im ? 1 : 0;
     }
     Code() {}               ///< create a blank struct (for initilization)
 };
-#define CODE(s, g) { s, []{ g; }}
-#define IMMD(s, g) { s, []{ g; }, true }
+#define ADD_CODE(n, g, im) {    \
+    Code c(n, []{ g; }, im);	\
+    dict.push(c);         		\
+    }
+
 #endif // LAMBDA_OK
+
+#define CODE(n, g) ADD_CODE(n, g, false)
+#define IMMD(n, g) ADD_CODE(n, g, true)
 ///
 /// Forth Virtual Machine (front-end proxy) class
 ///
