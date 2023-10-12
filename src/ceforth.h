@@ -16,7 +16,7 @@
 ///
 ///@name Conditional compililation options
 ///@}
-#define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
+#define LAMBDA_OK       1     /**< lambda support, set 1 for ForthVM.this */
 #define RANGE_CHECK     0     /**< vector range check                     */
 #define CC_DEBUG        0     /**< debug tracing flag                     */
 #define INLINE          __attribute__((always_inline))
@@ -129,13 +129,14 @@ struct List {
 
 struct fop { virtual void operator()() = 0; };
 template<typename F>
-struct XT : fop {           ///< universal functor
+struct FP : fop {           ///< universal functor
     F fp;
-    XT(F &f) : fp(f) {}
+    FP(F &f) : fp(f) {}
     void operator()() INLINE { fp(); }
 };
 typedef fop* FPTR;          ///< lambda function pointer
 struct Code {
+	static UFP XT0, NM0;
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
@@ -146,11 +147,15 @@ struct Code {
             IU  pfa;        ///< offset to pmem space
         };
     };
+    static FPTR XT(IU ix) INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
     template<typename F>    ///< template function for lambda
-    Code(const char *n, F f, bool im) : name(n), xt(new XT<F>(f)) {
+    Code(const char *n, F f, bool im) : name(n), xt(new FP<F>(f)) {
         immd = im ? 1 : 0;
+        if (((UFP)xt - 4) < XT0) XT0 = (UFP)xt - 4;      ///> collect xt base
+        if ((UFP)n < NM0) NM0 = (UFP)n;                  ///> collect name string base
     }
     Code() {}               ///< create a blank struct (for initilization)
+    IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }    ///< xt offset in code space
 };
 #define ADD_CODE(n, g, im) {     \
     Code c(n, []() { g; }, im);  \
