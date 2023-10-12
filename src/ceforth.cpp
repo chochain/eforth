@@ -48,10 +48,8 @@ List<DU,   E4_SS_SZ>   ss;         ///< parameter stack
 List<Code, E4_DICT_SZ> dict;       ///< dictionary
 List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
-UFP XT0   = ~0;                    ///< base of function pointers
-UFP NM0   = ~0;                    ///< base of name string
 ///
-/// system variables
+/// VM states
 ///
 bool compile = false;              ///< compiler flag
 bool ucase   = true;               ///< case sensitivity control
@@ -66,14 +64,14 @@ IU   IP      = 0;                  ///< current instruction pointer and cached b
 ///
 ///@name Dictionary access macros
 ///@{
-#define BOOL(f)   ((f)?-1:0)                /**< Forth boolean representation            */
-#define PFA(w)    (dict[w].pfa)             /**< parameter field pointer of a word       */
-#define HERE      (pmem.idx)                /**< current parameter memory index          */
-#define MEM(ip)   (MEM0 + (IU)(ip))         /**< pointer to IP address fetched from pmem */
-#define XTOFF(xp) ((IU)((UFP)(xp) - XT0))   /**< XT offset (index) in code space         */
-#define XT(xt)    (XT0 + ((UFP)(xt) & ~0x3))/**< convert XT offset to function pointer   */
-#define CELL(a)   (*(DU*)&pmem[a])          /**< fetch a cell from parameter memory      */
-#define SETJMP(a) (*(IU*)&pmem[a] = HERE)   /**< address offset for branching opcodes    */
+#define BOOL(f)   ((f)?-1:0)              /**< Forth boolean representation            */
+#define PFA(w)    (dict[w].pfa)           /**< parameter field pointer of a word       */
+#define HERE      (pmem.idx)              /**< current parameter memory index          */
+#define MEM(ip)   (MEM0 + (IU)(ip))       /**< pointer to IP address fetched from pmem */
+#define CELL(a)   (*(DU*)&pmem[a])        /**< fetch a cell from parameter memory      */
+#define SETJMP(a) (*(IU*)&pmem[a] = HERE) /**< address offset for branching opcodes    */
+#define XTOFF(xp) ((IU)((UFP)(xp) - Code::XT0))    /**< XT offset (index) in code space*/
+#define XT(xt)    (Code::XT0 + ((UFP)(xt) & ~0x3)) /**< convert offset to a fptr XT    */
 ///@}
 typedef enum {
     EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DOES, TOR
@@ -365,6 +363,9 @@ int forth_load(const char *fname) {
 /// eForth dictionary initializer
 /// Note: sequenced by enum forth_opcode as following
 ///
+UFP Code::XT0 = ~0;
+UFP Code::NM0 = ~0;
+
 void forth_init() {
     ///
     /// @defgroup Execution flow ops
@@ -584,10 +585,6 @@ void forth_init() {
     CODE("bye",   exit(0));
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear());
 
-    for (int i=0; i<dict.idx; i++) {         ///> copy prim(ROM) into fast RAM dictionary,
-        if (((UFP)dict[i].xt - 4) < XT0) XT0 = ((UFP)dict[i].xt - 4);  ///> collect xt base
-        if ((UFP)dict[i].name < NM0) NM0 = (UFP)dict[i].name;
-    }
     forth_load("/load.txt");                 ///> compile /data/load.txt
 }
 ///==========================================================================
