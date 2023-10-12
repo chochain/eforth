@@ -95,8 +95,8 @@ struct List {
     int max = 0;        ///< high watermark for debugging
 
     List()  {
-    	v = N ? new T[N] : 0;                         ///< dynamically allocate array storage
-    	if (!v) throw "ERR: List allot failed";
+        v = N ? new T[N] : 0;                         ///< dynamically allocate array storage
+        if (!v) throw "ERR: List allot failed";
     }
     ~List() { if (v) delete[] v;   }                  ///< free memory
 
@@ -136,7 +136,7 @@ struct FP : fop {           ///< universal functor
 };
 typedef fop* FPTR;          ///< lambda function pointer
 struct Code {
-	static UFP XT0, NM0;
+    static UFP XT0, NM0;
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
@@ -168,7 +168,7 @@ struct Code {
 ///
 typedef void (*FPTR)();     ///< function pointer
 struct Code {
-	static UFP XT0, NM0;
+    static UFP XT0, NM0;
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
@@ -190,7 +190,7 @@ struct Code {
 };
 #define ADD_CODE(n, g, im) {    \
     Code c(n, []{ g; }, im);	\
-    dict.push(c);         		\
+    dict.push(c);               \
     }
 
 #endif // LAMBDA_OK

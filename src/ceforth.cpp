@@ -506,7 +506,7 @@ void forth_init() {
   do
   loop
   +loop
-*/    
+*/
     IMMD("for" ,    add_w(TOR); PUSH(HERE));                    // for ( -- here )
     IMMD("next",    add_w(DONEXT); add_iu(POP()));              // next ( here -- )
     IMMD("aft",                                                 // aft ( here -- here there )
