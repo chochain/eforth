@@ -16,7 +16,7 @@
 ///
 ///@name Conditional compililation options
 ///@}
-#define LAMBDA_OK       1     /**< lambda support, set 1 for ForthVM.this */
+#define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
 #define RANGE_CHECK     0     /**< vector range check                     */
 #define CC_DEBUG        0     /**< debug tracing flag                     */
 #define INLINE          __attribute__((always_inline))
@@ -147,7 +147,8 @@ struct Code {
             IU  pfa;        ///< offset to pmem space
         };
     };
-    static FPTR XT(IU ix) INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
+    static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     template<typename F>    ///< template function for lambda
     Code(const char *n, F f, bool im) : name(n), xt(new FP<F>(f)) {
         immd = im ? 1 : 0;
@@ -179,7 +180,8 @@ struct Code {
             IU  pfa;        ///< offset to pmem space (16-bit for 64K range)
         };
     };
-    static FPTR XT(IU ix) INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
+    static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     Code(const char *n, FPTR f, bool im) : name(n), xt(f) {
         immd = im ? 1 : 0;
         if (((UFP)f - 4) < XT0) XT0 = (UFP)f - 4;        ///> collect xt base

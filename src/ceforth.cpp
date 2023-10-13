@@ -173,7 +173,7 @@ void nest() {
                 else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
             }
 #endif // !(ARDUINO || ESP32)
-            else (*Code::XT(ix))();                  ///> execute primitive word
+            else Code::exec(ix);                     ///> execute primitive word
             ix = *(IU*)MEM(IP);                      ///> fetch next opcode
         }
         if (dp-- > 0) IP = rs.pop();                 ///> pop off a level
