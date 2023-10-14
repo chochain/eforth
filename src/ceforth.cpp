@@ -184,9 +184,10 @@ void nest() {
 ///
 /// CALL macro (inline to speed-up)
 ///
-#define CALL(w)                                       \
-    if (dict[w].def) { WP = w; IP = PFA(w); nest(); } \
-    else (*(FPTR)((UFP)dict[w].xt & ~0x3))()
+void CALL(IU w) {
+    if (dict[w].def) { WP = w; IP = PFA(w); nest(); }
+    else (*(FPTR)((UFP)dict[w].xt & ~0x3))();
+}
 
 ///==============================================================================
 ///
@@ -250,7 +251,7 @@ void see(IU pfa, int dp=1) {
         case BRAN: case ZBRAN: case DONEXT:
             fout << "= " << *(IU*)ip; ip += sizeof(IU); break;
         }
-        fout << "] ";
+        fout << " ] ";
     }
 }
 void words() {
@@ -566,7 +567,7 @@ void forth_init() {
     CODE("words", words());
     CODE("see",
         IU w = find(next_idiom());
-        fout << "[ "; to_s(w);
+        fout << "["; to_s(w);
         if (dict[w].def) see(PFA(w));                           // recursive
         fout << "]" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
