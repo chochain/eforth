@@ -244,10 +244,13 @@ inline void to_s(IU w) {
 #endif // CC_DEBUG
 }
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
-void s_quote() {
+void s_quote(IU op) {
     const char *s = scan('"')+1;       ///> string skip first blank
-    add_w(DOSTR);                      ///> dostr, (+parameter field)
-    add_str(s);                        ///> byte0, byte1, byte2, ..., byteN
+    if (compile) {
+        add_w(op);                     ///> dostr, (+parameter field)
+        add_str(s);                    ///> byte0, byte1, byte2, ..., byteN
+    }
+    else fout << s;                    ///> just print
 }
 ///
 /// recursively disassemble colon word
@@ -387,7 +390,8 @@ void forth_init() {
     CODE("_dolit",   PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
     CODE("_dostr",
         const char *s = (const char*)MEM(IP);      // get string pointer
-        PUSH(IP); IP += STRLEN(s));
+        IU    len = STRLEN(s);
+        PUSH(IP); PUSH(len); IP += len);
     CODE("_dotstr",
         const char *s = (const char*)MEM(IP);      // get string pointer
         fout << s;  IP += STRLEN(s));              // send to output console
@@ -440,8 +444,8 @@ void forth_init() {
     CODE("xor",  top = ss.pop() ^ top);
     CODE("abs",  top = abs(top));
     CODE("negate", top = -top);
-    CODE("rshift", top = ss.pop() >> top),
-    CODE("lshift", top = ss.pop() << top),
+    CODE("rshift", top = ss.pop() >> top);
+    CODE("lshift", top = ss.pop() << top);
     CODE("max",  DU n=ss.pop(); top = (top>n)?top:n);
     CODE("min",  DU n=ss.pop(); top = (top<n)?top:n);
     CODE("2*",   top *= 2);
@@ -476,6 +480,10 @@ void forth_init() {
     CODE("u.",      fout << UINT(POP()) << " ");
     CODE(".r",      DU n = POP(); dot_r(n, POP()));
     CODE("u.r",     DU n = POP(); dot_r(n, UINT(POP())));
+    CODE("type",
+        IU    len  = POP();                        // string length (not used)
+        const char *s = (const char*)MEM(POP());   // get string pointer
+        fout << s);                                // send to output console
     CODE("key",     PUSH(next_idiom()[0]));
     CODE("emit",    char b = (char)POP(); fout << b);
     CODE("space",   spaces(1));
@@ -488,15 +496,8 @@ void forth_init() {
     IMMD("(",       scan(')'));
     IMMD(".(",      fout << scan(')'));
     IMMD("\\",      scan('\n'));
-    IMMD("s\"",     s_quote());
-    IMMD("\"",      s_quote());
-    IMMD(".\"",
-         const char *s = scan('"')+1;
-         if (!compile) fout << s;
-         else {
-             add_w(DOTSTR);
-             add_str(s);
-         });
+    IMMD("s\"",     s_quote(DOSTR));
+    IMMD(".\"",     s_quote(DOTSTR));
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
