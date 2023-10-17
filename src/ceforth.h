@@ -16,6 +16,7 @@
 ///
 ///@name Conditional compililation options
 ///@}
+#define DO_WASM         0     /**< for WASM output                        */
 #define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
 #define RANGE_CHECK     0     /**< vector range check                     */
 #define CC_DEBUG        0     /**< debug tracing flag                     */
@@ -45,7 +46,14 @@
 #if    ESP32
 #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
 #endif // ESP32
-#else  // !ARDUINO
+
+#elif  __EMSCRIPTEN__
+#include <emscripten.h>
+#define millis()        EM_ASM_INT({ return Date.now(); })
+#define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
+#define yield()
+
+#else  // !ARDUINO && !__EMSCRIPTEN__
 #include <chrono>
 #include <thread>
 #define millis()        chrono::duration_cast<chrono::milliseconds>( \
@@ -53,7 +61,8 @@
 #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
 #define yield()         this_thread::yield()
 #define PROGMEM
-#endif // ARDUINO
+
+#endif // ARDUINO && __EMSCRIPTEN__
 ///@}
 using namespace std;
 ///
@@ -63,14 +72,19 @@ typedef uint32_t        U32;   ///< unsigned 32-bit integer
 typedef uint16_t        U16;   ///< unsigned 16-bit integer
 typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
+
 #ifdef USE_FLOAT
 typedef double          DU2;
 typedef float           DU;
 #define DVAL            0.0f
-#else // USE_FLOAT
+#define UINT(v)         (fabs(v)))
+
+#else // !USE_FLOAT
 typedef int64_t         DU2;
 typedef int32_t         DU;
 #define DVAL            0
+#define UINT(v)         (abs(v))
+
 #endif // USE_FLOAT
 typedef uint16_t        IU;    ///< instruction pointer unit
 ///@}
@@ -112,14 +126,31 @@ struct List {
         if (idx<N) return v[max=idx++] = t;
         throw "ERR: List full";
     }
+    
 #else  // !RANGE_CHECK
     T pop()     INLINE { return v[--idx]; }
     T push(T t) INLINE { return v[max=idx++] = t; }   ///< deep copy element
+    
 #endif // RANGE_CHECK
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
     void clear(int i=0)    INLINE { idx=i; }
 };
+///
+/// Code flag masking options
+///
+#if DO_WASM                 /** WASM use the LSB  */
+#define UDF_FLAG   0x8000   /** user defined word */
+#define IMM_FLAG   0x4000   /** immediate word    */
+#define UDF_MASK   0x3fff   /** user defined word */
+
+#else // !DO_WASM
+#define UDF_FLAG   0x0001
+#define IMM_FLAG   0x0002
+#define UDF_MASK  ~0x0003
+
+#endif // DO_WASM
+
 ///
 /// universal functor (no STL) and Code class
 /// Note:
@@ -141,17 +172,15 @@ struct Code {
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
         struct {            ///< a colon word
-            U16 def:  1;    ///< colon defined word
-            U16 immd: 1;    ///< immediate flag
-            U16 len:  14;   ///< len of pfa
+            U16 flag;       ///< colon defined word
             IU  pfa;        ///< offset to pmem space
         };
     };
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & UDF_MASK)); }
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     template<typename F>    ///< template function for lambda
     Code(const char *n, F f, bool im) : name(n), xt(new FP<F>(f)) {
-        immd = im ? 1 : 0;
+        flag |= im ? IMM_FLAG : 0;
         if (((UFP)xt - 4) < XT0) XT0 = (UFP)xt - 4;      ///> collect xt base
         if ((UFP)n < NM0) NM0 = (UFP)n;                  ///> collect name string base
     }
@@ -173,17 +202,15 @@ struct Code {
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
-        struct {            ///< a colon word
-            U16 def:  1;    ///< colon defined word
-            U16 immd: 1;    ///< immediate flag
-            U16 len:  14;   ///< reserved
+        struct {
+            U16 flag;       ///< attributes (def, imm, xx=reserved)
             IU  pfa;        ///< offset to pmem space (16-bit for 64K range)
         };
     };
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~0x3)); }
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & UDF_MASK)); }
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     Code(const char *n, FPTR f, bool im) : name(n), xt(f) {
-        immd = im ? 1 : 0;
+        flag |= im ? IMM_FLAG : 0;
         if (((UFP)f - 4) < XT0) XT0 = (UFP)f - 4;        ///> collect xt base
         if ((UFP)n < NM0) NM0 = (UFP)n;                  ///> collect name string base
     }
@@ -199,17 +226,7 @@ struct Code {
 
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
-///
-/// Forth Virtual Machine (front-end proxy) class
-///
-class ForthVM {
-public:
-    void init();
-    void outer(const char *cmd, void(*callback)(int, const char*));
+#define IS_UDF(w) (dict[w].flag & UDF_FLAG)
+#define IS_IMM(w) (dict[w].flag & IMM_FLAG)
 
-    const char *version();
-
-    void mem_stat();
-    void dict_dump();
-};
 #endif // __EFORTH_SRC_CEFORTH_H
