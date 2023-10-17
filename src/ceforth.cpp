@@ -440,6 +440,8 @@ void forth_init() {
     CODE("xor",  top = ss.pop() ^ top);
     CODE("abs",  top = abs(top));
     CODE("negate", top = -top);
+    CODE("rshift", top = ss.pop() >> top),
+    CODE("lshift", top = ss.pop() << top),
     CODE("max",  DU n=ss.pop(); top = (top>n)?top:n);
     CODE("min",  DU n=ss.pop(); top = (top<n)?top:n);
     CODE("2*",   top *= 2);
