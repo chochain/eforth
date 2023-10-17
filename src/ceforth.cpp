@@ -30,7 +30,7 @@
 ///
 #define APP_NAME         "eForth"
 #define MAJOR_VERSION    "8"
-#define MINOR_VERSION    "3"
+#define MINOR_VERSION    "4"
 ///==============================================================================
 ///
 /// global memory blocks
@@ -129,7 +129,7 @@ void colon(const char *name) {
 #else  // !LAMBDA_OK
     Code c(nfa, NULL, false);
 #endif // LAMBDA_OK
-    c.def = 1;                              ///> specify a colon word
+    c.flag |= UDF_FLAG;                     ///> specify a colon word
     c.pfa = HERE;                           ///> capture code field index
     dict.push(c);                           ///> deep copy Code struct into dictionary
 }
@@ -139,7 +139,8 @@ void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    /**
 void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  /**< add a string to pmem         */
 void add_w(IU w) {                                                           /**< add a word index into pmem   */
     Code &c = dict[w];
-    IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : c.xtoff());
+    //IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : c.xtoff());
+    IU   ip = IS_UDF(w) ? (c.pfa | UDF_FLAG) : (w==EXIT ? 0 : c.xtoff());
     add_iu(ip);
     // printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
 }
@@ -162,9 +163,9 @@ void nest() {
         IU ix = *(IU*)MEM(IP);                       ///> fetch opcode
         while (ix) {                                 ///> fetch till EXIT
             IP += sizeof(IU);                        /// * advance inst. ptr
-            if (ix & 1) {                            ///> is it a colon word?
+            if (ix & UDF_FLAG) {                     ///> is it a colon word?
                 rs.push(IP);
-                IP = ix & ~0x1;                      ///> word pfa (def masked)
+                IP = ix & ~UDF_FLAG;                 ///> word pfa (def masked)
                 dp++;                                ///> go one level deeper
             }
 #if  !(ARDUINO || ESP32)
@@ -185,9 +186,18 @@ void nest() {
 /// CALL macro (inline to speed-up)
 ///
 void CALL(IU w) {
-    if (dict[w].def) { WP = w; IP = PFA(w); nest(); }
-    else (*(FPTR)((UFP)dict[w].xt & ~0x3))();
+    if (IS_UDF(w)) { WP = w; IP = PFA(w); nest(); }
+    else (*(FPTR)((UFP)dict[w].xt & UDF_MASK))();
 }
+///
+/// global memory access macros
+///
+/// macros for ESP memory space access (be very careful of these)
+/// note: 4000_0000 is instruction bus, access needs to be 32-bit aligned
+///       3fff_ffff and below is data bus, no alignment requirement
+///
+#define     PEEK(a)    (DU)(*(DU*)((UFP)(a)))
+#define     POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
 
 ///==============================================================================
 ///
@@ -206,6 +216,23 @@ string          strbuf;             ///< input string buffer
 void (*fout_cb)(int, const char*);  ///< forth output callback function (see ENDL macro)
 ///================================================================================
 ///
+/// macros to reduce verbosity
+///
+int def_word(const char* name) {                ///< display if redefined
+    if (name[0]=='\0')   { fout << " name?" << ENDL; return 0; }  /// * missing name?
+    if (find(name) >= 0) { fout << name << " reDef? " << ENDL; }  /// * word redefined?
+    colon(name);                                                  /// * create a colon word
+    return 1;                                                     /// * created OK
+}
+char *next_idiom() {                            ///< get next idiom
+    if (!(fin >> strbuf)) strbuf.clear();       /// * input buffer exhausted?
+    return (char*)strbuf.c_str();
+}
+inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
+inline void PUSH(DU v)    { ss.push(top); top = v; }
+inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
+///================================================================================
+///
 /// IO & debug functions
 ///
 inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
@@ -216,11 +243,17 @@ inline void to_s(IU w) {
     fout << " " << dict[w].name;
 #endif // CC_DEBUG
 }
+void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
+void s_quote() {
+    const char *s = scan('"')+1;       ///> string skip first blank
+    add_w(DOSTR);                      ///> dostr, (+parameter field)
+    add_str(s);                        ///> byte0, byte1, byte2, ..., byteN
+}
 ///
 /// recursively disassemble colon word
 ///
 int pfa2word(IU ix) {
-    IU   def = ix & 1;
+    IU   def = ix & UDF_FLAG;         ///> check user defined flag
     IU   pfa = ix & ~0x1;             ///> TODO: handle colon immediate words when > 64K
     FPTR xt  = Code::XT(ix);          ///> can xt be immediate? i.e. ix & ~0x3
     for (int i = dict.idx - 1; i >= 0; --i) {
@@ -238,7 +271,7 @@ void see(IU pfa, int dp=1) {
         fout << setw(4) << (ip - MEM0) << "[" << setw(-1);          ///> display word offset
         IU c = pfa2word(*(IU*)ip);                                  ///> fetch word index by pfa
         to_s(c);                                                    ///> display name
-        if (dict[c].def && dp < 2) {                                ///> is a colon word
+        if (IS_UDF(c) && dp < 2) {                                  ///> is a colon word
             see(PFA(c), dp+1);                                      ///> recursive into child PFA
         }
         ip += sizeof(IU);
@@ -273,8 +306,12 @@ void words() {
     fout << setbase(base);
 }
 void ss_dump() {
+#if   DO_WASM
+    fout << "ok" << ENDL;
+#else  // DO_WASM
     fout << " <"; for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
     fout << top << "> ok" << ENDL;
+#endif // DO_WASM
 }
 void mem_dump(IU p0, DU sz) {
     fout << setbase(16) << setfill('0') << ENDL;
@@ -293,34 +330,6 @@ void mem_dump(IU p0, DU sz) {
     }
     fout << setbase(base);
 }
-///================================================================================
-///
-/// macros to reduce verbosity
-///
-int def_word(const char* name) {                ///< display if redefined
-    if (name[0]=='\0')   { fout << " name?" << ENDL; return 0; }  /// * missing name?
-    if (find(name) >= 0) { fout << name << " reDef? " << ENDL; }  /// * word redefined?
-    colon(name);                                                  /// * create a colon word
-    return 1;                                                     /// * created OK
-}
-char *next_idiom() {                            ///< get next idiom
-    if (!(fin >> strbuf)) strbuf.clear();       /// * input buffer exhausted?
-    return (char*)strbuf.c_str();
-}
-inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
-inline void PUSH(DU v)    { ss.push(top); top = v; }
-inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
-///
-//#define     PUSH(v)       { ss.push(top); top = (v); }
-///
-/// global memory access macros
-///
-/// macros for ESP memory space access (be very careful of these)
-/// note: 4000_0000 is instruction bus, access needs to be 32-bit aligned
-///       3fff_ffff and below is data bus, no alignment requirement
-///
-#define     PEEK(a)    (DU)(*(DU*)((UFP)(a)))
-#define     POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
 ///==========================================================================
 ///
 /// eForth core implementation
@@ -449,21 +458,26 @@ void forth_init() {
     CODE("<>",   top = BOOL(ss.pop() != top));
     CODE(">=",   top = BOOL(ss.pop() >= top));
     CODE("<=",   top = BOOL(ss.pop() <= top));
+    CODE("u<",   top = BOOL(UINT(ss.pop()) < UINT(top)));
+    CODE("u>",   top = BOOL(UINT(ss.pop()) > UINT(top)));
     /// @}
     /// @defgroup IO ops
     /// @{
+    CODE("ucase!",  ucase = POP());
     CODE("base@",   PUSH(base));
     CODE("base!",   fout << setbase(base = POP()));
     CODE("hex",     fout << setbase(base = 16));
     CODE("decimal", fout << setbase(base = 10));
+    CODE("bl",      fout << " ");
     CODE("cr",      fout << ENDL);
     CODE(".",       fout << POP() << " ");
+    CODE("u.",      fout << UINT(POP()) << " ");
     CODE(".r",      DU n = POP(); dot_r(n, POP()));
-    CODE("u.r",     DU n = POP(); dot_r(n, abs(POP())));
+    CODE("u.r",     DU n = POP(); dot_r(n, UINT(POP())));
     CODE("key",     PUSH(next_idiom()[0]));
     CODE("emit",    char b = (char)POP(); fout << b);
-    CODE("space",   fout << " ");
-    CODE("spaces",  for (int n = POP(), i = 0; i < n; i++) fout << " ");
+    CODE("space",   spaces(1));
+    CODE("spaces",  spaces(POP()));
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -472,14 +486,15 @@ void forth_init() {
     IMMD("(",       scan(')'));
     IMMD(".(",      fout << scan(')'));
     IMMD("\\",      scan('\n'));
-    IMMD("s\"",
-        const char *s = scan('"')+1;        // string skip first blank
-        add_w(DOSTR);                       // dostr, (+parameter field)
-        add_str(s));                        // byte0, byte1, byte2, ..., byteN
+    IMMD("s\"",     s_quote());
+    IMMD("\"",      s_quote());
     IMMD(".\"",
-        const char *s = scan('"')+1;        // string skip first blank
-        add_w(DOTSTR);                      // dostr, (+parameter field)
-        add_str(s));                        // byte0, byte1, byte2, ..., byteN
+         const char *s = scan('"')+1;
+         if (!compile) fout << s;
+         else {
+             add_w(DOTSTR);
+             add_str(s);
+         });
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -561,14 +576,13 @@ void forth_init() {
     /// @defgroup Debug ops
     /// @{
     CODE("here",  PUSH(HERE));
-    CODE("ucase!",ucase = POP());
     CODE("'",     IU w = find(next_idiom()); PUSH(w));
     CODE(".s",    fout << (char*)MEM(POP()));
     CODE("words", words());
     CODE("see",
         IU w = find(next_idiom());
         fout << "["; to_s(w);
-        if (dict[w].def) see(PFA(w));                           // recursive
+         if (IS_UDF(w)) see(PFA(w));                             // recursive call
         fout << "]" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
@@ -620,7 +634,7 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
         const char *idiom = strbuf.c_str();
         int w = find(idiom);                 ///> * search through dictionary
         if (w >= 0) {                        ///> * word found?
-            if (compile && !dict[w].immd) {  /// * in compile mode?
+            if (compile && !IS_IMM(w)) {     /// * in compile mode?
                 add_w(w);                    /// * add to colon word
             }
             else CALL(w);                    /// * execute forth word
@@ -647,11 +661,11 @@ void forth_outer(const char *cmd, void(*callback)(int, const char*)) {
 ///
 /// ForthVM - front-end proxy class
 ///
-void ForthVM::init()      { forth_init(); }
-void ForthVM::outer(const char *cmd, void(*callback)(int, const char*)) {
+void vm_init()      { forth_init(); }
+void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
     forth_outer(cmd, callback);
 }
-const char *ForthVM::version(){
+const char *vm_version(){
     static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
     return ver.c_str();
 }
@@ -660,7 +674,7 @@ const char *ForthVM::version(){
 ///
 #if CC_DEBUG
 #if    (ARDUINO || ESP32)
-void ForthVM::mem_stat()  {
+void mem_stat()  {
     LOGF("Core:");           LOG(xPortGetCoreID());
     LOGF(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     LOGF(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
@@ -675,7 +689,7 @@ void ForthVM::mem_stat()  {
         abort();                 // bail, on any memory error
     }
 }
-void ForthVM::dict_dump() {
+void dict_dump() {
     LOGF("XT0=");        LOGX(XT0);
     LOGF("NM0=");        LOGX(NM0);
     LOGF(", sizeof(Code)="); LOG(sizeof(Code));
@@ -692,7 +706,7 @@ void ForthVM::dict_dump() {
     }
 }
 #else  // !(ARDUINO || ESP32)
-void ForthVM::mem_stat()  {
+void mem_stat()  {
     printf("heap[maxblk=%x", E4_PMEM_SZ);
     printf(", avail=%x", E4_PMEM_SZ - HERE);
     printf(", ss_max=%x", ss.max);
@@ -700,7 +714,7 @@ void ForthVM::mem_stat()  {
     printf(", pmem=%x", HERE);
     printf("], stack_sz=%x\n", E4_SS_SZ);
 }
-void ForthVM::dict_dump() {
+void dict_dump() {
     printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
@@ -712,29 +726,48 @@ void ForthVM::dict_dump() {
 }
 #endif // (ARDUINO || ESP32)
 #else  // !CC_DEBUG
-void ForthVM::mem_stat()  {}
-void ForthVM::dict_dump() {}
+void mem_stat()  {}
+void dict_dump() {}
 #endif // CC_DEBUG
 
 #if !(ARDUINO || ESP32)
+#include <iostream>               // cin, cout
+///
+/// export functions (to WASM)
+///
+#if DO_WASM
+extern "C" {
+void forth(int n, char *cmd) {
+    static auto send_to_con = [](int len, const char *rst) { cout << rst; };
+    forth_outer(cmd, send_to_con);
+}
+int  vm_base()       { return base;     }
+int  vm_ss_idx()     { return ss.idx;   }
+DU   *vm_ss()        { return &ss[0];   }
+int  vm_dict_idx()   { return dict.idx; }
+char *vm_dict(int i) { return (char*)dict[i].name; }
+char *vm_mem()       { return (char*)&pmem[0]; }
+}
+#endif // DO_WASM
 ///
 /// main program for testing on PC
 /// Arduino and ESP32 have their own main
 ///
-#include <iostream>               // cin, cout
 int main(int ac, char* av[]) {
+    vm_init();                                          // initialize dictionary
+
+#if !DO_WASM  /** driven by web */
+    dict_dump();
+    cout << vm_version() << endl;
+
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
-    ForthVM vm;                                         // create FVM instance
-    vm.init();                                          // initialize dictionary
-    vm.dict_dump();
-
-    cout << vm.version() << endl;
     while (getline(cin, cmd)) {                         // fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
-        vm.outer(cmd.c_str(), send_to_con);             // execute outer interpreter
+        vm_outer(cmd.c_str(), send_to_con);             // execute outer interpreter
     }
     cout << "Done!" << endl;
+#endif // !DO_WASM
     return 0;
 }
 #endif // !(ARDUINO || ESP32)
