@@ -38,29 +38,32 @@
 #endif // _WIN32 || _WIN64
 
 #if    ARDUINO
-#include <Arduino.h>
-#define to_string(i)    string(String(i).c_str())
-#define LOGF(s)         Serial.print(F(s))
-#define LOG(v)          Serial.print(v)
-#define LOGX(v)         Serial.print(v, HEX)
-#if    ESP32
-#define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
-#endif // ESP32
+    #include <Arduino.h>
+    #define to_string(i)    string(String(i).c_str())
+    #define LOGF(s)         Serial.print(F(s))
+    #define LOG(v)          Serial.print(v)
+    #define LOGX(v)         Serial.print(v, HEX)
+    #define LOGN(v)         Serial.println(v)
+
+    #if    ESP32
+        #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
+    #endif // ESP32
 
 #elif  __EMSCRIPTEN__
-#include <emscripten.h>
-#define millis()        EM_ASM_INT({ return Date.now(); })
-#define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
-#define yield()
+    #include <emscripten.h>
+    #define millis()        EM_ASM_INT({ return Date.now(); })
+    #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
+    #define yield()
 
 #else  // !ARDUINO && !__EMSCRIPTEN__
-#include <chrono>
-#include <thread>
-#define millis()        chrono::duration_cast<chrono::milliseconds>( \
+    #include <chrono>
+    #include <thread>
+    #define millis()        chrono::duration_cast<chrono::milliseconds>( \
                             chrono::steady_clock::now().time_since_epoch()).count()
-#define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
-#define yield()         this_thread::yield()
-#define PROGMEM
+    #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
+    #define yield()         this_thread::yield()
+    #define PROGMEM
+    #define LOGN(v)         printf("%d\n", v)
 
 #endif // ARDUINO && __EMSCRIPTEN__
 ///@}
@@ -139,15 +142,16 @@ struct List {
 ///
 /// Code flag masking options
 ///
-#if DO_WASM                 /** WASM use the LSB  */
-#define UDF_FLAG   0x8000   /** user defined word */
-#define IMM_FLAG   0x4000   /** immediate word    */
-#define UDF_MASK   0x3fff   /** user defined word */
+#define WORD_NA        -1
+#if DO_WASM                     /** WASM function ptr is not aligned */
+    #define UDF_FLAG   0x8000   /** user defined word  */
+    #define IMM_FLAG   0x4000   /** immediate word     */
+    #define UDF_MASK   0x3fff   /** user defined word  */
 
 #else // !DO_WASM
-#define UDF_FLAG   0x0001
-#define IMM_FLAG   0x0002
-#define UDF_MASK  ~0x0003
+    #define UDF_FLAG   0x0001
+    #define IMM_FLAG   0x0002
+    #define UDF_MASK  ~0x0003
 
 #endif // DO_WASM
 
@@ -162,7 +166,7 @@ struct fop { virtual void operator()() = 0; };
 template<typename F>
 struct FP : fop {           ///< universal functor
     F fp;
-    FP(F &f) : fp(f) {}
+    FP(F &f) INLINE : fp(f) {}
     void operator()() INLINE { fp(); }
 };
 typedef fop* FPTR;          ///< lambda function pointer
@@ -172,7 +176,7 @@ struct Code {
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
         struct {            ///< a colon word
-            U16 flag;       ///< colon defined word
+            U16 attr;       ///< colon defined word
             IU  pfa;        ///< offset to pmem space
         };
     };
@@ -180,12 +184,12 @@ struct Code {
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     template<typename F>    ///< template function for lambda
     Code(const char *n, F f, bool im) : name(n), xt(new FP<F>(f)) {
-        flag |= im ? IMM_FLAG : 0;
-        if (((UFP)xt - 4) < XT0) XT0 = (UFP)xt - 4;      ///> collect xt base
-        if ((UFP)n < NM0) NM0 = (UFP)n;                  ///> collect name string base
+        if ((UFP)xt < XT0) XT0 = (UFP)xt;              ///> collect xt base
+        if ((UFP)n  < NM0) NM0 = (UFP)n;               ///> collect name string base
+        if (im) attr |= IMM_FLAG;
     }
     Code() {}               ///< create a blank struct (for initilization)
-    IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }    ///< xt offset in code space
+    IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
 };
 #define ADD_CODE(n, g, im) {     \
     Code c(n, []() { g; }, im);  \
@@ -203,16 +207,17 @@ struct Code {
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer
         struct {
-            U16 flag;       ///< attributes (def, imm, xx=reserved)
+            U16 attr;       ///< attributes (def, imm, xx=reserved)
             IU  pfa;        ///< offset to pmem space (16-bit for 64K range)
         };
     };
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & UDF_MASK)); }
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
-    Code(const char *n, FPTR f, bool im) : name(n), xt(f) {
-        flag |= im ? IMM_FLAG : 0;
-        if (((UFP)f - 4) < XT0) XT0 = (UFP)f - 4;        ///> collect xt base
-        if ((UFP)n < NM0) NM0 = (UFP)n;                  ///> collect name string base
+    Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
+        if ((UFP)xt < XT0) XT0 = (UFP)xt;                ///> collect xt base
+        if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
+        if (im) attr |= IMM_FLAG;
+        printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
     }
     Code() {}               ///< create a blank struct (for initilization)
     IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }    ///< xt offset in code space
@@ -226,7 +231,8 @@ struct Code {
 
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
-#define IS_UDF(w) (dict[w].flag & UDF_FLAG)
-#define IS_IMM(w) (dict[w].flag & IMM_FLAG)
+
+#define IS_UDF(w) (dict[w].attr & UDF_FLAG)
+#define IS_IMM(w) (dict[w].attr & IMM_FLAG)
 
 #endif // __EFORTH_SRC_CEFORTH_H
