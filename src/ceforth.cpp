@@ -23,7 +23,8 @@
 /// + 1045ms - orig/esp32forth8_1, token call threading
 /// +  839ms - subroutine threading, inline list methods
 ///
-#include <string.h>         // strcmp, strcasecmp
+#include <string.h>      // strcmp
+#include <strings.h>     // strcasecmp
 #include "ceforth.h"
 ///
 /// version info
@@ -111,7 +112,6 @@ int find(const char *s) {
     return WORD_NA;
 }
 #endif // CC_DEBUG
-int find(string &s) { return find(s.c_str()); }
 ///==============================================================================
 ///
 /// colon word compiler
@@ -124,21 +124,20 @@ void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];         ///> current pmem pointer
     int sz = STRLEN(name);                  ///> string length, aligned
     pmem.push((U8*)name,  sz);              ///> setup raw name field
-    
-    Code c(nfa, [](){}, false);             ///> create a new word on dictionary
-    c.attr |= UDF_FLAG;                     ///> specify a colon (user defined) word
+
+    Code c(nfa, WORD_NULL, false);          ///> create a blank word on dictionary
+    c.attr = UDF_FLAG;                      ///> specify a colon (user defined) word
     c.pfa  = HERE;                          ///> capture code field index
-    
+
     dict.push(c);                           ///> deep copy Code struct into dictionary
 }
-void colon(string &s) { colon(s.c_str()); }
 void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                    /**< add an instruction into pmem */
 void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    /**< add a cell into pmem         */
 void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  /**< add a string to pmem         */
 void add_w(IU w) {                                                           /**< add a word index into pmem   */
     IU ip = IS_UDF(w) ? (PFA(w) | UDF_FLAG) : (w==EXIT ? 0 : dict[w].xtoff());
     add_iu(ip);
-#if CC_DEBUG    
+#if CC_DEBUG
     printf("add_w(%d) => %4x:%p %s\n", w, ip, dict[w].xt, dict[w].name);
 #endif // CC_DEBUG
 }
@@ -173,7 +172,7 @@ void nest() {
             }
 #endif // !(ARDUINO || ESP32)
             else Code::exec(ix);                     ///> execute primitive word
-            
+
             ix = *(IU*)MEM(IP);                      ///> fetch next opcode
         }
         if (dp-- > 0) IP = rs.pop();                 ///> pop off a level
@@ -220,7 +219,7 @@ void (*fout_cb)(int, const char*);  ///< forth output callback function (see END
 int def_word(const char* name) {                ///< display if redefined
     if (name[0]=='\0') { fout << " name?" << ENDL; return 0; }  /// * missing name?
     if (find(name) != WORD_NA) {                /// * word redefined?
-    	fout << name << " reDef? " << ENDL;
+        fout << name << " reDef? " << ENDL;
     }
     colon(name);                                /// * create a colon word
     return 1;                                   /// * created OK
@@ -239,7 +238,7 @@ inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
 inline void to_s(IU w) {
 #if CC_DEBUG
-    fout << dict[w].name << " " << w << (dict[w].immd ? "* " : " ");
+    fout << dict[w].name << " " << w << (dict[w].attr ? "* " : " ");
 #else  // !CC_DEBUG
     fout << " " << dict[w].name;
 #endif // CC_DEBUG
@@ -670,12 +669,12 @@ void mem_stat()  {
     printf("], stack_sz=%x\n", E4_SS_SZ);
 }
 void dict_dump() {
-    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", XT0, NM0, sizeof(Code));
+    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", Code::XT0, Code::NM0, sizeof(Code));
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
             i, c.xtoff(), c.xt,
-            (U16)((UFP)c.name - NM0),
+            (U16)((UFP)c.name - Code::NM0),
             c.name, c.name);
     }
 }
@@ -687,6 +686,8 @@ void dict_dump()  {}
 #endif // CC_DEBUG
 
 #if (ARDUINO || ESP32)
+int  find(string &s)  { return find(s.c_str()); }
+void colon(string &s) { colon(s.c_str()); }
 ///
 /// eForth bootstrap loader (from Flash memory)
 ///
