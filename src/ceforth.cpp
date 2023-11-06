@@ -30,7 +30,7 @@
 ///
 #define APP_NAME         "eForth"
 #define MAJOR_VERSION    "8"
-#define MINOR_VERSION    "4"
+#define MINOR_VERSION    "6"
 ///==============================================================================
 ///
 /// global memory blocks
@@ -184,10 +184,10 @@ void nest() {
 ///
 /// CALL macro (inline to speed-up)
 ///
-void CALL(IU w) {
-    if (IS_UDF(w)) { WP = w; IP = PFA(w); nest(); }
-    else (*(FPTR)((UFP)dict[w].xt & UDF_MASK))();
-}
+#define CALL(w) {                                       \
+    if (IS_UDF(w)) { WP = (w); IP = PFA(w); nest(); }   \
+    else (*(FPTR)((UFP)dict[(w)].xt & UDF_MASK))();     \
+    }
 ///
 /// global memory access macros
 ///
@@ -361,12 +361,12 @@ void vm_init() {
     CODE("_dovar",   PUSH(IP);            IP += sizeof(DU));
     CODE("_dolit",   PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
     CODE("_dostr",
-         const char *s = (const char*)MEM(IP);      // get string pointer
+         const char *s = (const char*)MEM(IP);     // get string pointer
          IU    len = STRLEN(s);
          PUSH(IP); PUSH(len); IP += len);
     CODE("_dotstr",
-         const char *s = (const char*)MEM(IP);      // get string pointer
-         fout << s;  IP += STRLEN(s));              // send to output console
+         const char *s = (const char*)MEM(IP);     // get string pointer
+         fout << s;  IP += STRLEN(s));             // send to output console
     CODE("_branch" , IP = *(IU*)MEM(IP));          // unconditional branch
     CODE("_0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
     CODE("does>",                                  // CREATE...DOES>... meta-program
@@ -488,7 +488,7 @@ void vm_init() {
     IMMD("until",   add_w(ZBRAN); add_iu(POP()));               // until    ( there -- )
     IMMD("while",   add_w(ZBRAN); PUSH(HERE); add_iu(0));       // while    ( there -- there here )
     IMMD("repeat",  add_w(BRAN);                                // repeat    ( there1 there2 -- )
-         IU t=POP(); add_iu(POP()); SETJMP(t));                  // set forward and loop back address
+         IU t=POP(); add_iu(POP()); SETJMP(t));                 // set forward and loop back address
     /// @}
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
@@ -511,31 +511,31 @@ void vm_init() {
          if (!def_word(next_idiom())) compile = false);
     IMMD(";", add_w(EXIT); compile = false);
     CODE("variable",                                             // create a variable
-         if (def_word(next_idiom())) {                            // create a new word on dictionary
-             add_w(DOVAR);                                        // dovar (+parameter field)
-             int n = 0; add_du(n);                                // data storage (32-bit integer now)
+         if (def_word(next_idiom())) {                           // create a new word on dictionary
+             add_w(DOVAR);                                       // dovar (+parameter field)
+             int n = 0; add_du(n);                               // data storage (32-bit integer now)
              add_w(EXIT);
          });
     CODE("constant",                                             // create a constant
-         if (def_word(next_idiom())) {                            // create a new word on dictionary
-             add_w(DOLIT);                                        // dovar (+parameter field)
-             add_du(POP());                                       // data storage (32-bit integer now)
+         if (def_word(next_idiom())) {                           // create a new word on dictionary
+             add_w(DOLIT);                                       // dovar (+parameter field)
+             add_du(POP());                                      // data storage (32-bit integer now)
              add_w(EXIT);
          });
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",  CALL(POP()));                                  // execute word
+    CODE("exec",  IU w = POP(); CALL(w));                        // execute word
     CODE("create",                                               // dovar (+ parameter field)
-         if (def_word(next_idiom())) {                            // create a new word on dictionary
+         if (def_word(next_idiom())) {                           // create a new word on dictionary
              add_w(DOVAR);
          });
     CODE("to",              // 3 to x                            // alter the value of a constant
-         IU w = find(next_idiom());                               // to save the extra @ of a variable
+         IU w = find(next_idiom());                              // to save the extra @ of a variable
          *(DU*)(PFA(w) + sizeof(IU)) = POP());
     CODE("is",              // ' y is x                          // alias a word
-         IU w = find(next_idiom());                               // copy entire union struct
+         IU w = find(next_idiom());                              // copy entire union struct
          dict[POP()].xt = dict[w].xt);
     ///
     /// be careful with memory access, especially BYTE because
