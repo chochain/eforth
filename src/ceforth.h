@@ -187,6 +187,9 @@ struct Code {
         if ((UFP)xt < XT0) XT0 = (UFP)xt;              ///> collect xt base
         if ((UFP)n  < NM0) NM0 = (UFP)n;               ///> collect name string base
         if (im) attr |= IMM_FLAG;
+#if CC_DEBUG        
+        printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
+#endif // CC_DEBUG
     }
     Code() {}               ///< create a blank struct (for initilization)
     IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
@@ -217,7 +220,9 @@ struct Code {
         if ((UFP)xt < XT0) XT0 = (UFP)xt;                ///> collect xt base
         if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
         if (im) attr |= IMM_FLAG;
+#if CC_DEBUG        
         printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
+#endif // CC_DEBUG
     }
     Code() {}               ///< create a blank struct (for initilization)
     IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }    ///< xt offset in code space
