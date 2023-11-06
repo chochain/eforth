@@ -1,5 +1,6 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
+#include <stdio.h>
 #include <stdint.h>                          // uintxx_t
 #include <exception>                         // try...catch, throw
 #pragma GCC optimize("align-functions=4")    // we need fn alignment
@@ -129,11 +130,11 @@ struct List {
         if (idx<N) return v[max=idx++] = t;
         throw "ERR: List full";
     }
-    
+
 #else  // !RANGE_CHECK
     T pop()     INLINE { return v[--idx]; }
     T push(T t) INLINE { return v[max=idx++] = t; }   ///< deep copy element
-    
+
 #endif // RANGE_CHECK
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
@@ -187,7 +188,7 @@ struct Code {
         if ((UFP)xt < XT0) XT0 = (UFP)xt;              ///> collect xt base
         if ((UFP)n  < NM0) NM0 = (UFP)n;               ///> collect name string base
         if (im) attr |= IMM_FLAG;
-#if CC_DEBUG        
+#if CC_DEBUG
         printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
 #endif // CC_DEBUG
     }
@@ -198,6 +199,7 @@ struct Code {
     Code c(n, []() { g; }, im);  \
     dict.push(c);                \
     }
+#define WORD_NULL [](){}    /** blank lambda */
 
 #else  // !LAMBDA_OK
 ///
@@ -220,7 +222,7 @@ struct Code {
         if ((UFP)xt < XT0) XT0 = (UFP)xt;                ///> collect xt base
         if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
         if (im) attr |= IMM_FLAG;
-#if CC_DEBUG        
+#if CC_DEBUG
         printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
 #endif // CC_DEBUG
     }
@@ -231,6 +233,7 @@ struct Code {
     Code c(n, []{ g; }, im);	\
     dict.push(c);               \
     }
+#define WORD_NULL  (FPTR)-1     /** blank function pointer */
 
 #endif // LAMBDA_OK
 
