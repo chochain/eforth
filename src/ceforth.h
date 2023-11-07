@@ -20,7 +20,7 @@
 #define DO_WASM         0     /**< for WASM output                        */
 #define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
 #define RANGE_CHECK     0     /**< vector range check                     */
-#define CC_DEBUG        0     /**< debug tracing flag                     */
+#define CC_DEBUG        1     /**< debug tracing flag                     */
 #define INLINE          __attribute__((always_inline))
 ///@}
 ///@name Memory block configuation
@@ -45,6 +45,8 @@
     #define LOG(v)          Serial.print(v)
     #define LOGX(v)         Serial.print(v, HEX)
     #define LOGN(v)         Serial.println(v)
+    #define NM_HDR(f, s)    LOGF(f); LOGF("("); LOG(s); LOGF(") => ")
+    #define NM_IDX(n, i)    LOG(n); LOG(" "); LOG(i); LOGF("\n")
 
     #if    ESP32
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
@@ -65,6 +67,8 @@
     #define yield()         this_thread::yield()
     #define PROGMEM
     #define LOGN(v)         printf("%d\n", v)
+    #define NM_HDR(f, s)    printf("%s(%s) => ", f, s)
+    #define NM_IDX(n, i)    printf("%s %d\n", n, i)
 
 #endif // ARDUINO && __EMSCRIPTEN__
 ///@}
@@ -73,6 +77,7 @@ using namespace std;
 ///@name Logical units (instead of physical) for type check and portability
 ///@{
 typedef uint32_t        U32;   ///< unsigned 32-bit integer
+typedef int32_t         S32;   ///< signed 32-bit integer
 typedef uint16_t        U16;   ///< unsigned 16-bit integer
 typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
@@ -219,7 +224,7 @@ struct Code {
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & UDF_MASK)); }
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
-        if ((UFP)xt < XT0) XT0 = (UFP)xt;                ///> collect xt base
+        if ((UFP)xt < XT0) XT0 = (UFP)xt;                ///> collect xt base (for offset)
         if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
         if (im) attr |= IMM_FLAG;
 #if CC_DEBUG
