@@ -13,7 +13,7 @@
 #define MINOR_VERSION    "6"
 ///==============================================================================
 ///
-/// global memory blocks
+///> Global memory blocks
 ///
 /// Note:
 ///   1.By separating pmem from dictionary,
@@ -29,7 +29,7 @@ List<Code, E4_DICT_SZ> dict;       ///< dictionary
 List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///
-/// Dictionary memory structure
+///> Dictionary memory structure
 ///     dict[0].xt ---------> primitive word lambda[0] pointer
 ///     dict[1].xt ---------> primitive word lambda[1] pointer
 ///     ...
@@ -43,7 +43,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///     | strlen+1     | 2-byte | 2-byte |     |      |
 ///     +--------------+--------+--------+-----+------+---- 2-byte aligned
 ///
-/// Parameter structure
+///> Parameter structure
 ///   * primitive word
 ///     16-bit xt offset with LSB set to 0 (16-bit aligned)
 ///     +--------------+-+
@@ -58,7 +58,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///
 ///==================================================================================
 ///
-/// VM states
+///> VM states
 ///
 bool compile = false;              ///< compiler flag
 bool ucase   = false;              ///< caseless string compare
@@ -67,9 +67,9 @@ DU   top     = -1;                 ///< top of stack (cached)
 IU   WP      = 0;                  ///< current word pointer (used by DOES only)
 IU   IP      = 0;                  ///< current instruction pointer and cached base pointer
 ///
-/// macros to abstract dict and pmem physical implementation
-/// Note:
-///   so we can change pmem implementation anytime without affecting opcodes defined below
+///> Macros to abstract dict and pmem physical implementation
+///  Note:
+///    so we can change pmem implementation anytime without affecting opcodes defined below
 ///
 ///@name Dictionary access macros
 ///@{
@@ -90,7 +90,7 @@ typedef enum {
 
 ///==============================================================================
 ///
-/// dictionary search functions - can be adapted for ROM+RAM
+///> Dictionary search functions - can be adapted for ROM+RAM
 ///
 int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
@@ -116,11 +116,11 @@ int find(const char *s) {
 #endif // CC_DEBUG
 ///==============================================================================
 ///
-/// colon word compiler
-/// Note:
-///   * we separate dict and pmem space to make word uniform in size
-///   * if they are combined then can behaves similar to classic Forth
-///   * with an addition link field added.
+///> Colon word compiler
+///  Note:
+///    * we separate dict and pmem space to make word uniform in size
+///    * if they are combined then can behaves similar to classic Forth
+///    * with an addition link field added.
 ///
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];         ///> current pmem pointer
@@ -133,10 +133,10 @@ void colon(const char *name) {
 
     dict.push(c);                           ///> deep copy Code struct into dictionary
 }
-void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                    /**< add an instruction into pmem */
-void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    /**< add a cell into pmem         */
-void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  /**< add a string to pmem         */
-void add_w(IU w) {                                                           /**< add a word index into pmem   */
+void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                    ///< add an instruction into pmem
+void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    ///< add a cell into pmem
+void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  ///< add a string to pmem
+void add_w(IU w) {                                                           ///< add a word index into pmem
     IU ip = IS_UDF(w) ? (PFA(w) | UDF_FLAG) : (w==EXIT ? 0 : dict[w].xtoff());
     add_iu(ip);
 #if CC_DEBUG == 2
@@ -145,15 +145,15 @@ void add_w(IU w) {                                                           /**
 }
 ///============================================================================
 ///
-/// Forth inner interpreter (handles a colon word)
-/// Note: call threading is slower with call/return
+///> Forth inner interpreter (handles a colon word)
+///  Note: call threading is slower with call/return
 ///
-/// interactive version (8% faster than recursive version)
-/// TODO: performance tuning
-///   1. Just-in-time code(ip, dp) for inner loop
-///      * use local stack, 840ms => 784ms, but allot 4*64 bytes extra
-///   2. computed label
-///   3. co-routine
+///  interactive version (8% faster than recursive version)
+///  TODO: performance tuning
+///    1. Just-in-time code(ip, dp) for inner loop
+///       * use local stack, 840ms => 784ms, but allot 4*64 bytes extra
+///    2. computed label
+///    3. co-routine
 ///
 void nest() {
     static IU _NXT = dict[find("donext")].xtoff();   ///> cache offset to subroutine address
@@ -183,18 +183,18 @@ void nest() {
     }
 }
 ///
-/// CALL - inner-interpreter proxy (inline macro does not run faster)
+///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
     if (IS_UDF(w)) { WP = (w); IP = PFA(w); nest(); }
     else (*(FPTR)((UFP)dict[(w)].xt & UDF_MASK))();
 }
 ///
-/// global memory access macros
+///> Global memory access macros
 ///
-/// macros for ESP memory space access (be very careful of these)
-/// note: 4000_0000 is instruction bus, access needs to be 32-bit aligned
-///       3fff_ffff and below is data bus, no alignment requirement
+///  macros for ESP memory space access (be very careful of these)
+///  note: 4000_0000 is instruction bus, access needs to be 32-bit aligned
+///        3fff_ffff and below is data bus, no alignment requirement
 ///
 #define PEEK(a)    (DU)(*(DU*)((UFP)(a)))
 #define POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
@@ -235,7 +235,7 @@ inline void PUSH(DU v)    { ss.push(top); top = v; }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
 ///================================================================================
 ///
-/// IO & debug functions
+///> IO & debug functions
 ///
 inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
 inline void to_s(IU w) {
@@ -259,25 +259,25 @@ void s_quote(IU op) {
 ///
 void see(IU pfa, int dp=1) {
     auto pfa2word = [](IU ix) {
-        IU   def = ix & UDF_FLAG;         ///> check user defined flag
-        IU   pfa = ix & ~0x1;             ///> TODO: handle colon immediate words when > 64K
-        FPTR xt  = Code::XT(ix);          ///> can xt be immediate? i.e. ix & ~0x3
+        IU   def = ix & UDF_FLAG;      ///> check user defined flag
+        IU   pfa = ix & ~0x1;          ///> TODO: handle colon immediate words when > 64K
+        FPTR xt  = Code::XT(ix);       ///> can xt be immediate? i.e. ix & ~0x3
         for (int i = dict.idx - 1; i >= 0; --i) {
             if (def) {
-                if (dict[i].pfa == pfa) return i;      ///> compare pfa in PMEM
+                if (dict[i].pfa == pfa) return i;             ///> compare pfa in PMEM
             }
-            else if (dict[i].xt == xt) return i;       ///> compare xt
+            else if (dict[i].xt == xt) return i;              ///> compare xt
         }
         return WORD_NA;
     };
     U8 *ip = MEM(pfa);
     while (*(IU*)ip) {
-        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        ///> indentation
-        fout << setw(4) << (ip - MEM0) << "[" << setw(-1);          ///> display word offset
-        IU c = pfa2word(*(IU*)ip);                                  ///> fetch word index by pfa
-        to_s(c);                                                    ///> display name
-        if (IS_UDF(c) && dp < 2) {                                  ///> is a colon word
-            see(PFA(c), dp+1);                                      ///> recursive into child PFA
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";  ///> indentation
+        fout << setw(4) << (ip - MEM0) << "[" << setw(-1);    ///> display word offset
+        IU c = pfa2word(*(IU*)ip);                            ///> fetch word index by pfa
+        to_s(c);                                              ///> display name
+        if (IS_UDF(c) && dp < 2) {                            ///> is a colon word
+            see(PFA(c), dp+1);                                ///> recursive into child PFA
         }
         ip += sizeof(IU);
         switch (c) {
@@ -288,6 +288,8 @@ void see(IU pfa, int dp=1) {
             ip += STRLEN((char*)ip); break;
         case BRAN: case ZBRAN: case DONEXT:
             fout << "= " << *(IU*)ip; ip += sizeof(IU); break;
+        case DODOES:
+            ip += sizeof(IU); break;
         }
         fout << " ] ";
     }
@@ -337,20 +339,20 @@ void mem_dump(IU p0, DU sz) {
 }
 ///====================================================================================
 ///
-/// ForthVM - front-end proxy class
+///> ForthVM - front-end proxy class
 ///
 const char *vm_version(){
     static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
     return ver.c_str();
 }
 ///
-/// eForth dictionary initializer
-/// Note: sequenced by enum forth_opcode as following
+///> eForth dictionary initializer
+///  Note: sequenced by enum forth_opcode as following
 ///
-UFP Code::XT0 = ~0;
-UFP Code::NM0 = ~0;
+UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
+UFP Code::NM0 = ~0;    ///< init base of name pointers
 
-void vm_init() {
+void vm_init() {       ///< compile primitive words into dictionary
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
@@ -580,7 +582,7 @@ void vm_init() {
 }
 ///==========================================================================
 ///
-/// ForthVM Outer interpreter
+///> ForthVM Outer interpreter
 ///
 DU parse_number(const char *idiom, int *err) {
     char *p;
@@ -629,7 +631,7 @@ void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
     if (!compile) ss_dump();   /// * dump stack and display ok prompt
 }
 ///
-/// memory statistics - for heap, stack, external memory debugging
+///> Memory statistics - for heap, stack, external memory debugging
 ///
 #if CC_DEBUG
 #if (ARDUINO || ESP32)
@@ -692,10 +694,11 @@ void dict_dump()  {}
 #endif // CC_DEBUG
 
 #if (ARDUINO || ESP32)
+/// Arduino extra string handlers
 int  find(string &s)  { return find(s.c_str()); }
 void colon(string &s) { colon(s.c_str()); }
 ///
-/// eForth bootstrap loader (from Flash memory)
+///> eForth turn-key code loader (from Flash memory)
 ///
 #include <SPIFFS.h>
 int forth_load(const char *fname) {
@@ -728,18 +731,22 @@ int forth_load(const char *fname) {
 }
 
 #endif // (ARDUINO || ESP32)
+
 ///==========================================================================
 ///
-/// main program and external memory access for testing on PC
-/// Arduino and ESP32 have their own main
-///
-/// export functions (to WASM)
+/// main program - Note: Arduino and ESP32 have their own main-loop
 ///
 #if DO_WASM
+///
+///> main program for WASM
+///
 int main(int ac, char* av[]) {
     vm_init();                                          // initialize dictionary
     return 0;
 }
+///
+/// export functions (to WASM)
+///
 extern "C" {
 void forth(int n, char *cmd) {
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
@@ -754,6 +761,9 @@ char *vm_mem()       { return (char*)&pmem[0]; }
 }
 
 #else // DO_WASM
+///
+/// main program for testing on Desktop PC (Linux and Cygwin)
+///
 #include <iostream>                                     // cin, cout
 int main(int ac, char* av[]) {
     vm_init();                                          ///> initialize dictionary
@@ -764,9 +774,9 @@ int main(int ac, char* av[]) {
 
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
-    while (getline(cin, cmd)) {                         // fetch user input
+    while (getline(cin, cmd)) {                         ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
-        vm_outer(cmd.c_str(), send_to_con);             // execute outer interpreter
+        vm_outer(cmd.c_str(), send_to_con);             ///> execute outer interpreter
     }
     cout << "Done!" << endl;
     return 0;
