@@ -20,7 +20,7 @@
 #define DO_WASM         0     /**< for WASM output                        */
 #define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
 #define RANGE_CHECK     0     /**< vector range check                     */
-#define CC_DEBUG        1     /**< debug tracing flag                     */
+#define CC_DEBUG        0     /**< debug tracing flag                     */
 #define INLINE          __attribute__((always_inline))
 ///@}
 ///@name Memory block configuation
@@ -33,20 +33,20 @@
 ///@name Multi-platform support
 ///@{
 #if    _WIN32 || _WIN64
-#define ENDL "\r\n"
+    #define ENDL "\r\n"
 #else  // !(_WIN32 || _WIN64)
-#define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
+    #define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
 #endif // _WIN32 || _WIN64
 
 #if    ARDUINO
     #include <Arduino.h>
     #define to_string(i)    string(String(i).c_str())
-    #define LOGF(s)         Serial.print(F(s))
+    #define LOGS(s)         Serial.print(F(s))
     #define LOG(v)          Serial.print(v)
     #define LOGX(v)         Serial.print(v, HEX)
     #define LOGN(v)         Serial.println(v)
-    #define NM_HDR(f, s)    LOGF(f); LOGF("("); LOG(s); LOGF(") => ")
-    #define NM_IDX(n, i)    LOG(n); LOG(" "); LOG(i); LOGF("\n")
+    #define NM_HDR(f, s)    LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
+    #define NM_IDX(n, i)    LOG(n); LOGS(" "); LOGN(i);
 
     #if    ESP32
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
