@@ -85,7 +85,7 @@ IU   IP      = 0;                  ///< current instruction pointer and cached b
 /// Note: make sure the sequence is in-sync with vm_init word list
 ///
 typedef enum {
-    EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DOES, TOR
+    EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DODOES, TOR
 } forth_opcode;
 
 ///==============================================================================
@@ -139,16 +139,16 @@ void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  /**
 void add_w(IU w) {                                                           /**< add a word index into pmem   */
     IU ip = IS_UDF(w) ? (PFA(w) | UDF_FLAG) : (w==EXIT ? 0 : dict[w].xtoff());
     add_iu(ip);
-#if CC_DEBUG
+#if CC_DEBUG == 2
     printf("add_w(%d) => %4x:%p %s\n", w, ip, dict[w].xt, dict[w].name);
-#endif // CC_DEBUG
+#endif // CC_DEBUG == 2
 }
 ///============================================================================
 ///
 /// Forth inner interpreter (handles a colon word)
 /// Note: call threading is slower with call/return
 ///
-/// interative version (8% faster than recursive version)
+/// interactive version (8% faster than recursive version)
 /// TODO: performance tuning
 ///   1. Just-in-time code(ip, dp) for inner loop
 ///      * use local stack, 840ms => 784ms, but allot 4*64 bytes extra
@@ -183,12 +183,12 @@ void nest() {
     }
 }
 ///
-/// CALL macro (inline to speed-up)
+/// CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
-#define CALL(w) {                                       \
-    if (IS_UDF(w)) { WP = (w); IP = PFA(w); nest(); }   \
-    else (*(FPTR)((UFP)dict[(w)].xt & UDF_MASK))();     \
-    }
+void CALL(IU w) {
+    if (IS_UDF(w)) { WP = (w); IP = PFA(w); nest(); }
+    else (*(FPTR)((UFP)dict[(w)].xt & UDF_MASK))();
+}
 ///
 /// global memory access macros
 ///
@@ -370,10 +370,10 @@ void vm_init() {
          fout << s;  IP += STRLEN(s));             // send to output console
     CODE("_branch" , IP = *(IU*)MEM(IP));          // unconditional branch
     CODE("_0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
-    CODE("does>",                                  // CREATE...DOES>... meta-program
-         IU *ip = (IU*)MEM(PFA(WP));
-         while (*ip != DOES) ip++;                 // find DOES
-         while (*++ip) add_iu(*ip));               // copy&paste code
+    CODE("_dodoes",
+    	 add_w(BRAN);                              // branch to does> section
+    	 add_iu(IP + sizeof(IU));                  // encode IP
+    	 add_w(EXIT));                             // EXIT is not really needed but nicer
     CODE(">r",   rs.push(POP()));
     CODE("r>",   PUSH(rs.pop()));
     CODE("r@",   PUSH(rs[-1]));                    // same as I (the loop counter)
@@ -535,6 +535,7 @@ void vm_init() {
          if (def_word(next_idiom())) {                           // create a new word on dictionary
              add_w(DOVAR);
          });
+    IMMD("does>", add_w(DODOES); add_w(EXIT));                   // CREATE...DOES>... meta-program
     CODE("to",              // 3 to x                            // alter the value of a constant
          IU w = find(next_idiom());                              // to save the extra @ of a variable
          *(DU*)(MEM(PFA(w)) + sizeof(IU)) = POP());
