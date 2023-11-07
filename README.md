@@ -1,22 +1,23 @@
 # eForth - continuation of Dr. Ting's final work
 
-### next generation of eForth, 100% C/C++ (portable) implementation, i.e. Forth without Forth
-* ~/src common source for eforth, esp32forth, wineForth, and weForth
+### eForth next-gen, 100% C/C++ (portable) implementation, i.e. Forth without Forth
+* ~/src cross-platform, common source for eforth, esp32forth, wineForth, and weForth
 * ~/orig/33b refactored 32-bit asm+vm implementation.
   > Originated from <a href="http://forth.org/OffeteStore/OffeteStore.html" target="_blank">Dr. Ting's eForth site</a>
 * shared source with Dr. Ting in ~/orig/ting
 
 ### Benchmark
-* 10K*10K cycles on desktop (3.2GHz AMD)
+* Desktop PC - 10K*10K cycles on 3.2GHz AMD
    > + 1200ms - ~/esp32forth/orig/esp32forth8_1, token threading
    > +  981ms - subroutine threading, inline list methods
+   > +  937ms - subroutine threading, with 16-bit offset
 
-* 1K*1K cycles on NodeMCU ESP32S
+* ESP32 - 1K*1K cycles on NodeMCU
    > + 1440ms - Dr. Ting's ~/esp32forth/orig/esp32forth_82
    > + 1045ms - ~/esp32forth/orig/esp32forth8_1, token threading
    > +  839ms - subroutine threading, inline list methods
 
-### To Compile on Linux
+### To Compile on Linux and Cygwin
 > g++ -O2 -Isrc -o tests/eforth src/ceforth.cpp
 
 ### To Run on Linux
@@ -24,17 +25,6 @@
 
 ### TODO
 * WASM - review wasmtime (CLI), perf+hotspot (profiling)
-
-### Benchmark
-* benchmark: 10K*10K cycles on desktop (3.2GHz AMD)
-  + 1200ms - orig/esp32forth8_1, token call threading
-  +  981ms - subroutine threading, inline list methods
-  + 1137ms - subroutine threading, 16-bit pointer offsets
-
-* ESP32 benchmark: 1K*1K cycles on NodeMCU
-  + 1440ms - Dr. Ting's orig/esp32forth_82
-  + 1045ms - orig/esp32forth8_1, token call threading
-  +  839ms - subroutine threading, inline list methods
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011
