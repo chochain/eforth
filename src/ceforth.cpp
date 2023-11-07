@@ -2,27 +2,6 @@
 /// @file
 /// @brief eForth implemented in 100% C/C++ for portability and education
 ///
-/// CC 20220512:
-///       Though the goal of eForth is to show how a Forth can be
-///       easily understood and cleanly constructed.
-///       However, the threading method used is very inefficient (slow)
-///       because each call needs 2 indirect lookups (token->dict, dict->xt)
-///       and a callframe needs to be setup/teardown. Plus, every call
-///       will miss the branch prediction stalling CPU pipeline. Bad stuffs!
-/// CC 20220514:
-///       Refactor to subroutine indirect threading.
-///       Using 16-bit offsets for pointer arithmatics in order to speed up
-///       while maintaining space consumption
-///
-/// @benchmark: 10K*10K cycles on desktop (3.2GHz AMD)
-/// + 1200ms - orig/esp32forth8_1, token call threading
-/// +  981ms - subroutine threading, inline list methods
-///
-/// @benchmark: 1K*1K cycles on NodeMCU ESP32S
-/// + 1440ms - Dr. Ting's orig/esp32forth_82
-/// + 1045ms - orig/esp32forth8_1, token call threading
-/// +  839ms - subroutine threading, inline list methods
-///
 #include <string.h>      // strcmp
 #include <strings.h>     // strcasecmp
 #include "ceforth.h"
@@ -50,6 +29,35 @@ List<Code, E4_DICT_SZ> dict;       ///< dictionary
 List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///
+/// Dictionary memory structure
+///     dict[0].xt ---------> primitive word lambda[0] pointer
+///     dict[1].xt ---------> primitive word lambda[1] pointer
+///     ...
+///     dict[N].xt ----+ user defined colon word)    dict[N+1].xt------+
+///                    |                                               |
+///     +--MEM0        v                                               v
+///     +--------------+--------+--------+-----+------+----------------+-----
+///     | str nameN \0 |  parm1 |  parm2 | ... | 0000 | str nameN+1 \0 | ...
+///     +--------------+--------+--------+-----+------+----------------+-----
+///     ^              ^        ^        ^     ^      ^
+///     | strlen+1     | 2-byte | 2-byte |     |      |
+///     +--------------+--------+--------+-----+------+---- 2-byte aligned
+///
+/// Parameter structure
+///   * primitive word
+///     16-bit xt offset with LSB set to 0 (16-bit aligned)
+///     +--------------+-+
+///     | dict.xtoff() |0|    call (XT0 + *IP)() to execute
+///     +--------------+-+
+///
+///   * colon word (user defined)
+///     16-bit pmem offset with LSB set to 1
+///     +--------------+-+
+///     | dict.pfa     |1|    next IP = *(MEM0 + (*IP & ~1))
+///     +--------------+-+
+///
+///==================================================================================
+///
 /// VM states
 ///
 bool compile = false;              ///< compiler flag
@@ -72,6 +80,10 @@ IU   IP      = 0;                  ///< current instruction pointer and cached b
 #define CELL(a)   (*(DU*)&pmem[a])        /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE) /**< address offset for branching opcodes    */
 ///@}
+///
+/// enum used for built-in opcodes to simplify compiler
+/// Note: make sure the sequence is in-sync with vm_init word list
+///
 typedef enum {
     EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DOES, TOR
 } forth_opcode;
@@ -85,23 +97,13 @@ int streq(const char *s1, const char *s2) {
 }
 #if CC_DEBUG
 int find(const char *s) {
-#if    (ARDUINO || ESP32)
-    LOGF("find("); LOG(s); LOGF(") => ");
+    NM_HDR("find", s);
     for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
         if (streq(s, dict[i].name)) {
-            LOG(dict[i].name); LOG(" "); LOG(i); LOGF("\n");
+            NM_IDX(dict[i].name, i);
             return i;
         }
     }
-#else   // !(ARDUINO || ESP32)
-    printf("find(%s) => ", s);
-    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
-        if (streq(s, dict[i].name)) {
-            printf("%s %d\n", dict[i].name, i);
-            return i;
-        }
-    }
-#endif  // (ARDUINO || ESP32)
     return WORD_NA;
 }
 #else // !CC_DEBUG
