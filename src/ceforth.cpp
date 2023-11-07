@@ -62,8 +62,8 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///
 bool compile = false;              ///< compiler flag
 bool ucase   = true;               ///< case sensitivity control
-DU   top     = -1;                 ///< top of stack (cached)
 DU   base    = 10;                 ///< numeric radix
+DU   top     = -1;                 ///< top of stack (cached)
 IU   WP      = 0;                  ///< current word pointer (used by DOES only)
 IU   IP      = 0;                  ///< current instruction pointer and cached base pointer
 ///
@@ -93,7 +93,7 @@ typedef enum {
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
 int streq(const char *s1, const char *s2) {
-    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+    return ucase ? strcmp(s1, s2)==0 : strcasecmp(s1, s2)==0;
 }
 #if CC_DEBUG
 int find(const char *s) {
@@ -108,7 +108,7 @@ int find(const char *s) {
 }
 #else // !CC_DEBUG
 int find(const char *s) {
-    for (int i = dict.idx - 1; i >= 0; --i) {
+    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
         if (streq(s, dict[i].name)) return i;
     }
     return WORD_NA;
@@ -159,7 +159,7 @@ void nest() {
     static IU _NXT = dict[find("donext")].xtoff();   ///> cache offset to subroutine address
     int dp = 0;                                      ///> iterator depth control
     while (dp >= 0) {
-        IU ix = *(IU*)MEM(IP);                       ///> fetch opcode
+        IU ix = *(IU*)MEM(IP);                       ///> fetch opcode, hopefully cached
         while (ix) {                                 ///> fetch till EXIT
             IP += sizeof(IU);                        /// * advance inst. ptr
             if (ix & UDF_FLAG) {                     ///> is it a colon word?
@@ -599,7 +599,7 @@ void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
     fout.str("");                            ///> clean output buffer, ready for next run
     while (fin >> strbuf) {
         const char *idiom = strbuf.c_str();
-        int w = find(idiom);                 ///> * search through dictionary
+        int w = find(idiom);                 ///> * get token by searching through dict
         if (w != WORD_NA) {                  ///> * word found?
             if (compile && !IS_IMM(w)) {     /// * in compile mode?
                 add_w(w);                    /// * add to colon word
@@ -630,34 +630,34 @@ void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
 #if CC_DEBUG
 #if (ARDUINO || ESP32)
 void mem_stat()  {
-    LOGF("Core:");           LOG(xPortGetCoreID());
-    LOGF(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    LOGF(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    LOGF(", ss_max=");       LOG(ss.max);
-    LOGF(", rs_max=");       LOG(rs.max);
-    LOGF(", pmem=");         LOG(HERE);
-    LOGF("], lowest[heap="); LOG(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-    LOGF(", stack=");        LOG(uxTaskGetStackHighWaterMark(NULL));
-    LOGF("]\n");
+    LOGS("Core:");           LOG(xPortGetCoreID());
+    LOGS(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    LOGS(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    LOGS(", ss_max=");       LOG(ss.max);
+    LOGS(", rs_max=");       LOG(rs.max);
+    LOGS(", pmem=");         LOG(HERE);
+    LOGS("], lowest[heap="); LOG(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    LOGS(", stack=");        LOG(uxTaskGetStackHighWaterMark(NULL));
+    LOGS("]\n");
     if (!heap_caps_check_integrity_all(true)) {
 //        heap_trace_dump();     // dump memory, if we have to
         abort();                 // bail, on any memory error
     }
 }
 void dict_dump() {
-    LOGF("XT0=");        LOGX(XT0);
-    LOGF("NM0=");        LOGX(NM0);
-    LOGF(", sizeof(Code)="); LOG(sizeof(Code));
-    LOGF("\n");
+    LOGS("XT0=");        LOGX(XT0);
+    LOGS("NM0=");        LOGX(NM0);
+    LOGS(", sizeof(Code)="); LOG(sizeof(Code));
+    LOGS("\n");
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         LOG(i);
-        LOGF("> xt=");   LOGX((UFP)c.xt - XT0);
-        LOGF(":");       LOGX((UFP)c.xt);
-        LOGF(", name="); LOGX((UFP)c.name - NM0);
-        LOGF(":");       LOGX((UFP)c.name);
+        LOGS("> xt=");   LOGX((UFP)c.xt - XT0);
+        LOGS(":");       LOGX((UFP)c.xt);
+        LOGS(", name="); LOGX((UFP)c.name - NM0);
+        LOGS(":");       LOGX((UFP)c.name);
         LOG(" ");        LOG(c.name);
-        LOGF("\n");
+        LOGS("\n");
     }
 }
 
@@ -697,19 +697,21 @@ void colon(string &s) { colon(s.c_str()); }
 int forth_load(const char *fname) {
     auto dummy = [](int, const char *) { /* do nothing */ };
     if (!SPIFFS.begin()) {
-        LOGF("Error mounting SPIFFS"); return 1; }
+        LOGS("Error mounting SPIFFS"); return 1;
+    }
     File file = SPIFFS.open(fname, "r");
     if (!file) {
-        LOGF("Error opening file:"); LOG(fname); return 1; }
-    LOGF("Loading file: "); LOG(fname); LOGF("...");
+        LOGS("Error opening file:"); LOG(fname); return 1;
+    }
+    LOGS("Loading file: "); LOG(fname); LOGS("...");
     while (file.available()) {
         char cmd[256], *p = cmd, c;
         while ((c = file.read())!='\n') *p++ = c;   // one line a time
         *p = '\0';
-        LOGF("\n<< "); LOG(cmd);                    // show bootstrap command
+        LOGS("\n<< "); LOG(cmd);                    // show bootstrap command
         forth_outer(cmd, dummy);
     }
-    LOGF("Done loading.\n");
+    LOGS("Done loading.\n");
     file.close();
     SPIFFS.end();
     return 0;
