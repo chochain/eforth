@@ -20,7 +20,7 @@
 #define DO_WASM         0     /**< for WASM output                        */
 #define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
 #define RANGE_CHECK     0     /**< vector range check                     */
-#define CC_DEBUG        0     /**< debug tracing flag                     */
+#define CC_DEBUG        1     /**< debug tracing flag                     */
 #define INLINE          __attribute__((always_inline))
 ///@}
 ///@name Memory block configuation
@@ -190,7 +190,7 @@ struct Code {
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     template<typename F>    ///< template function for lambda
     Code(const char *n, F f, bool im) : name(n), xt(new FP<F>(f)) {
-        if ((UFP)xt < XT0) XT0 = (UFP)xt;              ///> collect xt base
+        if (((UFP)xt - 4) < XT0) XT0 = ((UFP)xt - 4);  ///> collect xt base (4 prevent dXT==0)
         if ((UFP)n  < NM0) NM0 = (UFP)n;               ///> collect name string base
         if (im) attr |= IMM_FLAG;
 #if CC_DEBUG
@@ -224,7 +224,7 @@ struct Code {
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & UDF_MASK)); }
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
-        if ((UFP)xt < XT0) XT0 = (UFP)xt;                ///> collect xt base (for offset)
+        if (((UFP)xt - 4) < XT0) XT0 = ((UFP)xt - 4);    ///> collect xt base (4 prevent dXT==0)
         if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
         if (im) attr |= IMM_FLAG;
 #if CC_DEBUG
@@ -238,7 +238,7 @@ struct Code {
     Code c(n, []{ g; }, im);	\
     dict.push(c);               \
     }
-#define WORD_NULL  (FPTR)-1     /** blank function pointer */
+#define WORD_NULL  (FPTR)0     /** blank function pointer */
 
 #endif // LAMBDA_OK
 
