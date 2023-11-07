@@ -61,7 +61,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 /// VM states
 ///
 bool compile = false;              ///< compiler flag
-bool ucase   = true;               ///< case sensitivity control
+bool ucase   = false;              ///< caseless string compare
 DU   base    = 10;                 ///< numeric radix
 DU   top     = -1;                 ///< top of stack (cached)
 IU   WP      = 0;                  ///< current word pointer (used by DOES only)
@@ -93,7 +93,7 @@ typedef enum {
 /// dictionary search functions - can be adapted for ROM+RAM
 ///
 int streq(const char *s1, const char *s2) {
-    return ucase ? strcmp(s1, s2)==0 : strcasecmp(s1, s2)==0;
+    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
 #if CC_DEBUG
 int find(const char *s) {
@@ -376,7 +376,7 @@ void vm_init() {
          while (*++ip) add_iu(*ip));               // copy&paste code
     CODE(">r",   rs.push(POP()));
     CODE("r>",   PUSH(rs.pop()));
-    CODE("r@",   PUSH(rs[-1]));
+    CODE("r@",   PUSH(rs[-1]));                    // same as I (the loop counter)
     /// @}
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -396,6 +396,7 @@ void vm_init() {
     CODE("2swap",
          DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
          ss.push(n); PUSH(l); PUSH(m));
+    CODE("?dup", if (top != DU0) PUSH(top));
     /// @}
     /// @defgroup ALU ops
     /// @{
@@ -417,6 +418,7 @@ void vm_init() {
     CODE("xor",  top = ss.pop() ^ top);
     CODE("abs",  top = abs(top));
     CODE("negate", top = -top);
+    CODE("invert", top = ~top);
     CODE("rshift", top = ss.pop() >> top);
     CODE("lshift", top = ss.pop() << top);
     CODE("max",  DU n=ss.pop(); top = (top>n)?top:n);
@@ -428,9 +430,9 @@ void vm_init() {
     /// @}
     /// @defgroup Logic ops
     /// @{
-    CODE("0= ",  top = BOOL(top == 0));
-    CODE("0<",   top = BOOL(top <  0));
-    CODE("0>",   top = BOOL(top >  0));
+    CODE("0= ",  top = BOOL(top == DU0));
+    CODE("0<",   top = BOOL(top <  DU0));
+    CODE("0>",   top = BOOL(top >  DU0));
     CODE("=",    top = BOOL(ss.pop() == top));
     CODE(">",    top = BOOL(ss.pop() >  top));
     CODE("<",    top = BOOL(ss.pop() <  top));
@@ -514,7 +516,7 @@ void vm_init() {
     CODE("variable",                                             // create a variable
          if (def_word(next_idiom())) {                           // create a new word on dictionary
              add_w(DOVAR);                                       // dovar (+parameter field)
-             int n = 0; add_du(n);                               // data storage (32-bit integer now)
+             add_du(DU0);                                        // data storage (32-bit integer now)
              add_w(EXIT);
          });
     CODE("constant",                                             // create a constant
@@ -523,6 +525,7 @@ void vm_init() {
              add_du(POP());                                      // data storage (32-bit integer now)
              add_w(EXIT);
          });
+    IMMD("immediate", dict[-1].attr |= IMM_FLAG);
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -534,7 +537,7 @@ void vm_init() {
          });
     CODE("to",              // 3 to x                            // alter the value of a constant
          IU w = find(next_idiom());                              // to save the extra @ of a variable
-         *(DU*)(PFA(w) + sizeof(IU)) = POP());
+         *(DU*)(MEM(PFA(w)) + sizeof(IU)) = POP());
     CODE("is",              // ' y is x                          // alias a word
          IU w = find(next_idiom());                              // copy entire union struct
          dict[POP()].xt = dict[w].xt);
@@ -545,7 +548,7 @@ void vm_init() {
     CODE("@",     IU w = POP(); PUSH(CELL(w)));                  // w -- n
     CODE("!",     IU w = POP(); CELL(w) = POP(););               // n w --
     CODE(",",     DU n = POP(); add_du(n));
-    CODE("allot", DU v = 0; for (IU n = POP(), i = 0; i < n; i++) add_du(v)); // n --
+    CODE("allot", for (IU n = POP(), i = 0; i < n; i++) add_du(DU0)); // n --
     CODE("+!",    IU w = POP(); CELL(w) += POP());               // n w --
     CODE("?",     IU w = POP(); fout << CELL(w) << " ");         // w --
     /// @}
@@ -565,7 +568,7 @@ void vm_init() {
     CODE("poke",  DU a = POP(); POKE(a, POP()));
     CODE("forget",
          IU w = find(next_idiom());
-         if (w<0) return;
+         if (w != WORD_NA) return;
          IU b = find("boot")+1;
          dict.clear(w > b ? w : b));
     CODE("ms",    PUSH(millis()));
