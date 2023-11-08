@@ -30,9 +30,12 @@ List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///
 ///> Dictionary memory structure
-///     dict[0].xt ---------> primitive word lambda[0] pointer
-///     dict[1].xt ---------> primitive word lambda[1] pointer
+///     dict[0].xt ---------> pointer to primitive word lambda[0]
+///     dict[1].xt ---------> pointer to primitive word lambda[1]
 ///     ...
+///     dict[N-1].xt -------> pointer to last primitive word lambda[N-1]
+///
+///> Parameter memory structure
 ///     dict[N].xt ----+ user defined colon word)    dict[N+1].xt------+
 ///                    |                                               |
 ///     +--MEM0        v                                               v
@@ -43,9 +46,9 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///     | strlen+1     | 2-byte | 2-byte |     |      |
 ///     +--------------+--------+--------+-----+------+---- 2-byte aligned
 ///
-///> Parameter structure
+///> Parameter structure - 16-bit aligned (LSB used for colon word identification)
 ///   * primitive word
-///     16-bit xt offset with LSB set to 0 (16-bit aligned)
+///     16-bit xt offset with LSB set to 0
 ///     +--------------+-+
 ///     | dict.xtoff() |0|    call (XT0 + *IP)() to execute
 ///     +--------------+-+
@@ -73,12 +76,11 @@ IU   IP      = 0;                  ///< current instruction pointer and cached b
 ///
 ///@name Dictionary access macros
 ///@{
-#define BOOL(f)   ((f)?-1:0)              /**< Forth boolean representation            */
-#define PFA(w)    (dict[w].pfa)           /**< parameter field pointer of a word       */
-#define HERE      (pmem.idx)              /**< current parameter memory index          */
-#define MEM(ip)   (MEM0 + (IU)(ip))       /**< pointer to IP address fetched from pmem */
-#define CELL(a)   (*(DU*)&pmem[a])        /**< fetch a cell from parameter memory      */
-#define SETJMP(a) (*(IU*)&pmem[a] = HERE) /**< address offset for branching opcodes    */
+#define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
+#define HERE      (pmem.idx)               /**< current parameter memory index          */
+#define MEM(ip)   (MEM0 + (IU)(ip))        /**< pointer to IP address fetched from pmem */
+#define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
+#define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
 ///@}
 ///
 /// enum used for built-in opcodes to simplify compiler
@@ -137,11 +139,11 @@ void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                    ///
 void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    ///< add a cell into pmem
 void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  ///< add a string to pmem
 void add_w(IU w) {                                                           ///< add a word index into pmem
-    IU ip = IS_UDF(w) ? (PFA(w) | UDF_FLAG) : (w==EXIT ? 0 : dict[w].xtoff());
+    IU ip = IS_UDF(w) ? (dict[w].pfa | UDF_PARM) : (w==EXIT ? 0 : dict[w].xtoff());
     add_iu(ip);
-#if CC_DEBUG == 2
+#if CC_DEBUG > 1
     printf("add_w(%d) => %4x:%p %s\n", w, ip, dict[w].xt, dict[w].name);
-#endif // CC_DEBUG == 2
+#endif // CC_DEBUG > 1
 }
 ///============================================================================
 ///
@@ -162,9 +164,9 @@ void nest() {
         IU ix = *(IU*)MEM(IP);                       ///> fetch opcode, hopefully cached
         while (ix) {                                 ///> fetch till EXIT
             IP += sizeof(IU);                        /// * advance inst. ptr
-            if (ix & UDF_FLAG) {                     ///> is it a colon word?
+            if (ix & UDF_PARM) {                     ///> is it a colon word?
                 rs.push(IP);
-                IP = ix & ~UDF_FLAG;                 ///> word pfa (def masked)
+                IP = ix & ~UDF_PARM;                 ///> word pfa (def masked)
                 dp++;                                ///> go one level deeper
             }
 #if  !(ARDUINO || ESP32)
@@ -186,8 +188,8 @@ void nest() {
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
-    if (IS_UDF(w)) { WP = (w); IP = PFA(w); nest(); }
-    else (*(FPTR)((UFP)dict[(w)].xt & UDF_MASK))();
+    if (IS_UDF(w)) { WP = (w); IP = dict[w].pfa; nest(); }
+    else dict[w].xt();
 }
 ///
 ///> Global memory access macros
@@ -259,14 +261,13 @@ void s_quote(IU op) {
 ///
 void see(IU pfa, int dp=1) {
     auto pfa2word = [](IU ix) {
-        IU   def = ix & UDF_FLAG;      ///> check user defined flag
-        IU   pfa = ix & ~0x1;          ///> TODO: handle colon immediate words when > 64K
-        FPTR xt  = Code::XT(ix);       ///> can xt be immediate? i.e. ix & ~0x3
+        IU   pfa = ix & ~UDF_PARM;                 ///> pfa (mask colon word)
+        FPTR xt  = Code::XT(ix);                   ///> lambda pointer
         for (int i = dict.idx - 1; i >= 0; --i) {
-            if (def) {
-                if (dict[i].pfa == pfa) return i;             ///> compare pfa in PMEM
+            if (ix & UDF_PARM) {                   ///> check colon word
+                if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
             }
-            else if (dict[i].xt == xt) return i;              ///> compare xt
+            else if (dict[i].xt == xt) return i;   ///> compare xt
         }
         return WORD_NA;
     };
@@ -277,7 +278,7 @@ void see(IU pfa, int dp=1) {
         IU c = pfa2word(*(IU*)ip);                            ///> fetch word index by pfa
         to_s(c);                                              ///> display name
         if (IS_UDF(c) && dp < 2) {                            ///> is a colon word
-            see(PFA(c), dp+1);                                ///> recursive into child PFA
+            see(dict[c].pfa, dp+1);                           ///> recursive into child
         }
         ip += sizeof(IU);
         switch (c) {
@@ -540,7 +541,7 @@ void vm_init() {       ///< compile primitive words into dictionary
     IMMD("does>", add_w(DODOES); add_w(EXIT));                   // CREATE...DOES>... meta-program
     CODE("to",              // 3 to x                            // alter the value of a constant
          IU w = find(next_idiom());                              // to save the extra @ of a variable
-         *(DU*)(MEM(PFA(w)) + sizeof(IU)) = POP());
+         *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
     CODE("is",              // ' y is x                          // alias a word
          IU w = find(next_idiom());                              // copy entire union struct
          dict[POP()].xt = dict[w].xt);
@@ -564,16 +565,21 @@ void vm_init() {       ///< compile primitive words into dictionary
     CODE("see",
          IU w = find(next_idiom());
          fout << "["; to_s(w);
-         if (IS_UDF(w)) see(PFA(w));                             // recursive call
+         if (IS_UDF(w)) see(dict[w].pfa);                        // recursive call
          fout << "]" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
     CODE("poke",  DU a = POP(); POKE(a, POP()));
     CODE("forget",
          IU w = find(next_idiom());
-         if (w != WORD_NA) return;
+         if (w == WORD_NA) return;
          IU b = find("boot")+1;
-         dict.clear(w > b ? w : b));
+         if (w > b) {
+             dict.clear(w);
+             pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
+         }
+         else { dict.clear(b); pmem.clear(); }
+    );    
     CODE("ms",    PUSH(millis()));
     CODE("delay", delay(POP()));
     /// @}
