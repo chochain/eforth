@@ -27,8 +27,8 @@
 ///@{
 #define E4_RS_SZ        64
 #define E4_SS_SZ        64
-#define E4_DICT_SZ      2048
-#define E4_PMEM_SZ      (64*1024)
+#define E4_DICT_SZ      1024
+#define E4_PMEM_SZ      (32*1024)
 ///@}
 ///@name Multi-platform support
 ///@{
@@ -148,18 +148,20 @@ struct List {
 ///
 /// Code flag masking options
 ///
-#define WORD_NA        -1
+#define WORD_NA    -1
+#define UDF_FLAG   0x0001        /** user defined word  */
+#define IMM_FLAG   0x0002        /** immediate word     */
+#define UDF_MASK   ~0x3          /** user defined word  */
+
+#define IS_UDF(w) (dict[w].attr & UDF_FLAG)
+#define IS_IMM(w) (dict[w].attr & IMM_FLAG)
+
 #if DO_WASM                     /** WASM function ptr is not aligned */
-    #define UDF_FLAG   0x8000   /** user defined word  */
-    #define IMM_FLAG   0x4000   /** immediate word     */
-    #define UDF_MASK   0x3fff   /** user defined word  */
-
+    #define UDF_PARM   0x8000   /** param field flag   */
 #else // !DO_WASM
-    #define UDF_FLAG   0x0001
-    #define IMM_FLAG   0x0002
-    #define UDF_MASK  ~0x0003
-
+    #define UDF_PARM   0x0001
 #endif // DO_WASM
+
 
 ///
 /// universal functor (no STL) and Code class
@@ -180,20 +182,19 @@ struct Code {
     static UFP XT0, NM0;
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< lambda pointer
-        struct {            ///< a colon word
-            U16 attr;       ///< colon defined word
-            IU  pfa;        ///< offset to pmem space
-        };
+        FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
+        IU   pfa;           ///< colon word pamam mem offset
     };
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & UDF_MASK)); }
+    IU attr;                ///< word attribute
+    
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~UDF_PARM)); }
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     template<typename F>    ///< template function for lambda
     Code(const char *n, F f, bool im) : name(n), xt(new FP<F>(f)) {
         if (((UFP)xt - 4) < XT0) XT0 = ((UFP)xt - 4);  ///> collect xt base (4 prevent dXT==0)
         if ((UFP)n  < NM0) NM0 = (UFP)n;               ///> collect name string base
         if (im) attr |= IMM_FLAG;
-#if CC_DEBUG
+#if CC_DEBUG > 1
         printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
 #endif // CC_DEBUG
     }
@@ -215,19 +216,18 @@ struct Code {
     static UFP XT0, NM0;
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< lambda pointer
-        struct {
-            U16 attr;       ///< attributes (def, imm, xx=reserved)
-            IU  pfa;        ///< offset to pmem space (16-bit for 64K range)
-        };
+        FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
+        IU   pfa;           ///< offset to pmem space (16-bit for 64K range)
     };
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & UDF_MASK)); }
+    U16 attr;               ///< attributes (def, imm, xx=reserved)
+
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~UDF_PARM)); }
     static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
         if (((UFP)xt - 4) < XT0) XT0 = ((UFP)xt - 4);    ///> collect xt base (4 prevent dXT==0)
         if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
         if (im) attr |= IMM_FLAG;
-#if CC_DEBUG
+#if CC_DEBUG > 1
         printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
 #endif // CC_DEBUG
     }
@@ -244,8 +244,5 @@ struct Code {
 
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
-
-#define IS_UDF(w) (dict[w].attr & UDF_FLAG)
-#define IS_IMM(w) (dict[w].attr & IMM_FLAG)
 
 #endif // __EFORTH_SRC_CEFORTH_H
