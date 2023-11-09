@@ -57,6 +57,8 @@
     #define millis()        EM_ASM_INT({ return Date.now(); })
     #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
     #define yield()
+    #define NM_HDR(f, s)    printf("%s(%s) => ", f, s)
+    #define NM_IDX(n, i)    printf("%s %d\n", n, i)
 
 #else  // !ARDUINO && !__EMSCRIPTEN__
     #include <chrono>
