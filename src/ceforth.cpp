@@ -571,9 +571,9 @@ void vm_init() {       ///< compile primitive words into dictionary
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
     CODE("poke",  DU a = POP(); POKE(a, POP()));
     CODE("forget",
-         IU w = find(next_idiom());
+         int w = find(next_idiom());
          if (w == WORD_NA) return;
-         IU b = find("boot")+1;
+         int b = find("boot")+1;
          if (w > b) {
              dict.clear(w);
              pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
@@ -742,14 +742,8 @@ int forth_load(const char *fname) {
 ///
 /// main program - Note: Arduino and ESP32 have their own main-loop
 ///
+#include <iostream>                                     // cin, cout
 #if DO_WASM
-///
-///> main program for WASM
-///
-int main(int ac, char* av[]) {
-    vm_init();                                          // initialize dictionary
-    return 0;
-}
 ///
 /// export functions (to WASM)
 ///
@@ -760,17 +754,20 @@ void forth(int n, char *cmd) {
 }
 int  vm_base()       { return base;     }
 int  vm_ss_idx()     { return ss.idx;   }
-DU   *vm_ss()        { return &ss[0];   }
 int  vm_dict_idx()   { return dict.idx; }
+DU   *vm_ss()        { return &ss[0];   }
 char *vm_dict(int i) { return (char*)dict[i].name; }
 char *vm_mem()       { return (char*)&pmem[0]; }
+}
+int main(int ac, char* av[]) {
+    vm_init();                                          // initialize dictionary
+    return 0;
 }
 
 #else // DO_WASM
 ///
 /// main program for testing on Desktop PC (Linux and Cygwin)
 ///
-#include <iostream>                                     // cin, cout
 int main(int ac, char* av[]) {
     vm_init();                                          ///> initialize dictionary
     forth_load("/load.txt");                            ///> compile /data/load.txt
