@@ -3,7 +3,7 @@
 ### eForth next-gen, 100% C/C++ for cross-platform
 * ~/src common source for eforth, esp32forth, wineForth, and weForth
 * ~/orig/33b refactored 32-bit asm+vm implementation originated from <a href="http://forth.org/OffeteStore/OffeteStore.html" target="_blank">Dr. Ting's eForth site</a>
-* source collaborated with Dr. Ting kept in ~/orig/ting
+* ~/orig/ting, ~/orig/802 source codes collaborated with Dr. Ting
 
 ### Benchmark
 * Desktop PC - 10K*10K cycles on 3.2GHz AMD
