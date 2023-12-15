@@ -6,22 +6,14 @@
 #pragma GCC optimize("align-functions=4")    // we need fn alignment
 ///
 /// Benchmark: 10K*10K cycles on desktop (3.2G AMD)
-///    LAMBDA_OK       0 cut 80ms
 ///    RANGE_CHECK     0 cut 100ms
 ///    INLINE            cut 545ms
 ///
-/// Note: use LAMBDA_OK=1 for full ForthVM class
-///    if lambda needs to capture [this] for Code
-///    * it slow down nest() by 2x (1200ms -> 2500ms) on AMD
-///    * with one parameter, it slows 160ms extra
-///
 ///@name Conditional compililation options
 ///@}
-#define DO_WASM         0     /**< for WASM output                        */
-#define LAMBDA_OK       0     /**< lambda support, set 1 for ForthVM.this */
-#define RANGE_CHECK     0     /**< vector range check                     */
-#define CC_DEBUG        1     /**< debug tracing flag                     */
-#define INLINE          __attribute__((always_inline))
+#define CC_DEBUG        0               /**< debug tracing flag  */
+#define RANGE_CHECK     0               /**< vector range check  */
+#define DO_WASM         __EMSCRIPTEN__  /**< for WASM output     */
 ///@}
 ///@name Memory block configuation
 ///@{
@@ -44,23 +36,17 @@
     #define LOGS(s)         Serial.print(F(s))
     #define LOG(v)          Serial.print(v)
     #define LOGX(v)         Serial.print(v, HEX)
-    #define LOGN(v)         Serial.println(v)
-    #define NM_HDR(f, s)    LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
-    #define NM_IDX(n, i)    LOG(n); LOGS(" "); LOGN(i);
-
     #if    ESP32
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
     #endif // ESP32
 
-#elif  __EMSCRIPTEN__
+#elif  DO_WASM
     #include <emscripten.h>
     #define millis()        EM_ASM_INT({ return Date.now(); })
     #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
     #define yield()
-    #define NM_HDR(f, s)    printf("%s(%s) => ", f, s)
-    #define NM_IDX(n, i)    printf("%s %d\n", n, i)
 
-#else  // !ARDUINO && !__EMSCRIPTEN__
+#else  // !ARDUINO && !DO_WASM
     #include <chrono>
     #include <thread>
     #define millis()        chrono::duration_cast<chrono::milliseconds>( \
@@ -68,11 +54,38 @@
     #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
     #define yield()         this_thread::yield()
     #define PROGMEM
-    #define LOGN(v)         printf("%d\n", v)
-    #define NM_HDR(f, s)    printf("%s(%s) => ", f, s)
-    #define NM_IDX(n, i)    printf("%s %d\n", n, i)
 
-#endif // ARDUINO && __EMSCRIPTEN__
+#endif // ARDUINO && DO_WASM
+///@}
+///@name Debugging support
+///@{
+#if CC_DEBUG
+#if ARDUINO
+    #define LOG_KV(k, v)    LOGS(k); LOG(v)
+    #define LOG_KX(k, x)    LOGS(k); LOGX(v)
+    #define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
+    #define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] "); \
+                            LOG(dict[i].name); LOGS(" attr="); LOGX(dict[i].attr); \
+                            LOGS("\n")
+    #define LOG_NA()        LOGS("not found\n")
+
+#else  // !ARDUINO
+    #define LOG_KV(k, v)    printf("%s%d", k, v)
+    #define LOG_KX(k, x)    printf("%s%x", k, x)
+    #define LOG_HDR(f, s)   printf("%s(%s) => ", f, s)
+    #define LOG_DIC(i)      printf("dict[%d] %s attr=%x\n", i, dict[i].name, dict[i].attr)
+    #define LOG_NA()        printf("not found\n")
+
+#endif // ARDUINO
+
+#else  // !CC_DEBUG
+    #define LOG_KV(k, v)
+    #define LOG_KX(k, x)
+    #define LOG_HDR(f, s)
+    #define LOG_DIC(i)
+    #define LOG_NA()
+
+#endif // CC_DEBUG
 ///@}
 using namespace std;
 ///
@@ -99,8 +112,9 @@ typedef int32_t         DU;
 #endif // USE_FLOAT
 typedef uint16_t        IU;    ///< instruction pointer unit
 ///@}
-///@name Alignment macros
+///@name Inline & Alignment macros
 ///@{
+#define INLINE          __attribute__((always_inline))
 #define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
 #define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
@@ -113,17 +127,17 @@ typedef uint16_t        IU;    ///< instruction pointer unit
 ///   * using decorator pattern
 ///   * this is similar to vector class but much simplified
 ///
-template<class T, int N=0>
+template<class T, int N>
 struct List {
     T   *v;             ///< fixed-size array storage
     int idx = 0;        ///< current index of array
     int max = 0;        ///< high watermark for debugging
 
     List()  {
-        v = N ? new T[N] : 0;                         ///< dynamically allocate array storage
+        v = N ? new T[N] : 0;                     ///< dynamically allocate array storage
         if (!v) throw "ERR: List allot failed";
     }
-    ~List() { if (v) delete[] v;   }                  ///< free memory
+    ~List() { if (v) delete[] v;   }              ///< free memory
 
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
@@ -148,70 +162,26 @@ struct List {
     void clear(int i=0)    INLINE { idx=i; }
 };
 ///
-/// Code flag masking options
-///
+///@name Code flag masking options
+///@{
 #define WORD_NA    -1
-#define UDF_FLAG   0x0001        /** user defined word  */
-#define IMM_FLAG   0x0002        /** immediate word     */
-#define UDF_MASK   ~0x3          /** user defined word  */
+#if !DO_WASM                      /** WASM function ptr is index to vtable */
+    #define UDF_ATTR   0x0001     /** user defined word  */
+    #define IMM_ATTR   0x0002     /** immediate word     */
+    #define MSK_ATTR   ~0x3       /** attribute mask     */
+    #define UDF_FLAG   0x0001
+#else // DO_WASM
+    #define UDF_ATTR   0x8000     /** user defined word  */
+    #define IMM_ATTR   0x4000     /** immediate word     */
+    #define MSK_ATTR   0x3fffffff /** attribute mask     */
+    #define UDF_FLAG   0x8000     /** colon word flag    */
+#endif // !DO_WASM
 
-#define IS_UDF(w) (dict[w].attr & UDF_FLAG)
-#define IS_IMM(w) (dict[w].attr & IMM_FLAG)
-
-#if DO_WASM                     /** WASM function ptr is not aligned */
-    #define UDF_PARM   0x8000   /** param field flag   */
-#else // !DO_WASM
-    #define UDF_PARM   0x0001
-#endif // DO_WASM
-
-
+#define IS_UDF(w) (dict[w].attr & UDF_ATTR)
+#define IS_IMM(w) (dict[w].attr & IMM_ATTR)
+///@}
 ///
-/// universal functor (no STL) and Code class
-/// Note:
-///   * 8-byte on 32-bit machine, 16-byte on 64-bit machine
-///
-#if LAMBDA_OK
-
-struct fop { virtual void operator()() = 0; };
-template<typename F>
-struct FP : fop {           ///< universal functor
-    F fp;
-    FP(F &f) INLINE : fp(f) {}
-    void operator()() INLINE { fp(); }
-};
-typedef fop* FPTR;          ///< lambda function pointer
-struct Code {
-    static UFP XT0, NM0;
-    const char *name = 0;   ///< name field
-    union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
-        IU   pfa;           ///< colon word pamam mem offset
-    };
-    IU attr;                ///< word attribute
-    
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~UDF_PARM)); }
-    static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
-    template<typename F>    ///< template function for lambda
-    Code(const char *n, F f, bool im) : name(n), xt(new FP<F>(f)) {
-        if (((UFP)xt - 4) < XT0) XT0 = ((UFP)xt - 4);  ///> collect xt base (4 prevent dXT==0)
-        if ((UFP)n  < NM0) NM0 = (UFP)n;               ///> collect name string base
-        if (im) attr |= IMM_FLAG;
-#if CC_DEBUG > 1
-        printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
-#endif // CC_DEBUG
-    }
-    Code() {}               ///< create a blank struct (for initilization)
-    IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
-};
-#define ADD_CODE(n, g, im) {     \
-    Code c(n, []() { g; }, im);  \
-    dict.push(c);                \
-    }
-#define WORD_NULL [](){}    /** blank lambda */
-
-#else  // !LAMBDA_OK
-///
-/// a lambda without capture can degenerate into a function pointer
+///> Universal functor (no STL) and Code class
 ///
 typedef void (*FPTR)();     ///< function pointer
 struct Code {
@@ -219,30 +189,43 @@ struct Code {
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
-        IU   pfa;           ///< offset to pmem space (16-bit for 64K range)
+#if !DO_WASM
+        struct {
+            IU attr;        ///< steal 2 LSBs because xt is 4-byte aligned on 32-bit CPU
+            IU pfa;         ///< offset to pmem space (16-bit for 64K range)
+        };
+#else // DO_WASM
+        struct {
+            IU pfa;         ///< offset to pmem space (16-bit for 64K range)
+            IU attr;        ///< WASM xt is index to vtable (so LSBs will be used)
+        };
+#endif // !DO_WASM
     };
-    U16 attr;               ///< attributes (def, imm, xx=reserved)
 
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + ((UFP)ix & ~UDF_PARM)); }
-    static void exec(IU ix) INLINE { (*(FPTR)XT(ix))(); }
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)ix); }
+    static void exec(IU ix) INLINE { (*XT(ix))(); }
+    
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
         if (((UFP)xt - 4) < XT0) XT0 = ((UFP)xt - 4);    ///> collect xt base (4 prevent dXT==0)
         if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
-        if (im) attr |= IMM_FLAG;
+        if (im) attr |= IMM_ATTR;
 #if CC_DEBUG > 1
         printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
 #endif // CC_DEBUG
     }
     Code() {}               ///< create a blank struct (for initilization)
-    IU xtoff() INLINE { return (IU)((UFP)xt - XT0); }    ///< xt offset in code space
+    IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
+    void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
 };
+///
+///> Add a Word to dictionary
+/// Note:
+///    a lambda without capture can degenerate into a function pointer
 #define ADD_CODE(n, g, im) {    \
     Code c(n, []{ g; }, im);	\
     dict.push(c);               \
     }
 #define WORD_NULL  (FPTR)0     /** blank function pointer */
-
-#endif // LAMBDA_OK
 
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
