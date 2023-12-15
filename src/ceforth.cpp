@@ -56,7 +56,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///   * colon word (user defined)
 ///     16-bit pmem offset with LSB set to 1
 ///     +--------------+-+
-///     | dict.pfa     |1|    next IP = *(MEM0 + (*IP & ~1))
+///     |  dict.pfa    |1|   next IP = *(MEM0 + (*IP & ~1))
 ///     +--------------+-+
 ///
 ///==================================================================================
@@ -97,25 +97,17 @@ typedef enum {
 int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
-#if CC_DEBUG
 int find(const char *s) {
-    NM_HDR("find", s);
+    LOG_HDR("find", s);
     for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
         if (streq(s, dict[i].name)) {
-            NM_IDX(dict[i].name, i);
+            LOG_DIC(i);
             return i;
         }
     }
+    LOG_NA();
     return WORD_NA;
 }
-#else // !CC_DEBUG
-int find(const char *s) {
-    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
-        if (streq(s, dict[i].name)) return i;
-    }
-    return WORD_NA;
-}
-#endif // CC_DEBUG
 ///==============================================================================
 ///
 ///> Colon word compiler
@@ -129,8 +121,8 @@ void colon(const char *name) {
     int sz = STRLEN(name);                  ///> string length, aligned
     pmem.push((U8*)name,  sz);              ///> setup raw name field
 
-    Code c(nfa, WORD_NULL, false);          ///> create a blank word on dictionary
-    c.attr = UDF_FLAG;                      ///> specify a colon (user defined) word
+    Code c(nfa, WORD_NULL, false);          ///> create a local blank word
+    c.attr |= UDF_ATTR;                     ///> specify a colon (user defined) word
     c.pfa  = HERE;                          ///> capture code field index
 
     dict.push(c);                           ///> deep copy Code struct into dictionary
@@ -139,7 +131,7 @@ void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                    ///
 void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    ///< add a cell into pmem
 void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  ///< add a string to pmem
 void add_w(IU w) {                                                           ///< add a word index into pmem
-    IU ip = IS_UDF(w) ? (dict[w].pfa | UDF_PARM) : (w==EXIT ? 0 : dict[w].xtoff());
+    IU ip = IS_UDF(w) ? (dict[w].pfa | UDF_FLAG) : (w==EXIT ? 0 : dict[w].xtoff());
     add_iu(ip);
 #if CC_DEBUG > 1
     printf("add_w(%d) => %4x:%p %s\n", w, ip, dict[w].xt, dict[w].name);
@@ -158,18 +150,18 @@ void add_w(IU w) {                                                           ///
 ///    3. co-routine
 ///
 void nest() {
-    static IU _NXT = dict[find("donext")].xtoff();   ///> cache offset to subroutine address
+    static IU _NXT = dict[find("_donext")].xtoff();  ///> cache offset to subroutine address
     int dp = 0;                                      ///> iterator depth control
     while (dp >= 0) {
         IU ix = *(IU*)MEM(IP);                       ///> fetch opcode, hopefully cached
         while (ix) {                                 ///> fetch till EXIT
             IP += sizeof(IU);                        /// * advance inst. ptr
-            if (ix & UDF_PARM) {                     ///> is it a colon word?
+            if (ix & UDF_FLAG) {                     ///> is it a colon word?
                 rs.push(IP);
-                IP = ix & ~UDF_PARM;                 ///> word pfa (def masked)
+                IP = ix & ~UDF_FLAG;                 ///> word pfa (def masked)
                 dp++;                                ///> go one level deeper
             }
-#if  !(ARDUINO || ESP32)
+#if !(ARDUINO || ESP32)
             else if (ix == _NXT) {                          ///> cached DONEXT handler (save 600ms / 100M cycles on AMD)
                 if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but on ESP32, it slows down 100ms / 1M cycles
                 else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
@@ -189,7 +181,7 @@ void nest() {
 ///
 void CALL(IU w) {
     if (IS_UDF(w)) { WP = (w); IP = dict[w].pfa; nest(); }
-    else dict[w].xt();
+    else dict[w].call();
 }
 ///
 ///> Global memory access macros
@@ -261,10 +253,10 @@ void s_quote(IU op) {
 ///
 void see(IU pfa, int dp=1) {
     auto pfa2word = [](IU ix) {
-        IU   pfa = ix & ~UDF_PARM;                 ///> pfa (mask colon word)
-        FPTR xt  = Code::XT(ix);                   ///> lambda pointer
+        IU   pfa = ix & ~UDF_FLAG;                 ///> pfa (mask colon word)
+        FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
         for (int i = dict.idx - 1; i >= 0; --i) {
-            if (ix & UDF_PARM) {                   ///> check colon word
+            if (ix & UDF_FLAG) {
                 if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
             }
             else if (dict[i].xt == xt) return i;   ///> compare xt
@@ -311,7 +303,7 @@ void words() {
             yield();
         }
     }
-    fout << setbase(base);
+    fout << setbase(base) << ENDL;
 }
 void ss_dump() {
 #if   DO_WASM
@@ -353,7 +345,7 @@ const char *vm_version(){
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 UFP Code::NM0 = ~0;    ///< init base of name pointers
 
-void vm_init() {       ///< compile primitive words into dictionary
+void dict_compile() {  ///< compile primitive words into dictionary
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
@@ -528,7 +520,7 @@ void vm_init() {       ///< compile primitive words into dictionary
              add_du(POP());                                      // data storage (32-bit integer now)
              add_w(EXIT);
          });
-    IMMD("immediate", dict[-1].attr |= IMM_FLAG);
+    IMMD("immediate", dict[-1].attr |= IMM_ATTR);
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -636,20 +628,21 @@ void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
     }
     if (!compile) ss_dump();   /// * dump stack and display ok prompt
 }
+///=================================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
 #if CC_DEBUG
 #if (ARDUINO || ESP32)
 void mem_stat()  {
-    LOGS("Core:");           LOG(xPortGetCoreID());
-    LOGS(" heap[maxblk=");   LOG(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    LOGS(", avail=");        LOG(heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    LOGS(", ss_max=");       LOG(ss.max);
-    LOGS(", rs_max=");       LOG(rs.max);
-    LOGS(", pmem=");         LOG(HERE);
-    LOGS("], lowest[heap="); LOG(heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-    LOGS(", stack=");        LOG(uxTaskGetStackHighWaterMark(NULL));
+    LOG_KV("Core:",          xPortGetCoreID());
+    LOG_KV(" heap[maxblk=",  heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    LOG_KV(", avail=",       heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    LOG_KV(", ss_max=",      ss.max);
+    LOG_KV(", rs_max=",      rs.max);
+    LOG_KV(", pmem=",        HERE);
+    LOG_KV("], lowest[heap=",heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    LOG_KV(", stack=",       uxTaskGetStackHighWaterMark(NULL));
     LOGS("]\n");
     if (!heap_caps_check_integrity_all(true)) {
 //        heap_trace_dump();     // dump memory, if we have to
@@ -657,33 +650,34 @@ void mem_stat()  {
     }
 }
 void dict_dump() {
-    LOGS("XT0=");        LOGX(XT0);
-    LOGS("NM0=");        LOGX(NM0);
-    LOGS(", sizeof(Code)="); LOG(sizeof(Code));
+    LOG_KX("XT0=",        Code::XT0);
+    LOG_KX("NM0=",        Code::NM0);
+    LOG_KV(", sizeof(Code)=", sizeof(Code));
     LOGS("\n");
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         LOG(i);
-        LOGS("> xt=");   LOGX((UFP)c.xt - XT0);
-        LOGS(":");       LOGX((UFP)c.xt);
-        LOGS(", name="); LOGX((UFP)c.name - NM0);
-        LOGS(":");       LOGX((UFP)c.name);
-        LOG(" ");        LOG(c.name);
+        LOG_KX("> xt=",   (UFP)c.xt - Code::XT0);
+        LOG_KX(":",       (UFP)c.xt);
+        LOG_KX(", name=", (UFP)c.name - Code::NM0);
+        LOG_KX(":"),      (UFP)c.name);
+        LOGS(" ");        LOG(c.name);
         LOGS("\n");
     }
 }
 
 #else // (ARDUINO || ESP32)
 void mem_stat()  {
-    printf("heap[maxblk=%x", E4_PMEM_SZ);
-    printf(", avail=%x", E4_PMEM_SZ - HERE);
-    printf(", ss_max=%x", ss.max);
-    printf(", rs_max=%x", rs.max);
-    printf(", pmem=%x", HERE);
-    printf("], stack_sz=%x\n", E4_SS_SZ);
+    LOG_KX("heap[maxblk=", E4_PMEM_SZ);
+    LOG_KX(", avail=",     E4_PMEM_SZ - HERE);
+    LOG_KX(", ss_max=",    ss.max);
+    LOG_KX(", rs_max=",    rs.max);
+    LOG_KX(", pmem=",      HERE);
+    LOG_KX("], stack_sz=", E4_SS_SZ);
 }
 void dict_dump() {
-    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld byes\n", Code::XT0, Code::NM0, sizeof(Code));
+    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld bytes\n",
+           Code::XT0, Code::NM0, sizeof(Code));
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
@@ -699,6 +693,10 @@ void dict_dump()  {}
 
 #endif // CC_DEBUG
 
+///=================================================================================
+///
+///> Arduino/ESP32 SPIFFS interfaces
+///
 #if (ARDUINO || ESP32)
 /// Arduino extra string handlers
 int  find(string &s)  { return find(s.c_str()); }
@@ -760,16 +758,17 @@ char *vm_dict(int i) { return (char*)dict[i].name; }
 char *vm_mem()       { return (char*)&pmem[0]; }
 }
 int main(int ac, char* av[]) {
-    vm_init();                                          // initialize dictionary
+    dict_compile();                                     // initialize dictionary
+    dict_dump();
     return 0;
 }
 
-#else // DO_WASM
+#else // !DO_WASM
 ///
 /// main program for testing on Desktop PC (Linux and Cygwin)
 ///
 int main(int ac, char* av[]) {
-    vm_init();                                          ///> initialize dictionary
+    dict_compile();                                     ///> initialize dictionary
     forth_load("/load.txt");                            ///> compile /data/load.txt
 
     dict_dump();
