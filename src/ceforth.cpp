@@ -140,8 +140,12 @@ void colon(const char *name) {
 void colon(string &s) { colon(s.c_str()); }
 void add_iu(IU i)     { pmem.push((U8*)&i, sizeof(IU)); }                    /**< add an instruction into pmem */
 void add_du(DU v)     { pmem.push((U8*)&v, sizeof(DU)); }                    /**< add a cell into pmem         */
-void add_str(const char *s) { int sz = STRLEN(s); pmem.push((U8*)s,  sz); }  /**< add a string to pmem         */
-void add_w(IU w) {                                                           /**< add a word index into pmem   */
+int add_str(const char *s) {               ///< add a string to pmem
+    int sz = STRLEN(s);
+    pmem.push((U8*)s,  sz);
+    return sz;
+}
+void add_w(IU w) {                         ///< add a word index into pmem
     Code &c = dict[w];
     IU   ip = c.def ? (c.pfa | 1) : (w==EXIT ? 0 : XTOFF(c.xt));
     add_iu(ip);
@@ -313,6 +317,20 @@ char *next_idiom() {                            ///< get next idiom
 inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
 inline void PUSH(DU v)    { ss.push(top); top = v; }
 inline DU   POP()         { DU n=top; top=ss.pop(); return n; }
+void s_quote(forth_opcode op) {
+    const char *s = scan('"')+1;       ///> string skip first blank
+    if (compile) {
+        add_w(op);                     ///> dostr, (+parameter field)
+        add_str(s);                    ///> byte0, byte1, byte2, ..., byteN
+    }
+    else {                             ///> use PAD ad TEMP storage
+        IU h0  = HERE;                 ///> save current memory addr
+        DU len = add_str(s);           ///> write string to PAD
+        PUSH(h0);                      ///> push string address
+        PUSH(len);                     ///> push string length
+        HERE = h0;                     ///> restore memory addr
+    }
+}
 ///
 //#define     PUSH(v)       { ss.push(top); top = (v); }
 ///
@@ -378,14 +396,15 @@ static Code prim[] = {
     CODE("_dolit",   PUSH(*(DU*)MEM(IP)); IP += sizeof(DU)),
     CODE("_dostr",
         const char *s = (const char*)MEM(IP);      // get string pointer
-        PUSH(IP); IP += STRLEN(s)),
+        const int  len = STRLEN(s);
+        PUSH(IP); PUSH(len); IP += len),
     CODE("_dotstr",
         const char *s = (const char*)MEM(IP);      // get string pointer
         fout << s;  IP += STRLEN(s)),              // send to output console
     CODE("_branch" , IP = *(IU*)MEM(IP)),          // unconditional branch
     CODE("_0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)), // conditional branch
     CODE("does>",                                  // CREATE...DOES>... meta-program
-         IU *ip = (IU*)MEM(PFA(WP));
+         IU *ip = (IU*)MEM(PFA(WP));               // pointer to definding word
          while (*ip != DOES) ip++;                 // find DOES
          while (*++ip) add_iu(*ip)),               // copy&paste code
     CODE(">r",   rs.push(POP())),
@@ -460,6 +479,10 @@ static Code prim[] = {
     CODE(".",       fout << POP() << " "),
     CODE(".r",      DU n = POP(); dot_r(n, POP())),
     CODE("u.r",     DU n = POP(); dot_r(n, abs(POP()))),
+    CODE("type",
+        IU len = POP();                           // string len (not used)
+        const char *s = (const char*)MEM(POP());  // get string ptr
+        fout << s),
     CODE("key",     PUSH(next_idiom()[0])),
     CODE("emit",    char b = (char)POP(); fout << b),
     CODE("space",   fout << " "),
@@ -472,14 +495,8 @@ static Code prim[] = {
     IMMD("(",       scan(')')),
     IMMD(".(",      fout << scan(')')),
     IMMD("\\",      scan('\n')),
-    IMMD("s\"",
-        const char *s = scan('"')+1;        // string skip first blank
-        add_w(DOSTR);                       // dostr, (+parameter field)
-        add_str(s)),                        // byte0, byte1, byte2, ..., byteN
-    IMMD(".\"",
-        const char *s = scan('"')+1;        // string skip first blank
-        add_w(DOTSTR);                      // dostr, (+parameter field)
-        add_str(s)),                        // byte0, byte1, byte2, ..., byteN
+    IMMD("s\"",     s_quote(DOSTR)),                            
+    IMMD(".\"",     s_quote(DOTSTR)),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
