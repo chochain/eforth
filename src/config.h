@@ -31,7 +31,7 @@ typedef uint16_t        U16;   ///< unsigned 16-bit integer
 typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
 
-#ifdef USE_FLOAT
+#if USE_FLOAT
 typedef double          DU2;
 typedef float           DU;
 #define DU0             0.0f
@@ -79,7 +79,7 @@ typedef uint16_t        IU;    ///< instruction pointer unit
     #include <emscripten.h>
     #define millis()        EM_ASM_INT({ return Date.now(); })
     #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
-    #define yield()
+    #define yield()         /* JS is async */
 
 #else  // !ARDUINO && !DO_WASM
     #include <chrono>
@@ -92,9 +92,15 @@ typedef uint16_t        IU;    ///< instruction pointer unit
 
 #endif // ARDUINO && DO_WASM
 ///@}
-///@name Debugging support
+///@name Logging support
 ///@{
-#if !CC_DEBUG
+#if CC_DEBUG
+    #define LOG_KV(k, v)
+    #define LOG_KX(k, x)
+    #define LOG_HDR(f, s)
+    #define LOG_DIC(i)
+    #define LOG_NA()
+#else  // CC_DEBUG
 #if ARDUINO
     #define LOG_KV(k, v)    LOGS(k); LOG(v)
     #define LOG_KX(k, x)    LOGS(k); LOGX(v)
@@ -110,14 +116,7 @@ typedef uint16_t        IU;    ///< instruction pointer unit
     #define LOG_HDR(f, s)   printf("%s(%s) => ", f, s)
     #define LOG_DIC(i)      printf("dict[%d] %s attr=%x\n", i, dict[i].name, dict[i].attr)
     #define LOG_NA()        printf("not found\n")
-
 #endif // ARDUINO
-#else  // CC_DEBUG
-    #define LOG_KV(k, v)
-    #define LOG_KX(k, x)
-    #define LOG_HDR(f, s)
-    #define LOG_DIC(i)
-    #define LOG_NA()
 #endif // CC_DEBUG
 ///@}
 #endif // __EFORTH_SRC_CONFIG_H
