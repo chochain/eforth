@@ -10,10 +10,10 @@
 ///
 ///@name Conditional compililation options
 ///@}
+#define CC_DEBUG        1               /**< debug level 0|1|2      */
 #define RANGE_CHECK     0               /**< vector range check     */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
-#define CC_DEBUG        1               /**< debug tracing flag     */
 ///@}
 ///@name Memory block configuation
 ///@{
@@ -95,12 +95,6 @@ typedef uint16_t        IU;    ///< instruction pointer unit
 ///@name Logging support
 ///@{
 #if CC_DEBUG
-    #define LOG_KV(k, v)
-    #define LOG_KX(k, x)
-    #define LOG_HDR(f, s)
-    #define LOG_DIC(i)
-    #define LOG_NA()
-#else  // CC_DEBUG
 #if ARDUINO
     #define LOG_KV(k, v)    LOGS(k); LOG(v)
     #define LOG_KX(k, x)    LOGS(k); LOGX(v)
@@ -117,6 +111,12 @@ typedef uint16_t        IU;    ///< instruction pointer unit
     #define LOG_DIC(i)      printf("dict[%d] %s attr=%x\n", i, dict[i].name, dict[i].attr)
     #define LOG_NA()        printf("not found\n")
 #endif // ARDUINO
+#else  // !CC_DEBUG
+    #define LOG_KV(k, v)
+    #define LOG_KX(k, x)
+    #define LOG_HDR(f, s)
+    #define LOG_DIC(i)
+    #define LOG_NA()
 #endif // CC_DEBUG
 ///@}
 #endif // __EFORTH_SRC_CONFIG_H
