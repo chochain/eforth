@@ -48,18 +48,12 @@ struct List {
 ///
 ///@name Code flag masking options
 ///@{
-#define WORD_NA    -1
-#if !DO_WASM                      /** WASM function ptr is index to vtable */
-    #define UDF_ATTR   0x0001     /** user defined word  */
-    #define IMM_ATTR   0x0002     /** immediate word     */
-    #define MSK_ATTR   ~0x3       /** attribute mask     */
-    #define UDF_FLAG   0x0001
-#else // DO_WASM
-    #define UDF_ATTR   0x8000     /** user defined word  */
-    #define IMM_ATTR   0x4000     /** immediate word     */
-    #define MSK_ATTR   0x3fffffff /** attribute mask     */
-    #define UDF_FLAG   0x8000     /** colon word flag    */
-#endif // !DO_WASM
+#define UDF_ATTR   0x0001   /** user defined word  */
+#define IMM_ATTR   0x0002   /** immediate word     */
+#define MSK_ATTR   ~0x3     /** attribute mask     */
+
+#define UDF_FLAG   0x0001   /** xt/pfa selector    */
+#define WORD_END   0xffff   /** end of a colon     */
 
 #define IS_UDF(w) (dict[w].attr & UDF_ATTR)
 #define IS_IMM(w) (dict[w].attr & IMM_ATTR)
@@ -69,32 +63,33 @@ struct List {
 ///
 typedef void (*FPTR)();     ///< function pointer
 struct Code {
-    static UFP XT0, NM0;
+    static UFP XT0, NM0;    ///< pointer bases (in registers hopefully)
     const char *name = 0;   ///< name field
+#if DO_WASM
+    union {
+        FPTR xt = 0;
+        IU   pfa;
+    };
+    IU attr = 0;
+#else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
-#if !DO_WASM
         struct {
             IU attr;        ///< steal 2 LSBs because xt is 4-byte aligned on 32-bit CPU
             IU pfa;         ///< offset to pmem space (16-bit for 64K range)
         };
-#else // DO_WASM
-        struct {
-            IU pfa;         ///< offset to pmem space (16-bit for 64K range)
-            IU attr;        ///< WASM xt is index to vtable (so LSBs will be used)
-        };
-#endif // !DO_WASM
     };
-
+#endif // DO_WASM
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)ix); }
     static void exec(IU ix) INLINE { (*XT(ix))(); }
-    
+
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
-        if (((UFP)xt - 4) < XT0) XT0 = ((UFP)xt - 4);    ///> collect xt base (4 prevent dXT==0)
-        if ((UFP)n  < NM0) NM0 = (UFP)n;                 ///> collect name string base
+        if ((UFP)xt < XT0) XT0 = (UFP)xt; ///> collect xt base
+        if ((UFP)n  < NM0) NM0 = (UFP)n;  ///> collect name string base
         if (im) attr |= IMM_ATTR;
 #if CC_DEBUG > 1
-        printf("XT0=%lx xt=%lx %s\n", XT0, (UFP)xt, n);
+        printf("XT0=%lx NM0=%lx, xt=%8lx nm=%8lx, %s\n",
+               XT0, NM0, (UFP)xt, (UFP)n, n);
 #endif // CC_DEBUG
     }
     Code() {}               ///< create a blank struct (for initilization)
@@ -109,12 +104,11 @@ struct Code {
     Code c(n, []{ g; }, im);	\
     dict.push(c);               \
     }
-#define WORD_NULL  (FPTR)0     /** blank function pointer */
-
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
 
-extern void mem_stat();   ///< display memory stat
-extern void dict_dump();  ///< display dictionary details
+extern void mem_stat();                  ///< display memory stat
+extern void dict_dump();                 ///< display dictionary details
+extern int  forth_core(const char *cmd);
 
 #endif // __EFORTH_SRC_CEFORTH_H
