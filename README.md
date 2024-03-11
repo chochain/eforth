@@ -44,3 +44,9 @@
 * CC 20231011: Review
   > Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before main(), moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning.
   > LAMBDA_OK option was originally intended for full VM implementation but 2x slower. Dropped to reduce source clutter.
+* CC 20240308: Refactor for multi-platform
+  > To support cross-platform support (i.e. WIN32, Arduino/ESP, Linux, and WASM), there was many conditional compilation branches which make the code really messy
+  + Separate cross-platform and configuation into ~/src/config.h
+  + Separate platform specific code into ~/platform/*.cpp
+  + Use ffff as word exit, instead of 0000, to preserve XT0 offset and helps debugging
+
