@@ -507,8 +507,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE(":", compile = def_word(next_idiom()));
-    IMMD(";", add_w(EXIT); compile = false);
+    CODE(":",       compile = def_word(next_idiom()));
+    IMMD(";",       add_w(EXIT); compile = false);
+    CODE("exit",    add_w(EXIT));
     CODE("variable",                                             // create a variable
          if (def_word(next_idiom())) {                           // create a new word on dictionary
              add_w(DOVAR);                                       // dovar (+parameter field)
@@ -608,7 +609,6 @@ DU parse_number(const char *idiom, int *err) {
 }
 
 int forth_core(const char *idiom) {
-    printf("XT0=%lx NM0=%lx\n", Code::XT0, Code::NM0);
     IU w = find(idiom);                  ///> * get token by searching through dict
     if (w) {                             ///> * word found?
         if (compile && !IS_IMM(w)) {     /// * in compile mode?
