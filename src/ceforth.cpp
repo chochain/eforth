@@ -90,16 +90,16 @@ IU   IP      = 0;                  ///< current instruction pointer and cached b
 int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
-int find(const char *s) {
+IU find(const char *s) {
     LOG_HDR("find", s);
-    for (int i = dict.idx - (compile ? 2 : 1); i >= 0; --i) {
+    for (IU i = dict.idx - (compile ? 2 : 1); i > 0; --i) {
         if (streq(s, dict[i].name)) {
             LOG_DIC(i);
             return i;
         }
     }
     LOG_NA();
-    return WORD_NA;
+    return 0;
 }
 ///====================================================================
 ///
@@ -114,8 +114,8 @@ void colon(const char *name) {
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
 
-    Code c(nfa, WORD_NULL, false);  ///> create a local blank word
-    c.attr |= UDF_ATTR;             ///> specify a colon (user defined) word
+    Code c(nfa, (FPTR)~0, false);   ///> create a local blank word
+    c.attr = UDF_ATTR;              ///> specify a colon (user defined) word
     c.pfa  = HERE;                  ///> capture code field index
 
     dict.push(c);                   ///> deep copy Code struct into dictionary
@@ -129,7 +129,7 @@ int  add_str(const char *s) {       ///< add a string to pmem
 }
 void add_w(IU w) {                  ///< add a word index into pmem
     Code &c = dict[w];
-    IU   ip = IS_UDF(w) ? (c.pfa | UDF_FLAG) : (w==EXIT ? 0 : c.xtoff());
+    IU ip = IS_UDF(w) ? (c.pfa | UDF_FLAG) : (w ? c.xtoff() : WORD_END);
     add_iu(ip);
 #if CC_DEBUG > 1
     printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
@@ -152,7 +152,7 @@ void nest() {
     int dp = 0;                        ///> iterator depth control
     while (dp >= 0) {
         IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
-        while (ix) {                   ///> fetch till EXIT
+        while (ix != WORD_END) {       ///> fetch till EXIT
             IP += sizeof(IU);          /// * advance inst. ptr
             if (ix & UDF_FLAG) {       ///> is it a colon word?
                 rs.push(IP);
@@ -160,18 +160,18 @@ void nest() {
                 dp++;                  ///> go one level deeper
             }
 #if !(ARDUINO || ESP32)
-            else if (ix == _NXT) {      ///> cached DONEXT handler (save 600ms / 100M cycles on AMD)
+            else if (ix == _NXT) {     ///> cached DONEXT handler (save 100ms / 100M cycles on AMD)
                 if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but on ESP32, it slows down 100ms / 1M cycles
                 else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
             }
 #endif // !(ARDUINO || ESP32)
-            else Code::exec(ix);        ///> execute primitive word
+            else Code::exec(ix);       ///> execute primitive word
 
-            ix = *(IU*)MEM(IP);         ///> fetch next opcode
+            ix = *(IU*)MEM(IP);        ///> fetch next opcode
         }
-        if (dp-- > 0) IP = rs.pop();    ///> pop off a level
+        if (dp-- > 0) IP = rs.pop();   ///> pop off a level
 
-        yield();                        ///> give other tasks some time
+        yield();                       ///> give other tasks some time
     }
 }
 ///
@@ -212,7 +212,7 @@ void (*fout_cb)(int, const char*);  ///< forth output callback function (see END
 ///
 int def_word(const char* name) {                ///< display if redefined
     if (name[0]=='\0') { fout << " name?" << ENDL; return 0; }  /// * missing name?
-    if (find(name) != WORD_NA) {                /// * word redefined?
+    if (find(name)) {                           /// * word redefined?
         fout << name << " reDef? " << ENDL;
     }
     colon(name);                                /// * create a colon word
@@ -259,19 +259,20 @@ void see(IU pfa, int dp=1) {
     auto pfa2word = [](IU ix) {
         IU   pfa = ix & ~UDF_FLAG;                 ///> pfa (mask colon word)
         FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
-        for (int i = dict.idx - 1; i >= 0; --i) {
+        for (int i = dict.idx - 1; i > 0; --i) {
             if (ix & UDF_FLAG) {
                 if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
             }
             else if (dict[i].xt == xt) return i;   ///> compare xt
         }
-        return WORD_NA;
+        return 0;
     };
     U8 *ip = MEM(pfa);
-    while (*(IU*)ip) {
+    while (*(IU*)ip != WORD_END) {
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";  ///> indentation
         fout << setw(4) << (ip - MEM0) << "[" << setw(-1);    ///> display word offset
         IU c = pfa2word(*(IU*)ip);                            ///> fetch word index by pfa
+        if (!c) break;                                        ///> loop guard
         to_s(c);                                              ///> display name
         if (IS_UDF(c) && dp < 2) {                            ///> is a colon word
             see(dict[c].pfa, dp+1);                           ///> recursive into child
@@ -506,9 +507,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE(":",
-         compile = true;
-         if (!def_word(next_idiom())) compile = false);
+    CODE(":", compile = def_word(next_idiom()));
     IMMD(";", add_w(EXIT); compile = false);
     CODE("variable",                                             // create a variable
          if (def_word(next_idiom())) {                           // create a new word on dictionary
@@ -553,11 +552,11 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgroup Debug ops
     /// @{
     CODE("here",  PUSH(HERE));
-    CODE("'",     IU w = find(next_idiom()); PUSH(w));
+    CODE("'",     IU w = find(next_idiom()); if (w) PUSH(w));
     CODE(".s",    fout << (char*)MEM(POP()));
     CODE("words", words());
     CODE("see",
-         IU w = find(next_idiom());
+         IU w = find(next_idiom()); if (!w) return;
          fout << "["; to_s(w);
          if (IS_UDF(w)) see(dict[w].pfa);                        // recursive call
          fout << "]" << ENDL);
@@ -569,9 +568,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
     CODE("poke",  DU a = POP(); POKE(a, POP()));
     CODE("forget",
-         int w = find(next_idiom());
-         if (w == WORD_NA) return;
-         int b = find("boot")+1;
+         IU w = find(next_idiom()); if (!w) return;
+         IU b = find("boot")+1;
          if (w > b) {
              dict.clear(w);
              pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
@@ -610,8 +608,9 @@ DU parse_number(const char *idiom, int *err) {
 }
 
 int forth_core(const char *idiom) {
-    int w = find(idiom);                 ///> * get token by searching through dict
-    if (w != WORD_NA) {                  ///> * word found?
+    printf("XT0=%lx NM0=%lx\n", Code::XT0, Code::NM0);
+    IU w = find(idiom);                  ///> * get token by searching through dict
+    if (w) {                             ///> * word found?
         if (compile && !IS_IMM(w)) {     /// * in compile mode?
             add_w(w);                    /// * add to colon word
         }
