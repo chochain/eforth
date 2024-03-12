@@ -96,15 +96,14 @@ int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
 IU find(const char *s) {
-    LOG_HDR("find", s);
-    for (IU i = dict.idx - (compile ? 2 : 1); i > 0; --i) {
-        if (streq(s, dict[i].name)) {
-            LOG_DIC(i);
-            return i;
-        }
-    }
-    LOG_NA();
-    return 0;
+	IU v = 0;
+	for (IU i = dict.idx - (compile ? 2 : 1); i > 0; --i) {
+		if (streq(s, dict[i].name)) return v = i;
+	}
+#if CC_DEBUG > 1
+    LOG_HDR("find", s);	if (v) { LOG_DIC(v); } else LOG_NA();
+#endif // CC_DEBUG
+	return v;
 }
 ///====================================================================
 ///
@@ -137,7 +136,8 @@ void add_w(IU w) {                  ///< add a word index into pmem
     IU ip = IS_UDF(w) ? (c.pfa | UDF_FLAG) : (w ? c.xtoff() : WORD_END);
     add_iu(ip);
 #if CC_DEBUG > 1
-    printf("add_w(%d) => %4x:%p %s\n", w, ip, c.xt, c.name);
+    LOG_KV("add_w(", w); LOG_KX(") => ", ip);
+	LOG_KV(":", c.xt);   LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
 ///====================================================================
@@ -341,25 +341,17 @@ void mem_dump(IU p0, DU sz) {
 ///
 ///> System statistics - for heap, stack, external memory debugging
 ///
-void mem_stat()  {
-    LOGS("memory/heap[");
-    LOG_KX("\n  maxblk= 0x",   E4_PMEM_SZ);
-    LOG_KX("\n  avail = 0x",   E4_PMEM_SZ - HERE);
-    LOG_KX("\n  pmem  = 0x",   HERE);
-    LOG_KV("\n  ss_max= ",     ss.max);
-    LOG_KV("\n  rs_max= ",     rs.max);
-    LOG_KX("\n], stack_sz=0x", E4_SS_SZ);
-    LOGS("\n");
-}
+void mem_stat();          // forward declaration
 void dict_dump() {
     LOG_KX("XT0=",        Code::XT0);
-    LOG_KX("NM0=",        Code::NM0);
+    LOG_KX(", NM0=",      Code::NM0);
     LOG_KV(", sizeof(Code)=", sizeof(Code));
     LOGS("\n");
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         LOG(i);
-        LOG_KX("> xt=",   c.xtoff());
+		LOG_KX("> attr=", c.attr);
+        LOG_KX(", xt=",   c.xtoff());
         LOG_KX(":",       (UFP)c.xt);
         LOG_KX(", name=", (UFP)c.name - Code::NM0);
         LOG_KX(":",       (UFP)c.name);
