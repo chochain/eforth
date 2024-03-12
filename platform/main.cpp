@@ -12,19 +12,19 @@ const char *vm_version(){
     static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
     return ver.c_str();
 }
-/*
-void dict_dump() {
-    printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld bytes\n",
-           Code::XT0, Code::NM0, sizeof(Code));
-    for (int i=0; i<dict.idx; i++) {
-        Code &c = dict[i];
-        printf("%3d> xt=%4x:%p name=%4x:%p %s\n",
-            i, c.xtoff(), c.xt,
-            (U16)((UFP)c.name - Code::NM0),
-            c.name, c.name);
-    }
+void mem_stat() {
+	LOGS("memory blocks:");
+    LOG_KX("\n  mm.max= 0x", E4_PMEM_SZ);
+    LOG_KX("\n  here  = 0x", HERE);
+    LOG_KX("\n  avail = 0x", E4_PMEM_SZ - HERE);
+    LOG_KV("\n  ss.sz = ",   E4_SS_SZ);
+    LOG_KV("\n  ss.idx= ",   ss.idx);
+    LOG_KV("\n  ss.max= ",   ss.max);
+    LOG_KV("\n  rs.sz = ",   E4_RS_SZ);
+    LOG_KV("\n  rs.idx= ",   rs.idx);
+    LOG_KV("\n  rs.max= ",   rs.max);
+    LOGS("\n");
 }
-*/
 ///
 /// ForthVM outer interpreter
 ///
@@ -46,7 +46,9 @@ void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
 #include <iostream>                            // cin, cout
 int main(int ac, char* av[]) {
     dict_compile();                            ///> initialize dictionary
+
     cout << vm_version() << endl;
+    mem_stat();
 
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
