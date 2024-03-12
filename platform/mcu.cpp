@@ -6,44 +6,26 @@
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
-#if CC_DEBUG
 void mem_stat()  {
     LOG_KV("Core:",          xPortGetCoreID());
-    LOG_KV(" heap[maxblk=",  heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    LOG_KV(", avail=",       heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    LOG_KV(", ss_max=",      ss.max);
-    LOG_KV(", rs_max=",      rs.max);
-    LOG_KV(", pmem=",        HERE);
-    LOG_KV("], lowest[heap=",heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-    LOG_KV(", stack=",       uxTaskGetStackHighWaterMark(NULL));
-    LOGS("]\n");
+    LOGS("\nmemory blocks:");
+    LOG_KX("\n  maxblk= 0x", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    LOG_KX("\n  pmem  = 0x", HERE);
+    LOG_KX("\n  avail = 0x", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    LOG_KV("\n  ss.sz = ",   E4_SS_SZ);
+    LOG_KV("\n  ss.max= ",   ss.max);
+    LOG_KV("\n  ss.idx= ",   ss.idx);
+    LOG_KV("\n  rs.sz = ",   E4_RS_SZ);
+    LOG_KV("\n  rs.max= ",   rs.max);
+    LOG_KV("\n  rs.idx= ",   rs.idx);
+    LOG_KV("\n  stack =",    uxTaskGetStackHighWaterMark(NULL));
+    LOG_KV("\n  lowest_heap=", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    LOGS("\n");
     if (!heap_caps_check_integrity_all(true)) {
 //        heap_trace_dump();     // dump memory, if we have to
         abort();                 // bail, on any memory error
     }
 }
-void dict_dump() {
-    LOG_KX("XT0=",        Code::XT0);
-    LOG_KX("NM0=",        Code::NM0);
-    LOG_KV(", sizeof(Code)=", sizeof(Code));
-    LOGS("\n");
-    for (int i=0; i<dict.idx; i++) {
-        Code &c = dict[i];
-        LOG(i);
-        LOG_KX("> xt=",   c.xtoff());
-        LOG_KX(":",       (UFP)c.xt);
-        LOG_KX(", name=", (UFP)c.name - Code::NM0);
-        LOG_KX(":"),      (UFP)c.name);
-        LOGS(" ");        LOG(c.name);
-        LOGS("\n");
-    }
-}
-#else  // CC_DEBUG
-void mem_stat()   {}
-void dict_dump()  {}
-
-#endif // CC_DEBUG
-
 ///====================================================================
 ///
 ///> Arduino/ESP32 SPIFFS interfaces
