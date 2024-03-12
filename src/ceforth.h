@@ -50,7 +50,7 @@ struct List {
 ///@{
 #define UDF_ATTR   0x0001   /** user defined word  */
 #define IMM_ATTR   0x0002   /** immediate word     */
-#define MSK_ATTR   ~0x3     
+#define MSK_ATTR   ~0x3
 
 #define UDF_FLAG   0x0001   /** xt/pfa selector    */
 #define WORD_END   0xffff   /** end of a colon     */
@@ -88,8 +88,9 @@ struct Code {
         if ((UFP)n  < NM0) NM0 = (UFP)n;  ///> collect name string base
         if (im) attr |= IMM_ATTR;
 #if CC_DEBUG > 1
-        printf("XT0=%lx NM0=%lx, xt=%8lx nm=%8lx, %s\n",
-               XT0, NM0, (UFP)xt, (UFP)n, n);
+		LOG_KX("XT0=", XT0);  LOG_KX(" xt=", (UFP)xt); 
+		LOG_KX(" NM0=", NM0); LOG_KX(" nm=", (UFP)n);
+		LOGS(" "); LOGS(n); LOGS("\n");
 #endif // CC_DEBUG
     }
     Code() {}               ///< create a blank struct (for initilization)
