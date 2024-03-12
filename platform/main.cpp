@@ -2,28 +2,20 @@
 /// @file
 /// @brief eForth main program for testing on Desktop PC (Linux and Cygwin)
 ///
-/// version info
+const char* APP_VERSION = "eForth v8.6";
+///====================================================================
 ///
-#define APP_NAME         "eForth"
-#define MAJOR_VERSION    "8"
-#define MINOR_VERSION    "6"
-
-const char *vm_version(){
-    static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
-    return ver.c_str();
-}
+///> Memory statistics - for heap, stack, external memory debugging
+///
 void mem_stat() {
-	LOGS("memory blocks:");
-    LOG_KX("\n  mm.max= 0x", E4_PMEM_SZ);
-    LOG_KX("\n  here  = 0x", HERE);
-    LOG_KX("\n  avail = 0x", E4_PMEM_SZ - HERE);
-    LOG_KV("\n  ss.sz = ",   E4_SS_SZ);
-    LOG_KV("\n  ss.idx= ",   ss.idx);
-    LOG_KV("\n  ss.max= ",   ss.max);
-    LOG_KV("\n  rs.sz = ",   E4_RS_SZ);
-    LOG_KV("\n  rs.idx= ",   rs.idx);
-    LOG_KV("\n  rs.max= ",   rs.max);
-    LOGS("\n");
+	LOGS(APP_VERSION);
+    LOG_KV("\n  dict: ",   dict.idx); LOG_KV("/", E4_DICT_SZ);
+    LOG_KV("\n  ss  : ",   ss.idx);   LOG_KV("/", E4_SS_SZ);
+    LOG_KV(" (max ",       ss.max);   LOGS(")");
+    LOG_KV("\n  rs  : ",   rs.idx);   LOG_KV("/", E4_RS_SZ);
+    LOG_KV(" (max ",       rs.max);   LOGS(")");
+    LOG_KX("\n  here: 0x", HERE);     LOG_KX("/0x", E4_PMEM_SZ);
+    LOG_KX(" (free 0x",    E4_PMEM_SZ - HERE); LOGS(")\n");
 }
 ///
 /// ForthVM outer interpreter
@@ -46,8 +38,6 @@ void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
 #include <iostream>                            // cin, cout
 int main(int ac, char* av[]) {
     dict_compile();                            ///> initialize dictionary
-
-    cout << vm_version() << endl;
     mem_stat();
 
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };

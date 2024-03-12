@@ -2,24 +2,23 @@
 /// @file
 /// @brief eForth implemented for micro controllers (Aruino & ESP)
 ///
+const char *APP_VERSION = "eForth v8.6";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
 void mem_stat()  {
-    LOG_KV("Core:",          xPortGetCoreID());
-    LOGS("\nmemory blocks:");
-    LOG_KX("\n  maxblk= 0x", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    LOG_KX("\n  pmem  = 0x", HERE);
-    LOG_KX("\n  avail = 0x", heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    LOG_KV("\n  ss.sz = ",   E4_SS_SZ);
-    LOG_KV("\n  ss.max= ",   ss.max);
-    LOG_KV("\n  ss.idx= ",   ss.idx);
-    LOG_KV("\n  rs.sz = ",   E4_RS_SZ);
-    LOG_KV("\n  rs.max= ",   rs.max);
-    LOG_KV("\n  rs.idx= ",   rs.idx);
-    LOG_KV("\n  stack =",    uxTaskGetStackHighWaterMark(NULL));
-    LOG_KV("\n  lowest_heap=", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    LOGS(APP_VERSION);
+    LOG_KV("\n  dict: ",   dict.idx); LOG_KV("/", E4_DICT_SZ);
+    LOG_KV("\n  ss  : ",   ss.idx);   LOG_KV("/", E4_SS_SZ);
+    LOG_KV(" (max ",       ss.max);   LOGS(")");
+    LOG_KV("\n  rs  : ",   rs.idx);   LOG_KV("/", E4_RS_SZ);
+    LOG_KV(" (max ",       rs.max);   LOGS(")");
+    LOG_KX("\n  here: 0x", HERE);     LOG_KX("/0x", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    LOG_KX(" (free 0x",    heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)); LOGS(")");
+    LOG_KV("\n  core_id     : ", xPortGetCoreID());
+    LOG_KV("\n  lowest_heap : ", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+    LOG_KV("\n  stack hwmark: ",  uxTaskGetStackHighWaterMark(NULL));
     LOGS("\n");
     if (!heap_caps_check_integrity_all(true)) {
 //        heap_trace_dump();     // dump memory, if we have to
