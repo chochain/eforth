@@ -13,28 +13,33 @@
 ///   1.By separating pmem from dictionary,
 ///   * it makes dictionary uniform size which eliminates the need for link field
 ///   * however, it requires array size tuning manually
-///   2.For ease of byte counting, we use U8 for pmem instead of U16.
+///   2.Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits),
+///   * it unified xt/pfa parameter storage and use the LSB for id flag
+///   * that compacts memory usage while avoiding the double lookup of
+///   * token threaded indexing.
+///   * However, it limits function pointer spread within range of 64KB
+///   3.For ease of byte counting, U8* is used for pmem instead of U16*.
 ///   * this makes IP increment by 2 instead of word size.
 ///   * If needed, it can be readjusted.
 ///
-///> Dictionary memory structure
+///> Dictionary structure (N=E4_DICT_SZ in config.h)
 ///     dict[0].xt ---------> pointer to primitive word lambda[0]
 ///     dict[1].xt ---------> pointer to primitive word lambda[1]
 ///     ...
 ///     dict[N-1].xt -------> pointer to last primitive word lambda[N-1]
 ///
-///> Parameter memory structure
+///> Parameter memory structure (memory block=E4_PMEM_SZ in config.h)
 ///     dict[N].xt ----+ user defined colon word)    dict[N+1].xt------+
 ///                    |                                               |
 ///     +--MEM0        v                                               v
 ///     +--------------+--------+--------+-----+------+----------------+-----
-///     | str nameN \0 |  parm1 |  parm2 | ... | 0000 | str nameN+1 \0 | ...
+///     | str nameN \0 |  parm1 |  parm2 | ... | ffff | str nameN+1 \0 | ...
 ///     +--------------+--------+--------+-----+------+----------------+-----
 ///     ^              ^        ^        ^     ^      ^
 ///     | strlen+1     | 2-byte | 2-byte |     |      |
 ///     +--------------+--------+--------+-----+------+---- 2-byte aligned
 ///
-///> Parameter structure - 16-bit aligned (LSB used for colon word identification)
+///> Parameter structure - 16-bit aligned (use LSB for colon word flag)
 ///   * primitive word
 ///     16-bit xt offset with LSB set to 0
 ///     +--------------+-+
@@ -66,7 +71,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
 ///@}
 /// enum used for built-in opcodes to simplify compiler
-/// Note: make sure the sequence is in-sync with vm_init word list
+/// Note: make sure the sequence is in-sync with word list in dict_compile
 ///
 typedef enum {
     EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DODOES, TOR
@@ -76,12 +81,12 @@ typedef enum {
 ///
 ///> VM states (single task)
 ///
-bool compile = false;              ///< compiler flag
-bool ucase   = false;              ///< caseless string compare
-DU   base    = 10;                 ///< numeric radix
-DU   top     = -1;                 ///< top of stack (cached)
-IU   WP      = 0;                  ///< current word pointer (used by DOES only)
-IU   IP      = 0;                  ///< current instruction pointer and cached base pointer
+bool compile = false;   ///< compiler flag
+bool ucase   = false;   ///< caseless string compare
+int  base    = 10;      ///< numeric radix
+DU   top     = -1;      ///< top of stack (cached)
+IU   WP      = 0;       ///< current word pointer (used by DOES only)
+IU   IP      = 0;       ///< current instruction pointer and cached base pointer
 ///
 ///====================================================================
 ///
@@ -311,13 +316,9 @@ void words() {
     fout << setbase(base) << ENDL;
 }
 void ss_dump() {
-#if   DO_WASM
-    fout << "ok" << ENDL;
-#else  // DO_WASM
     fout << " <";
     for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
     fout << top << "> ok" << ENDL;
-#endif // DO_WASM
 }
 void mem_dump(IU p0, DU sz) {
     fout << setbase(16) << setfill('0') << ENDL;
@@ -335,6 +336,36 @@ void mem_dump(IU p0, DU sz) {
         yield();
     }
     fout << setbase(base);
+}
+///====================================================================
+///
+///> System statistics - for heap, stack, external memory debugging
+///
+void mem_stat()  {
+    LOGS("memory/heap[");
+    LOG_KX("\n  maxblk= 0x",   E4_PMEM_SZ);
+    LOG_KX("\n  avail = 0x",   E4_PMEM_SZ - HERE);
+    LOG_KX("\n  pmem  = 0x",   HERE);
+    LOG_KV("\n  ss_max= ",     ss.max);
+    LOG_KV("\n  rs_max= ",     rs.max);
+    LOG_KX("\n], stack_sz=0x", E4_SS_SZ);
+    LOGS("\n");
+}
+void dict_dump() {
+    LOG_KX("XT0=",        Code::XT0);
+    LOG_KX("NM0=",        Code::NM0);
+    LOG_KV(", sizeof(Code)=", sizeof(Code));
+    LOGS("\n");
+    for (int i=0; i<dict.idx; i++) {
+        Code &c = dict[i];
+        LOG(i);
+        LOG_KX("> xt=",   c.xtoff());
+        LOG_KX(":",       (UFP)c.xt);
+        LOG_KX(", name=", (UFP)c.name - Code::NM0);
+        LOG_KX(":",       (UFP)c.name);
+        LOGS(" ");        LOGS(c.name);
+        LOGS("\n");
+    }
 }
 ///====================================================================
 ///
@@ -562,10 +593,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
          if (IS_UDF(w)) see(dict[w].pfa);                        // recursive call
          fout << "]" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
-#if CC_DEBUG    
     CODE("mstat", mem_stat());
     CODE("dict",  dict_dump());
-#endif // CC_DEBUG    
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
     CODE("poke",  DU a = POP(); POKE(a, POP()));
     CODE("forget",
