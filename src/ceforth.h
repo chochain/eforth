@@ -50,7 +50,7 @@ struct List {
 ///@{
 #define UDF_ATTR   0x0001   /** user defined word  */
 #define IMM_ATTR   0x0002   /** immediate word     */
-#define MSK_ATTR   ~0x3     /** attribute mask     */
+#define MSK_ATTR   ~0x3     
 
 #define UDF_FLAG   0x0001   /** xt/pfa selector    */
 #define WORD_END   0xffff   /** end of a colon     */
@@ -94,7 +94,11 @@ struct Code {
     }
     Code() {}               ///< create a blank struct (for initilization)
     IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
+#if DO_WASM    
+    void call()  INLINE { (*xt)(); }
+#else  // !DO_WASM    
     void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
+#endif // DO_WASM    
 };
 ///
 ///> Add a Word to dictionary
@@ -106,9 +110,5 @@ struct Code {
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
-
-extern void mem_stat();                  ///< display memory stat
-extern void dict_dump();                 ///< display dictionary details
-extern int  forth_core(const char *cmd);
 
 #endif // __EFORTH_SRC_CEFORTH_H
