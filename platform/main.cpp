@@ -12,19 +12,7 @@ const char *vm_version(){
     static string ver = string(APP_NAME) + " " + MAJOR_VERSION + "." + MINOR_VERSION;
     return ver.c_str();
 }
-///====================================================================
-///
-///> System statistics - for heap, stack, external memory debugging
-///
-#if CC_DEBUG
-void mem_stat()  {
-    LOG_KX("heap[maxblk=", E4_PMEM_SZ);
-    LOG_KX(", avail=",     E4_PMEM_SZ - HERE);
-    LOG_KX(", ss_max=",    ss.max);
-    LOG_KX(", rs_max=",    rs.max);
-    LOG_KX(", pmem=",      HERE);
-    LOG_KX("], stack_sz=", E4_SS_SZ);
-}
+/*
 void dict_dump() {
     printf("XT0=%lx, NM0=%lx, sizeof(Code)=%ld bytes\n",
            Code::XT0, Code::NM0, sizeof(Code));
@@ -36,11 +24,7 @@ void dict_dump() {
             c.name, c.name);
     }
 }
-#else  // CC_DEBUG
-void mem_stat()   {}
-void dict_dump()  {}
-
-#endif // CC_DEBUG
+*/
 ///
 /// ForthVM outer interpreter
 ///
@@ -62,9 +46,6 @@ void vm_outer(const char *cmd, void(*callback)(int, const char*)) {
 #include <iostream>                            // cin, cout
 int main(int ac, char* av[]) {
     dict_compile();                            ///> initialize dictionary
-    dict_dump();
-    mem_stat();
-    
     cout << vm_version() << endl;
 
     static auto send_to_con = [](int len, const char *rst) { cout << rst; };
