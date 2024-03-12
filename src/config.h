@@ -68,9 +68,6 @@ typedef uint16_t        IU;    ///< instruction pointer unit
 #if    ARDUINO
     #include <Arduino.h>
     #define to_string(i)    string(String(i).c_str())
-    #define LOGS(s)         Serial.print(F(s))
-    #define LOG(v)          Serial.print(v)
-    #define LOGX(v)         Serial.print(v, HEX)
     #if    ESP32
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
     #endif // ESP32
@@ -96,27 +93,26 @@ typedef uint16_t        IU;    ///< instruction pointer unit
 ///@{
 #if CC_DEBUG
 #if ARDUINO
-    #define LOG_KV(k, v)    LOGS(k); LOG(v)
-    #define LOG_KX(k, x)    LOGS(k); LOGX(v)
-    #define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
-    #define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] "); \
-                            LOG(dict[i].name); LOGS(" attr="); LOGX(dict[i].attr); \
-                            LOGS("\n")
-    #define LOG_NA()        LOGS("not found\n")
-
+    #define LOGS(s)     Serial.print(F(s))
+    #define LOG(v)      Serial.print(v)
+    #define LOGX(v)     Serial.print(v, HEX)
 #else  // !ARDUINO
-    #define LOG_KV(k, v)    printf("%s%d", k, v)
-    #define LOG_KX(k, x)    printf("%s%x", k, x)
-    #define LOG_HDR(f, s)   printf("%s(%s) => ", f, s)
-    #define LOG_DIC(i)      printf("dict[%d] %s attr=%x\n", i, dict[i].name, dict[i].attr)
-    #define LOG_NA()        printf("not found\n")
+    #define LOGS(s)     printf("%s", s)
+    #define LOG(v)      printf("%-6d", (int32_t)(v))
+    #define LOGX(v)     printf("%-8x", (uint32_t)(v))
 #endif // ARDUINO
 #else  // !CC_DEBUG
-    #define LOG_KV(k, v)
-    #define LOG_KX(k, x)
-    #define LOG_HDR(f, s)
-    #define LOG_DIC(i)
-    #define LOG_NA()
+    #define LOGS(s)
+    #define LOG(v)
+    #define LOGX(v)
 #endif // CC_DEBUG
+    
+#define LOG_NA()        LOGS("not found\n")
+#define LOG_KV(k, v)    LOGS(k); LOG(v)
+#define LOG_KX(k, x)    LOGS(k); LOGX(x)
+#define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
+#define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] ");  \
+                        LOGS(dict[i].name); LOGS(" attr="); \
+                        LOGX(dict[i].attr); LOGS("\n")
 ///@}
 #endif // __EFORTH_SRC_CONFIG_H
