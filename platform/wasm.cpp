@@ -8,7 +8,7 @@ const char* APP_VERSION = "eForth v8.6";
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
 void mem_stat() {
-	LOGS(APP_VERSION);
+    LOGS(APP_VERSION);
     LOG_KV("\n  dict: ",   dict.idx); LOG_KV("/", E4_DICT_SZ);
     LOG_KV("\n  ss  : ",   ss.idx);   LOG_KV("/", E4_SS_SZ);
     LOG_KV(" (max ",       ss.max);   LOGS(")");
@@ -45,4 +45,3 @@ DU   *vm_ss()        { return &ss[0];   }
 char *vm_dict(int i) { return (char*)dict[i].name; }
 char *vm_mem()       { return (char*)&pmem[0]; }
 }
-
