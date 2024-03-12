@@ -1,5 +1,6 @@
 cr .( example 1.      the universal greeting )
 
+0 case!
 decimal
 
 : hello cr ." hello, world!" ;
@@ -219,7 +220,7 @@ decimal
 : silver ( nounce -- $ ) 495 100 */  ;
 : $silver ( $ -- nounce ) 100 495 */  ;
 : ounce ( n -- n, a word to improve syntax )  ;
-: dollars ( n -- )      . ;
+: dollars ( n -- ) . ;
 
 ( With this set of money exchange words, we can do some tests:)
 cr
@@ -230,8 +231,8 @@ cr
 
 ( If you have many different currency bills in your wallet, you can add then all up in dollars)
 cr 
-        1000 NT 500 HK + .S
-        320 RMB + .S
+        1000 NT 500 HK + 
+        320 RMB + 
         dollars ( print out total worth in dollars )
 
 cr .( example 8. temperature conversion )
@@ -452,9 +453,8 @@ decimal
 
 ( : decimal       10 base! ; )
 ( : hex           16 base! ; )
+( : binary        2 base!  ; )
 : octal         8 base!  ;
-: binary        2 base!  ;
-
 
 cr .( example 15.      ascii character table )
 
@@ -512,10 +512,10 @@ variable yourNumber
 	cr ." xxxx guess"
 	cr ." where xxxx is your guess."
 	yourNumber @ choose myNumber !
-        ;
+    ;
 
 : guess ( n1 -- , allow player to guess, exit when the guess is correct )
-	myNumber @ 2dup =                  ( equal? )
+	myNumber @ 2dup =           ( equal? )
         if      2drop           ( discard both numbers )
                 cr ." correct!!!"
                 exit
@@ -526,17 +526,21 @@ variable yourNumber
         ;
 
 : greet ( -- )
-        cr cr cr ." guess a number"
-        cr ." this is a number guessing game.  i'll think"
-        cr ." of a number between 0 and any limit you want."
-        cr ." (it should be smaller than 32000.)"
-        cr ." then you have to guess what it is."
+    cr cr cr ." guess a number"
+    cr ." this is a number guessing game.  i'll think"
+    cr ." of a number between 0 and any limit you want."
+    cr ." (it should be smaller than 32000.)"
+    cr ." then you have to guess what it is."
 	cr
 	cr ." Set up the limit by typing:"
 	cr ." xxxx limit "
 	cr ." where xxxx is a number smaller than 32000."
-        ;
+    ;
 
-( greet )
-
+greet
+100 limit
+50 dup . guess
+80 dup . guess
+." myNumber=" myNumber @ .
+bye
 
