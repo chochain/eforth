@@ -91,21 +91,15 @@ typedef uint16_t        IU;    ///< instruction pointer unit
 ///@}
 ///@name Logging support
 ///@{
-#if CC_DEBUG
 #if ARDUINO
     #define LOGS(s)     Serial.print(F(s))
     #define LOG(v)      Serial.print(v)
     #define LOGX(v)     Serial.print(v, HEX)
 #else  // !ARDUINO
     #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-6d", (int32_t)(v))
-    #define LOGX(v)     printf("%-8x", (uint32_t)(v))
+    #define LOG(v)      printf("%-d", (int32_t)(v))
+    #define LOGX(v)     printf("%-x", (uint32_t)(v))
 #endif // ARDUINO
-#else  // !CC_DEBUG
-    #define LOGS(s)
-    #define LOG(v)
-    #define LOGX(v)
-#endif // CC_DEBUG
     
 #define LOG_NA()        LOGS("not found\n")
 #define LOG_KV(k, v)    LOGS(k); LOG(v)
