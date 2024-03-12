@@ -60,6 +60,24 @@ struct List {
 ///@}
 ///
 ///> Universal functor (no STL) and Code class
+///  Code class on 64-bit systems (expand pfa possible)
+///  +-------------------+-------------------+
+///  |    *name          |       xt          |
+///  +-------------------+----+----+---------+
+///                      |attr|pfa |xxxxxxxxx|
+///                      +----+----+---------+
+///  Code class on 32-bit systems (memory best utilized)
+///  +---------+---------+
+///  |  *name  |   xt    |
+///  +---------+----+----+
+///            |attr|pfa |
+///            +----+----+
+///  Code class on WASM/32-bit (a bit wasteful)
+///  +---------+---------+---------+
+///  |  *name  |   xt    |attr|xxxx|
+///  +---------+----+----+---------+
+///            |pfa |xxxx|
+///            +----+----+
 ///
 typedef void (*FPTR)();     ///< function pointer
 struct Code {
@@ -67,10 +85,10 @@ struct Code {
     const char *name = 0;   ///< name field
 #if DO_WASM
     union {
-        FPTR xt = 0;
-        IU   pfa;
+        FPTR xt = 0;        ///< WASM fptr is just index to vtable
+        IU   pfa;           ///< i.e. no LSBs available
     };
-    IU attr = 0;
+    IU attr = 0;            ///< So, attributes need to be separated
 #else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
