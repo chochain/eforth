@@ -19,15 +19,29 @@ void mem_stat() {
 }
 ///====================================================================
 ///
-/// main program - Note: Arduino and ESP32 is have their own main-loop
+/// main program
 ///
+void run_once() {
+    const char *cmd[] = {
+        "dict",
+        "mstat",
+        "1",
+        "2",
+        "+",
+        ": xx 123 ;",
+        "words",
+        "bye"
+    };
+    for (int i=0; i < sizeof(cmd)/sizeof(const char*); i++) {
+        forth_core(cmd[i]);
+    }
+}
+
 int main(int ac, char* av[]) {
     dict_compile();               // initialize dictionary
-    dict_dump();
     mem_stat();
-    
-    forth_core("mstat");
-    
+
+    emscripten_set_main_loop(run_once, 0, false);
     return 0;
 }
 ///====================================================================
@@ -38,10 +52,4 @@ extern "C" {
 void forth(int n, char *cmd) {
     forth_core(cmd);
 }
-int  vm_base()       { return base;     }
-int  vm_ss_idx()     { return ss.idx;   }
-int  vm_dict_idx()   { return dict.idx; }
-DU   *vm_ss()        { return &ss[0];   }
-char *vm_dict(int i) { return (char*)dict[i].name; }
-char *vm_mem()       { return (char*)&pmem[0]; }
 }
