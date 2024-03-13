@@ -74,7 +74,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 /// Note: make sure the sequence is in-sync with word list in dict_compile
 ///
 typedef enum {
-    EXIT = 0, DONEXT, DOVAR, DOLIT, DOSTR, DOTSTR, BRAN, ZBRAN, DODOES, TOR
+    EXIT = 0, DONEXT, DOLIT, DOVAR, DOSTR, DOTSTR, BRAN, ZBRAN, DODOES, TOR
 } forth_opcode;
 ///
 ///====================================================================
@@ -97,7 +97,7 @@ int streq(const char *s1, const char *s2) {
 IU find(const char *s) {
     IU v = 0;
     for (IU i = dict.idx - (compile ? 2 : 1); i > 0; --i) {
-        if (streq(s, dict[i].name)) return v = i;
+        if (streq(s, dict[i].name)) { v = i; break; }
     }
 #if CC_DEBUG > 1
     LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
@@ -156,7 +156,8 @@ void add_w(IU w) {                  ///< add a word index into pmem
 ///    2. Co-routine
 ///
 void nest() {
-    static IU _NXT = dict[find("_donext")].xtoff();  ///> cache offset to subroutine address
+    static IU _NXT = dict[find("_donext")].xtoff();  ///> cache offsets to funtion pointers
+	static IU _LIT = dict[find("_dolit")].xtoff();
     int dp = 0;                        ///> iterator depth control
     while (dp >= 0) {
         IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
@@ -168,9 +169,14 @@ void nest() {
                 dp++;                  ///> go one level deeper
             }
 #if !(ARDUINO || ESP32)
-            else if (ix == _NXT) {     ///> cached DONEXT handler (+10% faster on AMD)
+            else if (ix == _NXT) {     ///> cached DONEXT, DOLIT handlers (10% faster on AMD)
                 if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but slows down 5% on ESP32
-                else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
+                else { IP += sizeof(IU); rs.pop(); }        ///> perhaps due to shallow pipeline
+            }
+            else if (ix == _LIT) {
+                ss.push(top);
+                top = *(DU*)MEM(IP);   ///> from hot cache, hopefully
+                IP += sizeof(DU);
             }
 #endif // !(ARDUINO || ESP32)
             else Code::exec(ix);       ///> execute primitive word
@@ -186,7 +192,6 @@ void nest() {
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
-    LOG_KV("w=", w); LOGS("\n");
     if (IS_UDF(w)) { IP = dict[w].pfa; nest(); }
     else dict[w].call();
 }
@@ -288,9 +293,9 @@ void see(IU pfa, int dp=1) {
         }
         ip += sizeof(IU);
         switch (c) {
-        case DOVAR: case DOLIT:
+        case DOLIT: case DOVAR:
             fout << "= " << *(DU*)ip; ip += sizeof(DU); break;
-        case DOTSTR: case DOSTR:
+        case DOSTR: case DOTSTR:
             fout << "= \"" << (char*)ip << '"';
             ip += STRLEN((char*)ip); break;
         case BRAN: case ZBRAN: case DONEXT:
@@ -383,8 +388,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("_donext",                                     // handled in nest()
          if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);    // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); });
-    CODE("_dovar",   PUSH(IP);            IP += sizeof(DU));
     CODE("_dolit",   PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
+    CODE("_dovar",   PUSH(IP);            IP += sizeof(DU));
     CODE("_dostr",
          const char *s = (const char*)MEM(IP);     // get string pointer
          IU    len = STRLEN(s);
