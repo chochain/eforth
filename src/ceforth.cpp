@@ -43,8 +43,8 @@
 ///   * primitive word
 ///     16-bit xt offset with LSB set to 0
 ///     +--------------+-+
-///     | dict.xtoff() |0|    call (XT0 + *IP)() to execute
-///     +--------------+-+
+///     | dict.xtoff() |0|   call (XT0 + *IP)() to execute
+///     +--------------+-+   this save the extra memory lookup for xt
 ///
 ///   * colon word (user defined)
 ///     16-bit pmem offset with LSB set to 1
@@ -81,12 +81,11 @@ typedef enum {
 ///
 ///> VM states (single task)
 ///
+DU   top     = -1;      ///< top of stack (cached)
+IU   IP      = 0;       ///< current instruction pointer
+int  base    = 10;      ///< numeric radix
 bool compile = false;   ///< compiler flag
 bool ucase   = false;   ///< caseless string compare
-int  base    = 10;      ///< numeric radix
-DU   top     = -1;      ///< top of stack (cached)
-IU   WP      = 0;       ///< current word pointer (used by DOES only)
-IU   IP      = 0;       ///< current instruction pointer and cached base pointer
 ///
 ///====================================================================
 ///
@@ -96,14 +95,14 @@ int streq(const char *s1, const char *s2) {
     return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
 }
 IU find(const char *s) {
-	IU v = 0;
-	for (IU i = dict.idx - (compile ? 2 : 1); i > 0; --i) {
-		if (streq(s, dict[i].name)) return v = i;
-	}
+    IU v = 0;
+    for (IU i = dict.idx - (compile ? 2 : 1); i > 0; --i) {
+        if (streq(s, dict[i].name)) return v = i;
+    }
 #if CC_DEBUG > 1
-    LOG_HDR("find", s);	if (v) { LOG_DIC(v); } else LOG_NA();
+    LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
 #endif // CC_DEBUG
-	return v;
+    return v;
 }
 ///====================================================================
 ///
@@ -137,20 +136,24 @@ void add_w(IU w) {                  ///< add a word index into pmem
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
-	LOG_KV(":", c.xt);   LOGS(" "); LOGS(c.name); LOGS("\n");
+    LOG_KV(":", c.xt);   LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
 ///====================================================================
 ///
 ///> Forth inner interpreter (handles a colon word)
-///  Note: call threading is slower with call/return
+///  Note:
+///  * overhead here in C call/return vs NEXT threading (in assembly)
+///  * use of dp (iterative depth control) instead of WP by Dr. Ting
+///    speeds up 8% vs recursive calls but loose the flexibity of Forth
+///  * use of cached _NXT address speeds up 10% on AMD but
+///    5% slower on ESP32 probably due to shallow pipeline
+///  * computed label runs 15% faster, but needs long macros (for enum)
+///  * use local stack speeds up 10%, but allot 4*64 bytes extra
 ///
-///  interactive version (8% faster than recursive version)
 ///  TODO: performance tuning
-///    1. Just-in-time code(ip, dp) for inner loop
-///       * use local stack, 840ms => 784ms, but allot 4*64 bytes extra
-///    2. computed label, tested =>15% faster but use long macro (for enum)
-///    3. co-routine
+///    1. Just-in-time cache(ip, dp)
+///    2. Co-routine
 ///
 void nest() {
     static IU _NXT = dict[find("_donext")].xtoff();  ///> cache offset to subroutine address
@@ -165,8 +168,8 @@ void nest() {
                 dp++;                  ///> go one level deeper
             }
 #if !(ARDUINO || ESP32)
-            else if (ix == _NXT) {     ///> cached DONEXT handler (save 100ms / 100M cycles on AMD)
-                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but on ESP32, it slows down 100ms / 1M cycles
+            else if (ix == _NXT) {     ///> cached DONEXT handler (+10% faster on AMD)
+                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but slows down 5% on ESP32
                 else { IP += sizeof(IU); rs.pop(); }        ///> most likely due to its shallow pipeline
             }
 #endif // !(ARDUINO || ESP32)
@@ -183,7 +186,8 @@ void nest() {
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
-    if (IS_UDF(w)) { WP = (w); IP = dict[w].pfa; nest(); }
+    LOG_KV("w=", w); LOGS("\n");
+    if (IS_UDF(w)) { IP = dict[w].pfa; nest(); }
     else dict[w].call();
 }
 ///
@@ -350,7 +354,7 @@ void dict_dump() {
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         LOG(i);
-		LOG_KX("> attr=", c.attr);
+        LOG_KX("> attr=", c.attr & ~MSK_ATTR);
         LOG_KX(", xt=",   c.xtoff());
         LOG_KX(":",       (UFP)c.xt);
         LOG_KX(", name=", (UFP)c.name - Code::NM0);
@@ -391,9 +395,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("_branch" , IP = *(IU*)MEM(IP));          // unconditional branch
     CODE("_0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
     CODE("_dodoes",
-    	 add_w(BRAN);                              // branch to does> section
-    	 add_iu(IP + sizeof(IU));                  // encode IP
-    	 add_w(EXIT));                             // EXIT is not really needed but nicer
+         add_w(BRAN);                              // branch to does> section
+         add_iu(IP + sizeof(IU));                  // encode IP
+         add_w(EXIT));                             // EXIT is not really needed but nicer
     CODE(">r",   rs.push(POP()));
     CODE("r>",   PUSH(rs.pop()));
     CODE("r@",   PUSH(rs[-1]));                    // same as I (the loop counter)
