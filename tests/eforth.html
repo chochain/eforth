@@ -1,0 +1,53 @@
+﻿<html>
+  <head>    
+  <title>eForth v8.6</title>
+  <style>
+    h2    { color: #c44; margin: 0; }
+    h3    { color: #fc4; margin: 0; }
+    .txt  { width:100%; height:100%; margin:4px; display:flex; flex-direction:column; overflow-x:scroll; display:block }
+  </style>
+  </head>
+  <body>
+    <div style='display:flex; flex-direction:column; width:100%; height:100%'>
+      <pre id='txt' class='txt'></pre>
+      <pre id='tib' class='txt'></pre>
+    </div>
+    <script>
+    let txt = document.getElementById('txt')
+    ///
+    /// TextArea handler functions
+    ///
+    function to_txt(t, br=true) {
+        txt.innerHTML += br ? t + '<br/>' : t
+        txt.scrollTop = txt.scrollHeight
+    }
+    function clear_txt() { txt.innerHTML='' }
+    ///
+    /// WASM ===============================================================
+    ///      
+    var Module = {                              ///< WASM global object
+        print: to_txt                           ///< assign print function
+//        print: (()=>{ return (rsp)=>to_txt(rsp) })() /// long form
+    }
+    ///
+    /// Forth outer interpreter
+    ///
+    function forth_eval() {
+        let cmd=tib.value.replace(/:/g,'<br/>:')
+        if (cmd.indexOf('<br/>')==0) cmd.replace('<br/>','')
+        to_txt('<pre class="cmd"><em>'+cmd+'</em></pre>', false)
+        try {
+            var forth = Module.cwrap('forth', null, ['number', 'string'])
+            forth(0, tib.value)     /// * call Forth in C/C++
+        }
+        catch(e) { console.log(e.toString()+'\n') }
+        finally  {                  /// * clear input buffer
+            tib.value='';
+            tib.style.backgroundColor='white'
+            tib.focus()
+        }
+    }
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>
