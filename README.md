@@ -3,7 +3,7 @@ With all the advantages, it is unfortunate that Forth lost out to C language ove
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
-Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth review <a href=http://chochain.github.io/eforth/docs/eForthReview.pdf" target="_blank">here</a>
+Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth review <a href="http://chochain.github.io/eforth/docs/eForthReview.pdf" target="_blank">here</a>
 
 > The language consists of a collection of words, which reside in the memory of a computer and can be executed by entering their names on the computer keyboard. A list of words can be compiled, given a new name and made a new word. In fact, most words in Forth are defined as lists of existing words. A small set of primitive words are defined in machine code of the native CPU. All other words are built from this primitive words and eventually refer to them when executed.
 
@@ -15,36 +15,38 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for
 > 5. A CPU to move date among stacks and memory, and to do ALU operations to parameters stored on the data stack.
 
 ### ceForth - on the shoulder of a giant
-Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See <a href=https://https://www.forth.org/OffeteStore/OffeteStore.html" target="_blank">here</a> However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
+Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See <a href="https://https://www.forth.org/OffeteStore/OffeteStore.html" target="_blank">here</a> However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
 
-Utilizing modern OS and tool chains to construct new generation of Forths in just a few hundreds lines of C code, it is much easier for someone who did not know Forth to gain the core understanding. He called the insight **Forth without Forth**.
+Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
-In 2021-07-04, I reconnected with Dr. Ting. He included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. Together, with cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see <a href="https://chochain.github.io/eforth/docs/ceForth_403.pdf" target="_blank">ceForth_403 here</a> and <a href="https://github.com/chochain/eJsv32" target="_blank">eJsv32 here</a>.
+In 2021-07-04, I contacted Dr. Ting. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. With cross-platform portability as our guild-line, together, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see <a href="https://chochain.github.io/eforth/docs/ceForth_403.pdf" target="_blank">ceForth_403 here</a> and <a href="https://github.com/chochain/eJsv32" target="_blank">eJsv32 here</a>.
 
-### Evolution of ceForth - continuation of Dr. Ting's final work
-* ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
-* ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
-* ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
-* ceForth_33b- 2021-03-14 Lee refactored _33, separated asm and vm
+### Evolution - continuation of Dr. Ting's final work
+> <pre>
+  * ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
+  * ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
+  * ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
+  * ceForth_33b- 2021-03-14 Lee refactored _33, separated asm and vm
 
-* ceForth_40 - 2021-07-27 Lee proposed to Dr. Ting, to use
-                          + struct for dictionary entry with name and lambda pointers,
-                          + std::vector for dict/ss/rs, and
-                          + std::map to host dictionary
-* ceForth_40a- 2021-07-28 Lee use VT macros to build dictionary entries (struct)
-* ceForth_40b- 2021-07-31 Lee replace std::vector with ForthList struct for dict/ss/rs
-* ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
-* ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
-* ceForth_403- 2021-08-06 Lee refined _402
+  * ceForth_40 - 2021-07-27 Lee proposed to Dr. Ting, to use
+                            + struct for dictionary entry with name and lambda pointers,
+                            + std::vector for dict/ss/rs, and
+                            + std::map to host dictionary
+  * ceForth_40a- 2021-07-28 Lee use VT macros to build dictionary entries (struct)
+  * ceForth_40b- 2021-07-31 Lee replace std::vector with ForthList struct for dict/ss/rs
+  * ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
+  * ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
+  * ceForth_403- 2021-08-06 Lee refined _402
                           Dr. Ting add docs and presented it on Forth2020
                           
-* ceForth_36 - 2021-09-27 Dr. Ting, utilized the experience from _40x, upgraded his _33 to _36
-* ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
-* ceForth_36b- 2021-10-03 Dr. Ting introduced Code struct and lambda
-                          ported to esp32forth_85 and presented in Forth2020
-* ceForth_36x- 2022-01-13 Lee pretty-print, sent to Masa Kasahara
+  * ceForth_36 - 2021-09-27 Dr. Ting, utilized the experience from _40x, upgraded his _33 to _36
+  * ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
+  * ceForth_36b- 2021-10-03 Dr. Ting introduced Code struct and lambda
+                            ported to esp32forth_85 and presented in Forth2020
+  * ceForth_36x- 2022-01-13 Lee pretty-print, sent to Masa Kasahara
+</pre>
 
-### Changes to eForth
+### Changes - can we do even better?
 Traditionally, Forth uses linear memory to host dictionary as well as "code"  and parameters
 with a backward linked-list and hence the term threading. This model is critial when memory
 is scarce but creates the complexity which sometime hinder the learning of newbies.
