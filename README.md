@@ -52,20 +52,24 @@ with a backward linked-list and hence the term threading. This model is critial 
 is scarce but creates the complexity which sometime hinder the learning of newbies.
 
 Change 1: Separation of parameter memory and dictionary
-   + it makes dictionary uniform size which eliminates the need for link field
-   - the down side is that it requires manual array size tuning
+<pre>
++ it makes dictionary uniform size which eliminates the need for link field
+- the down side is that it requires manual array size tuning
+</pre>
    
 Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll
 as being portable. The extra lookup for token to function pointer makes it slower (about 70%) of
 a subroutine indirect threading model.
 
 Change 2: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits),
-   + it avoids the double lookup of token threaded indexing
-   + it reduces parameter storage requirement from 32-bit to 16-bit
-   + it unifies xt/pfa parameter storage
-   + it uses the LSB for id flag (2-byte aligned, so LSB is free)
-   - it limits function pointer spread to 64KB range
-   - the words created are not binary portable anymore
+<pre>
++ it avoids the double lookup of token threaded indexing
++ it reduces parameter storage requirement from 32-bit to 16-bit
++ it unifies xt/pfa parameter storage
++ it uses the LSB for id flag (2-byte aligned, so LSB is free)
+- it limits function pointer spread to 64KB range
+- the words created are not binary portable anymore
+</pre>
 
 ### Memory Structures
 Struct to host a dictionary entry
