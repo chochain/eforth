@@ -1,5 +1,5 @@
 # Forth - is it still relevant?
-With all the advantages, it is unfortunate that Forth lost out to C language over the years and have become a niche. Per ChatGPT: *due to C's border appeal, standardization, and support ecosystem likely contributed to its greater adoption and use in mainstream computing*.
+With all the advantages, it is unfortunate that Forth lost out to C language over the years and have been reduced to a niche. Per ChatGPT: *due to C's border appeal, standardization, and support ecosystem likely contributed to its greater adoption and use in mainstream computing*.
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
@@ -23,27 +23,27 @@ In 2021-07-04, I contacted Dr. Ting. He, as the usual kind and generous him, inc
 
 ### Evolution - continuation of Dr. Ting's final work
 <pre>
-  * ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
-  * ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
-  * ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
-  * ceForth_33b- 2021-03-14 Lee refactored _33, separated asm and vm
+* ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
+* ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
+* ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
+* ceForth_33b- 2021-03-14 Lee refactored _33, separated asm and vm
 
-  * ceForth_40 - 2021-07-27 Lee proposed to Dr. Ting, to use
-                            + struct for dictionary entry with name and lambda pointers,
-                            + std::vector for dict/ss/rs, and
-                            + std::map to host dictionary
-  * ceForth_40a- 2021-07-28 Lee use VT macros to build dictionary entries (struct)
-  * ceForth_40b- 2021-07-31 Lee replace std::vector with ForthList struct for dict/ss/rs
-  * ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
-  * ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
-  * ceForth_403- 2021-08-06 Lee refined _402
+* ceForth_40 - 2021-07-27 Lee proposed to Dr. Ting, to use
+                          + struct for dictionary entry with name and lambda pointers,
+                          + std::vector for dict/ss/rs, and
+                          + std::map to host dictionary
+* ceForth_40a- 2021-07-28 Lee use VT macros to build dictionary entries (struct)
+* ceForth_40b- 2021-07-31 Lee replace std::vector with ForthList struct for dict/ss/rs
+* ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
+* ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
+* ceForth_403- 2021-08-06 Lee refined _402
                           Dr. Ting add docs and presented it on Forth2020
                           
-  * ceForth_36 - 2021-09-27 Dr. Ting, utilized the experience from _40x, upgraded his _33 to _36
-  * ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
-  * ceForth_36b- 2021-10-03 Dr. Ting introduced Code struct and lambda
-                            ported to esp32forth_85 and presented in Forth2020
-  * ceForth_36x- 2022-01-13 Lee pretty-print, sent to Masa Kasahara
+* ceForth_36 - 2021-09-27 Dr. Ting, utilized the experience from _40x, upgraded his _33 to _36
+* ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
+* ceForth_36b- 2021-10-03 Dr. Ting introduced Code struct and lambda
+                          ported to esp32forth_85 and presented in Forth2020
+* ceForth_36x- 2022-01-13 Lee pretty-print, sent to Masa Kasahara
 </pre>
 
 ### Changes - can we do even better?
@@ -64,7 +64,7 @@ Change 2. Using 16-bit xt offset in parameter field (instead of full 32 or 64 bi
    * However, it limits function pointer spread within range of 64KB
 
 ### Memory Structures
-* Struct to host an dictionary entry
+Struct to host a dictionary entry
 <pre>
 Universal functor (no STL) and Code class
   Code class on 64-bit systems (expand pfa possible)
@@ -86,7 +86,8 @@ Universal functor (no STL) and Code class
             |pfa |xxxx|
             +----+----+
 </pre>
-* Macros to build dictionary entry
+
+Macros to build dictionary entry
 <pre>
 #define ADD_CODE(n, g, im) {    \
     Code c(n, []{ g; }, im);	\
@@ -95,7 +96,8 @@ Universal functor (no STL) and Code class
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
 </pre>
-* Global memory blocks
+
+Global memory blocks
 <pre>
   Dictionary structure (N=E4_DICT_SZ in config.h)
      dict[0].xt ---------> pointer to primitive word lambda[0]
@@ -135,7 +137,7 @@ Universal functor (no STL) and Code class
 </pre>
 
 ### Benchmark
-* Desktop PC - 10K*10K cycles on 3.2GHz AMD
+Desktop PC - 10K*10K cycles on 3.2GHz AMD
 <pre>
 + 1200ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
 + 1134ms: subroutine indirect threading, inline list methods
@@ -143,7 +145,7 @@ Universal functor (no STL) and Code class
 +  890ms: inner interpreter with cached xt offsets
 </pre>
 
-* ESP32 - 1K*1K cycles on NodeMCU
+ESP32 - 1K*1K cycles on NodeMCU
 <pre>
 + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
 + 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
@@ -151,13 +153,10 @@ Universal functor (no STL) and Code class
 </pre>
 
 ### To Compile on Linux and Cygwin
-> g++ -O2 -Isrc -o tests/eforth src/ceforth.cpp
+> g++ -O3 -Isrc -o tests/eforth src/ceforth.cpp
 
 ### To Run on Linux
 > ./tests/eforth
-
-### TODO
-* WASM - review wasmtime (CLI), perf+hotspot (profiling)
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011
