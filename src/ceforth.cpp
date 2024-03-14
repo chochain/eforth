@@ -335,7 +335,7 @@ void mem_dump(IU p0, DU sz) {
         fout << setw(4) << i << ": ";
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
-            fout << setw(2) << (int)c << (j%4==3 ? "  " : " ");
+            fout << setw(2) << (int)c << (j%4==3 ? " " : "");
         }
         for (int j=0; j<16; j++) {   // print and advance to next byte
             U8 c = pmem[i+j] & 0x7f;
