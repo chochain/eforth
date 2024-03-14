@@ -1,7 +1,9 @@
-# Forth - is it still relavant?
-With all the advantages, it is unfortunate that Forth lost out to C language over the years and have become a niche. Per ChatGPT: *due to C's border appeal, standardization, and support ecosystem likely contributed to its greater adoption and use in mainstream computing*. So, the question is, how to encurage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
+# Forth - is it still relevant?
+With all the advantages, it is unfortunate that Forth lost out to C language over the years and have become a niche. Per ChatGPT: *due to C's border appeal, standardization, and support ecosystem likely contributed to its greater adoption and use in mainstream computing*.
 
-Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth review [here](http://chochain.github.io/eforth/docs/eForthReview.pdf)
+So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
+
+Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth review <a href=http://chochain.github.io/eforth/docs/eForthReview.pdf" target="_blank">here</a>
 
 > The language consists of a collection of words, which reside in the memory of a computer and can be executed by entering their names on the computer keyboard. A list of words can be compiled, given a new name and made a new word. In fact, most words in Forth are defined as lists of existing words. A small set of primitive words are defined in machine code of the native CPU. All other words are built from this primitive words and eventually refer to them when executed.
 
@@ -13,9 +15,11 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for
 > 5. A CPU to move date among stacks and memory, and to do ALU operations to parameters stored on the data stack.
 
 ### ceForth - on the shoulder of a giant
-Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have created many versions of Forth system using the same model. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
-Utilizing morden OS and tool chains to construct new generation of Forths in just a few hundreds lines of C code, it is much easier for someone who did not know Forth to gain the core understanding. He called the insight **Forth without Forth**.
-In 2021-07-04, I reconnected with Dr. Ting. He included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. Together, with cross-platform portability as our guildline, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see [ceForth_403 here](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32 here](https://github.com/chochain/eJsv32).
+Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See <a href=https://https://www.forth.org/OffeteStore/OffeteStore.html" target="_blank">here</a> However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
+
+Utilizing modern OS and tool chains to construct new generation of Forths in just a few hundreds lines of C code, it is much easier for someone who did not know Forth to gain the core understanding. He called the insight **Forth without Forth**.
+
+In 2021-07-04, I reconnected with Dr. Ting. He included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. Together, with cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see <a href="https://chochain.github.io/eforth/docs/ceForth_403.pdf" target="_blank">ceForth_403 here</a> and <a href="https://github.com/chochain/eJsv32" target="_blank">eJsv32 here</a>.
 
 ### Evolution of ceForth - continuation of Dr. Ting's final work
 * ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
@@ -40,10 +44,93 @@ In 2021-07-04, I reconnected with Dr. Ting. He included me in his last projects 
                           ported to esp32forth_85 and presented in Forth2020
 * ceForth_36x- 2022-01-13 Lee pretty-print, sent to Masa Kasahara
 
-### eForth next-gen, 100% C/C++ for cross-platform
-* ~/src common source for eforth, esp32forth, wineForth, and weForth
-* ~/orig/33b refactored 32-bit asm+vm implementation originated from <a href="http://forth.org/OffeteStore/OffeteStore.html" target="_blank">Dr. Ting's eForth site</a>
-* ~/orig/ting, ~/orig/802 source codes collaborated with Dr. Ting
+### Changes to eForth
+Traditionally, Forth uses linear memory to host dictionary as well as "code"  and parameters
+with a backward linked-list and hence the term threading. This model is critial when memory
+is scarce but creates the complexity which sometime hinder the learning of newbies.
+
+Change 1: Separation of parameter memory and dictionary
+   * it makes dictionary uniform size which eliminates the need for link field
+   * the down side is that it requires manual array size tuning
+   
+Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll
+as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of
+a subroutine indirect threading model.
+
+Change 2. Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits),
+   * it unified xt/pfa parameter storage and use the LSB for id flag that compacts memory usage while avoiding the double lookup of token threaded indexing.
+   * However, it limits function pointer spread within range of 64KB
+
+### Memory Structures
+* Struct to host an dictionary entry
+> <pre>
+Universal functor (no STL) and Code class
+  Code class on 64-bit systems (expand pfa possible)
+  +-------------------+-------------------+
+  |    *name          |       xt          |
+  +-------------------+----+----+---------+
+                      |attr|pfa |xxxxxxxxx|
+                      +----+----+---------+
+  Code class on 32-bit systems (memory best utilized)
+  +---------+---------+
+  |  *name  |   xt    |
+  +---------+----+----+
+            |attr|pfa |
+            +----+----+
+  Code class on WASM/32-bit (a bit wasteful)
+  +---------+---------+---------+
+  |  *name  |   xt    |attr|xxxx|
+  +---------+----+----+---------+
+            |pfa |xxxx|
+            +----+----+
+</pre>
+* Macros to build dictionary entry
+> <pre>
+#define ADD_CODE(n, g, im) {    \
+    Code c(n, []{ g; }, im);	\
+    dict.push(c);               \
+    }
+#define CODE(n, g) ADD_CODE(n, g, false)
+#define IMMD(n, g) ADD_CODE(n, g, true)
+</pre>
+* Global memory blocks
+> <pre>
+  Dictionary structure (N=E4_DICT_SZ in config.h)
+     dict[0].xt ---------> pointer to primitive word lambda[0]
+     dict[1].xt ---------> pointer to primitive word lambda[1]
+     ...
+     dict[N-1].xt -------> pointer to last primitive word lambda[N-1]
+
+  Parameter memory structure (memory block=E4_PMEM_SZ in config.h)
+     dict[N].xt ----+ user defined colon word)    dict[N+1].xt------+
+                    |                                               |
+     +--MEM0        v                                               v
+     +--------------+--------+--------+-----+------+----------------+-----
+     | str nameN \0 |  parm1 |  parm2 | ... | ffff | str nameN+1 \0 | ...
+     +--------------+--------+--------+-----+------+----------------+-----
+     ^              ^        ^        ^     ^      ^
+     | strlen+1     | 2-byte | 2-byte |     |      |
+     +--------------+--------+--------+-----+------+---- 2-byte aligned
+
+  Parameter structure - 16-bit aligned (use LSB for colon word flag)
+     primitive word (16-bit xt offset with LSB set to 0)
+     +--------------+-+
+     | dict.xtoff() |0|   call (XT0 + *IP)() to execute
+     +--------------+-+   this save the extra memory lookup for xt
+
+     colon (user defined) word (16-bit pmem offset with LSB set to 1)
+     +--------------+-+
+     |  dict.pfa    |1|   next IP = *(MEM0 + (*IP & ~1))
+     +--------------+-+
+ </pre>
+ 
+### Source Code directories
+<pre>
++ ~/src           common source for ceforth, esp32forth, wineForth, and weForth
++ ~/orig/33b      refactored ceForth_33 with asm+vm
++ ~/orig/ting     ceForth source codes collaborated with Dr. Ting
++ ~/orig/802      esp32forth source codes collaborated with Dr. Ting
+</pre>
 
 ### Benchmark
 * Desktop PC - 10K*10K cycles on 3.2GHz AMD
