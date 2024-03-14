@@ -15,14 +15,14 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for
 > 5. A CPU to move date among stacks and memory, and to do ALU operations to parameters stored on the data stack.
 
 ### ceForth - on the shoulder of a giant
-Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See <a href="https://https://www.forth.org/OffeteStore/OffeteStore.html" target="_blank">here</a> However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
+Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See <a href="https://https://www.forth.org/OffeteStore/OffeteStore.html" target="_blank">here</a> for the detailed list. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
 
 Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
-In 2021-07-04, I contacted Dr. Ting. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. With cross-platform portability as our guild-line, together, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see <a href="https://chochain.github.io/eforth/docs/ceForth_403.pdf" target="_blank">ceForth_403 here</a> and <a href="https://github.com/chochain/eJsv32" target="_blank">eJsv32 here</a>.
+In 2021-07-04, I contacted Dr. Ting. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. With cross-platform portability as our guild-line, together, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see <a href="https://chochain.github.io/eforth/docs/ceForth_403.pdf" target="_blank">ceForth_403</a> and <a href="https://github.com/chochain/eJsv32" target="_blank">eJsv32</a> for details.
 
 ### Evolution - continuation of Dr. Ting's final work
-> <pre>
+<pre>
   * ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
   * ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
   * ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
@@ -65,7 +65,7 @@ Change 2. Using 16-bit xt offset in parameter field (instead of full 32 or 64 bi
 
 ### Memory Structures
 * Struct to host an dictionary entry
-> <pre>
+<pre>
 Universal functor (no STL) and Code class
   Code class on 64-bit systems (expand pfa possible)
   +-------------------+-------------------+
@@ -87,7 +87,7 @@ Universal functor (no STL) and Code class
             +----+----+
 </pre>
 * Macros to build dictionary entry
-> <pre>
+<pre>
 #define ADD_CODE(n, g, im) {    \
     Code c(n, []{ g; }, im);	\
     dict.push(c);               \
@@ -96,7 +96,7 @@ Universal functor (no STL) and Code class
 #define IMMD(n, g) ADD_CODE(n, g, true)
 </pre>
 * Global memory blocks
-> <pre>
+<pre>
   Dictionary structure (N=E4_DICT_SZ in config.h)
      dict[0].xt ---------> pointer to primitive word lambda[0]
      dict[1].xt ---------> pointer to primitive word lambda[1]
@@ -136,15 +136,19 @@ Universal functor (no STL) and Code class
 
 ### Benchmark
 * Desktop PC - 10K*10K cycles on 3.2GHz AMD
-   > + 1200ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
-   > + 1134ms: subroutine indirect threading, inline list methods
-   > + 1050ms: subroutine indirect threading, with 16-bit offset
-   > +  890ms: inner interpreter with cached xt offsets
+<pre>
++ 1200ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
++ 1134ms: subroutine indirect threading, inline list methods
++ 1050ms: subroutine indirect threading, with 16-bit offset
++  890ms: inner interpreter with cached xt offsets
+</pre>
 
 * ESP32 - 1K*1K cycles on NodeMCU
-   > + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
-   > + 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
-   > +  839ms: subroutine indirect threading, inline list methods
+<pre>
++ 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
++ 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
++  839ms: subroutine indirect threading, inline list methods
+</pre>
 
 ### To Compile on Linux and Cygwin
 > g++ -O2 -Isrc -o tests/eforth src/ceforth.cpp
