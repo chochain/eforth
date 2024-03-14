@@ -3,7 +3,7 @@ With all the advantages, it is unfortunate that Forth lost out to C language ove
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
-Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth review <a href="http://chochain.github.io/eforth/docs/eForthReview.pdf" target="_blank">here</a>
+Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for educational purpose. He described Forth in his well-written eForth review <a href="http://chochain.github.io/eforth/docs/eForthReview.pdf" target="_blank">here</a>
 
 > The language consists of a collection of words, which reside in the memory of a computer and can be executed by entering their names on the computer keyboard. A list of words can be compiled, given a new name and made a new word. In fact, most words in Forth are defined as lists of existing words. A small set of primitive words are defined in machine code of the native CPU. All other words are built from this primitive words and eventually refer to them when executed.
 
@@ -43,10 +43,10 @@ In 2021-07-04, I contacted Dr. Ting. He, as the usual kind and generous him, inc
 * ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
 * ceForth_36b- 2021-10-03 Dr. Ting introduced Code struct and lambda
                           ported to esp32forth_85 and presented in Forth2020
-* ceForth_36x- 2022-01-13 Lee pretty-print, sent to Masa Kasahara
+* ceForth_36x- 2022-01-13 Lee pretty-printed for final keep
 </pre>
 
-### Changes - can we do even better?
+### Changes - what did we do?
 Traditionally, Forth uses linear memory to host dictionary as well as "code"  and parameters
 with a backward linked-list and hence the term threading. This model is critial when memory
 is scarce but creates the complexity which sometime hinder the learning of newbies.
@@ -57,11 +57,68 @@ Change 1: Separation of parameter memory and dictionary
 - the down side is that it requires manual array size tuning
 </pre>
    
+eForth_33 uses functions i.g. CODE, LABEL, HEADER, ... as macros to assemble dictionary which just mimicing how classic Forth creates the dictionary. Visually, it is not that different from using Forth which is challenging for new comers.
+
+Change 2: Use struct to host a dictionary entry
+<pre>
+struct Code {
+    string name;
+    void   (*xt)(void);
+    int    immd;
+};
++ it simpify the classic field management of Forth
+- extra space to store the name and code pointers
+</pre>
+
+Change 3: Build array-based dictionary
+<pre>
+const struct Code primitives[] = {
+    CODE("dup",  stack[++S] = top),
+    CODE("drop", pop()),
+    CODE("over", push(stack[S])),
+    ...
+    CODE("+",    int n = pop(); top += n),
+    CODE("-",    int n = pop(); top -= n),
+    CODE("*",    int n = pop(); top *= n),
+    CODE("/",    int n = pop(); top /= n),
+    ...
+};
++ it makes the size of dictionary entries uniform
++ it removes the need for threading the linked-list (and link field)
++ using lambda syntax makes the intention easy to understand
+</pre>
+
+C language on modern OS have good libraries for I/O interfaces,
+the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
+Change 3: Use Streams for input/output
+<pre>
+CODE(".",  cout << pop() << " "),
+CODE("cr", cout << ENDL),
+</pre>
++ the I/O opcodes are easy to write and understand
++ they can be easily redirected to/from various interfaces/devices
+or
+<pre>
+while (cin >> idiom) {
+    int w = find_word(idiom);
+    if (w) {
+        if (compile && !dict[w].immd) comma(w);
+        else                          run(w);
+    }
+    else {
+        int n = get_number(idiom);
+        if (compile) comma(n);
+        else         push(n);
+    }
+}
+</pre>
++ it make our outer-interpreter easy to understand
+
 Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll
 as being portable. The extra lookup for token to function pointer makes it slower (about 70%) of
 a subroutine indirect threading model.
 
-Change 2: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits),
+Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits),
 <pre>
 + it avoids the double lookup of token threaded indexing
 + it reduces parameter storage requirement from 32-bit to 16-bit
