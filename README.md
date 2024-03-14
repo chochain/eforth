@@ -77,15 +77,18 @@ const struct Code primitives[] = {
     CODE("drop", pop()),
     CODE("over", push(stack[S])),
     ...
-    CODE("+",    int n = pop(); top += n),
-    CODE("-",    int n = pop(); top -= n),
-    CODE("*",    int n = pop(); top *= n),
-    CODE("/",    int n = pop(); top /= n),
+    CODE("+",    top += pop()),
+    CODE("-",    top -= pop()),
+    CODE("*",    top *= pop()),
+    CODE("/",    top /= pop()),
+    ...
+    CODE("delay", sleep(pop())),
     ...
 };
 + it makes the size of dictionary entries uniform
 + it removes the need for threading the linked-list (and link field)
 + using lambda syntax makes the intention easy to understand
++ OS library functions can be called directly by opcode
 </pre>
 
 C language on modern OS have good libraries for I/O interfaces,
