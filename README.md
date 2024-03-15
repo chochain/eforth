@@ -19,7 +19,7 @@ Most classic Forth systems are build with a few low-level primitives in assembly
 
 Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
-In 2021-07-04, I got in touched with Dr. Ting for he taught in the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, together, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
+In 2021-07-04, I got in touched with Dr. Ting for he taught in the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
 
 ### Evolution - continuation of Dr. Ting's final work
 <pre>
@@ -47,9 +47,7 @@ In 2021-07-04, I got in touched with Dr. Ting for he taught in the university wh
 </pre>
 
 ### Changes - what did we do?
-Traditionally, Forth uses linear memory to host dictionary as well as "code"  and parameters
-with a backward linked-list and hence the term threading. This model is critial when memory
-is scarce but creates the complexity which sometime hinder the learning of newbies.
+Traditionally, Forth uses linear memory to host words of the entire dictionary, including codes and their arameters with a backward linked-list and thus the term threading. This model is crucial when memory or is scarce or compiler resource is just underwhelming. It, however, does create added complexity that sometimes hinder the learning of newbies.
 
 Change 1: Separation of parameter memory and dictionary
 <pre>
