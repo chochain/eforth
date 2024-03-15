@@ -47,7 +47,7 @@ In 2021-07-04, I got in touched with Dr. Ting for he taught in the university wh
 </pre>
 
 ### Changes - what did we do?
-Traditionally, Forth uses linear memory to host words of the entire dictionary, including codes and their arameters with a backward linked-list and thus the term threading. This model is crucial when memory or is scarce or compiler resource is just underwhelming. It, however, does create added complexity that sometimes hinder the learning of newbies.
+Even with metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.
 
 Change 1: Separation of parameter memory and dictionary
 <pre>
