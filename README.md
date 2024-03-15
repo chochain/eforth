@@ -93,13 +93,14 @@ const struct Code primitives[] = {
 
 C language on modern OS have good libraries for I/O interfaces,
 the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
-Change 3: Use Streams for input/output
+
+Change 4: Use Streams for input/output
 <pre>
 CODE(".",  cout << pop() << " "),
 CODE("cr", cout << ENDL),
-</pre>
 + the I/O opcodes are easy to write and understand
 + they can be easily redirected to/from various interfaces/devices
+</pre>
 or
 <pre>
 while (cin >> idiom) {
@@ -114,8 +115,8 @@ while (cin >> idiom) {
         else         push(n);
     }
 }
++ our outer-interpreter is understandable even without any comment
 </pre>
-+ it make our outer-interpreter easy to understand
 
 Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll
 as being portable. The extra lookup for token to function pointer makes it slower (about 70%) of
