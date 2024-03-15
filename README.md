@@ -49,7 +49,7 @@ In 2021-07-04, I got in touched with Dr. Ting for he taught in the university wh
 ### Changes - what did we do?
 Even with metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.
 
-Change 1: Separation of parameter memory and dictionary
+**Change 1: Separation of parameter memory and dictionary**
 <pre>
 + it makes dictionary uniform size which eliminates the need for link field
 - the down side is that it requires manual array size tuning
@@ -57,7 +57,7 @@ Change 1: Separation of parameter memory and dictionary
    
 eForth_33 uses functions i.g. CODE, LABEL, HEADER, ... as macros to assemble dictionary which just mimicing how classic Forth creates the dictionary. Visually, it is not that different from using Forth which is challenging for new comers.
 
-Change 2: Use struct to host a dictionary entry
+**Change 2: Use struct to host a dictionary entry**
 <pre>
 struct Code {
     string name;
@@ -68,7 +68,7 @@ struct Code {
 - extra space to store the name and code pointers
 </pre>
 
-Change 3: Build array-based dictionary
+**Change 3: Build array-based dictionary**
 <pre>
 const struct Code primitives[] = {
     CODE("dup",  stack[++S] = top),
@@ -92,7 +92,7 @@ const struct Code primitives[] = {
 C language on modern OS have good libraries for I/O interfaces,
 the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
 
-Change 4: Use Streams for input/output
+**Change 4: Use Streams for input/output**
 <pre>
 CODE(".",  cout << pop() << " "),
 CODE("cr", cout << ENDL),
@@ -120,7 +120,7 @@ Dr. Ting latest ceForth uses the token indirect threading model. It is great for
 as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of
 a subroutine indirect threading model.
 
-Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits),
+**Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits)**
 <pre>
 + it avoids the double lookup of token threaded indexing
 + it reduces parameter storage requirement from 32-bit to 16-bit
@@ -132,7 +132,7 @@ Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bi
 </pre>
 
 ### Memory Structures
-Struct to host a dictionary entry
+**Struct to host a dictionary entry**
 <pre>
 Universal functor (no STL) and Code class
   Code class on 64-bit systems (expand pfa possible)
@@ -155,7 +155,7 @@ Universal functor (no STL) and Code class
             +----+----+
 </pre>
 
-Macros to build dictionary entry
+**Macros to build dictionary entry*8
 <pre>
 #define ADD_CODE(n, g, im) {    \
     Code c(n, []{ g; }, im);	\
@@ -165,7 +165,7 @@ Macros to build dictionary entry
 #define IMMD(n, g) ADD_CODE(n, g, true)
 </pre>
 
-Global memory blocks
+**Global memory blocks**
 <pre>
   Dictionary structure (N=E4_DICT_SZ in config.h)
      dict[0].xt ---------> pointer to primitive word lambda[0]
@@ -205,7 +205,7 @@ Global memory blocks
 </pre>
 
 ### Benchmark
-Desktop PC - 10K*10K cycles on 3.2GHz AMD
+**Desktop PC - 10K*10K cycles on 3.2GHz AMD**
 <pre>
 + 4168ms: ceForth_36x, token indirect threading
 + 2134ms: subroutine indirect threading
@@ -213,7 +213,7 @@ Desktop PC - 10K*10K cycles on 3.2GHz AMD
 +  890ms: inner interpreter with cached xt offsets
 </pre>
 
-ESP32 - 1K*1K cycles on NodeMCU
+**ESP32 - 1K*1K cycles on NodeMCU**
 <pre>
 + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
 + 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
