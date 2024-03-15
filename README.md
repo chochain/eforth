@@ -3,7 +3,7 @@ With all the advantages, it is unfortunate that Forth lost out to C language ove
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
-Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for educational purpose. He described Forth in his well-written eForth review [here](http://chochain.github.io/eforth/docs/eForthReview.pdf){:target="_blank" rel="noopener"}
+Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for educational purpose. He described Forth in his well-written eForth review [here](http://chochain.github.io/eforth/docs/eForthReview.pdf)
 
 > The language consists of a collection of words, which reside in the memory of a computer and can be executed by entering their names on the computer keyboard. A list of words can be compiled, given a new name and made a new word. In fact, most words in Forth are defined as lists of existing words. A small set of primitive words are defined in machine code of the native CPU. All other words are built from this primitive words and eventually refer to them when executed.
 
@@ -15,11 +15,11 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for
 > 5. A CPU to move date among stacks and memory, and to do ALU operations to parameters stored on the data stack.
 
 ### ceForth - on the shoulder of a giant
-Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See <a href="https://www.forth.org/OffeteStore/OffeteStore.html" target="_blank">here</a> for the detailed list. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
+Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See [here](https://www.forth.org/OffeteStore/OffeteStore.html) for the detailed list. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
 
 Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
-In 2021-07-04, I contacted Dr. Ting. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. With cross-platform portability as our guild-line, together, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see <a href="https://chochain.github.io/eforth/docs/ceForth_403.pdf" target="_blank">ceForth_403</a> and <a href="https://github.com/chochain/eJsv32" target="_blank">eJsv32</a> for details.
+In 2021-07-04, I contacted Dr. Ting. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the same well looking up to the small opening of the sky. With cross-platform portability as our guild-line, together, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he even attempt to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
 
 ### Evolution - continuation of Dr. Ting's final work
 <pre>
@@ -229,7 +229,7 @@ ESP32 - 1K*1K cycles on NodeMCU
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011
-  <a href="http://forth.org/library/eforth_SOC" target="_blank">[eForth references]</a> and their <a href="http://forth.org/library/eforth_SOC/eforth_SOC_source" target="_blank">[Source Code Repo]</a>
+  [eForth references](http://forth.org/library/eforth_SOC) and their [Source Code Repo](http://forth.org/library/eforth_SOC/eforth_SOC_source)
 * CC 20210314: Initial
   > Started with ~orig/33b code-base, refactor with enum and VA_ARGS macros targeting 100% C/C++.
 * CC 20210707: Refactor
