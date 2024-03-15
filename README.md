@@ -117,13 +117,14 @@ while (cin >> idiom) {
 </pre>
 
 Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll
-as being portable. The extra lookup for token to function pointer makes it slower (about 70%) of
+as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of
 a subroutine indirect threading model.
 
 Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits),
 <pre>
 + it avoids the double lookup of token threaded indexing
 + it reduces parameter storage requirement from 32-bit to 16-bit
++ it speeds up by reading only 2-bytes from RAM instead of 4-bytes (cache hit more)
 + it unifies xt/pfa parameter storage
 + it uses the LSB for id flag (2-byte aligned, so LSB is free)
 - it limits function pointer spread to 64KB range
@@ -206,8 +207,8 @@ Global memory blocks
 ### Benchmark
 Desktop PC - 10K*10K cycles on 3.2GHz AMD
 <pre>
-+ 1200ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
-+ 1134ms: subroutine indirect threading, inline list methods
++ 4168ms: ceForth_36x, token indirect threading
++ 2134ms: subroutine indirect threading
 + 1050ms: subroutine indirect threading, with 16-bit offset
 +  890ms: inner interpreter with cached xt offsets
 </pre>
@@ -216,7 +217,7 @@ ESP32 - 1K*1K cycles on NodeMCU
 <pre>
 + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
 + 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
-+  839ms: subroutine indirect threading, inline list methods
++  839ms: subroutine indirect threading
 </pre>
 
 ### To Compile on Linux and Cygwin
