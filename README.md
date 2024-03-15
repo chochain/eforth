@@ -38,12 +38,12 @@ In 2021-07-04, I got in touched with Dr. Ting for he taught in the university wh
 * ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
 * ceForth_403- 2021-08-06 Lee refined _402
                           Dr. Ting add docs and presented it on Forth2020
-                          
-* ceForth_36 - 2021-09-27 Dr. Ting, utilized the experience from _40x, upgraded his _33 to _36
+
+* ceForth_36 - 2021-09-27 Dr. Ting, utilized the experience from _40x, upgraded his _33 to _36 (retained linear memory model)
 * ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
 * ceForth_36b- 2021-10-03 Dr. Ting introduced Code struct and lambda
                           ported to esp32forth_85 and presented in Forth2020
-* ceForth_36x- 2022-01-13 Lee pretty-printed for final keep
+* ceForth_36x- 2022-01-13 Dr. Ting final archive
 </pre>
 
 ### Changes - what did we do?
@@ -207,10 +207,10 @@ Universal functor (no STL) and Code class
 ### Benchmark
 **Desktop PC - 10K*10K cycles on 3.2GHz AMD**
 <pre>
-+ 4168ms: ceForth_36x, token indirect threading
-+ 2134ms: subroutine indirect threading
-+ 1050ms: subroutine indirect threading, with 16-bit offset
-+  890ms: inner interpreter with cached xt offsets
++ 4452ms: ceForth_36x, linear memory, 32-bit, token indirect threading
++ 1450ms: ceForth_403, dict/pf vector<*Code>, subroutine indirect threading
++ 1050ms: src/ceforth, subroutine indirect threading, with 16-bit offset
++  890ms: src/ceforth, inner interpreter with cached xt offsets
 </pre>
 
 **ESP32 - 1K*1K cycles on NodeMCU**
