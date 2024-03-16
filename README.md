@@ -19,31 +19,31 @@ Most classic Forth systems are build with a few low-level primitives in assembly
 
 Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
-In 2021-07-04, I got in touched with Dr. Ting for he taught in the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
+In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
 
 ### Evolution - continuation of Dr. Ting's final work
+Source codes kept under ~/orig/ting
 <pre>
-* ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
-* ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
-* ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
-* ceForth_33b- 2021-03-14 Lee refactored _33, separated asm and vm
+ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
+ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
+ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
 
-* ceForth_40 - 2021-07-27 Lee proposed to Dr. Ting, to use
-                          + struct for dictionary entry with name and lambda pointers,
-                          + std::vector for dict/ss/rs, and
-                          + std::map to host dictionary
-* ceForth_40a- 2021-07-28 Lee use VT macros to build dictionary entries (struct)
-* ceForth_40b- 2021-07-31 Lee replace std::vector with ForthList struct for dict/ss/rs
-* ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
-* ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
-* ceForth_403- 2021-08-06 Lee refined _402
-                          Dr. Ting add docs and presented it on Forth2020
+ceForth_40 - 2021-07-27 Lee suggested Dr. Ting to use
+                        + struct for dictionary entry with name and lambda pointers,
+                        + std::vector for dict/ss/rs, and
+                        + std::map to host dictionary
+ceForth_40a- 2021-07-28 Lee suggested using VT macros to build dictionary entries (struct)
+ceForth_40b- 2021-07-31 Lee replaced std::vector with ForthList struct for dict/ss/rs
+ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
+ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
+ceForth_403- 2021-08-06 Lee refined _402
+                        Dr. Ting add docs and presented it on Forth2020
 
-* ceForth_36 - 2021-09-27 Dr. Ting, utilized the experience from _40x, upgraded his _33 to _36 (retained linear memory model)
-* ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
-* ceForth_36b- 2021-10-03 Dr. Ting introduced Code struct and lambda
-                          ported to esp32forth_85 and presented in Forth2020
-* ceForth_36x- 2022-01-13 Dr. Ting final archive
+ceForth_36 - 2021-09-27 Dr. Ting, learnt from _40x, upgraded his _33 to _36 (retained linear memory model)
+ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
+ceForth_36b- 2021-10-03 Dr. Ting added Code struct and lambda,
+                        ported to esp32forth_85 and presented in Forth2020
+ceForth_36x- 2022-01-13 Dr. Ting final archive, great for understanding Forth building
 </pre>
 
 ### Changes - what did we do?
