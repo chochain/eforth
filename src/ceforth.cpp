@@ -270,6 +270,10 @@ void s_quote(IU op) {
 /// recursively disassemble colon word
 ///
 void see(IU pfa, int dp=1) {
+    auto indent = [](int dp, IU adr) {
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        ///> indentation level
+        fout << setfill('0') << setw(4) << adr << ": " << setw(-1); ///> display word offset
+        };
     auto pfa2word = [](IU ix) {
         IU   pfa = ix & ~UDF_FLAG;                 ///> pfa (mask colon word)
         FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
@@ -283,16 +287,15 @@ void see(IU pfa, int dp=1) {
     };
     U8 *ip = MEM(pfa);
     while (*(IU*)ip != WORD_END) {
-        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";  ///> indentation
-        fout << setw(4) << (ip - MEM0) << "[" << setw(-1);    ///> display word offset
-        IU c = pfa2word(*(IU*)ip);                            ///> fetch word index by pfa
-        if (!c) break;                                        ///> loop guard
-        to_s(c);                                              ///> display name
-        if (IS_UDF(c) && dp < 2) {                            ///> is a colon word
-            see(dict[c].pfa, dp+1);                           ///> recursive into child
+        indent(dp, ip - MEM0);
+        IU w = pfa2word(*(IU*)ip);                            ///> fetch word index by pfa
+        if (!w) break;                                        ///> loop guard
+        to_s(w);                                              ///> display name
+        if (IS_UDF(w) && dp < 2) {                            ///> is a colon word
+            see(dict[w].pfa, dp+1);                           ///> recursive into child
         }
         ip += sizeof(IU);
-        switch (c) {
+        switch (w) {
         case DOLIT: case DOVAR:
             fout << "= " << *(DU*)ip; ip += sizeof(DU); break;
         case DOSTR: case DOTSTR:
@@ -303,7 +306,6 @@ void see(IU pfa, int dp=1) {
         case DODOES:
             ip += sizeof(IU); break;
         }
-        fout << " ] ";
     }
 }
 void words() {
@@ -586,13 +588,13 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(next_idiom()); if (w) PUSH(w));
-    CODE(".s",    fout << (char*)MEM(POP()));
+    CODE(".s",    ss_dump());
     CODE("words", words());
     CODE("see",
          IU w = find(next_idiom()); if (!w) return;
-         fout << "["; to_s(w);
+         fout << ": "; to_s(w);
          if (IS_UDF(w)) see(dict[w].pfa);                        // recursive call
-         fout << "]" << ENDL);
+         fout << " ;" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
     CODE("mstat", mem_stat());
     CODE("dict",  dict_dump());
