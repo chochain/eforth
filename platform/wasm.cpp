@@ -10,6 +10,7 @@ const char* APP_VERSION = "eForth v8.6";
 void mem_stat() {
     LOGS(APP_VERSION);
     LOG_KV("\n  dict: ",   dict.idx); LOG_KV("/", E4_DICT_SZ);
+    LOG_KV(", ",           sizeof(Code));  LOGS("-byte/entry");
     LOG_KV("\n  ss  : ",   ss.idx);   LOG_KV("/", E4_SS_SZ);
     LOG_KV(" (max ",       ss.max);   LOGS(")");
     LOG_KV("\n  rs  : ",   rs.idx);   LOG_KV("/", E4_RS_SZ);
