@@ -244,13 +244,6 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 ///> IO & debug functions
 ///
 inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
-inline void to_s(IU w) {
-#if CC_DEBUG
-    fout << dict[w].name << " " << w << (dict[w].attr ? "* " : " ");
-#else  // !CC_DEBUG
-    fout << " " << dict[w].name;
-#endif // CC_DEBUG
-}
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void s_quote(IU op) {
     const char *s = scan('"')+1;       ///> string skip first blank
@@ -269,12 +262,37 @@ void s_quote(IU op) {
 ///
 /// recursively disassemble colon word
 ///
+void to_s(IU w, U8 *ip) {
+    auto note = [](IU w, U8 *ip) {
+#if CC_DEBUG
+        fout << "( " << setfill('0') << setw(4) << (ip - MEM0) ///> addr
+             << "[" << setfill(' ') << setw(3) << w << "] ) "; ///> opcode
+#endif // CC_DEBUG
+    };
+    auto jmp = [](U8 *ip) {
+#if CC_DEBUG        
+        fout << " ( " << setfill('0') << setw(4) << *(IU*)ip << " )";
+#endif // CC_DEBUG        
+    };
+    
+    note(w, ip);             ///> display address & opcode
+    ip += sizeof(IU);        ///> calculate next ip
+    switch (w) {
+    case EXIT:     fout << ";";                         break;
+    case DONEXT:   fout << "next"; jmp(ip);             break;
+    case DOLIT:    fout << *(DU*)ip;                    break;
+    case DOVAR:    fout << *(DU*)ip << " ( variable )"; break;
+    case DOSTR:    fout << "s\" " << (char*)ip << '"';  break;
+    case DOTSTR:   fout << ".\" " << (char*)ip << '"';  break;
+    case BRAN:     fout << "bran";  jmp(ip);            break;
+    case ZBRAN:    fout << "0bran"; jmp(ip);            break;
+    case DODOES:   fout << "does>" ;                    break;
+    default:       fout << dict[w].name;                break;
+    }
+    fout << setw(-1);        ///> restore output format
+}
 void see(IU pfa, int dp=1) {
-    auto indent = [](int dp, IU adr) {
-        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";        ///> indentation level
-        fout << setfill('0') << setw(4) << adr << ": " << setw(-1); ///> display word offset
-        };
-    auto pfa2word = [](IU ix) {
+    auto pfa2opcode = [](IU ix) {
         IU   pfa = ix & ~UDF_FLAG;                 ///> pfa (mask colon word)
         FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
         for (int i = dict.idx - 1; i > 0; --i) {
@@ -286,26 +304,26 @@ void see(IU pfa, int dp=1) {
         return 0;
     };
     U8 *ip = MEM(pfa);
-    while (*(IU*)ip != WORD_END) {
-        indent(dp, ip - MEM0);
-        IU w = pfa2word(*(IU*)ip);                            ///> fetch word index by pfa
-        if (!w) break;                                        ///> loop guard
-        to_s(w);                                              ///> display name
-        if (IS_UDF(w) && dp < 2) {                            ///> is a colon word
-            see(dict[w].pfa, dp+1);                           ///> recursive into child
+    while (1) {
+        IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  "; ///> indent
+        
+        to_s(w, ip);                    ///> display opcode
+        if (w==EXIT) break;             ///> bail
+
+        ip += sizeof(IU);               ///> advance ip (next opcode)
+        switch (w) {                    ///> extra bytes to skip
+        case DOLIT:  case DOVAR:  ip += sizeof(DU);        break;
+        case DOSTR:  case DOTSTR: ip += STRLEN((char*)ip); break;
+        case BRAN:   case ZBRAN:
+        case DONEXT: case DODOES: ip += sizeof(IU);        break;
         }
-        ip += sizeof(IU);
-        switch (w) {
-        case DOLIT: case DOVAR:
-            fout << "= " << *(DU*)ip; ip += sizeof(DU); break;
-        case DOSTR: case DOTSTR:
-            fout << "= \"" << (char*)ip << '"';
-            ip += STRLEN((char*)ip); break;
-        case BRAN: case ZBRAN: case DONEXT:
-            fout << "= " << *(IU*)ip; ip += sizeof(IU); break;
-        case DODOES:
-            ip += sizeof(IU); break;
+#if CC_DEBUG
+        ///> walk recursively
+        if (IS_UDF(w) && dp < 2) {      ///> is a colon word
+            see(dict[w].pfa, dp+1);     ///> recursive into child
         }
+#endif // CC_DEBUG
     }
 }
 void words() {
@@ -314,7 +332,11 @@ void words() {
     fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
         const char *nm = dict[i].name;
+#if CC_DEBUG > 1
+        if (nm[0]) {
+#else //  !CC_DEBUG
         if (nm[0] != '_') {
+#endif // CC_DEBUG            
             sz += strlen(nm) + 2;
             fout << "  " << nm;
         }
@@ -399,8 +421,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("_dotstr",
          const char *s = (const char*)MEM(IP);     // get string pointer
          fout << s;  IP += STRLEN(s));             // send to output console
-    CODE("_branch" , IP = *(IU*)MEM(IP));          // unconditional branch
-    CODE("_0branch", IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
+    CODE("_bran" ,   IP = *(IU*)MEM(IP));          // unconditional branch
+    CODE("_0bran",   IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
     CODE("_dodoes",
          add_w(BRAN);                              // branch to does> section
          add_iu(IP + sizeof(IU));                  // encode IP
@@ -592,9 +614,11 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("words", words());
     CODE("see",
          IU w = find(next_idiom()); if (!w) return;
-         fout << ": "; to_s(w);
-         if (IS_UDF(w)) see(dict[w].pfa);                        // recursive call
-         fout << " ;" << ENDL);
+         if (IS_UDF(w)) {
+             fout << ": " << dict[w].name;
+             see(dict[w].pfa);
+         }
+         else fout << "\\ primitive" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
     CODE("mstat", mem_stat());
     CODE("dict",  dict_dump());
