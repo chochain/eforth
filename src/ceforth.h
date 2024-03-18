@@ -51,9 +51,7 @@ struct List {
 #define UDF_ATTR   0x0001   /** user defined word  */
 #define IMM_ATTR   0x0002   /** immediate word     */
 #define MSK_ATTR   ~0x3
-
 #define UDF_FLAG   0x0001   /** xt/pfa selector    */
-#define WORD_END   0xffff   /** end of a colon     */
 
 #define IS_UDF(w) (dict[w].attr & UDF_ATTR)
 #define IS_IMM(w) (dict[w].attr & IMM_ATTR)
@@ -109,7 +107,7 @@ struct Code {
 		LOG_KX("XT0=", XT0);  LOG_KX(" xt=", (UFP)xt); 
 		LOG_KX(" NM0=", NM0); LOG_KX(" nm=", (UFP)n);
 		LOGS(" "); LOGS(n); LOGS("\n");
-#endif // CC_DEBUG
+#endif // CC_DEBUG > 1
     }
     Code() {}               ///< create a blank struct (for initilization)
     IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
