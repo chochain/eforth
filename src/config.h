@@ -17,9 +17,9 @@
 ///@}
 ///@name Memory block configuation
 ///@{
-#define E4_RS_SZ        64
-#define E4_SS_SZ        64
-#define E4_DICT_SZ      1024
+#define E4_RS_SZ        32
+#define E4_SS_SZ        16
+#define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
 ///@}
 ///
@@ -101,7 +101,7 @@ typedef uint16_t        IU;    ///< instruction pointer unit
     #define LOGX(v)     printf("%-x", (uint32_t)(v))
 #endif // ARDUINO
     
-#define LOG_NA()        LOGS("not found\n")
+#define LOG_NA()        LOGS("N/A\n")
 #define LOG_KV(k, v)    LOGS(k); LOG(v)
 #define LOG_KX(k, x)    LOGS(k); LOGX(x)
 #define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
