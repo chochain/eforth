@@ -70,11 +70,22 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
 ///@}
-/// enum used for built-in opcodes to simplify compiler
-/// Note: make sure the sequence is in-sync with word list in dict_compile
+///@name Global memory access macros
+///@brief macros for ESP memory space access (be very careful of these)
+///@note  4000_0000 is instruction bus, access needs to be 32-bit aligned
+///       3fff_ffff and below is data bus, no alignment requirement
+///@{
+#define PEEK(a)    (DU)(*(DU*)((UFP)(a)))
+#define POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
+///@}
+///
+/// enum used for built-in opcode tokens to simplify compiler
+/// i.g, add_w(find("_donext")) can be reduced to add_w(DONEXT)
+/// but make sure the sequence is in-sync with word list in dict_compile
 ///
 typedef enum {
-    EXIT = 0, DONEXT, DOLIT, DOVAR, DOSTR, DOTSTR, BRAN, ZBRAN, DODOES, TOR
+    EOW = 0xffff & ~UDF_ATTR,        ///< token for end of colon word
+    EXIT=0, DONEXT, DOLIT, DOVAR, DOSTR, DOTSTR, BRAN, ZBRAN, DODOES, TOR
 } forth_opcode;
 ///
 ///====================================================================
@@ -101,7 +112,7 @@ IU find(const char *s) {
     }
 #if CC_DEBUG > 1
     LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
-#endif // CC_DEBUG
+#endif // CC_DEBUG > 1
     return v;
 }
 ///====================================================================
@@ -131,12 +142,15 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code &c = dict[w];
-    IU ip = IS_UDF(w) ? (c.pfa | UDF_FLAG) : (w ? c.xtoff() : WORD_END);
+    bool x  = w==EOW;               ///< adjust end of word token
+    Code &c = dict[x ? EXIT : w];   ///< ref to dictionary entry
+    IU   ip = c.attr & UDF_ATTR     ///< check whether colon word
+        ? (c.pfa | UDF_FLAG)        ///< pfa with colon word flag
+        : (x ? EOW : c.xtoff());    ///< XT offset
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
-    LOG_KV(":", c.xt);   LOGS(" "); LOGS(c.name); LOGS("\n");
+    LOG_KX(":", c.xtoff()); LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
 ///====================================================================
@@ -158,10 +172,10 @@ void add_w(IU w) {                  ///< add a word index into pmem
 void nest() {
     static IU _NXT = dict[find("_donext")].xtoff();  ///> cache offsets to funtion pointers
 	static IU _LIT = dict[find("_dolit")].xtoff();
-    int dp = 0;                        ///> iterator depth control
-    while (dp >= 0) {
+    int dp = 0;                        ///> iterator implementation (instead of recursive)
+    while (dp >= 0) {                  ///> depth control
         IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
-        while (ix != WORD_END) {       ///> fetch till EXIT
+        while (ix != EOW) {            ///> fetch till end of word hit
             IP += sizeof(IU);          /// * advance inst. ptr
             if (ix & UDF_FLAG) {       ///> is it a colon word?
                 rs.push(IP);
@@ -195,16 +209,6 @@ void CALL(IU w) {
     if (IS_UDF(w)) { IP = dict[w].pfa; nest(); }
     else dict[w].call();
 }
-///
-///> Global memory access macros
-///
-///  macros for ESP memory space access (be very careful of these)
-///  note: 4000_0000 is instruction bus, access needs to be 32-bit aligned
-///        3fff_ffff and below is data bus, no alignment requirement
-///
-#define PEEK(a)    (DU)(*(DU*)((UFP)(a)))
-#define POKE(a, c) (*(DU*)((UFP)(a))=(DU)(c))
-
 ///====================================================================
 ///
 /// utilize C++ standard template libraries for core IO functions only
@@ -263,53 +267,62 @@ void s_quote(IU op) {
 /// recursively disassemble colon word
 ///
 void to_s(IU w, U8 *ip) {
-    auto note = [](IU w, U8 *ip) {
+    auto show_addr = [](IU w, U8 *ip) {
 #if CC_DEBUG
-        fout << "( " << setfill('0') << setw(4) << (ip - MEM0) ///> addr
-             << "[" << setfill(' ') << setw(3) << w << "] ) "; ///> opcode
+        fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
+        if (w==EOW) fout << "EOW";
+        else        fout << setfill(' ') << setw(3) << w;
+        fout << "] ) ";
 #endif // CC_DEBUG
     };
-    auto jmp = [](U8 *ip) {
+    auto jmp = [](const char *n, U8 *ip) {
+        fout << n;
 #if CC_DEBUG        
         fout << " ( " << setfill('0') << setw(4) << *(IU*)ip << " )";
 #endif // CC_DEBUG        
     };
     
-    note(w, ip);             ///> display address & opcode
+    show_addr(w, ip);        ///> display address & opcode
     ip += sizeof(IU);        ///> calculate next ip
     switch (w) {
-    case EXIT:     fout << ";";                         break;
-    case DONEXT:   fout << "next"; jmp(ip);             break;
+    case EOW:      fout << ";";                         break;
+    case EXIT:     fout << "exit";                      break;
+    case DONEXT:   jmp("next", ip);                     break;
     case DOLIT:    fout << *(DU*)ip;                    break;
     case DOVAR:    fout << *(DU*)ip << " ( variable )"; break;
     case DOSTR:    fout << "s\" " << (char*)ip << '"';  break;
     case DOTSTR:   fout << ".\" " << (char*)ip << '"';  break;
-    case BRAN:     fout << "bran";  jmp(ip);            break;
-    case ZBRAN:    fout << "0bran"; jmp(ip);            break;
+    case BRAN:     jmp("bran",  ip);                    break;
+    case ZBRAN:    jmp("0bran", ip);                    break;
     case DODOES:   fout << "does>" ;                    break;
     default:       fout << dict[w].name;                break;
     }
-    fout << setw(-1);        ///> restore output format
+    fout << setw(-1);        ///> restore output format settings
 }
 void see(IU pfa, int dp=1) {
-    auto pfa2opcode = [](IU ix) {
+    auto pfa2opcode = [](IU ix) {                  ///> reverse lookup
+        if (ix==EOW) return (int)EOW;              ///> end of word handler
         IU   pfa = ix & ~UDF_FLAG;                 ///> pfa (mask colon word)
         FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
-        for (int i = dict.idx - 1; i > 0; --i) {
+        for (int i = dict.idx - 1; i >= 0; --i) {
             if (ix & UDF_FLAG) {
                 if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
             }
             else if (dict[i].xt == xt) return i;   ///> compare xt
         }
-        return 0;
+        return -1;
+    };
+    auto indent = [](int dp) {
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  "; ///> indent
     };
     U8 *ip = MEM(pfa);
     while (1) {
         IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
-        fout << ENDL; for (int i=dp; i>0; i--) fout << "  "; ///> indent
-        
+        if (w==-1) break;               ///> loop guard
+            
+        indent(dp);                     ///> add call depth indentation
         to_s(w, ip);                    ///> display opcode
-        if (w==EXIT) break;             ///> bail
+        if (w==EOW) break;              ///> done with the colon word
 
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
@@ -318,12 +331,12 @@ void see(IU pfa, int dp=1) {
         case BRAN:   case ZBRAN:
         case DONEXT: case DODOES: ip += sizeof(IU);        break;
         }
-#if CC_DEBUG
+#if CC_DEBUG > 1
         ///> walk recursively
         if (IS_UDF(w) && dp < 2) {      ///> is a colon word
             see(dict[w].pfa, dp+1);     ///> recursive into child
         }
-#endif // CC_DEBUG
+#endif // CC_DEBUG > 1
     }
 }
 void words() {
@@ -334,9 +347,9 @@ void words() {
         const char *nm = dict[i].name;
 #if CC_DEBUG > 1
         if (nm[0]) {
-#else //  !CC_DEBUG
+#else  //  CC_DEBUG > 1
         if (nm[0] != '_') {
-#endif // CC_DEBUG            
+#endif // CC_DEBUG > 1           
             sz += strlen(nm) + 2;
             fout << "  " << nm;
         }
@@ -374,23 +387,21 @@ void mem_dump(IU p0, DU sz) {
 ///
 ///> System statistics - for heap, stack, external memory debugging
 ///
-void mem_stat();          // forward declaration
+void mem_stat();   ///< forward decl (implemented in platform specific)
 void dict_dump() {
-    LOG_KX("XT0=",        Code::XT0);
-    LOG_KX(", NM0=",      Code::NM0);
-    LOG_KV(", sizeof(Code)=", sizeof(Code));
-    LOGS("\n");
+    fout << setbase(16) << setfill('0')
+         << "XT0=" << Code::XT0 << ", NM0=" << Code::NM0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
-        LOG(i);
-        LOG_KX("> attr=", c.attr & ~MSK_ATTR);
-        LOG_KX(", xt=",   c.xtoff());
-        LOG_KX(":",       (UFP)c.xt);
-        LOG_KX(", name=", (UFP)c.name - Code::NM0);
-        LOG_KX(":",       (UFP)c.name);
-        LOGS(" ");        LOGS(c.name);
-        LOGS("\n");
+        fout << setfill('0') << setw(3) << i
+             << "> attr=" << (c.attr & ~MSK_ATTR)
+             << ", xt="   << setw(4) << c.xtoff()
+             << ":"       << setw(8) << (UFP)c.xt
+             << ", name=" << setw(4) << ((UFP)c.name - Code::NM0)
+             << ":"       << setw(8) << (UFP)c.name
+             << " "       << c.name << ENDL;
     }
+    fout << setw(-1) << setbase(base);
 }
 ///====================================================================
 ///
@@ -426,7 +437,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("_dodoes",
          add_w(BRAN);                              // branch to does> section
          add_iu(IP + sizeof(IU));                  // encode IP
-         add_w(EXIT));                             // EXIT is not really needed but nicer
+         add_w(EOW));                              // not really needed but cleaner
     CODE(">r",   rs.push(POP()));
     CODE("r>",   PUSH(rs.pop()));
     CODE("r@",   PUSH(rs[-1]));                    // same as I (the loop counter)
@@ -564,19 +575,19 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgrouop Compiler ops
     /// @{
     CODE(":",       compile = def_word(next_idiom()));
-    IMMD(";",       add_w(EXIT); compile = false);
+    IMMD(";",       add_w(EOW); compile = false);
     CODE("exit",    add_w(EXIT));
     CODE("variable",                                             // create a variable
          if (def_word(next_idiom())) {                           // create a new word on dictionary
              add_w(DOVAR);                                       // dovar (+parameter field)
              add_du(DU0);                                        // data storage (32-bit integer now)
-             add_w(EXIT);
+             add_w(EOW);
          });
     CODE("constant",                                             // create a constant
          if (def_word(next_idiom())) {                           // create a new word on dictionary
              add_w(DOLIT);                                       // dovar (+parameter field)
              add_du(POP());                                      // data storage (32-bit integer now)
-             add_w(EXIT);
+             add_w(EOW);
          });
     IMMD("immediate", dict[-1].attr |= IMM_ATTR);
     /// @}
@@ -588,7 +599,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
          if (def_word(next_idiom())) {                           // create a new word on dictionary
              add_w(DOVAR);
          });
-    IMMD("does>", add_w(DODOES); add_w(EXIT));                   // CREATE...DOES>... meta-program
+    IMMD("does>", add_w(DODOES); add_w(EOW));                    // CREATE...DOES>... meta-program
     CODE("to",              // 3 to x                            // alter the value of a constant
          IU w = find(next_idiom());                              // to save the extra @ of a variable
          *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
@@ -614,11 +625,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("words", words());
     CODE("see",
          IU w = find(next_idiom()); if (!w) return;
-         if (IS_UDF(w)) {
-             fout << ": " << dict[w].name;
-             see(dict[w].pfa);
-         }
-         else fout << "\\ primitive" << ENDL);
+         fout << ": " << dict[w].name;
+         if (IS_UDF(w)) see(dict[w].pfa);
+         else fout << " ( primitive ) ;" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
     CODE("mstat", mem_stat());
     CODE("dict",  dict_dump());
