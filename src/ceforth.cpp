@@ -318,7 +318,7 @@ void see(IU pfa, int dp=1) {
     U8 *ip = MEM(pfa);
     while (1) {
         IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
-        if (w==-1) break;               ///> loop guard
+        if (w==(IU)-1) break;           ///> loop guard
             
         indent(dp);                     ///> add call depth indentation
         to_s(w, ip);                    ///> display opcode
