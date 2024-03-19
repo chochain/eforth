@@ -79,7 +79,7 @@ struct List {
 ///
 typedef void (*FPTR)();     ///< function pointer
 struct Code {
-    static UFP XT0, NM0;    ///< pointer bases (in registers hopefully)
+    static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
 #if DO_WASM
     union {
@@ -101,12 +101,10 @@ struct Code {
 
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
         if ((UFP)xt < XT0) XT0 = (UFP)xt; ///> collect xt base
-        if ((UFP)n  < NM0) NM0 = (UFP)n;  ///> collect name string base
         if (im) attr |= IMM_ATTR;
 #if CC_DEBUG > 1
 		LOG_KX("XT0=", XT0);  LOG_KX(" xt=", (UFP)xt); 
-		LOG_KX(" NM0=", NM0); LOG_KX(" nm=", (UFP)n);
-		LOGS(" "); LOGS(n); LOGS("\n");
+		LOG_KX(", nm=", (UFP)n); LOGS(" "); LOGS(n); LOGS("\n");
 #endif // CC_DEBUG > 1
     }
     Code() {}               ///< create a blank struct (for initilization)
