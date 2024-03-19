@@ -318,7 +318,7 @@ void see(IU pfa, int dp=1) {
     U8 *ip = MEM(pfa);
     while (1) {
         IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
-        if (w==-1) break;               ///> loop guard
+        if (w==(IU)-1) break;           ///> loop guard
             
         indent(dp);                     ///> add call depth indentation
         to_s(w, ip);                    ///> display opcode
@@ -389,16 +389,14 @@ void mem_dump(IU p0, DU sz) {
 ///
 void mem_stat();   ///< forward decl (implemented in platform specific)
 void dict_dump() {
-    fout << setbase(16) << setfill('0')
-         << "XT0=" << Code::XT0 << ", NM0=" << Code::NM0 << ENDL;
+    fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         fout << setfill('0') << setw(3) << i
              << "> attr=" << (c.attr & ~MSK_ATTR)
              << ", xt="   << setw(4) << c.xtoff()
              << ":"       << setw(8) << (UFP)c.xt
-             << ", name=" << setw(4) << ((UFP)c.name - Code::NM0)
-             << ":"       << setw(8) << (UFP)c.name
+             << ", name=" << setw(8) << (UFP)c.name
              << " "       << c.name << ENDL;
     }
     fout << setw(-1) << setbase(base);
@@ -412,7 +410,6 @@ void dict_dump() {
 ///  Note: sequenced by enum forth_opcode as following
 ///
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
-UFP Code::NM0 = ~0;    ///< init base of name pointers
 
 void dict_compile() {  ///< compile primitive words into dictionary
     ///
