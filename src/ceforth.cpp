@@ -312,15 +312,12 @@ void see(IU pfa, int dp=1) {
         }
         return -1;
     };
-    auto indent = [](int dp) {
-        fout << ENDL; for (int i=dp; i>0; i--) fout << "  "; ///> indent
-    };
     U8 *ip = MEM(pfa);
     while (1) {
         IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
         if (w==(IU)-1) break;           ///> loop guard
-            
-        indent(dp);                     ///> add call depth indentation
+
+        fout << ENDL; for (int i=dp; i>0; i--) fout << "  "; ///> indent
         to_s(w, ip);                    ///> display opcode
         if (w==EOW) break;              ///> done with the colon word
 
