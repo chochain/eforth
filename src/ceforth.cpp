@@ -519,10 +519,6 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("emit",    char b = (char)POP(); fout << b);
     CODE("space",   spaces(1));
     CODE("spaces",  spaces(POP()));
-    CODE("include",                         // include external file
-         IU len = POP();                    // string length, not used
-         U8 *fn = MEM(POP());               // file name
-         forth_include((const char*)fn));   // include file
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -571,17 +567,17 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE(":",       compile = def_word(next_idiom()));
     IMMD(";",       add_w(EOW); compile = false);
-    CODE("exit",    add_w(EXIT));
-    CODE("variable",                                             // create a variable
-         if (def_word(next_idiom())) {                           // create a new word on dictionary
-             add_w(DOVAR);                                       // dovar (+parameter field)
-             add_du(DU0);                                        // data storage (32-bit integer now)
+    CODE("exit",    add_w(EXIT));                               // early exit the colon word
+    CODE("variable",                                            // create a variable
+         if (def_word(next_idiom())) {                          // create a new word on dictionary
+             add_w(DOVAR);                                      // dovar (+parameter field)
+             add_du(DU0);                                       // data storage (32-bit integer now)
              add_w(EOW);
          });
-    CODE("constant",                                             // create a constant
-         if (def_word(next_idiom())) {                           // create a new word on dictionary
-             add_w(DOLIT);                                       // dovar (+parameter field)
-             add_du(POP());                                      // data storage (32-bit integer now)
+    CODE("constant",                                            // create a constant
+         if (def_word(next_idiom())) {                          // create a new word on dictionary
+             add_w(DOLIT);                                      // dovar (+parameter field)
+             add_du(POP());                                     // data storage (32-bit integer now)
              add_w(EOW);
          });
     IMMD("immediate", dict[-1].attr |= IMM_ATTR);
@@ -589,28 +585,28 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",  IU w = POP(); CALL(w));                        // execute word
-    CODE("create",                                               // dovar (+ parameter field)
-         if (def_word(next_idiom())) {                           // create a new word on dictionary
+    CODE("exec",  IU w = POP(); CALL(w));                       // execute word
+    CODE("create",                                              // dovar (+ parameter field)
+         if (def_word(next_idiom())) {                          // create a new word on dictionary
              add_w(DOVAR);
          });
-    IMMD("does>", add_w(DODOES); add_w(EOW));                    // CREATE...DOES>... meta-program
-    CODE("to",              // 3 to x                            // alter the value of a constant
-         IU w = find(next_idiom());                              // to save the extra @ of a variable
+    IMMD("does>", add_w(DODOES); add_w(EOW));                   // CREATE...DOES>... meta-program
+    CODE("to",              // 3 to x                           // alter the value of a constant
+         IU w = find(next_idiom());                             // to save the extra @ of a variable
          *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
-    CODE("is",              // ' y is x                          // alias a word
-         IU w = find(next_idiom());                              // copy entire union struct
+    CODE("is",              // ' y is x                         // alias a word
+         IU w = find(next_idiom());                             // copy entire union struct
          dict[POP()].xt = dict[w].xt);
     ///
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
     ///
-    CODE("@",     IU w = POP(); PUSH(CELL(w)));                  // w -- n
-    CODE("!",     IU w = POP(); CELL(w) = POP(););               // n w --
+    CODE("@",     IU w = POP(); PUSH(CELL(w)));                 // w -- n
+    CODE("!",     IU w = POP(); CELL(w) = POP(););              // n w --
     CODE(",",     DU n = POP(); add_du(n));
     CODE("allot", for (IU n = POP(), i = 0; i < n; i++) add_du(DU0)); // n --
-    CODE("+!",    IU w = POP(); CELL(w) += POP());               // n w --
-    CODE("?",     IU w = POP(); fout << CELL(w) << " ");         // w --
+    CODE("+!",    IU w = POP(); CELL(w) += POP());              // n w --
+    CODE("?",     IU w = POP(); fout << CELL(w) << " ");        // w --
     /// @}
     /// @defgroup Debug ops
     /// @{
@@ -624,7 +620,6 @@ void dict_compile() {  ///< compile primitive words into dictionary
          if (IS_UDF(w)) see(dict[w].pfa);
          else fout << " ( primitive ) ;" << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
-    CODE("mstat", mem_stat());
     CODE("dict",  dict_dump());
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
     CODE("poke",  DU a = POP(); POKE(a, POP()));
@@ -636,11 +631,19 @@ void dict_compile() {  ///< compile primitive words into dictionary
              pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
          }
          else { dict.clear(b); pmem.clear(); }
-    );    
+    );
+	/// @}
+    /// @defgroup OS ops
+    /// @{
+    CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
     CODE("delay", delay(POP()));
-    /// @}
+    CODE("include",                         // include external file
+         IU len = POP();                    // string length, not used
+         U8 *fn = MEM(POP());               // file name
+         forth_include((const char*)fn));   // include file
     CODE("bye",   exit(0));
+    /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear());
 }
 ///====================================================================

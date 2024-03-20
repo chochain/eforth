@@ -249,5 +249,5 @@ Universal functor (no STL) and Code class
   > To support cross-platform, i.g. WIN32, Arduino/ESP, Linux, and WASM, there were many conditional compilation branches which make the code really messy.
   + Separate cross-platform and configuation into ~/src/config.h
   + Separate platform specific code into ~/platform/*.cpp
-  + Use ffff as word exit, instead of 0000, to preserve XT0 offset and helps debugging
+  + add include opcode for Forth script loading
 
