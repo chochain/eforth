@@ -217,13 +217,13 @@ void CALL(IU w) {
 ///   * if it takes too much memory for target MCU,
 ///   * these functions can be replaced with our own implementation
 ///
-#include <iomanip>                  /// setbase, setw, setfill
-#include <sstream>                  /// iostream, stringstream
-using namespace std;                /// default to C++ standard template library
-istringstream   fin;                ///< forth_in
-ostringstream   fout;               ///< forth_out
-string          strbuf;             ///< input string buffer
-void (*fout_cb)(int, const char*);  ///< forth output callback function (see ENDL macro)
+#include <iomanip>                     /// setbase, setw, setfill
+#include <sstream>                     /// iostream, stringstream
+using namespace std;                   /// default to C++ standard template library
+istringstream fin;                     ///< forth_in
+ostringstream fout;                    ///< forth_out
+string        pad;                     ///< input string buffer
+void (*fout_cb)(int, const char*);     ///< forth output callback function (see ENDL macro)
 ///====================================================================
 ///
 /// macros to reduce verbosity
@@ -237,10 +237,10 @@ int def_word(const char* name) {                ///< display if redefined
     return 1;                                   /// * created OK
 }
 char *next_idiom() {                            ///< get next idiom
-    if (!(fin >> strbuf)) strbuf.clear();       /// * input buffer exhausted?
-    return (char*)strbuf.c_str();
+    if (!(fin >> pad)) pad.clear();             /// * input buffer exhausted?
+    return (char*)pad.c_str();
 }
-inline char *scan(char c) { getline(fin, strbuf, c); return (char*)strbuf.c_str(); }
+inline char *scan(char c) { getline(fin, pad, c); return (char*)pad.c_str(); }
 inline void PUSH(DU v) { ss.push(top); top = v; }
 inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 ///====================================================================
@@ -364,7 +364,7 @@ void ss_dump() {
     fout << top << "> ok" << ENDL;
 }
 void mem_dump(IU p0, DU sz) {
-    fout << setbase(16) << setfill('0') << ENDL;
+    fout << setbase(16) << setfill('0');
     for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
         fout << setw(4) << i << ": ";
         for (int j=0; j<16; j++) {
@@ -400,10 +400,7 @@ void dict_dump() {
 }
 ///====================================================================
 ///
-///> ForthVM - front-end proxy class
-///
-///
-///> eForth dictionary initializer
+///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
@@ -522,6 +519,10 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("emit",    char b = (char)POP(); fout << b);
     CODE("space",   spaces(1));
     CODE("spaces",  spaces(POP()));
+    CODE("include",                         // include external file
+         IU len = POP();                    // string length, not used
+         U8 *fn = MEM(POP());               // file name
+         forth_include((const char*)fn));   // include file
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -644,7 +645,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
 }
 ///====================================================================
 ///
-///> ForthVM Outer interpreter
+///> ForthVM - Outer interpreter
 ///
 DU parse_number(const char *idiom, int *err) {
     int b = base;
@@ -692,8 +693,24 @@ int forth_core(const char *idiom) {
     else PUSH(n);                        ///> or, add value onto data stack
     return 0;
 }
+///====================================================================
 ///
-/// platform specific code
+/// Forth VM external command processor
+///
+void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
+    fin.clear();               ///> clear input stream error bit if any
+    fin.str(cmd);              ///> feed user command into input stream
+    fout_cb = callback;        ///> setup callback function
+    fout.str("");              ///> clean output buffer, ready for next run
+    while (fin >> pad) {       ///> outer interpreter loop
+        const char *idiom = pad.c_str();
+        forth_core(idiom);     ///> single command to Forth core
+    }
+    if (!compile) ss_dump();   /// * dump stack and display ok prompt
+}
+///====================================================================
+///
+/// eForth platform specific code
 ///
 #if    DO_WASM
 #include "../platform/wasm.cpp"
