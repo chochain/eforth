@@ -126,4 +126,7 @@ struct Code {
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
 
+extern void forth_include(const char *fn);
+extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
+
 #endif // __EFORTH_SRC_CEFORTH_H
