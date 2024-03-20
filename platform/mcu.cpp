@@ -37,8 +37,8 @@ void colon(string &s) { colon(s.c_str()); }
 ///> eForth turn-key code loader (from Flash memory)
 ///
 #include <SPIFFS.h>
-int forth_load(const char *fname) {
-    auto dummy = [](int, const char *) { /* do nothing */ };
+int forth_include(const char *fname) {
+    auto dumb = [](int, const char *) { /* silent output */ };
     if (!SPIFFS.begin()) {
         LOGS("Error mounting SPIFFS"); return 1;
     }
@@ -52,7 +52,7 @@ int forth_load(const char *fname) {
         while ((c = file.read())!='\n') *p++ = c;   // one line a time
         *p = '\0';
         LOGS("\n<< "); LOG(cmd);                    // show bootstrap command
-        forth_outer(cmd, dummy);
+        forth_vm(cmd, dumb);
     }
     LOGS("Done loading.\n");
     file.close();

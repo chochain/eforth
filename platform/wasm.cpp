@@ -18,6 +18,8 @@ void mem_stat() {
     LOG_KX("\n  here: 0x", HERE);     LOG_KX("/0x", E4_PMEM_SZ);
     LOG_KX(" (free 0x",    E4_PMEM_SZ - HERE); LOGS(")\n");
 }
+
+void forth_include(const char *fn) { /* do nothing */ }
 ///====================================================================
 ///
 /// main program
