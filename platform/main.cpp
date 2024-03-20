@@ -2,7 +2,8 @@
 /// @file
 /// @brief eForth main program for testing on Desktop PC (Linux and Cygwin)
 ///
-#include <iostream>                            // cin, cout
+#include <iostream>      // cin, cout
+#include <fstream>       // ifstream
 
 const char* APP_VERSION = "eForth v8.6";
 ///====================================================================
