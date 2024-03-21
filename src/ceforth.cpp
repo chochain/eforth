@@ -502,7 +502,6 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("case!",   ucase = POP() == DU0);          // case insensitive
     CODE("base@",   PUSH(base));
     CODE("base!",   fout << setbase(base = POP()));
-    CODE("binary",  fout << setbase(base = 2));
     CODE("decimal", fout << setbase(base = 10));
     CODE("hex",     fout << setbase(base = 16));
     CODE("bl",      fout << " ");
@@ -638,7 +637,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
     CODE("delay", delay(POP()));
-    CODE("include",                         // include external file
+    CODE("included",                        // include external file
          IU len = POP();                    // string length, not used
          U8 *fn = MEM(POP());               // file name
          forth_include((const char*)fn));   // include file
