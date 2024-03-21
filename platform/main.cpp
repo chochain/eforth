@@ -5,7 +5,7 @@
 #include <iostream>      // cin, cout
 #include <fstream>       // ifstream
 
-const char* APP_VERSION = "eForth v8.6";
+const char* APP_VERSION = "eForth v2.2";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging

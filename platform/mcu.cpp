@@ -2,7 +2,7 @@
 /// @file
 /// @brief eForth implemented for micro controllers (Aruino & ESP)
 ///
-const char *APP_VERSION = "eForth v8.6";
+const char *APP_VERSION = "eForth v4.2";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
