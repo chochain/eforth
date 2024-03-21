@@ -94,9 +94,9 @@ typedef enum {
 ///
 DU   top     = -1;      ///< top of stack (cached)
 IU   IP      = 0;       ///< current instruction pointer
-int  base    = 10;      ///< numeric radix
 bool compile = false;   ///< compiler flag
-bool ucase   = false;   ///< caseless string compare
+bool ucase   = false;   ///< case sensitivity control
+DU   *base;             ///< numeric radix (a pointer)
 ///
 ///====================================================================
 ///
@@ -220,9 +220,9 @@ void CALL(IU w) {
 #include <iomanip>                     /// setbase, setw, setfill
 #include <sstream>                     /// iostream, stringstream
 using namespace std;                   /// default to C++ standard template library
-istringstream fin;                     ///< forth_in
-ostringstream fout;                    ///< forth_out
-string        pad;                     ///< input string buffer
+istringstream   fin;                   ///< forth_in
+ostringstream   fout;                  ///< forth_out
+string          pad;                   ///< input string buffer
 void (*fout_cb)(int, const char*);     ///< forth output callback function (see ENDL macro)
 ///====================================================================
 ///
@@ -356,7 +356,7 @@ void words() {
             yield();
         }
     }
-    fout << setbase(base) << ENDL;
+    fout << setbase(*base) << ENDL;
 }
 void ss_dump() {
     fout << " <";
@@ -378,7 +378,7 @@ void mem_dump(IU p0, DU sz) {
         fout << ENDL;
         yield();
     }
-    fout << setbase(base);
+    fout << setbase(*base);
 }
 ///====================================================================
 ///
@@ -396,7 +396,7 @@ void dict_dump() {
              << ", name=" << setw(8) << (UFP)c.name
              << " "       << c.name << ENDL;
     }
-    fout << setw(-1) << setbase(base);
+    fout << setw(-1) << setbase(*base);
 }
 ///====================================================================
 ///
@@ -406,6 +406,8 @@ void dict_dump() {
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 
 void dict_compile() {  ///< compile primitive words into dictionary
+	base = (int*)MEM(pmem.idx);                         ///< set pointer to base
+	add_du(10);                                         ///< default radix=10
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
@@ -500,10 +502,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgroup IO ops
     /// @{
     CODE("case!",   ucase = POP() == DU0);          // case insensitive
-    CODE("base@",   PUSH(base));
-    CODE("base!",   fout << setbase(base = POP()));
-    CODE("decimal", fout << setbase(base = 10));
-    CODE("hex",     fout << setbase(base = 16));
+    CODE("base",    PUSH(((U8*)base - MEM0)));
+    CODE("decimal", fout << setbase(*base = 10));
+    CODE("hex",     fout << setbase(*base = 16));
     CODE("bl",      fout << " ");
     CODE("cr",      fout << ENDL);
     CODE(".",       fout << POP() << " ");
@@ -631,7 +632,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
          }
          else { dict.clear(b); pmem.clear(); }
     );
-	/// @}
+    /// @}
     /// @defgroup OS ops
     /// @{
     CODE("mstat", mem_stat());
@@ -650,7 +651,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
 ///> ForthVM - Outer interpreter
 ///
 DU parse_number(const char *idiom, int *err) {
-    int b = base;
+    int b = *base;
     switch (*idiom) {                        ///> base override
     case '%': b = 2;  idiom++; break;
     case '&':
