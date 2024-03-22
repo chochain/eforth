@@ -182,9 +182,8 @@ void nest() {
                 IP = ix & ~UDF_FLAG;   ///> word pfa (def masked)
                 dp++;                  ///> go one level deeper
             }
-#if !(ARDUINO || ESP32)
-            else if (ix == _NXT) {     ///> cached DONEXT, DOLIT handlers (10% faster on AMD)
-                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> but slows down 5% on ESP32
+            else if (ix == _NXT) {     ///> cached DONEXT, DOLIT handlers,
+                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> 10% faster on AMD, 5% on ESP32
                 else { IP += sizeof(IU); rs.pop(); }        ///> perhaps due to shallow pipeline
             }
             else if (ix == _LIT) {
@@ -192,7 +191,6 @@ void nest() {
                 top = *(DU*)MEM(IP);   ///> from hot cache, hopefully
                 IP += sizeof(DU);
             }
-#endif // !(ARDUINO || ESP32)
             else Code::exec(ix);       ///> execute primitive word
 
             ix = *(IU*)MEM(IP);        ///> fetch next opcode
@@ -700,6 +698,13 @@ int forth_core(const char *idiom) {
 ///
 /// Forth VM external command processor
 ///
+void forth_init() {
+    static bool init = false;
+    if (!init) {               ///> check dictionary initilized
+        dict_compile();        ///> compile dictionary
+        mem_stat();            ///> display memory statistics
+    }
+}
 void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
     fin.clear();               ///> clear input stream error bit if any
     fin.str(cmd);              ///> feed user command into input stream
