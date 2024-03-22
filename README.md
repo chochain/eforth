@@ -217,7 +217,8 @@ Universal functor (no STL) and Code class
 <pre>
 + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
 + 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
-+  839ms: subroutine indirect threading
++  990ms: src/ceforth, subroutine indirect threading, with 16-bit offset
++  930ms: src/ceforth, inner interpreter with cached xt offsets
 </pre>
 
 ### To Compile on Linux and Cygwin
