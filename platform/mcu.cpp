@@ -1,6 +1,13 @@
 ///
 /// @file
-/// @brief eForth implemented for micro controllers (Aruino & ESP)
+/// @brief eForth implemented for ESP32
+/// @note
+///    benchmark: 1K*1K test case
+///    1440ms Dr. Ting's orig/esp32forth_82
+///    1240ms ~/Download/forth/esp32/esp32forth8_exp9
+///    1045ms orig/esp32forth8_1
+///     999ms src/ceforth subroutine indirect threading, with 16-bit offset
+///     940ms src/ceforth use cached xt offsets in nest()
 ///
 const char *APP_VERSION = "eForth v4.2";
 ///====================================================================
@@ -26,13 +33,13 @@ void mem_stat()  {
         abort();                 // bail, on any memory error
     }
 }
+/// Arduino extra string handlers
+int  find(string &s)  { return find(s.c_str()); }
+void colon(string &s) { colon(s.c_str()); }
 ///====================================================================
 ///
 ///> Arduino/ESP32 SPIFFS interfaces
 ///
-/// Arduino extra string handlers
-int  find(string &s)  { return find(s.c_str()); }
-void colon(string &s) { colon(s.c_str()); }
 ///
 ///> eForth turn-key code loader (from Flash memory)
 ///
@@ -59,7 +66,5 @@ int forth_include(const char *fname) {
     SPIFFS.end();
     return 0;
 }
-///
-/// main program - Note: Arduino&ESP32 has their own main-loop
-///
-///====================================================================
+
+
