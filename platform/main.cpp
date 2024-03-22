@@ -24,7 +24,7 @@ void mem_stat() {
 ///
 ///> include external Forth script
 ///
-void forth_include(const char *fn) {
+int forth_include(const char *fn) {
     auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string   cmd;
     ifstream ifile(fn);                 ///> open input stream
@@ -32,15 +32,15 @@ void forth_include(const char *fn) {
         forth_vm(cmd.c_str(), send_to_con);
     }
     ifile.close();
+    return 0;
 }
 ///====================================================================
 ///
 /// main program - Note: Arduino and ESP32 is have their own main-loop
 ///
 int main(int ac, char* av[]) {
-    dict_compile();                            ///> initialize dictionary
-    mem_stat();
-
+    forth_init();    ///> initialize dictionary
+    
     auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
     while (getline(cin, cmd)) {                ///> fetch user input
