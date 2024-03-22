@@ -65,7 +65,7 @@ typedef uint16_t        IU;    ///< instruction pointer unit
     #define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
 #endif // _WIN32 || _WIN64
 
-#if    ARDUINO
+#if (ARDUINO || ESP32)
     #include <Arduino.h>
     #define to_string(i)    string(String(i).c_str())
     #if    ESP32
@@ -78,7 +78,7 @@ typedef uint16_t        IU;    ///< instruction pointer unit
     #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
     #define yield()         /* JS is async */
 
-#else  // !ARDUINO && !DO_WASM
+#else  // !(ARDUINO || ESP32) && !DO_WASM
     #include <chrono>
     #include <thread>
     #define millis()        chrono::duration_cast<chrono::milliseconds>( \
@@ -87,19 +87,19 @@ typedef uint16_t        IU;    ///< instruction pointer unit
     #define yield()         this_thread::yield()
     #define PROGMEM
 
-#endif // ARDUINO && DO_WASM
+#endif // (ARDUINO || ESP32)
 ///@}
 ///@name Logging support
 ///@{
-#if ARDUINO
+#if (ARDUINO || ESP32)
     #define LOGS(s)     Serial.print(F(s))
     #define LOG(v)      Serial.print(v)
     #define LOGX(v)     Serial.print(v, HEX)
-#else  // !ARDUINO
+#else  // !(ARDUINO || ESP32)
     #define LOGS(s)     printf("%s", s)
     #define LOG(v)      printf("%-d", (int32_t)(v))
     #define LOGX(v)     printf("%-x", (uint32_t)(v))
-#endif // ARDUINO
+#endif // (ARDUINO || ESP32)
     
 #define LOG_NA()        LOGS("N/A\n")
 #define LOG_KV(k, v)    LOGS(k); LOG(v)
