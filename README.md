@@ -19,10 +19,40 @@ Most classic Forth systems are build with a few low-level primitives in assembly
 
 Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
-In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
+In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceforth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
+
+### How To Compile/Build/Run
+#### Executable on Linux and Cygwin
+<pre>
+> git clone https://github.com/chochain/eforth to your local machine
+> cd eforth
+> Make
+> ./tests/eforth
+</pre>
+
+#### WASM on Linux
+<pre>
+> git clone https://github.com/chochain/eforth to your local machine
+> cd eforth
+> Make wasm
+> python3 -m http.server
+> http://localhost:80/tests/eforth.html
+</pre>
+
+#### For ESP32
+<pre>
+> git clone https://github.com/chochain/eforth to your local machine
+> cd eforth
+> make sure your Arduino IDE have ESP32 libraries installed
+> open eforth.ino with Arduino IDE
+> modify WIFI_SSID and WIFI_PASS to point to your router
+> open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
+> compile and load
+> if successful, you should see Web access info in Serial Monitor
+</pre>
 
 ### Evolution - continuation of Dr. Ting's final work
-Source codes kept under ~/orig/ting
+Source codes kept under ~/orig/ting and details [here](https://chochain.github.io/eforth/orig/index.html)
 <pre>
 ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
 ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
@@ -220,38 +250,6 @@ Universal functor (no STL) and Code class
 +  990ms: src/ceforth, subroutine indirect threading, with 16-bit offset
 +  930ms: src/ceforth, inner interpreter with cached xt offsets
 </pre>
-
-### To build on Linux and Cygwin
-<pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
-> Make
-> ./tests/eforth
-</pre>
-
-### To build WASM on Linux
-<pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
-> Make wasm
-> python3 -m http.server
-> http://localhost:80/tests/eforth.html
-</pre>
-
-### To build for ESP32
-<pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
-> make sure your Arduino IDE have ESP32 libraries installed
-> open eforth.ino with Arduino IDE
-> modify WIFI_SSID and WIFI_PASS to point to your router
-> open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
-> compile and load
-> if successful, you should see Web access info in Serial Monitor
-</pre>
-
-### To Run on Linux
-> ./tests/eforth
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011
