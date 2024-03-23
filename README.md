@@ -222,19 +222,24 @@ Universal functor (no STL) and Code class
 </pre>
 
 ### To build on Linux and Cygwin
+<pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
 > Make
 > ./tests/eforth
+</pre>
 
 ### To build WASM on Linux
+<pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
 > Make wasm
 > python3 -m http.server
 > http://localhost:80/tests/eforth.html
+</pre>
 
 ### To build for ESP32
+<pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
 > make sure your Arduino IDE have ESP32 libraries installed
@@ -243,6 +248,7 @@ Universal functor (no STL) and Code class
 > open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
 > compile and load
 > if successful, you should see Web access info in Serial Monitor
+</pre>
 
 ### To Run on Linux
 > ./tests/eforth
