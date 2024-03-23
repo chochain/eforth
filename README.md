@@ -26,7 +26,7 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 <pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
-> Make
+> make
 > ./tests/eforth
 </pre>
 
@@ -34,7 +34,7 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 <pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
-> Make wasm
+> make wasm
 > python3 -m http.server
 > http://localhost:80/tests/eforth.html
 </pre>
@@ -43,12 +43,13 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 <pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
-> make sure your Arduino IDE have ESP32 libraries installed
+> ensure your Arduino IDE have ESP32 libraries installed
 > open eforth.ino with Arduino IDE
-> modify WIFI_SSID and WIFI_PASS to point to your router
+> inside eforth.ino, modify WIFI_SSID and WIFI_PASS to point to your router
 > open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
 > compile and load
-> if successful, you should see Web access info in Serial Monitor
+> if successful, web server IP address/port and eForth prompt shown in Serial Monitor
+> from your browser, enter the IP address to access the ESP32 web server
 </pre>
 
 ### Evolution - continuation of Dr. Ting's final work
