@@ -13,7 +13,9 @@
   + eforth     - main
 
 ### 802 - the original source for esp32forth_82
-  + originated from Dr. Ting's esp32forth_63.ino
+  + originated from Dr. Ting's esp32forth_63.ino (see esp32 below)
   + 20210827 - first proposed to Dr. Ting. 
   + 20210831 - I combined them into one file and presented to Dr. Ting as esp32forth_82.ino
 
+### esp32 - the original source for esp32forth
+  + see esp32/README
