@@ -18,7 +18,7 @@ Content-type:text/html
     <div id='log' style='float:left;overflow:auto;height:600px;width:600px;
          background-color:#f8f0f0;'>eForth 4.2</div>
     <textarea id='tib' style='height:600px;width:400px;'
-        onkeydown='if (13===event.keyCode) forth()'>words</textarea>
+        onkeydown='if (13===event.keyCode) forth()'></textarea>
 </body>
 <script>
 let log = document.getElementById('log')
@@ -45,7 +45,7 @@ function forth() {
     send_post('/input', ary)
     tib.value = ''
 }
-window.onload = ()=>{ tib.focus() }
+window.onload = ()=>tib.focus()
 </script></html>
 
 )XX";
