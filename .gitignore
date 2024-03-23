@@ -52,3 +52,4 @@ Thumbs.db
 /.settings
 .project
 .cproject
+/docs/latex
