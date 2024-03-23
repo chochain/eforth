@@ -221,8 +221,28 @@ Universal functor (no STL) and Code class
 +  930ms: src/ceforth, inner interpreter with cached xt offsets
 </pre>
 
-### To Compile on Linux and Cygwin
-> g++ -O3 -Isrc -o tests/eforth src/ceforth.cpp
+### To build on Linux and Cygwin
+> git clone https://github.com/chochain/eforth to your local machine
+> cd eforth
+> Make
+> ./tests/eforth
+
+### To build WASM on Linux
+> git clone https://github.com/chochain/eforth to your local machine
+> cd eforth
+> Make wasm
+> python3 -m http.server
+> http://localhost:80/tests/eforth.html
+
+### To build for ESP32
+> git clone https://github.com/chochain/eforth to your local machine
+> cd eforth
+> make sure your Arduino IDE have ESP32 libraries installed
+> open eforth.ino with Arduino IDE
+> modify WIFI_SSID and WIFI_PASS to point to your router
+> open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
+> compile and load
+> if successful, you should see Web access info in Serial Monitor
 
 ### To Run on Linux
 > ./tests/eforth
