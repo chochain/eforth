@@ -1,11 +1,11 @@
 EM = em++
 CC = g++
 
-all: src/ceforth.cpp
-	$(CC) -Isrc -o tests/eforth src/ceforth.cpp -O3
+all: tests/eforth
+	$(CC) -Isrc -o $@ src/ceforth.cpp -O3
 
-wasm: src/ceforth.cpp
-	$(EM) -Isrc -o tests/eforth.js src/ceforth.cpp -O3
+wasm: tests/eforth.js
+	$(EM) -Isrc -o $@ src/ceforth.cpp -sEXPORTED_FUNCTIONS=_main,_forth -sEXPORTED_RUNTIME_METHODS=cwrap -O3
 	cp tests/eforth.* ../weforth/tests
 
 
