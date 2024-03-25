@@ -333,14 +333,13 @@ void outer() {
                 cout << idiom << "? " << endl;
                 ss.clear(); top = -1; compile = false;
                 getline(cin, idiom, '\n'); }}           /// * skip the entire line
-    	if (cin.peek()=='\n' && !compile) ss_dump(); }} /// * dump stack and display ok prompt
-void dict_setup() {
-    dict.merge(prim);                                   /// * populate dictionary
-    prim.clear(); }                                     /// * reduce memory footprint
-/// main program
+    	if (cin.peek()=='\n' && !compile) ss_dump();    /// * dump stack and display ok prompt
+    }
+}
 int main(int ac, char* av[]) {
-    dict_setup();
+    dict.merge(prim);  prim.clear();                    /// * build dict
     cout << "ceforth 4.03" << endl;
     outer();
     cout << "done!" << endl;
-    return 0; }
+    return 0;
+}
