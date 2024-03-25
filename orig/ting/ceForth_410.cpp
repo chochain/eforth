@@ -2,7 +2,7 @@
 #include <iomanip>          // setbase
 #include <vector>           // vector
 #include <chrono>
-    #define millis()        chrono::duration_cast<chrono::milliseconds>( \
+#define millis()        chrono::duration_cast<chrono::milliseconds>( \
                             chrono::steady_clock::now().time_since_epoch()).count()
 using namespace std;
 
@@ -58,18 +58,18 @@ struct Code {
     Code   *immediate()  { immd = true;  return this; } ///> set immediate flag
     Code   *add(Code *w) { pf.push(w); return this; }   ///> append colon word
     string to_s() { return name + " " + to_string(token) + (immd ? "*" : ""); }
-    void   exec() {                      ///> execute word
-        if (xt) { xt(this); return; }    /// * execute primitive word
-        rs.push(WP); rs.push(IP);        /// * execute colon word
-        WP = token; IP = 0;              /// * setup dolist call frame
-        for (Code *w : pf) {             /// * inner interpreter
-            try { w->exec(); IP++; }     /// * pass Code object to xt
+    void   exec() {                       ///> execute word
+        if (xt) { xt(this); return; }     /// * execute primitive word
+        rs.push(WP); rs.push(IP);         /// * execute colon word
+        WP = token; IP = 0;               /// * setup dolist call frame
+        for (Code *w : pf) {              /// * inner interpreter
+            try { w->exec(); IP++; }      /// * pass Code object to xt
             catch (...) {}
         }
-        IP = rs.pop(); WP = rs.pop();    /// * return to caller
+        IP = rs.pop(); WP = rs.pop();     /// * return to caller
     }
 };
-int Code::fence = 0;                     ///< initialize static var
+int Code::fence = 0;                      ///< initialize static var
 ///
 /// IO functions
 ///
@@ -81,7 +81,7 @@ void dot_r(int n, string s) {
 	cout << s;
 }
 void ss_dump() {
-    cout << "< "; for (int i : ss) { cout << i << " "; }
+    cout << "< "; for (int i : ss) cout << i << " ";
     cout << top << " >ok" << endl;
 }
 void see(Code *c, int dp) {
@@ -168,7 +168,7 @@ ForthList<Code*> dict = {
     CODE("$\"",
          string s = next_idiom('"').substr(1);
          dict[-1]->add(new Code("dovar", s))),
-    IMMD(".\"",
+    CODE(".\"",
          string s = next_idiom('"').substr(1);
          dict[-1]->add(new Code("dotstr", s))),
     IMMD("(", next_idiom(')')),
@@ -249,7 +249,11 @@ ForthList<Code*> dict = {
     // compiler ops
     CODE("exec", int n = top; dict[n]->exec()),
     CODE(":",
-         dict.push(new Code(next_idiom(), true));    // create new word
+		 string s = next_idiom();
+		 Code   *w = new Code(s, true);
+		 cout << " == " << s << endl;
+//         dict.push(new Code(next_idiom(), true));    // create new word
+//		 dict.push(w);
          compile = true),
     IMMD(";", compile = false),
     CODE("variable",
@@ -312,12 +316,17 @@ Code *find(string s) {        /// search dictionary from last to first
 void words() {
     const int WIDTH = 60;
     int i = 0, x = 0;
-    cout << setbase(16);
+    cout << setbase(16) << setfill('0');
     for (Code *w : dict) {
-        cout << setfill('0') << setw(8) << (uintptr_t)w->xt
+#if 0		
+        cout << setw(4) << w->token << "> "
+			 << setw(8) << (uintptr_t)w->xt
              << ":" << (w->immd ? '*' : ' ')
              << w->name << "  " << endl;
-//        x += (w->name.size() + 2);
+#else
+		cout << w->name << "  ";
+        x += (w->name.size() + 2);
+#endif 		
         if (x > WIDTH) { cout << endl; x = 0; }
     }
     cout << setbase(base) << endl;
@@ -326,28 +335,28 @@ void words() {
 int main(int ac, char* av[]) {
     cout << "ceForth v4.1" << endl;
     string idiom;
-    while (cin >> idiom) {               /// outer interpreter
-        Code *w = find(idiom);           /// * search through dictionary
-        if (w) {                         /// * word found?
-            if (compile && !w->immd) dict[-1]->add(w);  /// * add to colon word
-            else {
-                try { w->exec(); }       /// * execute forth word
-                catch (exception& e) { cout << e.what() << endl; }
-            }
-            continue;
-        }
-        try {                                   /// * try as numeric
-            int n = stoi(idiom, nullptr, base); /// * convert to integer
-            if (compile) dict[-1]->add(new Code("dolit", n)); /// * add to current word
-            else PUSH(n);                 /// * add value to data stack
-        }                         
-        catch (...) {                     /// * failed to parse number
-            cout << idiom << "? " << endl;
-            ss.clear(); top = -1; compile = false;
-            getline(cin, idiom, '\n');
-        }
+    while (cin >> idiom) {                /// outer interpreter
+		try {
+			Code *w = find(idiom);        /// * search through dictionary
+			if (w) {                      /// * word found?
+				if (compile && !w->immd)
+					dict[-1]->add(w);     /// * add to colon word
+				else w->exec();           /// * execute forth word
+			}
+			else {
+				int n = stoi(idiom, nullptr, base);      /// * convert to integer
+				if (compile)
+					dict[-1]->add(new Code("dolit", n)); /// * add to current word
+				else PUSH(n);                            /// * add value to data stack
+			}
+		}
+		catch (...) {                     /// * failed to parse number
+			cout << idiom << "? " << endl;
+			compile = false;
+			getline(cin, idiom, '\n');
+		}
         if (cin.peek()=='\n' && !compile) ss_dump(); /// * dump stack and display ok prompt
-    }           /// * skip the entire line
+    }
     cout << "Done!" << endl;
     return 0;
 }
