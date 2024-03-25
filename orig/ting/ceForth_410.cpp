@@ -1,8 +1,11 @@
 #include <iostream>         // cin, cout
 #include <iomanip>          // setbase
 #include <vector>           // vector
-
+#include <chrono>
+    #define millis()        chrono::duration_cast<chrono::milliseconds>( \
+                            chrono::steady_clock::now().time_since_epoch()).count()
 using namespace std;
+
 template<typename T>
 struct ForthList : public vector<T> {     ///< our super-vector class
     ForthList()                        : vector<T>()    {}
@@ -46,21 +49,21 @@ struct Code {
     Code(string n, fop fn, bool im=false) /// primitive
         : name(n), xt(fn), immd(im), token(fence++) {}
     Code(string n, bool f=false) {        /// new colon word or temp
-        Code* c = find(name=n);
+        Code *c = find(name=n);
         if (c) xt = c->xt;
         if (f) token = fence++;
     }
     Code(string n, int d) :  name(n), xt(find(n)->xt) { q.push(d); } /// dolit
-    Code(string n, string l) : name(n), xt(find(n)->xt), lit(l) {}    /// dostr
-    Code*  immediate()  { immd = true;  return this; } ///> set immediate flag
-    Code*  add(Code* w) { pf.push(w); return this; }   ///> append colon word
+    Code(string n, string l) : name(n), xt(find(n)->xt), lit(l) {}   /// dostr
+    Code   *immediate()  { immd = true;  return this; } ///> set immediate flag
+    Code   *add(Code *w) { pf.push(w); return this; }   ///> append colon word
     string to_s() { return name + " " + to_string(token) + (immd ? "*" : ""); }
     void   exec() {                      ///> execute word
         if (xt) { xt(this); return; }    /// * execute primitive word
         rs.push(WP); rs.push(IP);        /// * execute colon word
         WP = token; IP = 0;              /// * setup dolist call frame
-        for (Code* c : pf) {             /// * inner interpreter
-            try { c->exec(); IP++; }     /// * pass Code object to xt
+        for (Code *w : pf) {             /// * inner interpreter
+            try { w->exec(); IP++; }     /// * pass Code object to xt
             catch (...) {}
         }
         IP = rs.pop(); WP = rs.pop();    /// * return to caller
@@ -81,10 +84,10 @@ void ss_dump() {
     cout << "< "; for (int i : ss) { cout << i << " "; }
     cout << top << " >ok" << endl;
 }
-void see(Code* c, int dp) {
+void see(Code *c, int dp) {
     auto pp = [](int dp, string s, vector<Code*> v) {   // lambda for indentation and recursive dump
         int i = dp; cout << endl; while (i--) cout << "  "; cout << s;
-        for (Code* w : v) see(w, dp + 1);
+        for (Code *w : v) see(w, dp + 1);
     };
     auto pq = [](vector<int> v) { cout << "="; for (int i : v) cout << i << " "; };
     pp(dp, "[ " + c->name, c->pf);
@@ -105,23 +108,19 @@ ForthList<Code*> dict = {
     // stack op
     CODE("dup",  PUSH(top)),
     CODE("over", PUSH(ss[-2])),
-    CODE("2dup", PUSH(ss[-2]); PUSH(ss[-2])),
-    CODE("2over",PUSH(ss[-4]); PUSH(ss[-4])),
-    CODE("4dup", PUSH(ss[-4]); PUSH(ss[-4]); PUSH(ss[-4]); PUSH(ss[-4])),
     CODE("swap", int n = ss.pop(); PUSH(n)),
     CODE("rot",  int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
     CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(n);  PUSH(m)),
-    CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
     CODE("pick", int i = top; top = ss[-i]),
-    //    CODE("roll", int i=top; top=ss[-i]),
     CODE("drop", top=ss.pop()),
     CODE("nip",  ss.pop()),
+    CODE("2dup", PUSH(ss[-2]); PUSH(ss[-2])),
+    CODE("2over",PUSH(ss[-4]); PUSH(ss[-4])),
+    CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
     CODE("2drop",ss.pop(); top=ss.pop()),
     CODE(">r",   rs.push(POP())),
     CODE("r>",   PUSH(rs.pop())),
     CODE("r@",   PUSH(rs[-1])),
-    CODE("push", rs.push(POP())),
-    CODE("pop",  PUSH(rs.pop())),
     // ALU ops
     CODE("+",    top += ss.pop()),       // note: ss.pop() is different from POP()
     CODE("-",    top =  ss.pop() - top),
@@ -147,7 +146,7 @@ ForthList<Code*> dict = {
     CODE("<>",   top = (ss.pop() != top) ? -1 : 0),
     CODE(">=",   top = (ss.pop() >= top) ? -1 : 0),
     CODE("<=",   top = (ss.pop() <= top) ? -1 : 0),
-    // output
+    // IO ops
     CODE("base@",  PUSH(base)),
     CODE("base!",  cout << setbase(base = POP())),
     CODE("hex",    cout << setbase(base = 16)),
@@ -175,13 +174,13 @@ ForthList<Code*> dict = {
     IMMD("(", next_idiom(')')),
     IMMD(".(", cout << next_idiom(')')),
     CODE("\\", cout << next_idiom('\n')),
-    // branching - if...then, if...else...then
+    // branching ops - if...then, if...else...then
     IMMD("branch",
          bool f = POP() != 0;                        // check flag
-         for (Code* w : (f ? c->pf : c->p1)) w->exec()),
+         for (Code *w : (f ? c->pf : c->p1)) w->exec()),
     IMMD("if",
          dict[-1]->add(new Code("branch"));
-         dict.push(new Code("temp"))),               // use last cell of dictionay as scratch pad
+         dict.push(new Code("tmp"))),                // use last cell of dictionay as scratch pad
     IMMD("else",
          Code *tmp = dict[-1]; Code *last = dict[-2]->pf[-1];
          last->pf.merge(tmp->pf);
@@ -198,15 +197,15 @@ ForthList<Code*> dict = {
              if (last->stage == 1) dict.pop_back();
              else tmp->pf.clear();
          }),
-    // loops - begin...again, begin...f until, begin...f while...repeat
+    // loops ops - begin...again, begin...f until, begin...f while...repeat
     CODE("loops",
          while (true) {
-             for (Code* w : c->pf) w->exec();                     // begin...
+             for (Code *w : c->pf) w->exec();                     // begin...
              int f = top;
              if (c->stage == 0 && (top=ss.pop(), f != 0)) break;  // ...until
              if (c->stage == 1) continue;                         // ...again
              if (c->stage == 2 && (top=ss.pop(), f == 0)) break;  // while...repeat
-             for (Code* w : c->p1) w->exec();
+             for (Code *w : c->p1) w->exec();
          }),
     IMMD("begin",
          dict[-1]->add(new Code("loops"));
@@ -225,14 +224,14 @@ ForthList<Code*> dict = {
     IMMD("until",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop_back()),
-    // loops - for...next, for...aft...then...next
+    // loops ops - for...next, for...aft...then...next
     CODE("cycles",
-         do { for (Code* w : c->pf) w->exec(); }
+         do { for (Code *w : c->pf) w->exec(); }
          while (c->stage==0 && (rs[-1]-=1) >=0);  // for...next only
          while (c->stage > 0) {                   // aft
-             for (Code* w : c->p2) w->exec();     // then...next
+             for (Code *w : c->p2) w->exec();     // then...next
              if ((rs[-1]-=1) < 0) break;
-             for (Code* w : c->p1) w->exec();     // aft...then
+             for (Code *w : c->p1) w->exec();     // aft...then
          }
          rs.pop_back()),
     IMMD("for",
@@ -247,8 +246,7 @@ ForthList<Code*> dict = {
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          if (last->stage == 0) last->pf.merge(tmp->pf);
          else last->p2.merge(tmp->pf); dict.pop_back()),
-    // compiler
-    CODE("exit", exit(0)),                          // exit interpreter
+    // compiler ops
     CODE("exec", int n = top; dict[n]->exec()),
     CODE(":",
          dict.push(new Code(next_idiom(), true));    // create new word
@@ -267,41 +265,40 @@ ForthList<Code*> dict = {
          dict.push(new Code(next_idiom(), true));
          Code *last = dict[-1]->add(new Code("dolit", POP()));
          last->pf[0]->token = last->token),
-    CODE("@", int n=POP(); PUSH(dict[n]->pf[0]->q[0])),              // w -- n
-    CODE("!", int n=POP(); dict[n]->pf[0]->q[0] = POP()),            // n w --
-    CODE("+!",int n=POP(); dict[n]->pf[0]->q[0] += POP()),           // n w --
-    CODE("?", int n=POP(); cout << dict[n]->pf[0]->q[0] << " "),     // w --
+    CODE("@",      int n=POP(); PUSH(dict[n]->pf[0]->q[0])),         // w -- n
+    CODE("!",      int n=POP(); dict[n]->pf[0]->q[0] = POP()),       // n w --
+    CODE("+!",     int n=POP(); dict[n]->pf[0]->q[0] += POP()),      // n w --
+    CODE("?",      int n=POP(); cout << dict[n]->pf[0]->q[0] << " "),// w --
     CODE("array@", int a=POP(); PUSH(dict[POP()]->pf[0]->q[a])),     // w a -- n
     CODE("array!", int a=POP(); dict[POP()]->pf[0]->q[a] = POP()),   // n w a --
-    CODE(",", dict[-1]->pf[0]->q.push(POP())),
+    CODE(",",  dict[-1]->pf[0]->q.push(POP())),
     CODE("allot",                                     // n --
          int n = POP();
          for (int i = 0; i < n; i++) dict[-1]->pf[0]->q.push(0)),
-    CODE("does", dict[-1]->pf.merge(dict[WP]->pf)),
+    CODE("does>", dict[-1]->pf.merge(dict[WP]->pf)),
     CODE("to",                                        // n -- , compile only
-         IP++;                                         // current colon word
+         IP++;                                        // current colon word
          dict[WP]->pf[IP++]->pf[0]->q.push(POP())),   // next constant
     CODE("is",                                        // w -- , execute only
          Code *src = dict[POP()];                     // source word
-         c = find(next_idiom());
-         if (c == NULL) throw length_error(" ");
-         dict[c->token]->pf = src->pf),
-    // tools
+         Code *w   = find(next_idiom());
+         if (w == NULL) throw length_error(" ");
+         dict[w->token]->pf = src->pf),
+    // debugging ops
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
-    CODE("'",     c = find(next_idiom()); PUSH(c->token)),
-    CODE("see",
-         c = find(next_idiom());
-         if (c) see(c, 0); cout << endl),
+    CODE("'",     Code *w = find(next_idiom()); PUSH(w->token)),
+    CODE("see",   Code *w = find(next_idiom()); if (w) see(w, 0); cout << endl),
     CODE("forget",
-         c = find(next_idiom());
-         if (c == NULL) return;
-         int t = max(c->token, find("boot")->token);
+         Code *w = find(next_idiom());
+         if (w == NULL) return;
+         int t = max(w->token, find("boot")->token);
          for (int i=dict.size(); i>t; i--) dict.pop_back()),
     CODE("boot",
          int t = find("boot")->token;
-         for (int i=dict.size(); i>t; i--) dict.pop_back())
+         for (int i=dict.size(); i>t; i--) dict.pop_back()),
+    CODE("exit", exit(0)),                           // exit interpreter
 };
 /// 
 /// main - outer interpreter
@@ -314,16 +311,20 @@ Code *find(string s) {        /// search dictionary from last to first
 }
 void words() {
     const int WIDTH = 60;
-    int i = 0, w = 0;
-    for (Code* c : dict) {
-        cout << c->name << "  ";
-        w += (c->name.size() + 2);
-        if (w > WIDTH) { cout << endl; w = 0; }
+    int i = 0, x = 0;
+    cout << setbase(16);
+    for (Code *w : dict) {
+        cout << setfill('0') << setw(8) << (uintptr_t)w->xt
+             << ":" << (w->immd ? '*' : ' ')
+             << w->name << "  " << endl;
+//        x += (w->name.size() + 2);
+        if (x > WIDTH) { cout << endl; x = 0; }
     }
+    cout << setbase(base) << endl;
 }
 
 int main(int ac, char* av[]) {
-    cout << "ceForth 4.1" << endl;
+    cout << "ceForth v4.1" << endl;
     string idiom;
     while (cin >> idiom) {               /// outer interpreter
         Code *w = find(idiom);           /// * search through dictionary
@@ -333,7 +334,7 @@ int main(int ac, char* av[]) {
                 try { w->exec(); }       /// * execute forth word
                 catch (exception& e) { cout << e.what() << endl; }
             }
-            break;
+            continue;
         }
         try {                                   /// * try as numeric
             int n = stoi(idiom, nullptr, base); /// * convert to integer
