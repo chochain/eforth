@@ -167,106 +167,106 @@ ForthList<Code*> dict = {
     CODE("[", compile = false),
     CODE("]", compile = true),
     CODE("$\"",
-        string s = next_idiom('"').substr(1);
-        dict[-1]->add(new Code("dovar", s))),
+         string s = next_idiom('"').substr(1);
+         dict[-1]->add(new Code("dovar", s))),
     IMMD(".\"",
-        string s = next_idiom('"').substr(1);
-        dict[-1]->add(new Code("dotstr", s))),
+         string s = next_idiom('"').substr(1);
+         dict[-1]->add(new Code("dotstr", s))),
     IMMD("(", next_idiom(')')),
     IMMD(".(", cout << next_idiom(')')),
     CODE("\\", cout << next_idiom('\n')),
     // branching - if...then, if...else...then
     IMMD("branch",
-        bool f = POP() != 0;                        // check flag
-        for (Code* w : (f ? c->pf : c->p1)) w->exec()),
+         bool f = POP() != 0;                        // check flag
+         for (Code* w : (f ? c->pf : c->p1)) w->exec()),
     IMMD("if",
-        dict[-1]->add(new Code("branch"));
-        dict.push(new Code("temp"))),               // use last cell of dictionay as scratch pad
+         dict[-1]->add(new Code("branch"));
+         dict.push(new Code("temp"))),               // use last cell of dictionay as scratch pad
     IMMD("else",
-        Code *tmp = dict[-1]; Code *last = dict[-2]->pf[-1];
-        last->pf.merge(tmp->pf);
-        tmp->pf.clear();
-        last->stage = 1),
+         Code *tmp = dict[-1]; Code *last = dict[-2]->pf[-1];
+         last->pf.merge(tmp->pf);
+         tmp->pf.clear();
+         last->stage = 1),
     IMMD("then",
-        Code *tmp = dict[-1]; Code *last = dict[-2]->pf[-1];
-        if (last->stage == 0) {                     // if...then
-            last->pf.merge(tmp->pf);
-            dict.pop_back();
-        }
-        else {                                      // if...else...then, or
-            last->p1.merge(tmp->pf);           // for...aft...then...next
+         Code *tmp = dict[-1]; Code *last = dict[-2]->pf[-1];
+         if (last->stage == 0) {                     // if...then
+             last->pf.merge(tmp->pf);
+             dict.pop_back();
+         }
+         else {                                      // if...else...then, or
+             last->p1.merge(tmp->pf);                // for...aft...then...next
              if (last->stage == 1) dict.pop_back();
              else tmp->pf.clear();
-        }),
+         }),
     // loops - begin...again, begin...f until, begin...f while...repeat
     CODE("loops",
-        while (true) {
-            for (Code* w : c->pf) w->exec();                   // begin...
-            int f = top;
-            if (c->stage == 0 && (top=ss.pop(), f != 0)) break;  // ...until
-            if (c->stage == 1) continue;                         // ...again
-            if (c->stage == 2 && (top=ss.pop(), f == 0)) break;  // while...repeat
-            for (Code* w : c->p1) w->exec();
-        }),
+         while (true) {
+             for (Code* w : c->pf) w->exec();                     // begin...
+             int f = top;
+             if (c->stage == 0 && (top=ss.pop(), f != 0)) break;  // ...until
+             if (c->stage == 1) continue;                         // ...again
+             if (c->stage == 2 && (top=ss.pop(), f == 0)) break;  // while...repeat
+             for (Code* w : c->p1) w->exec();
+         }),
     IMMD("begin",
-        dict[-1]->add(new Code("loops"));
-        dict.push(new Code("tmp"))),
+         dict[-1]->add(new Code("loops"));
+         dict.push(new Code("tmp"))),
     IMMD("while",
-        Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
-        tmp->pf.clear(); last->stage = 2),
+         tmp->pf.clear(); last->stage = 2),
     IMMD("repeat",
-        Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->p1.merge(tmp->pf); dict.pop_back()),
     IMMD("again",
-        Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
-        last->stage = 1; dict.pop_back()),
+         last->stage = 1; dict.pop_back()),
     IMMD("until",
-        Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop_back()),
     // loops - for...next, for...aft...then...next
     CODE("cycles",
-        do { for (Code* w : c->pf) w->exec(); }
-        while (c->stage==0 && (rs[-1]-=1) >=0);  // for...next only
-        while (c->stage > 0) {                      // aft
-            for (Code* w : c->p2) w->exec();     // then...next
-            if ((rs[-1]-=1) < 0) break;
-            for (Code* w : c->p1) w->exec();     // aft...then
-        }
-        rs.pop_back()),
+         do { for (Code* w : c->pf) w->exec(); }
+         while (c->stage==0 && (rs[-1]-=1) >=0);  // for...next only
+         while (c->stage > 0) {                   // aft
+             for (Code* w : c->p2) w->exec();     // then...next
+             if ((rs[-1]-=1) < 0) break;
+             for (Code* w : c->p1) w->exec();     // aft...then
+         }
+         rs.pop_back()),
     IMMD("for",
-        dict[-1]->add(new Code(">r"));
-        dict[-1]->add(new Code("cycles"));
-        dict.push(new Code("tmp"))),
+         dict[-1]->add(new Code(">r"));
+         dict[-1]->add(new Code("cycles"));
+         dict.push(new Code("tmp"))),
     IMMD("aft",
-        Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
-        tmp->pf.clear(); last->stage = 3),
+         tmp->pf.clear(); last->stage = 3),
     IMMD("next",
-        Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          if (last->stage == 0) last->pf.merge(tmp->pf);
          else last->p2.merge(tmp->pf); dict.pop_back()),
     // compiler
     CODE("exit", exit(0)),                          // exit interpreter
     CODE("exec", int n = top; dict[n]->exec()),
     CODE(":",
-        dict.push(new Code(next_idiom(), true));    // create new word
-        compile = true),
+         dict.push(new Code(next_idiom(), true));    // create new word
+         compile = true),
     IMMD(";", compile = false),
     CODE("variable",
-        dict.push(new Code(next_idiom(), true));
-        Code *last = dict[-1]->add(new Code("dovar", 0));
-        last->pf[0]->token = last->token),
+         dict.push(new Code(next_idiom(), true));
+         Code *last = dict[-1]->add(new Code("dovar", 0));
+         last->pf[0]->token = last->token),
     CODE("create",
-        dict.push(new Code(next_idiom(), true));
-        Code *last = dict[-1]->add(new Code("dovar", 0));
-        last->pf[0]->token = last->token;
-        last->pf[0]->q.pop_back()),
+         dict.push(new Code(next_idiom(), true));
+         Code *last = dict[-1]->add(new Code("dovar", 0));
+         last->pf[0]->token = last->token;
+         last->pf[0]->q.pop_back()),
     CODE("constant",
-        dict.push(new Code(next_idiom(), true));
-        Code *last = dict[-1]->add(new Code("dolit", POP()));
-        last->pf[0]->token = last->token),
+         dict.push(new Code(next_idiom(), true));
+         Code *last = dict[-1]->add(new Code("dolit", POP()));
+         last->pf[0]->token = last->token),
     CODE("@", int n=POP(); PUSH(dict[n]->pf[0]->q[0])),              // w -- n
     CODE("!", int n=POP(); dict[n]->pf[0]->q[0] = POP()),            // n w --
     CODE("+!",int n=POP(); dict[n]->pf[0]->q[0] += POP()),           // n w --
@@ -275,12 +275,12 @@ ForthList<Code*> dict = {
     CODE("array!", int a=POP(); dict[POP()]->pf[0]->q[a] = POP()),   // n w a --
     CODE(",", dict[-1]->pf[0]->q.push(POP())),
     CODE("allot",                                     // n --
-        int n = POP();
-        for (int i = 0; i < n; i++) dict[-1]->pf[0]->q.push(0)),
+         int n = POP();
+         for (int i = 0; i < n; i++) dict[-1]->pf[0]->q.push(0)),
     CODE("does", dict[-1]->pf.merge(dict[WP]->pf)),
     CODE("to",                                        // n -- , compile only
-        IP++;                                         // current colon word
-        dict[WP]->pf[IP++]->pf[0]->q.push(POP())),   // next constant
+         IP++;                                         // current colon word
+         dict[WP]->pf[IP++]->pf[0]->q.push(POP())),   // next constant
     CODE("is",                                        // w -- , execute only
          Code *src = dict[POP()];                     // source word
          c = find(next_idiom());
@@ -303,11 +303,14 @@ ForthList<Code*> dict = {
          int t = find("boot")->token;
          for (int i=dict.size(); i>t; i--) dict.pop_back())
 };
-Code *find(string s) {                      /// search dictionary reversely
+/// 
+/// main - outer interpreter
+///
+Code *find(string s) {        /// search dictionary from last to first
     for (int i = dict.size() - 1; i >= 0; --i) {
         if (s == dict[i]->name) return dict[i];
     }
-    return NULL;
+    return NULL;              /// not found
 }
 void words() {
     const int WIDTH = 60;
@@ -318,13 +321,9 @@ void words() {
         if (w > WIDTH) { cout << endl; w = 0; }
     }
 }
-/// 
-/// main - outer interpreter
-///
+
 int main(int ac, char* av[]) {
     cout << "ceForth 4.1" << endl;
-    words();
-    return 0;
     string idiom;
     while (cin >> idiom) {               /// outer interpreter
         Code *w = find(idiom);           /// * search through dictionary
