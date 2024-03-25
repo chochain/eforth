@@ -15,6 +15,7 @@ struct ForthList : public vector<T> {     ///< our super-vector class
     }
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
+	T    operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
 };
 ///
 /// Forth VM state variables
@@ -49,8 +50,8 @@ struct Code {
     Code(string n, fop fn, bool im=false) /// primitive
         : name(n), xt(fn), immd(im), token(fence++) {}
     Code(string n, bool f=false) {        /// new colon word or temp
-        Code *c = find(name=n);
-        if (c) xt = c->xt;
+        Code *w = find(name=n);
+        if (w) xt = w->xt;
         if (f) token = fence++;
     }
     Code(string n, int d) :  name(n), xt(find(n)->xt) { q.push(d); } /// dolit
@@ -249,11 +250,11 @@ ForthList<Code*> dict = {
     // compiler ops
     CODE("exec", int n = top; dict[n]->exec()),
     CODE(":",
+//         dict.push(new Code(next_idiom(), true));    // create new word
 		 string s = next_idiom();
 		 Code   *w = new Code(s, true);
 		 cout << " == " << s << endl;
-//         dict.push(new Code(next_idiom(), true));    // create new word
-//		 dict.push(w);
+		 dict.push(w);
          compile = true),
     IMMD(";", compile = false),
     CODE("variable",
@@ -305,7 +306,7 @@ ForthList<Code*> dict = {
     CODE("exit", exit(0)),                           // exit interpreter
 };
 /// 
-/// main - outer interpreter
+/// main - Forth outer interpreter
 ///
 Code *find(string s) {        /// search dictionary from last to first
     for (int i = dict.size() - 1; i >= 0; --i) {
@@ -331,7 +332,6 @@ void words() {
     }
     cout << setbase(base) << endl;
 }
-
 int main(int ac, char* av[]) {
     cout << "ceForth v4.1" << endl;
     string idiom;
