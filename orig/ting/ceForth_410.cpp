@@ -87,12 +87,12 @@ void see(Code *c, int dp) {
         int i = dp; cout << endl; while (i--) cout << "  "; cout << s;
         for (Code *w : v) see(w, dp + 1);
     };
-    auto pq = [](vector<int> v) { cout << "="; for (int i : v) cout << i << " "; };
-    pp(dp, "[ " + (c->name=="str" ? "str='"+c->str+"' " : c->name), c->pf);
+    auto pq = [](vector<int> v) { cout << "="; for (int i : v) cout << " " << i; };
+    pp(dp, "[ " + (c->name=="str" ? "str='"+c->str+"'" : c->name), c->pf);
     if (c->p1.size() > 0) pp(dp, "1--", c->p1);
     if (c->p2.size() > 0) pp(dp, "2--", c->p2);
     if (c->q.size()  > 0) pq(c->q);
-    cout << "]";
+    cout << " ]";
 }
 /// macros to reduce verbosity (but harder to single-step debug)
 inline  int POP()    { int n=top; top=ss.pop(); return n; }
@@ -106,6 +106,7 @@ inline  int POP()    { int n=top; top=ss.pop(); return n; }
 /// Forth dictionary assembler
 ///
 ForthList<Code*> dict = {
+    IMMD("exit", exit(0)),                           // exit to OS
     // stack op
     CODE("dup",  PUSH(top)),
     CODE("drop", top=ss.pop()),
@@ -273,6 +274,7 @@ ForthList<Code*> dict = {
     CODE("allot",                                     // n --
          int n = POP();
          for (int i=0; i<n; i++) dict[-1]->pf[0]->q.push(0)),
+#if 0	
     CODE("does>", dict[-1]->pf.merge(dict[WP]->pf)),
     CODE("to",                                        // n -- , compile only
          IP++;                                        // current colon word
@@ -282,14 +284,14 @@ ForthList<Code*> dict = {
          Code *w   = find(next_idiom());
          if (w == NULL) throw length_error(" ");
          dict[w->token]->pf = src->pf),
+#endif	
     // debugging ops
     CODE("ms",    PUSH(millis())),
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
-    CODE("'",     Code *w = find(next_idiom()); PUSH(w->token)),
+    CODE("'",     Code *w = find(next_idiom()); if (w) PUSH(w->token)),
     CODE("see",   Code *w = find(next_idiom()); if (w) see(w, 0); cout << endl),
-    CODE("exit",  exit(0)),                           // exit to OS
     CODE("forget",
          Code *w = find(next_idiom());
          if (w == NULL) return;
