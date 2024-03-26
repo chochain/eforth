@@ -244,7 +244,7 @@ ForthList<Code*> dict = {
          if (last->stage == 0) last->pf.merge(tmp->pf);
          else last->p2.merge(tmp->pf); dict.pop()),
     // compiler ops
-    CODE("exec", int n = top; dict[n]->exec()),
+    CODE("exec", dict[top]->exec()),
     CODE(":",
          dict.push(new Code(next_idiom(), true));    // create new word
          compile = true),
@@ -263,12 +263,12 @@ ForthList<Code*> dict = {
          dict.push(new Code(next_idiom(), true));
          Code *last = dict[-1]->add(new Code("dolit", POP()));
          last->pf[0]->token = last->token),
-    CODE("@",      int n=POP(); PUSH(*VAR(n))),                    // w -- n
-    CODE("!",      int n=POP(); *VAR(n) = POP()),                  // n w --
-    CODE("+!",     int n=POP(); *VAR(n) += POP()),                 // n w --
-    CODE("?",      int n=POP(); cout << *VAR(n) << " "),           // w --
-    CODE("array@", int a=POP(); PUSH(*(VAR(POP())+a))),            // w a -- n
-    CODE("array!", int a=POP(); int w=POP(); *(VAR(w)+a) = POP()), // n w a --
+    CODE("@",      int w=POP(); PUSH(*VAR(w))),                    // w -- n
+    CODE("!",      int w=POP(); *VAR(w) = POP()),                  // n w --
+    CODE("+!",     int w=POP(); *VAR(w) += POP()),                 // n w --
+    CODE("?",      int w=POP(); cout << *VAR(w) << " "),           // w --
+    CODE("array@", int i=POP(); int w=POP(); PUSH(*(VAR(w)+i))),   // w i -- n
+    CODE("array!", int i=POP(); int w=POP(); *(VAR(w)+i) = POP()), // n w i --
     CODE(",",      dict[-1]->pf[0]->q.push(POP())),
     CODE("allot",                                     // n --
          int n = POP();
@@ -299,6 +299,9 @@ ForthList<Code*> dict = {
          int t = find("boot")->token + 1;
          for (int i=dict.size(); i>t; i--) dict.pop())
 };
+void dict_setup() {
+    dict[0]->add(new Code("dovar", 10));  /// borrow dict[0] for base
+}
 /// 
 /// main - Forth outer interpreter
 ///
@@ -313,7 +316,7 @@ void words() {
     int i = 0, x = 0;
     cout << setbase(16) << setfill('0');
     for (Code *w : dict) {
-#if 0        
+#if DEBUG
         cout << setw(4) << w->token << "> "
              << setw(8) << (uintptr_t)w->xt
              << ":" << (w->immd ? '*' : ' ')
@@ -325,9 +328,6 @@ void words() {
         if (x > WIDTH) { cout << endl; x = 0; }
     }
     cout << setbase(*BASE) << endl;
-}
-void dict_setup() {
-    dict[0]->add(new Code("dovar", 10));  /// borrow dict[0] for base
 }
 int main(int ac, char* av[]) {
     dict_setup();
