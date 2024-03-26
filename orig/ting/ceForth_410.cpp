@@ -22,7 +22,6 @@ struct ForthList : public vector<T> {     ///< our super-vector class
 ///
 ForthList<int> rs;                        ///< return stack
 ForthList<int> ss;                        ///< parameter stack
-int  base    = 10;                        ///< numeric radix
 bool compile = false;                     ///< compiling flag
 int  top     = -1;                        ///< cached top of stack
 int  IP, WP;                              ///< instruction and param ptrs
@@ -42,9 +41,9 @@ struct Code {
     fop    xt    = NULL;                  ///< primitive function
     string str;                           ///< string literal
     int    stage = 0;                     ///< branching stage
-    ForthList<Code*> pf;                  ///< parameter field
-    ForthList<Code*> p1;                  ///< parameter field - if
-    ForthList<Code*> p2;                  ///< parameter field - else
+    ForthList<Code*> pf;                  ///< parameter field - if
+    ForthList<Code*> p1;                  ///< parameter field - else,aft..then
+    ForthList<Code*> p2;                  ///< parameter field - then..next
     ForthList<int>   q;                   ///< parameter field - literal
     Code(const char *n) {}
     Code(string n, fop fn, bool im=false) /// primitive
@@ -103,7 +102,7 @@ inline  int POP()    { int n=top; top=ss.pop(); return n; }
 #define CODE(s, g)   new Code(s, [](Code *c){ g; })
 #define IMMD(s, g)   new Code(s, [](Code *c){ g; }, true)
 #define BOOL(f)      ((f) ? -1 : 0)
-#define BASE         (dict[0]->pf[0]->q[0])
+#define BASE         (dict[0]->pf[0]->q.data())       /* borrow dict[0] to store base */
 ///
 /// Forth dictionary assembler
 ///
@@ -150,11 +149,9 @@ ForthList<Code*> dict = {
     CODE(">=",   top = BOOL(ss.pop() >= top)),
     CODE("<=",   top = BOOL(ss.pop() <= top)),
     // IO ops
-    CODE("base",   PUSH(0)),
-    CODE("base@",  PUSH(base)),
-    CODE("base!",  cout << setbase(base = POP())),
-    CODE("hex",    cout << setbase(BASE = 16)),
-    CODE("decimal",cout << setbase(base = 10)),
+	CODE("base",   PUSH(0)),
+    CODE("hex",    cout << setbase(*BASE = 16)),
+    CODE("decimal",cout << setbase(*BASE = 10)),
     CODE("cr",     cout << endl),
     CODE(".",      cout << POP() << " "),
     CODE(".r",     int n = POP(); string s = to_string(POP()); dot_r(n, s)),
@@ -267,7 +264,7 @@ ForthList<Code*> dict = {
          Code *last = dict[-1]->add(new Code("dolit", POP()));
          last->pf[0]->token = last->token),
     CODE("@",      int n=POP(); PUSH(dict[n]->pf[0]->q[0])),         // w -- n
-//    CODE("!",      int n=POP(); dict[n]->pf[0]->q[0]) = POP()),       // n w --
+//    CODE("!",      int n=POP(); dict[n]->pf[0]->q[0] = POP()),       // n w --
 //    CODE("+!",     int n=POP(); dict[n]->pf[0]->q[0] += POP()),      // n w --
     CODE("?",      int n=POP(); cout << dict[n]->pf[0]->q[0] << " "),// w --
     CODE("array@", int a=POP(); PUSH(dict[POP()]->pf[0]->q[a])),     // w a -- n
@@ -327,7 +324,7 @@ void words() {
 #endif 		
         if (x > WIDTH) { cout << endl; x = 0; }
     }
-    cout << setbase(base) << endl;
+    cout << setbase(*BASE) << endl;
 }
 void dict_setup() {
     dict[0]->add(new Code("dovar", 10));  /// borrow dict[0] for base
@@ -347,7 +344,7 @@ int main(int ac, char* av[]) {
 				else w->exec();           /// * execute forth word
 			}
 			else {
-				int n = stoi(idiom, nullptr, base);      /// * convert to integer
+				int n = stoi(idiom, nullptr, *BASE);     /// * convert to integer
                 cout << n;
 				if (compile)
 					dict[-1]->add(new Code("dolit", n)); /// * add to current word
