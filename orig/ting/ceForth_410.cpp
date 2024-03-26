@@ -102,7 +102,8 @@ inline  int POP()    { int n=top; top=ss.pop(); return n; }
 #define CODE(s, g)   new Code(s, [](Code *c){ g; })
 #define IMMD(s, g)   new Code(s, [](Code *c){ g; }, true)
 #define BOOL(f)      ((f) ? -1 : 0)
-#define BASE         (dict[0]->pf[0]->q.data())       /* borrow dict[0] to store base */
+#define VAR(i)       (dict[i]->pf[0]->q.data())
+#define BASE         (VAR(0))                       /* borrow dict[0] to store base */
 ///
 /// Forth dictionary assembler
 ///
@@ -263,16 +264,16 @@ ForthList<Code*> dict = {
          dict.push(new Code(next_idiom(), true));
          Code *last = dict[-1]->add(new Code("dolit", POP()));
          last->pf[0]->token = last->token),
-    CODE("@",      int n=POP(); PUSH(dict[n]->pf[0]->q[0])),         // w -- n
-//    CODE("!",      int n=POP(); dict[n]->pf[0]->q[0] = POP()),       // n w --
-//    CODE("+!",     int n=POP(); dict[n]->pf[0]->q[0] += POP()),      // n w --
-    CODE("?",      int n=POP(); cout << dict[n]->pf[0]->q[0] << " "),// w --
-    CODE("array@", int a=POP(); PUSH(dict[POP()]->pf[0]->q[a])),     // w a -- n
-//    CODE("array!", int a=POP(); dict[POP()]->pf[0]->q[a] = POP()),   // n w a --
+    CODE("@",      int n=POP(); PUSH(*VAR(n))),           // w -- n
+    CODE("!",      int n=POP(); *VAR(n) = POP()),         // n w --
+    CODE("+!",     int n=POP(); *VAR(n) += POP()),        // n w --
+    CODE("?",      int n=POP(); cout << *VAR(n) << " "),  // w --
+    CODE("array@", int a=POP(); PUSH(*(VAR(POP())+a))),   // w a -- n
+    CODE("array!", int a=POP(); *(VAR(POP())+a) = POP()), // n w a --
     CODE(",",      dict[-1]->pf[0]->q.push(POP())),
     CODE("allot",                                     // n --
          int n = POP();
-         for (int i = 0; i < n; i++) dict[-1]->pf[0]->q.push(0)),
+         for (int i=0; i<n; i++) dict[-1]->pf[0]->q.push(0)),
     CODE("does>", dict[-1]->pf.merge(dict[WP]->pf)),
     CODE("to",                                        // n -- , compile only
          IP++;                                        // current colon word
