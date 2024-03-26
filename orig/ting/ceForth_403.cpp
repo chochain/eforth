@@ -1,6 +1,7 @@
 #include <iostream>         // cin, cout
 #include <iomanip>          // setbase
 #include <vector>           // vector
+
 using namespace std;
 /// .hpp - macros and class prototypes
 template<class T>
@@ -122,7 +123,7 @@ vector<Code*> prim = {
     CODE("4dup", PUSH(ss[-4]); PUSH(ss[-4]); PUSH(ss[-4]); PUSH(ss[-4])),
     CODE("swap", int n = ss.pop(); PUSH(n)),
     CODE("rot",  int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(n); PUSH(m)),
+    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(m); PUSH(n)),
     CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
     CODE("pick", int i = top; top = ss[-i]),
     //    CODE("roll", int i=top; top=ss[-i]),
@@ -185,7 +186,7 @@ vector<Code*> prim = {
         dict[-1]->addcode(new Code("dotstr", s))),
     IMMD("(", next_idiom(')')),
     IMMD(".(", cout << next_idiom(')')),
-    CODE("\\", cout << next_idiom('\n')),
+    IMMD("\\", cout << next_idiom('\n')),           // for debugging
     // branching - if...then, if...else...then
     IMMD("branch",
         bool f = POP() != 0;                        // check flag
