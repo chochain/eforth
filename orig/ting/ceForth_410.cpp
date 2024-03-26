@@ -24,7 +24,7 @@ ForthList<int> rs;                        ///< return stack
 ForthList<int> ss;                        ///< parameter stack
 bool compile = false;                     ///< compiling flag
 int  top     = -1;                        ///< cached top of stack
-int  IP, WP;                              ///< instruction and param ptrs
+int  WP;                                  ///< instruction and param ptrs
 ///
 /// data structure for dictionary entry
 ///
@@ -55,16 +55,15 @@ struct Code {
     Code(string n, string s) : name("str"), xt(find(n)->xt), str(s) {}   /// dostr, dotstr
     Code   *immediate()  { immd = true; return this; }      ///> set immediate flag
     Code   *add(Code *w) { pf.push(w); return this; }       ///> append colon word
-    string to_s() { return name + " " + to_string(token) + (immd ? "*" : ""); }
     void   exec() {                       ///> execute word
         if (xt) { xt(this); return; }     /// * execute primitive word
-        rs.push(WP); rs.push(IP);         /// * execute colon word
-        WP = token; IP = 0;               /// * setup dolist call frame
+        rs.push(WP);                      /// * execute colon word
+        WP = token;                       /// * setup dolist call frame
         for (Code *w : pf) {              /// * inner interpreter
-            try { w->exec(); IP++; }      /// * execute recursively
-            catch (...) {}
+            try { w->exec(); }            /// * execute recursively
+            catch (...) { break; }        /// * also handle exit
         }
-        IP = rs.pop(); WP = rs.pop();     /// * return to caller
+        WP = rs.pop();                    /// * return to caller
     }
 };
 int Code::fence = 0;                      ///< initialize static var
@@ -74,9 +73,9 @@ int Code::fence = 0;                      ///< initialize static var
 string next_idiom(char delim=0) {
     string s; delim ? getline(cin, s, delim) : cin >> s; return s;
 }
-void dot_r(int n, string s) {
-    for (int i = 0, m = n-s.size(); i < m; i++) cout << " ";
-    cout << s;
+void dot_r(int n, int v) {
+    for (int i=0, m=n-to_string(v).size(); i<m; i++) cout << " ";
+    cout << to_string(v);
 }
 void ss_dump() {
     cout << "< "; for (int i : ss) cout << i << " ";
@@ -106,7 +105,7 @@ inline  int POP()    { int n=top; top=ss.pop(); return n; }
 /// Forth dictionary assembler
 ///
 ForthList<Code*> dict = {
-    IMMD("exit", exit(0)),                           // exit to OS
+    CODE("bye",  exit(0)),                           // exit to OS
     // stack op
     CODE("dup",  PUSH(top)),
     CODE("drop", top=ss.pop()),
@@ -154,8 +153,8 @@ ForthList<Code*> dict = {
     CODE("decimal",cout << setbase(BASE = 10)),
     CODE("cr",     cout << endl),
     CODE(".",      cout << POP() << " "),
-    CODE(".r",     int n = POP(); string s = to_string(POP()); dot_r(n, s)),
-    CODE("u.r",    int n = POP(); string s = to_string(abs(POP())); dot_r(n, s)),
+    CODE(".r",     int n = POP(); dot_r(n, POP())),
+    CODE("u.r",    int n = POP(); dot_r(n, abs(POP()))),
     CODE("key",    PUSH(next_idiom()[0])),
     CODE("emit",   char b = (char)POP(); cout << b),
     CODE("space",  cout << (" ")),
@@ -189,18 +188,18 @@ ForthList<Code*> dict = {
              last->pf.merge(tmp->pf);
              dict.pop();                             // CC: memory leak?
          }
-         else {                                      // if...else...then, or
-             last->p1.merge(tmp->pf);                // for...aft...then...next
+         else {                                      // if..else..then, or
+             last->p1.merge(tmp->pf);                // for..aft..then..next
              if (last->stage == 1) dict.pop();       // CC: memory leak?
              else tmp->pf.clear();
          }),
-    // loop ops - begin...again, begin...f until, begin...f while...repeat
+    // loop ops - begin..again, begin..f until, begin..f while..repeat
     CODE("_loop", int b = c->stage;            ///< stage=looping type
          while (true) {
-             for (Code *w : c->pf) w->exec();  // begin...
-             if (b==0 && POP()!=0) break;      // ...until
-             if (b==1)             continue;   // ...again
-             if (b==2 && POP()==0) break;      // while...repeat
+             for (Code *w : c->pf) w->exec();  // begin..
+             if (b==0 && POP()!=0) break;      // ..until
+             if (b==1)             continue;   // ..again
+             if (b==2 && POP()==0) break;      // ..while..repeat
              for (Code *w : c->p1) w->exec();
          }),
     IMMD("begin",
@@ -244,7 +243,8 @@ ForthList<Code*> dict = {
          else last->p2.merge(tmp->pf);
          dict.pop()),                              // CC: memory leak?
     // compiler ops
-    CODE("exec", dict[top]->exec()),
+    CODE("exec", dict[top]->exec()),               // xt --
+    CODE("exit", throw length_error("")),          // -- 
     CODE(":",
          dict.push(new Code(next_idiom(), true));  // create new word
          compile = true),
@@ -274,14 +274,12 @@ ForthList<Code*> dict = {
          int n = POP();
          for (int i=0; i<n; i++) dict[-1]->pf[0]->q.push(0)),
     CODE("does>",
-         cout << c->name << " " << c->token << endl;
-         return;
-         for (Code *w : dict[c->token]->pf) {
-             if (w->name=="does>") {
-                 dict[-1]->add(w);
-                 break;
-             }
-         }),
+         bool hit = false;
+         for (Code *w : dict[WP]->pf) {
+             if (hit) dict[-1]->add(w);               // copy pf
+             if (w->name=="does>") hit = true;
+         }
+         throw length_error("")),                     // exit caller
     CODE("to",                                        // n -- 
          Code *w=find(next_idiom()); if (!w) return;
          VAR(w->token) = POP()),                      // update value 
@@ -308,17 +306,10 @@ ForthList<Code*> dict = {
 void dict_setup() {
     dict[0]->add(new Code("dovar", 10));  /// borrow dict[0] for base
 }
-/// 
-/// main - Forth outer interpreter
-///
 Code *find(string s) {        /// search dictionary from last to first
     for (int i = dict.size() - 1; i >= 0; --i) {
-        if (s == dict[i]->name) {
-            cout << s << "==" << dict[i]->to_s() << endl;
-            return dict[i];
-        }
+        if (s == dict[i]->name) return dict[i];
     }
-    cout << s << " not found" << endl;
     return NULL;              /// not found
 }
 void words() {
@@ -340,6 +331,9 @@ void words() {
     }
     cout << setbase(BASE) << endl;
 }
+/// 
+/// main - Forth outer interpreter
+///
 int main(int ac, char* av[]) {
     dict_setup();
     cout << "ceForth v4.1" << endl;
