@@ -98,7 +98,7 @@ void see(Code *c, int dp) {
 inline  int POP()    { int n=top; top=ss.pop(); return n; }
 #define PUSH(v)      (ss.push(top), top=(v))
 #define BOOL(f)      ((f) ? -1 : 0)
-#define VAR(i)       (dict[i]->pf[0]->q.data())
+#define VAR(i)       (*dict[i]->pf[0]->q.data())
 #define BASE         (VAR(0))   /* borrow dict[0] to store base (numeric radix) */
 #define CODE(s, g)   new Code(s, [](Code *c){ g; })
 #define IMMD(s, g)   new Code(s, [](Code *c){ g; }, true)
@@ -150,8 +150,8 @@ ForthList<Code*> dict = {
     CODE("<=",   top = BOOL(ss.pop() <= top)),
     // IO ops
     CODE("base",   PUSH(0)),   // dict[0]->pf[0]->q[0] used for base
-    CODE("hex",    cout << setbase(*BASE = 16)),
-    CODE("decimal",cout << setbase(*BASE = 10)),
+    CODE("hex",    cout << setbase(BASE = 16)),
+    CODE("decimal",cout << setbase(BASE = 10)),
     CODE("cr",     cout << endl),
     CODE(".",      cout << POP() << " "),
     CODE(".r",     int n = POP(); string s = to_string(POP()); dot_r(n, s)),
@@ -173,10 +173,10 @@ ForthList<Code*> dict = {
     IMMD(".(", cout << next_idiom(')')),
     IMMD("\\", string s; getline(cin, s, '\n')),     // flush input
     // branching ops - if...then, if...else...then
-    CODE("branch",
+    CODE("_bran",
          for (Code *w : (POP() ? c->pf : c->p1)) w->exec()),
     IMMD("if",
-         dict[-1]->add(new Code("branch"));
+         dict[-1]->add(new Code("_bran"));
          dict.push(new Code("tmp"))),                // use last cell of dictionay as scratch pad
     IMMD("else",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
@@ -194,9 +194,8 @@ ForthList<Code*> dict = {
              if (last->stage == 1) dict.pop();       // CC: memory leak?
              else tmp->pf.clear();
          }),
-    // loops ops - begin...again, begin...f until, begin...f while...repeat
-    CODE("loops", int b = c->stage;            ///< stage=looping type
-         cout << c->name << " stage=" << b << endl;
+    // loop ops - begin...again, begin...f until, begin...f while...repeat
+    CODE("_loop", int b = c->stage;            ///< stage=looping type
          while (true) {
              for (Code *w : c->pf) w->exec();  // begin...
              if (b==0 && POP()!=0) break;      // ...until
@@ -205,7 +204,7 @@ ForthList<Code*> dict = {
              for (Code *w : c->p1) w->exec();
          }),
     IMMD("begin",
-         dict[-1]->add(new Code("loops"));
+         dict[-1]->add(new Code("_loop"));
          dict.push(new Code("tmp"))),
     IMMD("while",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
@@ -222,7 +221,7 @@ ForthList<Code*> dict = {
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop()),
     // loops ops - for...next, for...aft...then...next
-    CODE("cycles",
+    CODE("_for",
          do { for (Code *w : c->pf) w->exec(); }
          while (c->stage==0 && rs.dec_i() >=0);   // for...next only
          while (c->stage > 0) {                   // aft
@@ -233,7 +232,7 @@ ForthList<Code*> dict = {
          rs.pop()),
     IMMD("for",
          dict[-1]->add(new Code(">r"));
-         dict[-1]->add(new Code("cycles"));
+         dict[-1]->add(new Code("_for"));
          dict.push(new Code("tmp"))),
     IMMD("aft",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
@@ -264,37 +263,42 @@ ForthList<Code*> dict = {
          dict.push(new Code(next_idiom(), true));
          Code *last = dict[-1]->add(new Code("dolit", POP()));
          last->pf[0]->token = last->token),
-    CODE("@",      int w=POP(); PUSH(*VAR(w))),                    // w -- n
-    CODE("!",      int w=POP(); *VAR(w) = POP()),                  // n w --
-    CODE("+!",     int w=POP(); *VAR(w) += POP()),                 // n w --
-    CODE("?",      int w=POP(); cout << *VAR(w) << " "),           // w --
-    CODE("array@", int i=POP(); int w=POP(); PUSH(*(VAR(w)+i))),   // w i -- n
-    CODE("array!", int i=POP(); int w=POP(); *(VAR(w)+i) = POP()), // n w i --
+    CODE("@",      int w=POP(); PUSH(VAR(w))),                     // w -- n
+    CODE("!",      int w=POP(); VAR(w) = POP()),                   // n w --
+    CODE("+!",     int w=POP(); VAR(w) += POP()),                  // n w --
+    CODE("?",      int w=POP(); cout << VAR(w) << " "),            // w --
+    CODE("array@", int i=POP(); int w=POP(); PUSH(*(&VAR(w)+i))),  // w i -- n
+    CODE("array!", int i=POP(); int w=POP(); *(&VAR(w)+i)=POP()),  // n w i --
     CODE(",",      dict[-1]->pf[0]->q.push(POP())),
     CODE("allot",                                     // n --
          int n = POP();
          for (int i=0; i<n; i++) dict[-1]->pf[0]->q.push(0)),
-#if 0	
-    CODE("does>", dict[-1]->pf.merge(dict[WP]->pf)),
-    CODE("to",                                        // n -- , compile only
-         IP++;                                        // current colon word
-         dict[WP]->pf[IP++]->pf[0]->q.push(POP())),   // next constant
-    CODE("is",                                        // w -- , execute only
-         Code *src = dict[POP()];                     // source word
-         Code *w   = find(next_idiom());
-         if (w == NULL) throw length_error(" ");
-         dict[w->token]->pf = src->pf),
-#endif	
+    CODE("does>",
+         cout << c->name << " " << c->token << endl;
+         return;
+         for (Code *w : dict[c->token]->pf) {
+             if (w->name=="does>") {
+                 dict[-1]->add(w);
+                 break;
+             }
+         }),
+    CODE("to",                                        // n -- 
+         Code *w=find(next_idiom()); if (!w) return;
+         VAR(w->token) = POP()),                      // update value 
+    CODE("is",                                        // w --
+         dict.push(new Code(next_idiom()));           // create word
+         int n = POP();                               // like this word
+         dict[-1]->xt = dict[n]->xt;                  // if primitive
+         dict[-1]->pf = dict[n]->pf),                 // or colon word
     // debugging ops
-    CODE("ms",    PUSH(millis())),
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
     CODE("'",     Code *w = find(next_idiom()); if (w) PUSH(w->token)),
     CODE("see",   Code *w = find(next_idiom()); if (w) see(w, 0); cout << endl),
+    CODE("ms",    PUSH(millis())),
     CODE("forget",
-         Code *w = find(next_idiom());
-         if (w == NULL) return;
+         Code *w = find(next_idiom()); if (!w) return;
          int t = max(w->token, find("boot")->token);
          for (int i=dict.size(); i>t; i--) dict.pop()),
     CODE("boot",
@@ -328,12 +332,13 @@ void words() {
              << ":" << (w->immd ? '*' : ' ')
              << w->name << "  " << endl;
 #else
+        if (w->name[0]=='_') continue;
         cout << w->name << "  ";
         x += (w->name.size() + 2);
 #endif         
         if (x > WIDTH) { cout << endl; x = 0; }
     }
-    cout << setbase(*BASE) << endl;
+    cout << setbase(BASE) << endl;
 }
 int main(int ac, char* av[]) {
     dict_setup();
@@ -348,7 +353,7 @@ int main(int ac, char* av[]) {
                 else w->exec();           /// * execute forth word
             }
             else {
-                int n = stoi(idiom, nullptr, *BASE);     /// * convert to integer
+                int n = stoi(idiom, nullptr, BASE);      /// * convert to integer
                 if (compile)
                     dict[-1]->add(new Code("dolit", n)); /// * add to current word
                 else PUSH(n);                            /// * add value to data stack
