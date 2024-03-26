@@ -97,11 +97,11 @@ void see(Code *c, int dp) {
 /// macros to reduce verbosity (but harder to single-step debug)
 inline  int POP()    { int n=top; top=ss.pop(); return n; }
 #define PUSH(v)      (ss.push(top), top=(v))
-#define CODE(s, g)   new Code(s, [](Code *c){ g; })
-#define IMMD(s, g)   new Code(s, [](Code *c){ g; }, true)
 #define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i)       (dict[i]->pf[0]->q.data())
-#define BASE         (VAR(0))                       /* borrow dict[0] to store base */
+#define BASE         (VAR(0))   /* borrow dict[0] to store base (numeric radix) */
+#define CODE(s, g)   new Code(s, [](Code *c){ g; })
+#define IMMD(s, g)   new Code(s, [](Code *c){ g; }, true)
 ///
 /// Forth dictionary assembler
 ///
@@ -148,7 +148,7 @@ ForthList<Code*> dict = {
     CODE(">=",   top = BOOL(ss.pop() >= top)),
     CODE("<=",   top = BOOL(ss.pop() <= top)),
     // IO ops
-    CODE("base",   PUSH(0)),
+    CODE("base",   PUSH(0)),   // dict[0]->pf[0]->q[0] used for base
     CODE("hex",    cout << setbase(*BASE = 16)),
     CODE("decimal",cout << setbase(*BASE = 10)),
     CODE("cr",     cout << endl),
