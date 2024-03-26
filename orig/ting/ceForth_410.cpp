@@ -2,10 +2,9 @@
 #include <iomanip>          // setbase
 #include <vector>           // vector
 #include <chrono>
-#define millis()        chrono::duration_cast<chrono::milliseconds>( \
-                            chrono::steady_clock::now().time_since_epoch()).count()
+#define millis() chrono::duration_cast<chrono::milliseconds>( \
+                 chrono::steady_clock::now().time_since_epoch()).count()
 using namespace std;
-
 template<typename T>
 struct ForthList : public vector<T> {     ///< our super-vector class
     ForthList()                        : vector<T>()    {}
@@ -55,8 +54,8 @@ struct Code {
         if (w) xt = w->xt;
         if (f) token = fence++;
     }
-    Code(string n, int d) :  name(n), xt(find(n)->xt) { q.push(d); } /// dolit
-    Code(string n, string s) : name(n), xt(find(n)->xt), str(s) {}   /// dostr
+    Code(string n, int d) :  name(n), xt(find(n)->xt) { q.push(d); } /// dolit, dovar
+    Code(string n, string s) : name(n), xt(find(n)->xt), str(s) {}   /// dostr, dotstr
     Code   *immediate()  { immd = true;  return this; } ///> set immediate flag
     Code   *add(Code *w) { pf.push(w); return this; }   ///> append colon word
     string to_s() { return name + " " + to_string(token) + (immd ? "*" : ""); }
@@ -104,6 +103,7 @@ inline  int POP()    { int n=top; top=ss.pop(); return n; }
 #define CODE(s, g)   new Code(s, [](Code *c){ g; })
 #define IMMD(s, g)   new Code(s, [](Code *c){ g; }, true)
 #define BOOL(f)      ((f) ? -1 : 0)
+#define BASE         (dict[0]->pf[0]->q[0])
 ///
 /// Forth dictionary assembler
 ///
@@ -114,13 +114,13 @@ ForthList<Code*> dict = {
     CODE("swap", int n = ss.pop(); PUSH(n)),
     CODE("over", PUSH(ss[-2])),
     CODE("rot",  int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(n);  PUSH(m)),
-    CODE("pick", int i = top; top = ss[-i]),
+    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(m);  PUSH(n)),
+    CODE("pick", top = ss[-top]),
     CODE("nip",  ss.pop()),
     CODE("2dup", PUSH(ss[-2]); PUSH(ss[-2])),
-    CODE("2over",PUSH(ss[-4]); PUSH(ss[-4])),
-    CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
     CODE("2drop",ss.pop(); top=ss.pop()),
+    CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
+    CODE("2over",PUSH(ss[-4]); PUSH(ss[-4])),
     CODE(">r",   rs.push(POP())),
     CODE("r>",   PUSH(rs.pop())),
     CODE("r@",   PUSH(rs[-1])),
@@ -150,9 +150,10 @@ ForthList<Code*> dict = {
     CODE(">=",   top = BOOL(ss.pop() >= top)),
     CODE("<=",   top = BOOL(ss.pop() <= top)),
     // IO ops
+    CODE("base",   PUSH(0)),
     CODE("base@",  PUSH(base)),
     CODE("base!",  cout << setbase(base = POP())),
-    CODE("hex",    cout << setbase(base = 16)),
+    CODE("hex",    cout << setbase(BASE = 16)),
     CODE("decimal",cout << setbase(base = 10)),
     CODE("cr",     cout << endl),
     CODE(".",      cout << POP() << " "),
@@ -168,15 +169,12 @@ ForthList<Code*> dict = {
     CODE("dovar",  PUSH(c->token)),
     CODE("[", compile = false),
     CODE("]", compile = true),
-    CODE("$\"",
-         string s = next_idiom('"').substr(1);
-         dict[-1]->add(new Code("dovar", s))),
-    CODE(".\"",
-         string s = next_idiom('"').substr(1);
-         dict[-1]->add(new Code("dotstr", s))),
+    IMMD(".\"",
+         string s = next_idiom('"');
+         dict[-1]->add(new Code("dotstr", s.substr(1)))),
     IMMD("(", next_idiom(')')),
     IMMD(".(", cout << next_idiom(')')),
-    CODE("\\", cout << next_idiom('\n')),
+    IMMD("\\", string s; getline(cin, s, '\n')),     // flush input
     // branching ops - if...then, if...else...then
     IMMD("branch",
          bool f = POP() != 0;                        // check flag
@@ -288,6 +286,7 @@ ForthList<Code*> dict = {
          if (w == NULL) throw length_error(" ");
          dict[w->token]->pf = src->pf),
     // debugging ops
+    CODE("ms",    PUSH(millis())),
     CODE("here",  PUSH(dict[-1]->token)),
     CODE("words", words()),
     CODE(".s",    ss_dump()),
@@ -330,12 +329,18 @@ void words() {
     }
     cout << setbase(base) << endl;
 }
+void dict_setup() {
+    dict[0]->add(new Code("dovar", 10));  /// borrow dict[0] for base
+}
 int main(int ac, char* av[]) {
+    dict_setup();
     cout << "ceForth v4.1" << endl;
     string idiom;
     while (cin >> idiom) {                /// outer interpreter
+        cout << idiom << "=>";
 		try {
 			Code *w = find(idiom);        /// * search through dictionary
+            cout << w;
 			if (w) {                      /// * word found?
 				if (compile && !w->immd)
 					dict[-1]->add(w);     /// * add to colon word
@@ -343,6 +348,7 @@ int main(int ac, char* av[]) {
 			}
 			else {
 				int n = stoi(idiom, nullptr, base);      /// * convert to integer
+                cout << n;
 				if (compile)
 					dict[-1]->add(new Code("dolit", n)); /// * add to current word
 				else PUSH(n);                            /// * add value to data stack
@@ -353,6 +359,7 @@ int main(int ac, char* av[]) {
 			compile = false;
 			getline(cin, idiom, '\n');    /// * flush to end-of-line
 		}
+        cout << endl;
         if (cin.peek()=='\n' && !compile) ss_dump();    /// * dump stack and display ok prompt
     }
     cout << "Done!" << endl;
