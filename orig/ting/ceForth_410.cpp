@@ -34,21 +34,21 @@ Code *find(string s);                     ///< forward declaration
 void  words(); 
 
 struct Code {
-    static int fence;                     ///< token incremental counter
-    string name;                          ///< name of word
-    int    token = 0;                     ///< dictionary order token
-    bool   immd  = false;                 ///< immediate flag
-    fop    xt    = NULL;                  ///< primitive function
-    string str;                           ///< string literal
-    int    stage = 0;                     ///< branching stage
-    ForthList<Code*> pf;                  ///< parameter field - if
-    ForthList<Code*> p1;                  ///< parameter field - else,aft..then
-    ForthList<Code*> p2;                  ///< parameter field - then..next
-    ForthList<int>   q;                   ///< parameter field - literal
-    Code(const char *n) {}
-    Code(string n, fop fn, bool im=false)                                /// primitive
+    static int fence;        ///< token incremental counter
+    string name;             ///< name of word
+    int    token = 0;        ///< dict index, 0=param word
+    bool   immd  = false;    ///< immediate flag
+    fop    xt    = NULL;     ///< primitive function
+    string str;              ///< string literal
+    int    stage = 0;        ///< branching stage (looping condition)
+    ForthList<Code*> pf;     ///< parameter field - if
+    ForthList<Code*> p1;     ///< parameter field - else,aft..then
+    ForthList<Code*> p2;     ///< parameter field - then..next
+    ForthList<int>   q;      ///< parameter field - literal
+    Code(string n, fop fn, bool im=false)              /// primitive
         : name(n), xt(fn), immd(im), token(fence++) {}
-    Code(string n, bool f=false) : name(n), token(f ? fence++ : 0) {     /// new colon word or temp
+    Code(string n, bool f=false)                       /// colon word
+        : name(n), token(f ? fence++ : 0) {
         Code *w = find(n); xt = w ? w->xt : NULL;
     }
     Code(string n, int d) : name("lit"), xt(find(n)->xt) { q.push(d); }  /// dolit, dovar
@@ -85,7 +85,7 @@ void ss_dump() {
 void see(Code *c, int dp) {
     auto pp = [](int dp, string s, vector<Code*> v) {   // lambda for indentation and recursive dump
         int i = dp; cout << endl; while (i--) cout << "  "; cout << s;
-        for (Code *w : v) see(w, dp + 1);
+        for (Code *w : v) if (dp < 2) see(w, dp + 1);   // depth controlled
     };
     auto pq = [](vector<int> v) { cout << "="; for (int i : v) cout << " " << i; };
     pp(dp, "[ " + (c->name=="str" ? "str='"+c->str+"'" : c->name), c->pf);
@@ -173,9 +173,8 @@ ForthList<Code*> dict = {
     IMMD(".(", cout << next_idiom(')')),
     IMMD("\\", string s; getline(cin, s, '\n')),     // flush input
     // branching ops - if...then, if...else...then
-    IMMD("branch",
-         bool f = POP() != 0;                        // check flag
-         for (Code *w : (f ? c->pf : c->p1)) w->exec()),
+    CODE("branch",
+         for (Code *w : (POP() ? c->pf : c->p1)) w->exec()),
     IMMD("if",
          dict[-1]->add(new Code("branch"));
          dict.push(new Code("tmp"))),                // use last cell of dictionay as scratch pad
@@ -188,21 +187,21 @@ ForthList<Code*> dict = {
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          if (last->stage == 0) {                     // if...then
              last->pf.merge(tmp->pf);
-             dict.pop();
+             dict.pop();                             // CC: memory leak?
          }
          else {                                      // if...else...then, or
              last->p1.merge(tmp->pf);                // for...aft...then...next
-             if (last->stage == 1) dict.pop();
+             if (last->stage == 1) dict.pop();       // CC: memory leak?
              else tmp->pf.clear();
          }),
     // loops ops - begin...again, begin...f until, begin...f while...repeat
-    CODE("loops",
+    CODE("loops", int b = c->stage;            ///< stage=looping type
+         cout << c->name << " stage=" << b << endl;
          while (true) {
-             for (Code *w : c->pf) w->exec();                     // begin...
-             int f = top;
-             if (c->stage == 0 && (top=ss.pop(), f != 0)) break;  // ...until
-             if (c->stage == 1) continue;                         // ...again
-             if (c->stage == 2 && (top=ss.pop(), f == 0)) break;  // while...repeat
+             for (Code *w : c->pf) w->exec();  // begin...
+             if (b==0 && POP()!=0) break;      // ...until
+             if (b==1)             continue;   // ...again
+             if (b==2 && POP()==0) break;      // while...repeat
              for (Code *w : c->p1) w->exec();
          }),
     IMMD("begin",
@@ -243,11 +242,12 @@ ForthList<Code*> dict = {
     IMMD("next",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          if (last->stage == 0) last->pf.merge(tmp->pf);
-         else last->p2.merge(tmp->pf); dict.pop()),
+         else last->p2.merge(tmp->pf);
+         dict.pop()),                              // CC: memory leak?
     // compiler ops
     CODE("exec", dict[top]->exec()),
     CODE(":",
-         dict.push(new Code(next_idiom(), true));    // create new word
+         dict.push(new Code(next_idiom(), true));  // create new word
          compile = true),
     IMMD(";", compile = false),
     CODE("immediate", dict[-1]->immediate()),
@@ -309,8 +309,12 @@ void dict_setup() {
 ///
 Code *find(string s) {        /// search dictionary from last to first
     for (int i = dict.size() - 1; i >= 0; --i) {
-        if (s == dict[i]->name) return dict[i];
+        if (s == dict[i]->name) {
+            cout << s << "==" << dict[i]->to_s() << endl;
+            return dict[i];
+        }
     }
+    cout << s << " not found" << endl;
     return NULL;              /// not found
 }
 void words() {
