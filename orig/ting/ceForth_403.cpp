@@ -79,7 +79,7 @@ void  Code::exec() {
     }
     IP = rs.pop(); WP = rs.pop();           /// * return to caller
 }
-string Code::to_s() { return name + " " + to_string(token) + (immd ? "*" : ""); }
+string Code::to_s() { return name + " " + (token ? to_string(token) : "") + (immd ? "*" : ""); }
 // external function (instead of inline)
 void dot_r(int n, string s) {
 	for (int i = 0, m = n-s.size(); i < m; i++) cout << " ";
@@ -188,7 +188,7 @@ vector<Code*> prim = {
     IMMD(".(", cout << next_idiom(')')),
     IMMD("\\", cout << next_idiom('\n')),           // for debugging
     // branching - if...then, if...else...then
-    IMMD("branch",
+    CODE("branch",
         bool f = POP() != 0;                        // check flag
         for (Code* w : (f ? c->pf.v : c->pf1.v)) w->exec()),
     IMMD("if",
