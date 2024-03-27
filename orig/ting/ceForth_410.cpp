@@ -2,8 +2,7 @@
 #include <iomanip>          // setbase
 #include <vector>           // vector
 #include <chrono>
-#define millis() chrono::duration_cast<chrono::milliseconds>( \
-                 chrono::steady_clock::now().time_since_epoch()).count()
+
 using namespace std;
 template<typename T>
 struct ForthList : public vector<T> {     ///< our super-vector class
@@ -15,7 +14,7 @@ struct ForthList : public vector<T> {     ///< our super-vector class
     T    dec_i()   { return (this->back() -= 1); }
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
-	T    operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
+    T    operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
 };
 ///
 /// Forth VM state variables
@@ -24,31 +23,30 @@ ForthList<int> rs;                        ///< return stack
 ForthList<int> ss;                        ///< parameter stack
 bool compile = false;                     ///< compiling flag
 int  top     = -1;                        ///< cached top of stack
-int  WP;                                  ///< instruction and param ptrs
 ///
 /// data structure for dictionary entry
 ///
 struct Code;                              ///< forward declaration
-typedef void (*fop)(Code*);               ///< Forth operator
-Code *find(string s);                     ///< forward declaration
-void  words(); 
+typedef void (*XT)(Code*);                ///< function pointer
+Code *find(string s);                     ///< fwd declared for Code
+void  words();                            ///< fwd declared for dict
 
 struct Code {
-    static int fence;        ///< token incremental counter
+    static int idx;          ///< token incremental counter
     string name;             ///< name of word
     int    token = 0;        ///< dict index, 0=param word
     bool   immd  = false;    ///< immediate flag
-    fop    xt    = NULL;     ///< primitive function
+    XT     xt    = NULL;     ///< execution token
     string str;              ///< string literal
     int    stage = 0;        ///< branching stage (looping condition)
     ForthList<Code*> pf;     ///< parameter field - if
     ForthList<Code*> p1;     ///< parameter field - else,aft..then
     ForthList<Code*> p2;     ///< parameter field - then..next
     ForthList<int>   q;      ///< parameter field - literal
-    Code(string n, fop fn, bool im=false)              /// primitive
-        : name(n), xt(fn), immd(im), token(fence++) {}
+    Code(string n, XT fp, bool im=false)               /// primitive
+        : name(n), xt(fp), immd(im), token(idx++) {}
     Code(string n, bool f=false)                       /// colon word
-        : name(n), token(f ? fence++ : 0) {
+        : name(n), token(f ? idx++ : 0) {
         Code *w = find(n); xt = w ? w->xt : NULL;
     }
     Code(string n, int d) : name("lit"), xt(find(n)->xt) { q.push(d); }  /// dolit, dovar
@@ -57,25 +55,18 @@ struct Code {
     Code   *add(Code *w) { pf.push(w); return this; }       ///> append colon word
     void   exec() {                       ///> execute word
         if (xt) { xt(this); return; }     /// * execute primitive word
-        rs.push(WP);                      /// * execute colon word
-        WP = token;                       /// * setup dolist call frame
         for (Code *w : pf) {              /// * inner interpreter
             try { w->exec(); }            /// * execute recursively
             catch (...) { break; }        /// * also handle exit
         }
-        WP = rs.pop();                    /// * return to caller
     }
 };
-int Code::fence = 0;                      ///< initialize static var
+int Code::idx = 0;                        ///< initialize static var
 ///
 /// IO functions
 ///
 string next_idiom(char delim=0) {
     string s; delim ? getline(cin, s, delim) : cin >> s; return s;
-}
-void dot_r(int n, int v) {
-    for (int i=0, m=n-to_string(v).size(); i<m; i++) cout << " ";
-    cout << to_string(v);
 }
 void ss_dump() {
     cout << "< "; for (int i : ss) cout << i << " ";
@@ -99,72 +90,74 @@ inline  int POP()    { int n=top; top=ss.pop(); return n; }
 #define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i)       (*dict[i]->pf[0]->q.data())
 #define BASE         (VAR(0))   /* borrow dict[0] to store base (numeric radix) */
+#define millis()     chrono::duration_cast<chrono::milliseconds>( \
+                     chrono::steady_clock::now().time_since_epoch()).count()
 #define CODE(s, g)   new Code(s, [](Code *c){ g; })
 #define IMMD(s, g)   new Code(s, [](Code *c){ g; }, true)
 ///
 /// Forth dictionary assembler
 ///
 ForthList<Code*> dict = {
-    CODE("bye",  exit(0)),                           // exit to OS
-    // stack op
-    CODE("dup",  PUSH(top)),
-    CODE("drop", top=ss.pop()),
-    CODE("swap", int n = ss.pop(); PUSH(n)),
-    CODE("over", PUSH(ss[-2])),
-    CODE("rot",  int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(m);  PUSH(n)),
-    CODE("pick", top = ss[-top]),
-    CODE("nip",  ss.pop()),
-    CODE("2dup", PUSH(ss[-2]); PUSH(ss[-2])),
-    CODE("2drop",ss.pop(); top=ss.pop()),
-    CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
-    CODE("2over",PUSH(ss[-4]); PUSH(ss[-4])),
-    CODE(">r",   rs.push(POP())),
-    CODE("r>",   PUSH(rs.pop())),
-    CODE("r@",   PUSH(rs[-1])),
+    CODE("bye",    exit(0)),                           // exit to OS
+    // stack ops
+    CODE("dup",    PUSH(top)),
+    CODE("drop",   top=ss.pop()),
+    CODE("swap",   int n = ss.pop(); PUSH(n)),
+    CODE("over",   PUSH(ss[-2])),
+    CODE("rot",    int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
+    CODE("-rot",   int n = ss.pop(); int m = ss.pop(); PUSH(m);  PUSH(n)),
+    CODE("pick",   top = ss[-top]),
+    CODE("nip",    ss.pop()),
+    CODE("2dup",   PUSH(ss[-2]); PUSH(ss[-2])),
+    CODE("2drop",  ss.pop(); top=ss.pop()),
+    CODE("2swap",  int n = ss.pop(); int m = ss.pop(); int l = ss.pop();
+                   ss.push(n); PUSH(l); PUSH(m)),
+    CODE("2over",  PUSH(ss[-4]); PUSH(ss[-4])),
+    CODE(">r",     rs.push(POP())),
+    CODE("r>",     PUSH(rs.pop())),
+    CODE("r@",     PUSH(rs[-1])),
     // ALU ops
-    CODE("+",    top += ss.pop()),       // note: ss.pop() is different from POP()
-    CODE("-",    top =  ss.pop() - top),
-    CODE("*",    top *= ss.pop()),
-    CODE("/",    top =  ss.pop() / top),
-    CODE("mod",  top =  ss.pop() % top),
-    CODE("*/",   top =  ss.pop() * ss.pop() / top),
-    CODE("*/mod",
-         int n = ss.pop() * ss.pop();
-         ss.push(n % top); top = (n / top)),
-    CODE("and",  top &= ss.pop()),
-    CODE("or",   top |= ss.pop()),
-    CODE("xor",  top ^= ss.pop()),
+    CODE("+",      top += ss.pop()),       // note: ss.pop() is different from POP()
+    CODE("-",      top =  ss.pop() - top),
+    CODE("*",      top *= ss.pop()),
+    CODE("/",      top =  ss.pop() / top),
+    CODE("mod",    top =  ss.pop() % top),
+    CODE("*/",     top =  ss.pop() * ss.pop() / top),
+    CODE("*/mod",  int n = ss.pop() * ss.pop();
+                   ss.push(n % top); top = (n / top)),
+    CODE("and",    top &= ss.pop()),
+    CODE("or",     top |= ss.pop()),
+    CODE("xor",    top ^= ss.pop()),
     CODE("negate", top = -top),
-    CODE("abs",  top = abs(top)),
+    CODE("abs",    top = abs(top)),
     // logic ops
-    CODE("0=",   top = BOOL(top == 0)),
-    CODE("0<",   top = BOOL(top <  0)),
-    CODE("0>",   top = BOOL(top >  0)),
-    CODE("=",    top = BOOL(ss.pop() == top)),
-    CODE(">",    top = BOOL(ss.pop() >  top)),
-    CODE("<",    top = BOOL(ss.pop() <  top)),
-    CODE("<>",   top = BOOL(ss.pop() != top)),
-    CODE(">=",   top = BOOL(ss.pop() >= top)),
-    CODE("<=",   top = BOOL(ss.pop() <= top)),
+    CODE("0=",     top = BOOL(top == 0)),
+    CODE("0<",     top = BOOL(top <  0)),
+    CODE("0>",     top = BOOL(top >  0)),
+    CODE("=",      top = BOOL(ss.pop() == top)),
+    CODE(">",      top = BOOL(ss.pop() >  top)),
+    CODE("<",      top = BOOL(ss.pop() <  top)),
+    CODE("<>",     top = BOOL(ss.pop() != top)),
+    CODE(">=",     top = BOOL(ss.pop() >= top)),
+    CODE("<=",     top = BOOL(ss.pop() <= top)),
     // IO ops
     CODE("base",   PUSH(0)),   // dict[0]->pf[0]->q[0] used for base
     CODE("hex",    cout << setbase(BASE = 16)),
     CODE("decimal",cout << setbase(BASE = 10)),
     CODE("cr",     cout << endl),
-    CODE(".",      cout << POP() << " "),
-    CODE(".r",     int n = POP(); dot_r(n, POP())),
-    CODE("u.r",    int n = POP(); dot_r(n, abs(POP()))),
+    CODE(".",      cout << setbase(BASE) << POP() << " "),
+    CODE(".r",     cout << setbase(BASE) << setw(POP()) << POP()),
+    CODE("u.r",    cout << setbase(BASE) << setw(POP()) << abs(POP())),
     CODE("key",    PUSH(next_idiom()[0])),
-    CODE("emit",   char b = (char)POP(); cout << b),
-    CODE("space",  cout << (" ")),
-    CODE("spaces", for (int n = POP(), i = 0; i < n; i++) cout << " "),
+    CODE("emit",   cout << (char)POP()),
+    CODE("space",  cout << " "),
+    CODE("spaces", cout << setw(POP()) << ""),
     // literals
     CODE("dotstr", cout << c->str),
     CODE("dolit",  PUSH(c->q[0])),
     CODE("dovar",  PUSH(c->token)),
-    CODE("[", compile = false),
-    CODE("]", compile = true),
+    CODE("[",      compile = false),
+    CODE("]",      compile = true),
     IMMD(".\"",
          string s = next_idiom('"');
          dict[-1]->add(new Code("dotstr", s.substr(1)))),
@@ -244,7 +237,7 @@ ForthList<Code*> dict = {
          dict.pop()),                              // CC: memory leak?
     // compiler ops
     CODE("exec", dict[top]->exec()),               // xt --
-    CODE("exit", throw length_error("")),          // -- 
+    CODE("exit", throw length_error("")),          // --
     CODE(":",
          dict.push(new Code(next_idiom(), true));  // create new word
          compile = true),
@@ -273,16 +266,19 @@ ForthList<Code*> dict = {
     CODE("allot",                                     // n --
          int n = POP();
          for (int i=0; i<n; i++) dict[-1]->pf[0]->q.push(0)),
-    CODE("does>",
+    CODE("_does",
          bool hit = false;
-         for (Code *w : dict[WP]->pf) {
-             if (hit) dict[-1]->add(w);               // copy pf
-             if (w->name=="does>") hit = true;
+         for (Code *w : dict[c->token]->pf) {
+             if (hit) dict[-1]->add(w);               // copy rest of pf
+             if (w->name=="_does") hit = true;
          }
          throw length_error("")),                     // exit caller
-    CODE("to",                                        // n -- 
+    IMMD("does>",
+         dict[-1]->add(new Code("_does"));
+         dict[-1]->pf[-1]->token = dict[-1]->token),  // keep WP
+    CODE("to",                                        // n --
          Code *w=find(next_idiom()); if (!w) return;
-         VAR(w->token) = POP()),                      // update value 
+         VAR(w->token) = POP()),                      // update value
     CODE("is",                                        // w --
          dict.push(new Code(next_idiom()));           // create word
          int n = POP();                               // like this word
@@ -326,12 +322,12 @@ void words() {
         if (w->name[0]=='_') continue;
         cout << w->name << "  ";
         x += (w->name.size() + 2);
-#endif         
+#endif
         if (x > WIDTH) { cout << endl; x = 0; }
     }
     cout << setbase(BASE) << endl;
 }
-/// 
+///
 /// main - Forth outer interpreter
 ///
 int main(int ac, char* av[]) {
