@@ -22,27 +22,34 @@ Utilizing modern OS and tool chains, a new generation of Forths implemented in j
 In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceforth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
 
 ### How To Compile/Build/Run
-#### Executable on Linux and Cygwin
 <pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
+</pre>
+
+#### Build Dr. Ting's last eForth in one C file - 345 lines
+Kept in orig/ting/ceForth_403.cpp [here](https://chochain.github.io/orig/ting/ceForth_403.cpp)
+<pre>
+> make 403
+> ./tests/eforth403
+> to quit, type 'exit' or ctrl-C
+</pre>
+
+#### Build eForth on Linux and Cygwin
+<pre>
 > make
 > ./tests/eforth
 </pre>
 
-#### WASM on Linux
+#### Build for WASM
 <pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
 > make wasm
 > python3 -m http.server
-> http://localhost:80/tests/eforth.html
+> from your browser, open http://localhost:80/tests/eforth.html
 </pre>
 
-#### For ESP32
+#### Build for ESP32
 <pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
 > ensure your Arduino IDE have ESP32 libraries installed
 > open eforth.ino with Arduino IDE
 > inside eforth.ino, modify WIFI_SSID and WIFI_PASS to point to your router
@@ -101,7 +108,7 @@ struct Code {
 
 **Change 3: Build array-based dictionary**
 <pre>
-const struct Code primitives[] = {
+Code* primitives[] = {
     CODE("dup",  stack[++S] = top),
     CODE("drop", pop()),
     CODE("over", push(stack[S])),
@@ -120,8 +127,7 @@ const struct Code primitives[] = {
 + OS library functions can be called directly by opcode
 </pre>
 
-C language on modern OS have good libraries for I/O interfaces,
-the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
+C language on modern OS have good libraries for I/O interfaces, the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
 
 **Change 4: Use Streams for input/output**
 <pre>
@@ -147,9 +153,7 @@ while (cin >> idiom) {
 + our outer-interpreter is understandable even without any comment
 </pre>
 
-Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll
-as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of
-a subroutine indirect threading model.
+Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of a subroutine indirect threading model.
 
 **Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits)**
 <pre>
@@ -230,7 +234,7 @@ Universal functor (no STL) and Code class
 ### Source Code directories
 <pre>
 + ~/src           common source for ceforth, esp32forth, wineForth, and weForth
-+ ~/orig/33b      refactored ceForth_33 with asm+vm
++ ~/orig/33b      refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
 + ~/orig/ting     ceForth source codes collaborated with Dr. Ting
 + ~/orig/802      esp32forth source codes collaborated with Dr. Ting
 </pre>
