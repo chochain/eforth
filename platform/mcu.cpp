@@ -22,12 +22,13 @@ void mem_stat()  {
     LOG_KV(" (max ",       ss.max);   LOGS(")");
     LOG_KV("\n  rs  : ",   rs.idx);   LOG_KV("/", E4_RS_SZ);
     LOG_KV(" (max ",       rs.max);   LOGS(")");
-    LOG_KX("\n  here: 0x", HERE);     LOG_KX("/0x", heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    LOG_KX(" (free 0x",    heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)); LOGS(")");
-    LOG_KV("\n  core_id     : ", xPortGetCoreID());
-    LOG_KV("\n  lowest_heap : ", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-    LOG_KV("\n  stack hwmark: ",  uxTaskGetStackHighWaterMark(NULL));
-    LOGS("\n");
+    LOG_KX("\n  here: 0x", HERE);     LOG_KX("/0x", E4_PMEM_SZ);
+    LOG_KV("\nForth VM on Core ", xPortGetCoreID());
+    LOG_KX(", RAM avail/free 0x", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    LOG_KX("/0x",      heap_caps_get_free_size(MALLOC_CAP_8BIT));
+    LOG_KX(" (min 0x", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
+//    LOG_KX(", watermark high 0x", uxTaskGetStackHighWaterMark(NULL));
+    LOGS(")\n");
     if (!heap_caps_check_integrity_all(true)) {
 //        heap_trace_dump();     // dump memory, if we have to
         abort();                 // bail, on any memory error

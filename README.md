@@ -3,7 +3,7 @@ With all the advantages, it is unfortunate that Forth lost out to C language ove
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
-Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth review [here](http://chochain.github.io/eforth/docs/eForthOverviewv5.pdf)
+Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth [genesis](https://chochain.github.io/eforth/docs/eForthAndZen.pdf) and [overview](https://chochain.github.io/eforth/docs/eForthOverviewv5.pdf)
 
 > The language consists of a collection of words, which reside in the memory of a computer and can be executed by entering their names on the computer keyboard. A list of words can be compiled, given a new name and made a new word. In fact, most words in Forth are defined as lists of existing words. A small set of primitive words are defined in machine code of the native CPU. All other words are built from this primitive words and eventually refer to them when executed.
 
@@ -19,10 +19,48 @@ Most classic Forth systems are build with a few low-level primitives in assembly
 
 Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
-In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceForth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
+In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceforth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
+
+### How To Compile/Build/Run
+<pre>
+> git clone https://github.com/chochain/eforth to your local machine
+> cd eforth
+</pre>
+
+#### Build Dr. Ting's last eForth in one C file - 345 lines
+Kept in orig/ting/ceForth_403.cpp [here](https://chochain.github.io/orig/ting/ceForth_403.cpp)
+<pre>
+> make 403
+> ./tests/eforth403
+> to quit, type 'exit' or ctrl-C
+</pre>
+
+#### Build eForth on Linux and Cygwin
+<pre>
+> make
+> ./tests/eforth
+</pre>
+
+#### Build for WASM
+<pre>
+> make wasm
+> python3 -m http.server
+> from your browser, open http://localhost:80/tests/eforth.html
+</pre>
+
+#### Build for ESP32
+<pre>
+> ensure your Arduino IDE have ESP32 libraries installed
+> open eforth.ino with Arduino IDE
+> inside eforth.ino, modify WIFI_SSID and WIFI_PASS to point to your router
+> open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
+> compile and load
+> if successful, web server IP address/port and eForth prompt shown in Serial Monitor
+> from your browser, enter the IP address to access the ESP32 web server
+</pre>
 
 ### Evolution - continuation of Dr. Ting's final work
-Source codes kept under ~/orig/ting
+Source codes kept under ~/orig/ting and details [here](https://chochain.github.io/eforth/orig/index.html)
 <pre>
 ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
 ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
@@ -70,7 +108,7 @@ struct Code {
 
 **Change 3: Build array-based dictionary**
 <pre>
-const struct Code primitives[] = {
+Code* primitives[] = {
     CODE("dup",  stack[++S] = top),
     CODE("drop", pop()),
     CODE("over", push(stack[S])),
@@ -89,8 +127,7 @@ const struct Code primitives[] = {
 + OS library functions can be called directly by opcode
 </pre>
 
-C language on modern OS have good libraries for I/O interfaces,
-the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
+C language on modern OS have good libraries for I/O interfaces, the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
 
 **Change 4: Use Streams for input/output**
 <pre>
@@ -116,9 +153,7 @@ while (cin >> idiom) {
 + our outer-interpreter is understandable even without any comment
 </pre>
 
-Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll
-as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of
-a subroutine indirect threading model.
+Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of a subroutine indirect threading model.
 
 **Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits)**
 <pre>
@@ -199,7 +234,7 @@ Universal functor (no STL) and Code class
 ### Source Code directories
 <pre>
 + ~/src           common source for ceforth, esp32forth, wineForth, and weForth
-+ ~/orig/33b      refactored ceForth_33 with asm+vm
++ ~/orig/33b      refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
 + ~/orig/ting     ceForth source codes collaborated with Dr. Ting
 + ~/orig/802      esp32forth source codes collaborated with Dr. Ting
 </pre>
@@ -220,38 +255,6 @@ Universal functor (no STL) and Code class
 +  990ms: src/ceforth, subroutine indirect threading, with 16-bit offset
 +  930ms: src/ceforth, inner interpreter with cached xt offsets
 </pre>
-
-### To build on Linux and Cygwin
-<pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
-> Make
-> ./tests/eforth
-</pre>
-
-### To build WASM on Linux
-<pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
-> Make wasm
-> python3 -m http.server
-> http://localhost:80/tests/eforth.html
-</pre>
-
-### To build for ESP32
-<pre>
-> git clone https://github.com/chochain/eforth to your local machine
-> cd eforth
-> make sure your Arduino IDE have ESP32 libraries installed
-> open eforth.ino with Arduino IDE
-> modify WIFI_SSID and WIFI_PASS to point to your router
-> open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
-> compile and load
-> if successful, you should see Web access info in Serial Monitor
-</pre>
-
-### To Run on Linux
-> ./tests/eforth
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011

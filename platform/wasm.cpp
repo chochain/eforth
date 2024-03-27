@@ -19,32 +19,13 @@ void mem_stat() {
     LOG_KX(" (free 0x",    E4_PMEM_SZ - HERE); LOGS(")\n");
 }
 
-void forth_include(const char *fn) { /* do nothing */ }
+int forth_include(const char *fn) { /* do nothing */ return 0; }
 ///====================================================================
 ///
 /// main program
 ///
-void run_once() {
-    const char *cmd[] = {
-        "dict",
-        "mstat",
-        "1",
-        "2",
-        "+",
-        ": xx 123 ;",
-        "words",
-        "bye"
-    };
-    for (int i=0; i < sizeof(cmd)/sizeof(const char*); i++) {
-        forth_core(cmd[i]);
-    }
-}
-
 int main(int ac, char* av[]) {
-    dict_compile();               // initialize dictionary
-    mem_stat();
-
-    emscripten_set_main_loop(run_once, 0, false);
+    forth_init();
     return 0;
 }
 ///====================================================================
@@ -53,6 +34,7 @@ int main(int ac, char* av[]) {
 ///
 extern "C" {
 void forth(int n, char *cmd) {
-    forth_core(cmd);
+    auto rsp_to_con = [](int len, const char *rst) { printf("%s", rst); };
+    forth_vm(cmd, rsp_to_con);
 }
 }

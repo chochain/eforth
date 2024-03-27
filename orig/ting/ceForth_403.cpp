@@ -1,6 +1,7 @@
 #include <iostream>         // cin, cout
 #include <iomanip>          // setbase
 #include <vector>           // vector
+
 using namespace std;
 /// .hpp - macros and class prototypes
 template<class T>
@@ -78,7 +79,7 @@ void  Code::exec() {
     }
     IP = rs.pop(); WP = rs.pop();           /// * return to caller
 }
-string Code::to_s() { return name + " " + to_string(token) + (immd ? "*" : ""); }
+string Code::to_s() { return name + " " + (token ? to_string(token) : "") + (immd ? "*" : ""); }
 // external function (instead of inline)
 void dot_r(int n, string s) {
 	for (int i = 0, m = n-s.size(); i < m; i++) cout << " ";
@@ -122,7 +123,7 @@ vector<Code*> prim = {
     CODE("4dup", PUSH(ss[-4]); PUSH(ss[-4]); PUSH(ss[-4]); PUSH(ss[-4])),
     CODE("swap", int n = ss.pop(); PUSH(n)),
     CODE("rot",  int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(n); PUSH(m)),
+    CODE("-rot", int n = ss.pop(); int m = ss.pop(); PUSH(m); PUSH(n)),
     CODE("2swap",int n = ss.pop(); int m = ss.pop(); int l = ss.pop(); ss.push(n); PUSH(l); PUSH(m)),
     CODE("pick", int i = top; top = ss[-i]),
     //    CODE("roll", int i=top; top=ss[-i]),
@@ -185,9 +186,9 @@ vector<Code*> prim = {
         dict[-1]->addcode(new Code("dotstr", s))),
     IMMD("(", next_idiom(')')),
     IMMD(".(", cout << next_idiom(')')),
-    CODE("\\", cout << next_idiom('\n')),
+    IMMD("\\", cout << next_idiom('\n')),           // for debugging
     // branching - if...then, if...else...then
-    IMMD("branch",
+    CODE("branch",
         bool f = POP() != 0;                        // check flag
         for (Code* w : (f ? c->pf.v : c->pf1.v)) w->exec()),
     IMMD("if",
@@ -333,14 +334,13 @@ void outer() {
                 cout << idiom << "? " << endl;
                 ss.clear(); top = -1; compile = false;
                 getline(cin, idiom, '\n'); }}           /// * skip the entire line
-    	if (cin.peek()=='\n' && !compile) ss_dump(); }} /// * dump stack and display ok prompt
-void dict_setup() {
-    dict.merge(prim);                                   /// * populate dictionary
-    prim.clear(); }                                     /// * reduce memory footprint
-/// main program
+    	if (cin.peek()=='\n' && !compile) ss_dump();    /// * dump stack and display ok prompt
+    }
+}
 int main(int ac, char* av[]) {
-    dict_setup();
+    dict.merge(prim);  prim.clear();                    /// * build dict
     cout << "ceforth 4.03" << endl;
     outer();
     cout << "done!" << endl;
-    return 0; }
+    return 0;
+}

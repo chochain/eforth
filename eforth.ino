@@ -33,7 +33,7 @@ void loop(void) {
     
     if (Serial.available()) {
         tib = Serial.readString();
-        Serial.println(tib);
+        Serial.print(tib);
         
         forth_vm(tib.c_str(), rsp_to_con);
         delay(2);
