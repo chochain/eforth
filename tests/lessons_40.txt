@@ -1,0 +1,541 @@
+cr .( example 1.      the universal greeting )
+
+decimal
+
+: hello cr ." hello, world!" ;
+
+cr .( example 2.      the big f )
+
+: bar   cr ." *****" ;
+: post  cr ." *    " ;
+: f     bar post bar post post post ;
+
+( Type 'f' and a return on your keyboard, and you will see a large F)
+f
+
+cr .( example 3.      fig, forth interest group )
+
+: center cr ."   *  " ;
+: sides  cr ." *   *" ;
+: triad1 cr ." * * *" ;
+: triad2 cr ." **  *" ;
+: triad3 cr ." *  **" ;
+: triad4 cr ."  *** " ;
+: quart  cr ." ** **" ;
+: right  cr ." * ***" ;
+: bigt  bar center center center center center center ;
+: bigi  center center center center center center center ;
+: bign  sides triad2 triad2 triad1 triad3 triad2 sides ;
+: bigg  triad4 sides post right triad1 sides triad4 ;
+: fig  f bigi bigg ;
+
+( Type 'fig' and a return on your keyboard, and you will see a large)
+fig
+
+cr .( example 4.      repeated patterns )
+
+variable width                  ( number of asterisks to print )
+
+: asterisks ( -- , print n asterisks on the screen, n=width )
+        width @                 ( limit=width, initial index=0 )
+        for ." *"               ( print one asterisk at a time )
+        next                    ( repeat n times )
+        ;
+
+: rectangle ( height width -- , print a rectangle of asterisks )
+        width !                 ( initialize width to be printed )
+        for     cr
+                asterisks       ( print a line of asterisks )
+        next
+        ;
+
+: parallelogram ( height width -- )
+        width !
+        for     cr r@ spaces    ( shift the lines to the right )
+                asterisks       ( print one line )
+        next
+        ;
+
+: triangle ( width -- , print a triangle area with asterisks )
+        for     cr
+                r@ width !      ( increase width every line )
+                asterisks       ( print one line )
+        next
+        ;
+
+( try the following instructions: )
+
+        3 10 rectangle
+        5 18 parallelogram
+        12 triangle  
+
+
+cr .( example 5.      the theory that jack built )
+( this example shows you how to build a hiararchical structure in forth)
+
+decimal
+
+: the           ." the " ;
+: that          cr ." that " ;
+: this          cr ." this is " the ;
+: jack          ." jack builds" ;
+: summary       ." summary" ;
+: flaw          ." flaw" ;
+: mummery       ." mummery" ;
+: k             ." constant k" ;
+: haze          ." krudite verbal haze" ;
+: phrase        ." turn of a plausible phrase" ;
+: bluff         ." chaotic confusion and bluff" ;
+: stuff         ." cybernatics and stuff" ;
+: theory        ." theory " jack ;
+: button        ." button to start the machine" ;
+: child         ." space child with brow serene" ;
+: cybernatics   ." cybernatics and stuff" ;
+
+: hiding        cr ." hiding " the flaw ;
+: lay           that ." lay in " the theory ;
+: based         cr ." based on " the mummery ;
+: saved         that ." saved " the summary ;
+: cloak         cr ." cloaking " k ;
+: thick         if that else cr ." and " then
+                ." thickened " the haze ;
+: hung          that ." hung on " the phrase ;
+: cover         if that ." covered "
+                else cr ." to cover "
+                then bluff ;
+: make          cr ." to make with " the cybernatics ;
+: pushed        cr ." who pushed " button ;
+: without       cr ." without confusion, exposing the bluff" ;
+: rest                                  ( pause for user interaction )
+        ." . "                          ( print a period )
+        10 spaces                       ( followed by 10 spaces )
+(        key drop                        ( wait the user to press a key )
+        cr cr ;
+
+: cloaked cloak saved based hiding lay rest ;
+: THEORY
+        cr this theory rest
+        this flaw lay rest
+        this mummery hiding lay rest
+        this summary based hiding lay rest
+        this k saved based hiding lay rest
+        this haze cloaked
+        this bluff hung 1 thick cloaked
+        this stuff 1 cover hung 0 thick cloaked
+        this button make 0 cover hung 0 thick cloaked
+        this child pushed
+                cr ." that made with " cybernatics without hung
+                cr ." and, shredding " the haze cloak
+                cr ." wrecked " the summary based hiding
+                cr ." and demolished " the theory rest
+        ;
+
+( type THEORY to start)
+THEORY
+
+cr .( example 6.      help )
+( how to use forth interpreter to carry on a dialog )
+
+: question
+        cr cr ." any more problems you want to solve?"
+        cr ." what kind ( sex, job, money, health ) ?"
+        cr
+        ;
+
+: help  cr
+        cr ." hello!  my name is creating computer."
+        cr ." hi there!"
+        cr ." are you enjoying yourself here?"
+        key 32 or 121 =
+        cr
+        if      cr ." i am glad to hear that."
+        else    cr ." i am sorry about that."
+                cr ." maybe we can brighten your visit a bit."
+        then
+        cr ." say!"
+        cr ." i can solved all kinds of problems except those dealing"
+        cr ." with greece. "
+        question
+        ;
+
+: sex   cr cr ." is your problem too much or too little?"
+        cr
+        ;
+
+: too  ;                                ( noop for syntax smoothness )
+
+: much  cr cr ." you call that a problem?!!  i should have that problem."
+        cr ." if it reall y bothers you, take a cold shower."
+        question
+        ;
+
+: little
+        cr cr ." why are you here!"
+        cr ." you should be in tokyo or new york of amsterdam or"
+        cr ." some place with some action."
+        question
+        ;
+
+: health
+        cr cr ." my advise to you is:"
+        cr ."      1. take two tablets of aspirin."
+        cr ."      2. drink plenty of fluids."
+        cr ."      3. go to bed (along) ."
+        question
+        ;
+
+: job   cr cr ." i can sympathize with you."
+        cr ." i have to work very long every day with no pay."
+        cr ." my advise to you, is to open a rental computer store."
+        question
+        ;
+
+: money
+        cr cr ." sorry!  i am broke too."
+        cr ." why don't you sell encyclopedias of marry"
+        cr ." someone rich or stop eating, so you won't "
+        cr ." need so much money?"
+        question
+        ;
+
+: help help ;
+: h help ;
+: H help ;
+
+( type 'help' to start )
+
+cr .( example 7.  money exchange )
+
+decimal
+
+: NT    ( nnt -- $ )    100 3355 */  ;
+: $NT   ( $ -- nnt )    3355 100 */  ;
+: RMB   ( nrmb -- $ )   100 947 */  ;
+: $RMB  ( $ -- njmp )   947 100 */  ;
+: HK    ( nhk -- $ )    100 773 */  ;
+: $HK   ( $ -- $ )      773 100 */  ;
+: gold  ( nounce -- $ ) 285 *  ;
+: $gold ( $ -- nounce ) 285 /  ;
+: silver ( nounce -- $ ) 495 100 */  ;
+: $silver ( $ -- nounce ) 100 495 */  ;
+: ounce ( n -- n, a word to improve syntax )  ;
+: dollars ( n -- ) . ;
+
+( With this set of money exchange words, we can do some tests:)
+cr
+        5 ounce gold .
+        10 ounce silver .
+        100 $NT .
+        20 $RMB .
+
+( If you have many different currency bills in your wallet, you can add then all up in dollars)
+cr 
+        1000 NT 500 HK + 
+        320 RMB + 
+        dollars ( print out total worth in dollars )
+
+cr .( example 8. temperature conversion )
+
+: f>c ( nfarenheit -- ncelcius )
+        32 -
+        10 18 */
+        ;
+
+: c>f ( ncelcius -- nfarenheit )
+        18 10 */
+        32 +
+        ;
+
+90 f>c .
+32 c>f .
+
+cr .( example 9.  weather reporting. )
+
+: weather ( nfarenheit -- )
+        dup     55 <
+        if      ." too cold!" drop
+        else    85 <
+                if      ." about right."
+                else    ." too hot!"
+                then
+        then
+        ;
+
+cr
+  90 weather
+  32 weather
+  70 weather
+
+cr .( example 10.  print the multiplication table )
+
+: onerow ( nrow -- )
+        cr
+        dup 3 .r 4 spaces
+        1 11
+        for     2dup *
+                4 .r
+                1 +
+        next
+        2drop ;
+
+: multiply ( -- )
+        cr cr 7 spaces
+        1 11
+        for     dup 4 .r 1 +
+        next drop 
+        1 11
+        for     dup onerow 1 +
+        next drop cr
+        ;
+
+( type multiply to print the multiplication table )
+multiply
+
+cr .( example 11.  calendars )
+
+( print weekly calendars for any month in any year. )
+decimal
+
+variable julian                         ( 0 is 1/1/1950, good until 2050 )
+variable leap                           ( 1 for a leap year, 0 otherwise. )
+( 1461 constant 4years                  ( number of days in 4 years )
+
+: year ( year --, compute julian date and leap year )
+        dup
+        1949 - 1461 4 */mod             ( days since 1/1/1949 )
+        365 - julian !                  ( 0 for 1/1/1950 )
+        3 =                             ( modulus 3 for a leap year )
+        if 1 else 0 then                ( leap year )
+        leap !
+        2000 =                          ( 2000 is not a leap year )
+        if 0 leap ! then
+        ;
+
+: first ( month -- 1st, 1st of a month from jan. 1 )
+        dup 1 =
+        if drop 0 
+        else dup 2 =
+        	if drop 31 
+        	else dup 3 =
+        		if drop 59 leap @ + 
+			else
+        			4 - 30624 1000 */
+        			90 + leap @ +                   ( apr. 1 to dec. 1 )
+			then   ( 59/60 for mar. 1 )
+		then            ( 31 for feb. 1 )
+	then             ( 0 for jan. 1 )
+        ;
+
+: stars 60 for 42 emit next ;           ( form the boarder )
+
+: header ( -- )                         ( print title bar )
+        cr stars cr 
+        ."      sun     mon     tue     wed     thu     fri     sat"
+        cr stars cr                     ( print weekdays )
+        ;
+
+: blanks ( month -- )                   ( skip days not in this month )
+        first julian @ +                ( julian date of 1st of month )
+        7 mod 8 * spaces ;              ( skip colums if not sunday   )
+
+: days ( month -- )                     ( print days in a month )
+        dup first                       ( days of 1st this month )
+        swap 1 + first                  ( days of 1st next month )
+        over - 1 -                      ( loop to print the days )
+        1 swap                          ( first day count -- )
+        for  2dup + 1 -
+                julian @ + 7 mod        ( which day in the week? )
+                if else cr then         ( start a new line if sunday )
+                dup  8 u.r              ( print day in 8 column field )
+                1 +
+        next
+        2drop ;                         ( discard 1st day in this month )
+
+: month ( n -- )                        ( print a month calendar )
+        header dup blanks               ( print header )
+        days cr stars cr ;              ( print days   )
+
+: january       year 1 month ;
+: february      year 2 month ;
+: march         year 3 month ;
+: april         year 4 month ;
+: may           year 5 month ;
+: june          year 6 month ;
+: july          year 7 month ;
+: august        year 8 month ;
+: september     year 9 month ;
+: october       year 10 month ;
+: november      year 11 month ;
+: december      year 12 month ;
+
+( to print the calender of may 2021, type: )
+        2021 may
+
+
+
+cr .( example 12.      sines and cosines )
+
+31416 constant pi
+10000 constant 10k
+variable xs                             ( square of scaled angle )
+
+: kn ( n1 n2 -- n3, n3=10000-n1*x*x/n2 where x is the angle )
+        xs @ swap /                     ( x*x/n2 )
+        negate 10k */                 	( -n1*x*x/n2 )
+        10k +                         	( 10000-n1*x*x/n2 )
+        ;
+: (sin) ( x -- sine*10k, x in radian*10k )
+        dup dup 10k */                	( x*x scaled by 10k )
+        xs !                            ( save it in xs )
+        10k 72 kn                     	( last term )
+        42 kn 20 kn 6 kn                ( terms 3, 2, and 1 )
+        10k */                        	( times x )
+        ;
+: (cos) ( x -- cosine*10k, x in radian*10k )
+        dup 10k */ xs !               	( compute and save x*x )
+        10k 56 kn 30 kn 12 kn 2 kn    	( serial expansion )
+        ;
+: sin_ ( degree -- sine*10k )
+        pi 180 */                    	( convert to radian )
+        (sin)                           ( compute sine )
+        ;
+: cos_ ( degree -- cosine*10k )
+        pi 180 */
+        (cos)
+        ;
+: sin ( degree -- sin )
+	360 mod dup 0< if 360 + then    ( mod may be negative )
+	dup  46 < if sin_ else
+	dup 136 < if 90 - cos_ else 
+	dup 226 < if 180 - sin_ negate else 
+	dup 316 < if 270 - cos_ negate else
+	360 - sin_ then then then then ;
+: cos 	90 + sin ;
+
+( to test the routines, type:)
+
+        90 sin .                         ( 9999 )
+        45 sin .                         ( 7070 )
+        30 sin .                         ( 5000 )
+         0 sin .                         ( 0 )
+        90 cos .                         ( 0 )
+        45 cos .                         ( 7071 )
+         0 cos .                         ( 10000 )
+
+
+cr .( example 13.      square root )
+
+: sqrt ( n -- root )
+        1600000000 over <               ( largest square it can handle)
+        if drop 40000 exit then         ( safety exit )
+        >r                              ( save sqaure )
+        1 1                             ( initial square and root )
+        begin                           ( set n1 as the limit )
+                over r@ <              ( next square )
+        while
+                dup 2 * 1 +              ( n*n+2n+1 )
+                rot + swap
+                1 +                     ( n+1 )
+        repeat
+        swap drop
+        r> drop
+        ;
+
+cr
+  10000 sqrt .
+  100   sqrt .
+  16    sqrt .
+
+cr .( example 14.      radix for number conversions )
+
+decimal
+: octal 8 base ! ;
+
+cr .( example 15.      ascii character table )
+
+: character ( n -- )
+        dup emit hex dup 3 .r
+        octal dup 4 .r
+        decimal 4 .r
+        2 spaces
+        ;
+
+: line ( n -- )
+        cr
+        5 for   dup character
+                16 +
+        next
+        drop ;
+
+: table ( -- )
+        32
+        15 for  dup line
+                1 +
+        next
+        drop ;
+
+table
+
+
+cr .( example 16.      random numbers )
+
+variable rnd                            ( seed )
+here rnd !                              ( initialize seed )
+
+: random ( -- n, a random number within 0 to 65536 )
+        rnd @ 31421 *                   ( rnd*31421 )
+        6927 + 65535 and                ( rnd*31421+6926, mod 65536)
+        dup rnd !                       ( refresh he seed )
+        ;
+
+: choose ( n1 -- n2, a random number within 0 to n1 )
+        random *                        ( n1*random to a double product)
+        65536 /                         ( discard lower part )
+        ;                               ( in fact divide by 65536 )
+
+random .
+
+cr .( example 17.      guess a number )
+( example 16 must be loaded.)
+
+variable myNumber
+variable yourNumber
+
+: limit ( n -- )
+	yourNumber !
+	cr ." Now, type you guess as:"
+	cr ." xxxx guess"
+	cr ." where xxxx is your guess."
+	yourNumber @ choose myNumber !
+    ;
+
+: guess ( n1 -- , allow player to guess, exit when the guess is correct )
+	myNumber @ 2dup =           ( equal? )
+        if      2drop           ( discard both numbers )
+                cr ." correct!!!"
+                exit
+        then
+        > if    cr ." too high!"
+        else    cr ." too low."
+        then    cr ." guess again?"
+        ;
+
+: greet ( -- )
+    cr cr cr ." guess a number"
+    cr ." this is a number guessing game.  i'll think"
+    cr ." of a number between 0 and any limit you want."
+    cr ." (it should be smaller than 32000.)"
+    cr ." then you have to guess what it is."
+	cr
+	cr ." Set up the limit by typing:"
+	cr ." xxxx limit "
+	cr ." where xxxx is a number smaller than 32000."
+    ;
+
+greet
+100 limit
+50 dup . guess
+80 dup . guess
+." myNumber=" myNumber @ .
+bye
+
