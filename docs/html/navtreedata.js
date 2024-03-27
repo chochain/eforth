@@ -65,10 +65,10 @@ var NAVTREEINDEX =
 [
 "1.html",
 "ceForth__33_8cpp.html#ad6d60b765f761c067676d00debfb1cfe",
-"ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a6f5ba9949050dc830cb91b12f636d1b7",
-"ceforth__36x_8cpp.html#ab83f60d10ba1fbda9fafd4eb249b9689",
-"eforth_8h.html#a25809e0734a149248fcf5831efa4e33d",
-"globals_func_n.html"
+"ceforth_8cpp.html#a5fdde0871776510df64f500650209b27",
+"ceforth__36x_8cpp.html#a67a00283609b2163c1054c4c5ff56252",
+"eforth_8h.html#a06fc87d81c62e9abb8790b6e5713c55ba891ad41062297003d2ac1cbacff0e737",
+"globals_defs_b.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

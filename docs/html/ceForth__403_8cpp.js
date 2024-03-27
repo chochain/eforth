@@ -14,7 +14,6 @@ var ceForth__403_8cpp =
     [ "words", "ceForth__403_8cpp.html#a8c226ea3e83d7102f33d1575b060f511", null ],
     [ "POP", "ceForth__403_8cpp.html#ac9c76201d1930e75c9196dd2c01ce308", null ],
     [ "outer", "ceForth__403_8cpp.html#aa092eeb4438ed729e9992fc5dead37be", null ],
-    [ "dict_setup", "ceForth__403_8cpp.html#ae041e1845eba3bcd3dbb497078eb89ea", null ],
     [ "main", "ceForth__403_8cpp.html#adacbe0175a79dff748855d8c9839f82b", null ],
     [ "rs", "ceForth__403_8cpp.html#a85513a4f030780634f42ae72c4b60986", null ],
     [ "ss", "ceForth__403_8cpp.html#aab82195162e0750794fcb417373e1be1", null ],

@@ -101,7 +101,7 @@ $(document).ready(function(){initNavTree('server_8h_source.html',''); initResiza
 <div class="line"><a name="l00018"></a><span class="lineno">   18</span>&#160;<span class="stringliteral">    &lt;div id=&#39;log&#39; style=&#39;float:left;overflow:auto;height:600px;width:600px;</span></div>
 <div class="line"><a name="l00019"></a><span class="lineno">   19</span>&#160;<span class="stringliteral">         background-color:#f8f0f0;&#39;&gt;eForth 4.2&lt;/div&gt;</span></div>
 <div class="line"><a name="l00020"></a><span class="lineno">   20</span>&#160;<span class="stringliteral">    &lt;textarea id=&#39;tib&#39; style=&#39;height:600px;width:400px;&#39;</span></div>
-<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;<span class="stringliteral">        onkeydown=&#39;if (13===event.keyCode) forth()&#39;&gt;words&lt;/textarea&gt;</span></div>
+<div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160;<span class="stringliteral">        onkeydown=&#39;if (13===event.keyCode) forth()&#39;&gt;&lt;/textarea&gt;</span></div>
 <div class="line"><a name="l00022"></a><span class="lineno">   22</span>&#160;<span class="stringliteral">&lt;/body&gt;</span></div>
 <div class="line"><a name="l00023"></a><span class="lineno">   23</span>&#160;<span class="stringliteral">&lt;script&gt;</span></div>
 <div class="line"><a name="l00024"></a><span class="lineno">   24</span>&#160;<span class="stringliteral">let log = document.getElementById(&#39;log&#39;)</span></div>
@@ -128,7 +128,7 @@ $(document).ready(function(){initNavTree('server_8h_source.html',''); initResiza
 <div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;<span class="stringliteral">    send_post(&#39;/input&#39;, ary)</span></div>
 <div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;<span class="stringliteral">    tib.value = &#39;&#39;</span></div>
 <div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;<span class="stringliteral">}</span></div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="stringliteral">window.onload = ()=&gt;{ tib.focus() }</span></div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;<span class="stringliteral">window.onload = ()=&gt;tib.focus()</span></div>
 <div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;<span class="stringliteral">&lt;/script&gt;&lt;/html&gt;</span></div>
 <div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;<span class="stringliteral"></span> </div>
 <div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;<span class="stringliteral">)XX&quot;;</span></div>

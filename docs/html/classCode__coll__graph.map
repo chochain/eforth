@@ -1,5 +1,5 @@
 <map id="Code" name="Code">
-<area shape="rect" id="node1" title="Forth operator." alt="" coords="203,124,258,151"/>
+<area shape="rect" id="node1" title="Forth operator." alt="" coords="203,153,258,180"/>
 <area shape="rect" id="node2" href="$structForthList.html" title=" " alt="" coords="5,5,131,32"/>
 <area shape="rect" id="node3" href="$structForthList.html" title=" " alt="" coords="155,5,306,32"/>
 <area shape="rect" id="node4" href="$structForthList.html" title=" " alt="" coords="331,5,483,32"/>
