@@ -340,12 +340,12 @@ int main(int ac, char* av[]) {
                     dict[-1]->add(w);     /// * add to colon word
                 else w->exec();           /// * execute forth word
             }
-			else {
-				int n = stoi(idiom, nullptr, BASE);     /// * convert to integer
-				if (compile)
-					dict[-1]->add(new Code("_lit", n)); /// * add to current word
-				else PUSH(n);                           /// * add value to data stack
-			}
+            else {
+                int n = stoi(idiom, nullptr, BASE);     /// * convert to integer
+                if (compile)
+                    dict[-1]->add(new Code("_lit", n)); /// * add to current word
+                else PUSH(n);                           /// * add value to data stack
+            }
         }
         catch (...) {                     /// * failed to parse number
             cout << idiom << "? " << endl;
