@@ -49,13 +49,13 @@ struct Code {
         : name(n), token(f ? idx++ : 0) {
         Code *w = find(n); xt = w ? w->xt : NULL;
     }
-    Code(string n, int d) : name(""), xt(find(n)->xt) { q.push(d); }   ///> dolit, dovar
+    Code(string n, int d) : name(""), xt(find(n)->xt) { q.push(d); }  ///> dolit, dovar
     Code(string n, string s) : name("_$"), xt(find(n)->xt), str(s) {} ///> dostr, dotstr
     Code *immediate()  { immd = true; return this; }  ///> set immediate flag
     Code *add(Code *w) { pf.push(w);  return this; }  ///> append colon word
-    void exec() {                         ///> execute word
-        if (xt) { xt(this); return; }     /// * execute primitive word
-        for (Code *w : pf) {              /// * inner interpreter
+    void exec() {                         ///> inner interpreter
+        if (xt) { xt(this); return; }     /// * run primitive word
+        for (Code *w : pf) {              /// * run colon word
             try { w->exec(); }            /// * execute recursively
             catch (...) { break; }        /// * also handle exit
         }
@@ -157,9 +157,9 @@ ForthList<Code*> dict = {
     IMMD(".\"",
          string s = next_idiom('"');
          dict[-1]->add(new Code("_str", s.substr(1)))),
-    IMMD("(", next_idiom(')')),
-    IMMD(".(", cout << next_idiom(')')),
-    IMMD("\\", string s; getline(cin, s, '\n')),     // flush input
+    IMMD("(",      next_idiom(')')),
+    IMMD(".(",     cout << next_idiom(')')),
+    IMMD("\\",     string s; getline(cin, s, '\n')), // flush input
     // branching ops - if...then, if...else...then
     CODE("_bran",
          for (Code *w : (POP() ? c->pf : c->p1)) w->exec()),
