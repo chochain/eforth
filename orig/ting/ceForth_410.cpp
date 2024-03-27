@@ -50,7 +50,7 @@ struct Code {
         Code *w = find(n); xt = w ? w->xt : NULL;
     }
     Code(string n, int d) : name(""), xt(find(n)->xt) { q.push(d); }   ///> dolit, dovar
-    Code(string n, string s) : name("str"), xt(find(n)->xt), str(s) {} ///> dostr, dotstr
+    Code(string n, string s) : name("_$"), xt(find(n)->xt), str(s) {} ///> dostr, dotstr
     Code *immediate()  { immd = true; return this; }  ///> set immediate flag
     Code *add(Code *w) { pf.push(w);  return this; }  ///> append colon word
     void exec() {                         ///> execute word
@@ -77,10 +77,10 @@ void see(Code *c, int dp) {               ///> disassemble a colon word
         int i = dp; cout << endl; while (i--) cout << "  "; cout << s;
         for (Code *w : v) if (dp < 2) see(w, dp + 1);    /// * depth controlled
     };
-    pp(dp, (c->name=="str" ? ".\""+c->str+"\"" : c->name), c->pf);
+    pp(dp, (c->name=="_$" ? ".\" "+c->str+"\"" : c->name), c->pf);
     if (c->p1.size() > 0) pp(dp, "( 1-- )", c->p1);
     if (c->p2.size() > 0) pp(dp, "( 2-- )", c->p2);
-    if (c->q.size()  > 0) for (int i : c->q) cout << i;
+    if (c->q.size()  > 0) for (int i : c->q) cout << i << " ";
 }
 ///> macros to reduce verbosity (but harder to single-step debug)
 inline  int POP()    { int n=top; top=ss.pop(); return n; }
