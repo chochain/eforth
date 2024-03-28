@@ -21,8 +21,7 @@ void mem_stat() {
 	if (sysinfo(&si)!=-1) {
         int p = 1000 * si.freeram / si.totalram;
 		cout << ", RAM " << static_cast<float>(p) * 0.1
-             << "% free (0x" << si.freeram
-             << " / 0x" << si.totalram << ")";
+             << "% free (" << si.freeram << " / " << si.totalram << ")";
 	}
 	cout << endl;
 }
