@@ -10,10 +10,10 @@ using namespace std;
 ///
 ///> Forth VM state variables
 ///
-FV<int> ss;                            ///< data stack
-FV<int> rs;                            ///< return stack
-int     top     = -1;                  ///< cached top of stack
-bool    compile = false;               ///< compiling flag
+FV<DU> ss;                             ///< data stack
+FV<DU> rs;                             ///< return stack
+DU     top     = -1;                   ///< cached top of stack
+bool   compile = false;                ///< compiling flag
 ///
 ///> I/O streaming interface
 ///
@@ -39,11 +39,11 @@ Code::Code(string n, string s)                  ///> dostr, dotstr
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
-inline  int POP()    { int n=top; top=ss.pop(); return n; }
-#define PUSH(v)      (ss.push(top), top=(v))
-#define BOOL(f)      ((f) ? -1 : 0)
-#define VAR(i)       (*dict[i]->pf[0]->q.data())
-#define BASE         (VAR(0))   /* borrow dict[0] to store base (numeric radix) */
+inline  DU POP() { DU n=top; top=ss.pop(); return n; }
+#define PUSH(v)  (ss.push(top), top=(v))
+#define BOOL(f)  ((f) ? -1 : 0)
+#define VAR(i)   (*dict[(int)(i)]->pf[0]->q.data())
+#define BASE     (VAR(0))   /* borrow dict[0] to store base (numeric radix) */
 ///
 ///> IO functions
 ///
@@ -51,7 +51,7 @@ string next_idiom(char delim=0) {    ///> read next idiom form input stream
     string s; delim ? getline(fin, s, delim) : fin >> s; return s;
 }
 void ss_dump() {                     ///> display data stack and ok promt
-    fout << "< "; for (int i : ss) fout << i << " ";
+    fout << "< "; for (DU i : ss) fout << i << " ";
     fout << top << " > ok" << ENDL;
 }
 void see(Code *c, int dp) {          ///> disassemble a colon word
@@ -62,7 +62,7 @@ void see(Code *c, int dp) {          ///> disassemble a colon word
     pp(dp, (c->name=="_$" ? ".\" "+c->str+"\"" : c->name), c->pf);
     if (c->p1.size() > 0) pp(dp, "( 1-- )", c->p1);
     if (c->p2.size() > 0) pp(dp, "( 2-- )", c->p2);
-    if (c->q.size()  > 0) for (int i : c->q) fout << i << " ";
+    if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
 }
 ///
 ///> Forth dictionary assembler
@@ -75,15 +75,15 @@ FV<Code*> dict = {                 ///< Forth dictionary
     // stack ops
     CODE("dup",    PUSH(top)),
     CODE("drop",   top=ss.pop()),  // note: ss.pop() != POP()
-    CODE("swap",   int n = ss.pop(); PUSH(n)),
+    CODE("swap",   DU n = ss.pop(); PUSH(n)),
     CODE("over",   PUSH(ss[-2])),
-    CODE("rot",    int n = ss.pop(); int m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("-rot",   int n = ss.pop(); int m = ss.pop(); PUSH(m);  PUSH(n)),
+    CODE("rot",    DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m)),
+    CODE("-rot",   DU n = ss.pop(); DU m = ss.pop(); PUSH(m);  PUSH(n)),
     CODE("pick",   top = ss[-top]),
     CODE("nip",    ss.pop()),
     CODE("2dup",   PUSH(ss[-2]); PUSH(ss[-2])),
     CODE("2drop",  ss.pop(); top=ss.pop()),
-    CODE("2swap",  int n = ss.pop(); int m = ss.pop(); int l = ss.pop();
+    CODE("2swap",  DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
                    ss.push(n); PUSH(l); PUSH(m)),
     CODE("2over",  PUSH(ss[-4]); PUSH(ss[-4])),
     CODE(">r",     rs.push(POP())),
@@ -96,7 +96,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("/",      top =  ss.pop() / top),
     CODE("mod",    top =  ss.pop() % top),
     CODE("*/",     top =  ss.pop() * ss.pop() / top),
-    CODE("*/mod",  int n = ss.pop() * ss.pop();
+    CODE("*/mod",  DU2 n = (DU2)ss.pop() * ss.pop();
                    ss.push(n % top); top = (n / top)),
     CODE("and",    top &= ss.pop()),
     CODE("or",     top |= ss.pop()),
@@ -229,12 +229,12 @@ FV<Code*> dict = {                 ///< Forth dictionary
          dict.push(new Code(next_idiom(), true));
          Code *last = dict[-1]->add(new Code("_lit", POP()));
          last->pf[0]->token = last->token),
-    CODE("@",      int w=POP(); PUSH(VAR(w))),                     // w -- n
-    CODE("!",      int w=POP(); VAR(w) = POP()),                   // n w --
-    CODE("+!",     int w=POP(); VAR(w) += POP()),                  // n w --
-    CODE("?",      int w=POP(); fout << VAR(w) << " "),            // w --
-    CODE("array@", int i=POP(); int w=POP(); PUSH(*(&VAR(w)+i))),  // w i -- n
-    CODE("array!", int i=POP(); int w=POP(); *(&VAR(w)+i)=POP()),  // n w i --
+    CODE("@",      DU w=POP(); PUSH(VAR(w))),                     // w -- n
+    CODE("!",      DU w=POP(); VAR(w) = POP()),                   // n w --
+    CODE("+!",     DU w=POP(); VAR(w) += POP()),                  // n w --
+    CODE("?",      DU w=POP(); fout << VAR(w) << " "),            // w --
+    CODE("array@", DU i=POP(); int w=POP(); PUSH(*(&VAR(w)+i))),  // w i -- n
+    CODE("array!", DU i=POP(); int w=POP(); *(&VAR(w)+i)=POP()),  // n w i --
     CODE(",",      dict[-1]->pf[0]->q.push(POP())),
     CODE("allot",                                     // n --
          int n = POP();
@@ -283,7 +283,7 @@ void words() {              ///> display word list
     int i = 0, x = 0;
     fout << setbase(16) << setfill('0');
     for (Code *w : dict) {
-#if DEBUG
+#if CC_DEBUG
         fout << setw(4) << w->token << "> "
              << setw(8) << (uintptr_t)w->xt
              << ":" << (w->immd ? '*' : ' ')
@@ -297,56 +297,70 @@ void words() {              ///> display word list
     }
     fout << setbase(BASE) << ENDL;
 }
+///
+///> setup user variables
+///
 void forth_init() {
-    ///
-    ///> setup user variables
-    ///
     dict[0]->add(new Code("_var", 10));   /// * borrow dict[0] for base
 }
+///=======================================================================
 ///
 ///> main - Forth outer interpreter
 ///
-int forth_core(const char *idiom) {
+DU parse_number(string idiom, int *err) {
+	const char *cs = idiom.c_str();
+    int b = BASE;
+    switch (*cs) {                    ///> base override
+    case '%': b = 2;  cs++; break;
+    case '&':
+    case '#': b = 10; cs++; break;
+    case '$': b = 16; cs++; break;
+    }
+    char *p;
+    *err = errno = 0;
+#if DU==float
+    DU n = (b==10)
+        ? static_cast<DU>(strtof(cs, &p))
+        : static_cast<DU>(strtol(cs, &p, b));
+#else
+    DU n = static_cast<DU>(strtol(cs, &p, b));
+#endif
+    if (errno || *p != '\0') *err = 1;
+    return n;
+}
+
+void forth_core(string idiom) {
     Code *w = find(idiom);            /// * search through dictionary
+	cout << idiom << "=>" << w->token << endl;
+	return;
     if (w) {                          /// * word found?
         if (compile && !w->immd)
             dict[-1]->add(w);         /// * add token to word
         else w->exec();               /// * execute forth word
+		return;
     }
-    else {
-        int n = stoi(idiom, nullptr, BASE);     /// * convert to integer
-        if (compile)
-            dict[-1]->add(new Code("_lit", n)); /// * add to current word
-        else PUSH(n);                           /// * add value to data stack
-    }
-    if (!compile) ss_dump();   /// * dump stack and display ok prompt
-    return 0;
+	// try as a number
+	int err = 0;
+	DU  n   = parse_number(idiom, &err);
+    if (err) throw length_error("");        /// * not number
+	if (compile)
+		dict[-1]->add(new Code("_lit", n)); /// * add to current word
+	else PUSH(n);                           /// * add value to data stack
 }
+
 void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
     fin.clear();               ///> clear input stream error bit if any
     fin.str(cmd);              ///> feed user command into input stream
     fout_cb = callback;        ///> setup callback function
     fout.str("");              ///> clean output buffer, ready for next run
     while (fin >> pad) {       ///> outer interpreter loop
-        const char *idiom = pad.c_str();
-        try { forth_core(idiom); }    ///> single command to Forth core
+        try { forth_core(pad); }    ///> single command to Forth core
         catch(...) {
-            fout << idiom << "? " << ENDL;
+            fout << pad << "? " << ENDL;
             compile = false;
             getline(fin, pad, '\n');  /// * flush to end-of-line
         }
     }
 }
-int main(int ac, char* av[]) {
-    cout << "eForth v4.2" << endl;
-    forth_init();    ///> initialize dictionary
-    
-    auto send_to_con = [](int len, const char *rst) { cout << rst; };
-    string cmd;
-    while (getline(cin, cmd)) {                ///> fetch user input
-        // printf("cmd=<%s>\n", cmd.c_str());
-        forth_vm(cmd.c_str(), send_to_con);    ///> execute outer interpreter
-    }
-    cout << "Done!" << endl;
-    return 0;
-}
+///=======================================================================
+#include "../platform/main.cpp"
