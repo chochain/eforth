@@ -36,18 +36,6 @@ typedef int32_t         DU;
 #define UINT(v)         (abs(v))
 
 #endif // USE_FLOAT
-typedef uint16_t        IU;    ///< instruction pointer unit
-///@}
-///@name Inline & Alignment macros
-///@{
-#pragma GCC optimize("align-functions=4")    // we need fn alignment
-#define INLINE          __attribute__((always_inline))
-#define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
-#define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
-#define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
-#define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
-#define ALIGN(sz)       ALIGN2(sz)
-#define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
 ///@}
 ///@name Multi-platform support
 ///@{
