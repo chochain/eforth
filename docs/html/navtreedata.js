@@ -25,6 +25,7 @@ var NAVTREE =
   [ "eForth", "index.html", [
     [ "Forth - is it still relevant?", "index.html", null ],
     [ "- Original Documentations by Dr. Ting", "4.html", null ],
+    [ "5", "5.html", null ],
     [ "- Evolution of ESP32Forth", "3.html", null ],
     [ "- Evolution of ceForth", "2.html", null ],
     [ "- Platform Specific Code directory", "1.html", null ],
@@ -40,8 +41,9 @@ var NAVTREE =
     [ "Data Structures", "annotated.html", [
       [ "Data Structures", "annotated.html", "annotated_dup" ],
       [ "Data Structure Index", "classes.html", null ],
+      [ "Class Hierarchy", "hierarchy.html", "hierarchy" ],
       [ "Data Fields", "functions.html", [
-        [ "All", "functions.html", null ],
+        [ "All", "functions.html", "functions_dup" ],
         [ "Functions", "functions_func.html", null ],
         [ "Variables", "functions_vars.html", null ]
       ] ]
@@ -64,11 +66,12 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "1.html",
-"ceForth__33_8cpp.html#ad6d60b765f761c067676d00debfb1cfe",
-"ceforth_8cpp.html#a5fdde0871776510df64f500650209b27",
-"ceforth__36x_8cpp.html#a67a00283609b2163c1054c4c5ff56252",
-"eforth_8h.html#a06fc87d81c62e9abb8790b6e5713c55ba891ad41062297003d2ac1cbacff0e737",
-"globals_defs_b.html"
+"ceForth__33_8cpp.html#ad690de7196efd6869939226a6bbfa0a0",
+"ceforth__36_8cpp.html#a53ee12f4dd53b3aa1de7e6aa2e3d61fe",
+"eforth_8h.html#a06fc87d81c62e9abb8790b6e5713c55ba088c34301636340570ba6ab9aa0a4038",
+"eforth__vm_8cpp.html#aecac6f5bd98330178f6a1757503a81ae",
+"orig_240x_2config_8h.html#a14694ee4ae482f0c98e7e4c5ed6a357f",
+"structForthList.html#a4436699d9462b61f76d3438c0e111260"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

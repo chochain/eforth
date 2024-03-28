@@ -89,38 +89,24 @@ $(document).ready(function(){initNavTree('2.html',''); initResizable(); });
 </div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><h3>ting - Dr. Ting's original ceForth</h3>
-<ul>
-<li>_23</li>
-<li>_33</li>
-</ul>
-<h3>ting - Dr. Ting's adaptation by my input</h3>
-<ul>
-<li>_36, _36b, _36c, _36x</li>
-<li>_40, _40b, _40c</li>
-<li>_401, _402, _403</li>
-</ul>
-<h3>33b - code analysis of Dr. Ting's original ceForth_33</h3>
-<ul>
-<li>eforth_asm - assembler</li>
-<li>eforth_vm - inner interpreter</li>
-<li>eforth - main</li>
-</ul>
-<h3>802 - the original source for esp32forth_82</h3>
-<ul>
-<li>originated from Dr. Ting's esp32forth_63.ino (see esp32 below)</li>
-<li>20210827 - first proposed to Dr. Ting.</li>
-<li>20210831 - I combined them into one file and presented to Dr. Ting as <a class="el" href="esp32forth__82_8ino.html">esp32forth_82.ino</a></li>
-</ul>
-<h3>esp32 - the original source for esp32forth</h3>
-<ul>
-<li>see esp32/README</li>
-</ul>
-<h3>life after _403 (final version from Dr. Ting)</h3>
-<ul>
-<li>_410 - refactored (initializer_list, iterator) and bug fixes </li>
-</ul>
-</div></div><!-- contents -->
+<div class="textblock"><p>Source codes kept under ~/orig/ting and details <a href="https://chochain.github.io/eforth/orig/index.html">here</a> </p><pre>
+ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
+ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
+ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C</pre><pre>ceForth_40 - 2021-07-27 Lee suggested Dr. Ting to use
+                        + struct for dictionary entry with name and lambda pointers,
+                        + std::vector for dict/ss/rs, and
+                        + std::map to host dictionary
+ceForth_40a- 2021-07-28 Lee suggested using VT macros to build dictionary entries (struct)
+ceForth_40b- 2021-07-31 Lee replaced std::vector with <a class="el" href="structForthList.html" title=".hpp - macros and class prototypes">ForthList</a> struct for dict/ss/rs
+ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
+ceForth_402- 2021-08-03 Dr. Ting adopted <a class="el" href="structForthList.html" title=".hpp - macros and class prototypes">ForthList</a>
+ceForth_403- 2021-08-06 Lee refined _402
+                        Dr. Ting add docs and presented it on Forth2020</pre><pre>ceForth_36 - 2021-09-27 Dr. Ting, learnt from _40x, upgraded his _33 to _36 (retained linear memory model)
+ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
+ceForth_36b- 2021-10-03 Dr. Ting added <a class="el" href="structCode.html" title="Forth operator.">Code</a> struct and lambda,
+                        ported to esp32forth_85 and presented in Forth2020
+ceForth_36x- 2022-01-13 Dr. Ting final archive, great for understanding Forth building</pre><pre>ceForth_410- 2024-03-25 Lee refactored _403 to pure vector-based i.e do away with SP, RP, WP, and IP.
+</pre> </div></div><!-- contents -->
 </div><!-- PageDoc -->
 </div><!-- doc-content -->
 <!-- start footer part -->

@@ -1,6 +1,6 @@
 var ceforth__36b_8cpp =
 [
-    [ "Code", "classCode.html", "classCode" ],
+    [ "Code", "structCode.html", "structCode" ],
     [ "FALSE", "ceforth__36b_8cpp.html#aa93f0eb578d23995850d61f7d61c55c1", null ],
     [ "TRUE", "ceforth__36b_8cpp.html#aa8cecfc5c5c054d2875c03e77b7be15d", null ],
     [ "LOGICAL", "ceforth__36b_8cpp.html#a5e225b86d7b20056ee34b49f436fe6ca", null ],
@@ -28,7 +28,6 @@ var ceforth__36b_8cpp =
     [ "run", "ceforth__36b_8cpp.html#a805e9096cfea449c37d6ce13ae90bb9b", null ],
     [ "outer", "ceforth__36b_8cpp.html#aa092eeb4438ed729e9992fc5dead37be", null ],
     [ "main", "ceforth__36b_8cpp.html#adacbe0175a79dff748855d8c9839f82b", null ],
-    [ "CODE", "ceforth__36b_8cpp.html#ab3a037e24c9a33addcaa9fabfc654ae1", null ],
     [ "IMEDD", "ceforth__36b_8cpp.html#a8ed282eadf61cd22578e8ac0f2638b37", null ],
     [ "rack", "ceforth__36b_8cpp.html#a49168442b9c04749c2aa38b0f520d75f", null ],
     [ "stack", "ceforth__36b_8cpp.html#ae7372fdf287ec3fa875d46bdd489740b", null ],
@@ -56,5 +55,5 @@ var ceforth__36b_8cpp =
     [ "s", "ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05", null ],
     [ "data", "ceforth__36b_8cpp.html#a9c4f0869ed5b474291ef4e1585bd4855", null ],
     [ "cData", "ceforth__36b_8cpp.html#a842bcf8ffffea520c505692f98e6f550", null ],
-    [ "primitives", "ceforth__36b_8cpp.html#a0f9656e68aab2f196cadb91a7a8a6dec", null ]
+    [ "primitives", "ceforth__36b_8cpp.html#ad98100bb580a45a1875e0276d2cf77e0", null ]
 ];

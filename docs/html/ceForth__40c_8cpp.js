@@ -1,7 +1,7 @@
 var ceForth__40c_8cpp =
 [
     [ "ForthList", "structForthList.html", "structForthList" ],
-    [ "Code", "classCode.html", "classCode" ],
+    [ "Code", "structCode.html", "structCode" ],
     [ "FALSE", "ceForth__40c_8cpp.html#aa93f0eb578d23995850d61f7d61c55c1", null ],
     [ "TRUE", "ceForth__40c_8cpp.html#aa8cecfc5c5c054d2875c03e77b7be15d", null ],
     [ "POP", "ceForth__40c_8cpp.html#a2106695e949772f765546777ef34690e", null ],

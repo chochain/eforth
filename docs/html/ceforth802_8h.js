@@ -1,7 +1,7 @@
 var ceforth802_8h =
 [
     [ "ForthList", "structForthList.html", "structForthList" ],
-    [ "Code", "classCode.html", "classCode" ],
+    [ "Code", "structCode.html", "structCode" ],
     [ "ForthVM", "classForthVM.html", "classForthVM" ],
     [ "ENDL", "ceforth802_8h.html#a90dc3f3ee970394e0080300526390a84", null ],
     [ "to_string", "ceforth802_8h.html#a1832a8b24c5256b9b96404f71211874b", null ],

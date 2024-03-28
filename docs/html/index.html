@@ -105,19 +105,15 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 <p>Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See <a href="https://www.forth.org/OffeteStore/OffeteStore.html">here</a> for the detailed list. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.</p>
 <p>Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight <b>Forth without Forth</b>.</p>
 <p>In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see <a href="https://chochain.github.io/eforth/docs/ceforth_403.pdf">ceForth_403</a> and <a href="https://github.com/chochain/eJsv32">eJsv32</a> for details.</p>
-<h2>How To Compile/Build/Run</h2>
+<h2>How To Compile/Build/Run this pure C/C++ eForth</h2>
 <pre>
 &gt; git clone <a href="https://github.com/chochain/eforth">https://github.com/chochain/eforth</a> to your local machine
 &gt; cd eforth
-</pre><p>#</p><h2>Build Dr. Ting's last eForth in one C file - 345 lines</h2>
-<p>Kept in <a class="el" href="ceForth__403_8cpp.html">orig/ting/ceForth_403.cpp</a> <a href="https://chochain.github.io/orig/ting/ceForth_403.cpp">here</a> </p><pre>
-&gt; make 403
-&gt; ./tests/eforth403
-&gt; to quit, type 'exit' or ctrl-C
-</pre><p>#</p><h2>Build eForth on Linux and Cygwin</h2>
+</pre><p>#</p><h2>Build eForth on Linux or Cygwin</h2>
 <pre>
 &gt; make
 &gt; ./tests/eforth
+&gt; to quit, type 'bye' or Ctrl-C
 </pre><p>#</p><h2>Build for WASM</h2>
 <pre>
 &gt; make wasm
@@ -132,225 +128,101 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 &gt; compile and load
 &gt; if successful, web server IP address/port and eForth prompt shown in Serial Monitor
 &gt; from your browser, enter the IP address to access the ESP32 web server
-</pre><p>#</p><h1>Evolution - continuation of Dr. Ting's final work</h1>
-<p>Source codes kept under ~/orig/ting and details <a href="https://chochain.github.io/eforth/orig/index.html">here</a> </p><pre>
-ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
-ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
-ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C</pre><pre>ceForth_40 - 2021-07-27 Lee suggested Dr. Ting to use
-                        + struct for dictionary entry with name and lambda pointers,
-                        + std::vector for dict/ss/rs, and
-                        + std::map to host dictionary
-ceForth_40a- 2021-07-28 Lee suggested using VT macros to build dictionary entries (struct)
-ceForth_40b- 2021-07-31 Lee replaced std::vector with <a class="el" href="structForthList.html" title=".hpp - macros and class prototypes">ForthList</a> struct for dict/ss/rs
-ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
-ceForth_402- 2021-08-03 Dr. Ting adopted <a class="el" href="structForthList.html" title=".hpp - macros and class prototypes">ForthList</a>
-ceForth_403- 2021-08-06 Lee refined _402
-                        Dr. Ting add docs and presented it on Forth2020</pre><pre>ceForth_36 - 2021-09-27 Dr. Ting, learnt from _40x, upgraded his _33 to _36 (retained linear memory model)
-ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
-ceForth_36b- 2021-10-03 Dr. Ting added <a class="el" href="classCode.html" title="Forth operator.">Code</a> struct and lambda,
-                        ported to esp32forth_85 and presented in Forth2020
-ceForth_36x- 2022-01-13 Dr. Ting final archive, great for understanding Forth building
-</pre><p>#</p><h1>Changes - what did we do?</h1>
-<p>Even with metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.</p>
-<p><b>Change 1: Separation of parameter memory and dictionary</b> </p><pre>
-+ it makes dictionary uniform size which eliminates the need for link field<ul>
-<li>the down side is that it requires manual array size tuning
-</li>
-</ul>
-</pre><pre>eForth_33 uses functions i.g. CODE, LABEL, HEADER, ... as macros to assemble dictionary which just mimicing how classic Forth creates the dictionary. Visually, it is not that different from using Forth which is challenging for new comers.</pre><pre><b>Change 2: Use struct to host a dictionary entry</b>
+</pre><p>#</p><h2>Build Dr. Ting's legacy eForth, 32-bit token-threaded</h2>
 <pre>
-struct <a class="el" href="classCode.html" title="Forth operator.">Code</a> {
-    string name;
-    void   (*xt)(void);
-    int    immd;
-};
-+ it simpify the classic field management of Forth<ul>
-<li>extra space to store the name and code pointers
-</li>
-</ul>
-</pre></pre><pre><pre><b>Change 3: Build array-based dictionary</b>
+&gt; make 36b
+&gt; ./tests/ceforth36b
+</pre><p>#</p><h2>Build array-based, linear-memory eForth, subroutine-threaded with 16-bit xt offset</h2>
 <pre>
-Code* primitives[] = {
-    CODE("dup",  stack[++S] = top),
-    CODE("drop", <a class="el" href="ceforth__36x_8cpp.html#a163177f1a0b7d847bc3241809dafc097">pop()</a>),
-    CODE("over", <a class="el" href="ceForth__40a_8cpp.html#a00ad37b38b42401fa6afc1c2b1c6f2cf">push(stack[S])</a>),
-    ...
-    CODE("+",    top += <a class="el" href="ceforth__36x_8cpp.html#a163177f1a0b7d847bc3241809dafc097">pop()</a>),
-    CODE("-",    top -= <a class="el" href="ceforth__36x_8cpp.html#a163177f1a0b7d847bc3241809dafc097">pop()</a>),
-    CODE("*",    top *= <a class="el" href="ceforth__36x_8cpp.html#a163177f1a0b7d847bc3241809dafc097">pop()</a>),
-    CODE("/",    top /= <a class="el" href="ceforth__36x_8cpp.html#a163177f1a0b7d847bc3241809dafc097">pop()</a>),
-    ...
-    CODE("delay", sleep(pop())),
-    ...
-};
-+ it makes the size of dictionary entries uniform
-+ it removes the need for threading the linked-list (and link field)
-+ using lambda syntax makes the intention easy to understand
-+ OS library functions can be called directly by opcode
-</pre></pre></pre><pre><pre>C language on modern OS have good libraries for I/O interfaces, the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.</pre></pre><pre><pre><b>Change 4: Use Streams for input/output</b>
-<pre>
-CODE(".",  cout &lt;&lt; <a class="el" href="ceforth__36x_8cpp.html#a163177f1a0b7d847bc3241809dafc097">pop()</a> &lt;&lt; " "),
-CODE("cr", cout &lt;&lt; ENDL),
-+ the I/O opcodes are easy to write and understand
-+ they can be easily redirected to/from various interfaces/devices
-</pre><p> or </p><pre>
-while (cin &gt;&gt; idiom) {
-    int w = find_word(idiom);
-    if (w) {
-        if (compile &amp;&amp; !dict[w].immd) comma(w);
-        else                          run(w);
-    }
-    else {
-        int n = get_number(idiom);
-        if (compile) comma(n);
-        else         <a class="el" href="ceForth__40a_8cpp.html#a00ad37b38b42401fa6afc1c2b1c6f2cf">push(n)</a>;
-    }
-}
-+ our outer-interpreter is understandable even without any comment
-</pre></pre></pre><pre><pre>Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of a subroutine indirect threading model.</pre></pre><pre><pre><b>Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits)</b>
-<pre>
-+ it avoids the double lookup of token threaded indexing
-+ it reduces parameter storage requirement from 32-bit to 16-bit
-+ it speeds up by reading only 2-bytes from RAM instead of 4-bytes (cache hit more)
-+ it unifies xt/pfa parameter storage
-+ it uses the LSB for id flag (2-byte aligned, so LSB is free)<ul>
-<li>it limits function pointer spread to 64KB range</li>
-<li>the words created are not binary portable anymore
-</li>
-</ul>
-</pre></pre></pre><pre><pre><pre>#<h1>Memory Structures</h1>
-</pre></pre></pre><pre><pre><pre>
-<b>Struct to host a dictionary entry</b>
-<pre>
-Universal functor (no STL) and <a class="el" href="classCode.html" title="Forth operator.">Code</a> class
-  <a class="el" href="classCode.html" title="Forth operator.">Code</a> class on 64-bit systems (expand pfa possible)
-  +-------------------+-------------------+
-  |    *name          |       xt          |
-  +-------------------+----+----+---------+
-                      |attr|pfa |xxxxxxxxx|
-                      +----+----+---------+
-  <a class="el" href="classCode.html" title="Forth operator.">Code</a> class on 32-bit systems (memory best utilized)
-  +---------+---------+
-  |  *name  |   xt    |
-  +---------+----+----+
-            |attr|pfa |
-            +----+----+
-  <a class="el" href="classCode.html" title="Forth operator.">Code</a> class on WASM/32-bit (a bit wasteful)
-  +---------+---------+---------+
-  |  *name  |   xt    |attr|xxxx|
-  +---------+----+----+---------+
-            |pfa |xxxx|
-            +----+----+
-</pre></pre></pre></pre><pre><pre><pre>**Macros to build dictionary entry*8
-<pre>
-#define <a class="el" href="ceforth_8h.html#a63360857d379d2ff485bb343e52184ac">ADD_CODE(n, g, im)</a> {    \
-    <a class="el" href="classCode.html" title="Forth operator.">Code</a> c(n, []{ g; }, im);    \
-    dict.push(c);               \
-    }
-#define <a class="el" href="ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE(n, g)</a> <a class="el" href="ceforth_8h.html#a63360857d379d2ff485bb343e52184ac">ADD_CODE(n, g, false)</a>
-#define <a class="el" href="ceforth_8h.html#ad6dfd75ba82a34385031a82feecc9a01">IMMD(n, g)</a> <a class="el" href="ceforth_8h.html#a63360857d379d2ff485bb343e52184ac">ADD_CODE(n, g, true)</a>
-</pre></pre></pre></pre><pre><pre><pre><b>Global memory blocks</b>
-<pre>
-  Dictionary structure (N=E4_DICT_SZ in <a class="el" href="config_8h.html">config.h</a>)
-     dict[0].xt ---------&gt; pointer to primitive word lambda[0]
-     dict[1].xt ---------&gt; pointer to primitive word lambda[1]
-     ...
-     dict[N-1].xt -------&gt; pointer to last primitive word lambda[N-1]</pre></pre></pre></pre><pre><pre><pre><pre>  Parameter memory structure (memory block=E4_PMEM_SZ in <a class="el" href="config_8h.html">config.h</a>)
-     dict[N].xt ----+ user defined colon word)    dict[N+1].xt------+
-                    |                                               |
-     +--MEM0        v                                               v
-     +--------------+--------+--------+-----+------+----------------+-----
-     | str nameN \0 |  parm1 |  parm2 | ... | ffff | str nameN+1 \0 | ...
-     +--------------+--------+--------+-----+------+----------------+-----
-     ^              ^        ^        ^     ^      ^
-     | strlen+1     | 2-byte | 2-byte |     |      |
-     +--------------+--------+--------+-----+------+---- 2-byte aligned</pre></pre></pre></pre><pre><pre><pre><pre>  Parameter structure - 16-bit aligned (use LSB for colon word flag)
-     primitive word (16-bit xt offset with LSB set to 0)
-     +--------------+-+
-     | dict.xtoff() |0|   call (XT0 + *IP)() to execute
-     +--------------+-+   this save the extra memory lookup for xt</pre></pre></pre></pre><pre><pre><pre><pre>     colon (user defined) word (16-bit pmem offset with LSB set to 1)
-     +--------------+-+
-     |  dict.pfa    |1|   next IP = *(MEM0 + (*IP &amp; ~1))
-     +--------------+-+
- </pre></pre></pre></pre><pre><pre><pre><h2>Source <a class="el" href="classCode.html" title="Forth operator.">Code</a> directories</h2>
-</pre></pre></pre><pre><pre><pre>
+&gt; make 40x
+&gt; ./tests/eforth40x
+</pre><p>#</p><h1>Changes - What have we done!</h1>
+<p>Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'. Often, the low-level core are built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but now became the show-stopper for many newbies. Because, one have to learn the assembly language, understand the memory model before appreciating the internal of Forth.</p>
+<p>Traditially, high-level languages like C or C++ are generally avoided for implementing Forth. However, through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth even building their own, one day.</p>
+<h2>Source <a class="el" href="structCode.html" title="Forth operator.">Code</a> directories</h2>
 <pre>
 + ~/src           common source for ceforth, esp32forth, wineForth, and weForth
 + ~/orig/33b      refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
 + ~/orig/ting     ceForth source codes collaborated with Dr. Ting
-+ ~/orig/802      esp32forth source codes collaborated with Dr. Ting
-</pre></pre></pre></pre><pre><pre><pre>#<h1>Benchmark</h1>
-</pre></pre></pre><pre><pre><pre>
-<b>Desktop PC - 10K*10K cycles on 3.2GHz AMD</b>
++ ~/orig/esp32    esp32forth source codes collaborated with Dr. Ting
++ ~/orig/40x      my experimental work, refactor _40 into vector-based subroutine-threaded with 16-bit offset enhancement
+</pre><p>#</p><h1>Evolution - continuation of Dr. Ting's final work</h1>
+<p>Kept under ~/orig and details <a href="https://chochain.github.io/eforth/orig/index.html">here</a> </p><h3>~/orig/ting - Dr. Ting's original ceForth</h3>
 <pre>
-+ 4452ms: ceForth_36x, linear memory, 32-bit, token indirect threading
-+ 1450ms: ceForth_403, dict/pf vector&lt;*Code&gt;, subroutine indirect threading
-+ 1050ms: src/ceforth, subroutine indirect threading, with 16-bit offset
-+  890ms: src/ceforth, inner interpreter with cached xt offsets
-</pre></pre></pre></pre><pre><pre><pre><b>ESP32 - 1K*1K cycles on NodeMCU</b>
+  + ting/_23                 - cross-compiled ROM, token-threaded
+  + ting/_33                 - assembler with C functions as macro, token-threaded
+  + 33b/                     - from _33, I refactored assembler from inner interpreter
+  + ting/_40, _40b, _40c     - my input, array-based, token-threaded
+  + ting/_401, _402, _403    - email exchange on _40 with Dr. Ting
+  + ting/_36, _36b, _36x     - from _33, Dr. Ting updated his linear memory, subroutine-threaded
+  + ting/_410                - from _403, I refactored with initializer_list, and bug fixes
+</pre><p> ##</p><h1>~/orig/esp32 - the origin of ESP32Forth</h1>
+<pre>
+  + esp32/_54, _59           - cross-compiled ROM, token-threaded
+  + esp32/_62, _63           - assembler with C functions as macros, from ceForth_33
+  + esp32/_705               - ESP32Forth v7, C macro-based assembler with Brad and Peter
+  + esp32/_802               - my interim work shown to Dr. Ting, sync ceForth_403
+  + esp32/_82, _83, _84, _85 - from _63, Dr. Ting adapted array-based, token-threaded
+</pre><p> ##</p><h1>~/orig/40x - experiments on _40 for various implementation and tuning</h1>
+<pre>
+  + 40x/ceforth - array-based subroutine-threaded, with 16-bit offset enhanced
+</pre> <h3>life after _410 and 40x - my current work</h3>
+<pre>
+  + src/ceforth - multi-platform supporting code base
+  + platform/   - platform specific for C++, ESP32, WASM
+</pre><p>#</p><h1>Benchmark</h1>
+<h3>Desktop PC - 10K*10K cycles on 3.2GHz AMD**</h3>
+<pre>
++ 4452ms: ~/orig/ting/ceforth_36b, linear memory, 32-bit, token threading
++ 1450ms: ~/orig/ting/ceForth_403, dict/pf array-based, subroutine threading
++ 1050ms: ~/orig/40x/ceforth, subroutine indirect threading, with 16-bit offset
++  890ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
++  740ms: ~/src/ceforth, dynamic vector, token threading
+</pre><p>#</p><h2>ESP32 - 1K*1K cycles on 80MHz NodeMCU**</h2>
 <pre>
 + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
-+ 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
-+  990ms: src/ceforth, subroutine indirect threading, with 16-bit offset
-+  930ms: src/ceforth, inner interpreter with cached xt offsets
-</pre></pre></pre></pre><pre><pre><pre>#<h1>Revision History</h1>
-</pre></pre></pre><pre><pre><pre><ul>
-<li>Dr. Ting's work on eForth between 1995~2011
-  <a href="http://forth.org/library/eforth_SOC">eForth references</a> and their <a href="http://forth.org/library/eforth_SOC/eforth_SOC_source">Source Code Repo</a></li>
-<li>CC 20210314: Initial
-<blockquote class="doxtable">
-<p>Started with ~orig/33b code-base, refactor with enum and VA_ARGS macros targeting 100% C/C++.
-</p>
++ 1045ms: ~/orig/esp32/ceforth802, array-based, token threading
++  990ms: ~/orig/40x/ceforth, linear-memory, subroutine threading, with 16-bit offset
++  930ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
++  665ms: ~/src/ceforth dynamic vector, token threading
+</pre><p>#</p><h1>Revision History</h1>
+<ul>
+<li>Dr. Ting's work on eForth between 1995~2011 <a href="http://forth.org/library/eforth_SOC">eForth references</a> and their <a href="http://forth.org/library/eforth_SOC/eforth_SOC_source">Source Code Repo</a></li>
+<li>CC 20210314: Initial <blockquote class="doxtable">
+<p>Started with ~orig/33b code-base, refactor with enum and VA_ARGS macros targeting 100% C/C++. </p>
 </blockquote>
 </li>
-<li>CC 20210707: Refactor
-<blockquote class="doxtable">
-<p>Incorporated list-based dict, ss, rs (i.e. ~orig/ting/ceForth40 and ~orig/802) which I proposed to Dr. Ting in our email exchanges.
-</p>
+<li>CC 20210707: Refactor <blockquote class="doxtable">
+<p>Incorporated list-based dict, ss, rs (i.e. ~orig/ting/ceForth40 and ~orig/802) which I proposed to Dr. Ting in our email exchanges. </p>
 </blockquote>
 </li>
-<li>CC 20210816: <a class="el" href="classCode.html" title="Forth operator.">Code</a> Merge
-<blockquote class="doxtable">
-<p>Targeting multi-platform. Common source by consolidating ceForth, wineForth, ESP32forth (kept in ~/orig/*). Officially version 8.0
-</p>
+<li>CC 20210816: <a class="el" href="structCode.html" title="Forth operator.">Code</a> Merge <blockquote class="doxtable">
+<p>Targeting multi-platform. Common source by consolidating ceForth, wineForth, ESP32forth (kept in ~/orig/*). Officially version 8.0 </p>
 </blockquote>
 </li>
-<li>CC 20220512: Refactor
-<blockquote class="doxtable">
-<p>Though the goal of Dr. Ting's eForth is to demonstrate how a Forth can be easily understood and cleanly constructed. However, the token threading method used is costly (slow) because each call needs 2 indirect lookups (token-&gt;dict, dict-&gt;xt). On top of that, C/C++ callframe needs to be setup/teardown. It is worsen by the branch prediction missing every call stalling the CPU pipeline. Bad stuffs!
-Refactor to subroutine indirect threading. It's not portable but does speed up 25% (see benchmark above).
-Using 16-bit offsets for pointer arithmetic which speed up another 5% while maintaining 16-bit parameter space consumption.
-Since C++ code is at least 4-byte aligned and parameter is 2-byte aligned, the LSB of a given parameter is utilized for colon word identification.
-</p>
+<li>CC 20220512: Refactor <blockquote class="doxtable">
+<p>Though the goal of Dr. Ting's eForth is to demonstrate how a Forth can be easily understood and cleanly constructed. However, the token threading method used is costly (slow) because each call needs 2 indirect lookups (token-&gt;dict, dict-&gt;xt). On top of that, C/C++ callframe needs to be setup/teardown. It is worsen by the branch prediction missing every call stalling the CPU pipeline. Bad stuffs! Refactor to subroutine indirect threading. It's not portable but does speed up 25% (see benchmark above). Using 16-bit offsets for pointer arithmetic which speed up another 5% while maintaining 16-bit parameter space consumption. Since C++ code is at least 4-byte aligned and parameter is 2-byte aligned, the LSB of a given parameter is utilized for colon word identification. </p>
 </blockquote>
 </li>
-<li>CC 20221118: Refactor
-<blockquote class="doxtable">
-<p>WASM function pointer is U32 (index). Token-indirect worked but the two indirect look-up is even slower. Since WASM uses 64K linear memory block, 16-bit pointer offset is a better option. However, the xt "function pointer" in code space is simply an index to the shared _indirect_function_table. Since LSB is used, so we are forced to use MSB to differentiate primitive word from colon word. This left us 15-bit, i.e. 32K, parameter offset available.
-</p>
+<li>CC 20221118: Refactor <blockquote class="doxtable">
+<p>WASM function pointer is U32 (index). Token-indirect worked but the two indirect look-up is even slower. Since WASM uses 64K linear memory block, 16-bit pointer offset is a better option. However, the xt "function pointer" in code space is simply an index to the shared _indirect_function_table. Since LSB is used, so we are forced to use MSB to differentiate primitive word from colon word. This left us 15-bit, i.e. 32K, parameter offset available. </p>
 </blockquote>
 </li>
-<li>CC 20231011: Review
-<blockquote class="doxtable">
-<p>Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before <a class="el" href="eforth_8cpp.html#adacbe0175a79dff748855d8c9839f82b" title="Main Program.">main()</a>, moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning.
-LAMBDA_OK option was originally intended for full VM implementation but 2x slower. Dropped to reduce source clutter.
-</p>
+<li>CC 20231011: Review <blockquote class="doxtable">
+<p>Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before <a class="el" href="eforth_8cpp.html#adacbe0175a79dff748855d8c9839f82b">main()</a>, moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning. LAMBDA_OK option was originally intended for full VM implementation but 2x slower. Dropped to reduce source clutter. </p>
 </blockquote>
 </li>
-<li>CC 20240308: Refactor for multi-platform
-<blockquote class="doxtable">
-<p>To support cross-platform, i.g. WIN32, Arduino/ESP, Linux, and WASM, there were many conditional compilation branches which make the code really messy.
-</p>
+<li>CC 20240308: Refactor for multi-platform, adopt dynamic vectors <blockquote class="doxtable">
+<p>To support cross-platform, i.g. WIN32, Arduino/ESP, Linux, and WASM, there were many conditional compilation branches which make the code really messy. </p>
 </blockquote>
 <ul>
-<li>Separate cross-platform and configuation into ~/src/config.h</li>
+<li>Separate cross-platform and configuration into ~/src/config.h</li>
 <li>Separate platform specific code into ~/platform/*.cpp</li>
-<li>add include opcode for Forth script loading
-</li>
+<li>add include opcode for Forth script loading </li>
 </ul>
 </li>
 </ul>
-</pre></pre></pre></div></div><!-- PageDoc -->
+</div></div><!-- PageDoc -->
 </div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

@@ -113,6 +113,8 @@ Namespaces</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a8c87f3590669c015f51863d357c405ff"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="server_8h.html#a8c87f3590669c015f51863d357c405ff">forth_vm</a> (const char *<a class="el" href="ceForth__401_8cpp.html#a90e155eddac72ef87020b85a704d97be">cmd</a>, void(*callback)(int, const char *))</td></tr>
+<tr class="separator:a8c87f3590669c015f51863d357c405ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afee65e71e0f678bf0c1bfa5401da18a8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceForthServer.html#afee65e71e0f678bf0c1bfa5401da18a8">ForthServer::setup</a> (const char *ssid, const char *pass)</td></tr>
 <tr class="separator:afee65e71e0f678bf0c1bfa5401da18a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad29fcb9b4127caa841d73e31bdf75e28"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceForthServer.html#ad29fcb9b4127caa841d73e31bdf75e28">ForthServer::readline</a> ()</td></tr>
@@ -140,7 +142,81 @@ Variables</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>eForth ESP32 Web Serer connection and index </p>
 <hr  />
- </div><h2 class="groupheader">Variable Documentation</h2>
+ </div><h2 class="groupheader">Function Documentation</h2>
+<a id="a8c87f3590669c015f51863d357c405ff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8c87f3590669c015f51863d357c405ff">&#9670;&nbsp;</a></span>forth_vm()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void forth_vm </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void(*)(int, const char *)&#160;</td>
+          <td class="paramname"><em>callback</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<blockquote class="doxtable">
+<p>Forth VM - interface to outside world </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>clear input stream error bit if any </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>feed user command into input stream </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>setup callback function </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>clean output buffer, ready for next run </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>outer interpreter loop </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>single command to Forth core </p>
+</blockquote>
+<ul>
+<li>dump stack and display ok prompt</li>
+</ul>
+<blockquote class="doxtable">
+<p>clear input stream error bit if any </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>feed user command into input stream </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>setup callback function </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>clean output buffer, ready for next run </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>outer interpreter loop </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>single command to Forth core </p>
+</blockquote>
+<ul>
+<li>flush to end-of-line</li>
+</ul>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
 <a id="aba6cc0f7b60bd3e3b6613a63e88f46f8"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aba6cc0f7b60bd3e3b6613a63e88f46f8">&#9670;&nbsp;</a></span>PROGMEM</h2>
 

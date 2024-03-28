@@ -1,6 +1,6 @@
 var ceForth__401_8cpp =
 [
-    [ "Code", "classCode.html", "classCode" ],
+    [ "Code", "structCode.html", "structCode" ],
     [ "pop", "ceForth__401_8cpp.html#abfba97ff1c115a2b0c3911c0c781f697", null ],
     [ "push", "ceForth__401_8cpp.html#a00ad37b38b42401fa6afc1c2b1c6f2cf", null ],
     [ "popR", "ceForth__401_8cpp.html#a12075ec27866eefff35cd7aaec6908f9", null ],

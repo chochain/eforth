@@ -1,6 +1,6 @@
 var ceforth__36a_8cpp =
 [
-    [ "Code", "classCode.html", "classCode" ],
+    [ "Code", "structCode.html", "structCode" ],
     [ "FALSE", "ceforth__36a_8cpp.html#aa93f0eb578d23995850d61f7d61c55c1", null ],
     [ "TRUE", "ceforth__36a_8cpp.html#aa8cecfc5c5c054d2875c03e77b7be15d", null ],
     [ "LOGICAL", "ceforth__36a_8cpp.html#a5e225b86d7b20056ee34b49f436fe6ca", null ],

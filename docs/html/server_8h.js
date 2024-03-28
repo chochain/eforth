@@ -1,5 +1,6 @@
 var server_8h =
 [
+    [ "forth_vm", "server_8h.html#a8c87f3590669c015f51863d357c405ff", null ],
     [ "setup", "server_8h.html#afee65e71e0f678bf0c1bfa5401da18a8", null ],
     [ "readline", "server_8h.html#ad29fcb9b4127caa841d73e31bdf75e28", null ],
     [ "handle_index", "server_8h.html#a17d48f168790cdd3c15409371726f6dc", null ],

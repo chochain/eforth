@@ -1,5 +1,7 @@
 var dir_9893c751ae5f462e858e0d13ead858a0 =
 [
+    [ "ceforth802.cpp", "ceforth802_8cpp.html", "ceforth802_8cpp" ],
+    [ "ceforth802.h", "ceforth802_8h.html", "ceforth802_8h" ],
     [ "ESP32forth705.ino", "ESP32forth705_8ino.html", null ],
     [ "esp32forth8_1.ino", "esp32forth8__1_8ino.html", null ],
     [ "esp32Forth_62.ino", "esp32Forth__62_8ino.html", null ],

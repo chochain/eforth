@@ -114,37 +114,37 @@ Data Structures</h2></td></tr>
 <tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structForthList.html">ForthList&lt; T &gt;</a></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">.hpp - macros and class prototypes  <a href="structForthList.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classCode.html">Code</a></td></tr>
-<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Forth operator.  <a href="classCode.html#details">More...</a><br /></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structCode.html">Code</a></td></tr>
+<tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Forth operator.  <a href="structCode.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:af5e48aa480f649754b62299ee5cbc35a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#af5e48aa480f649754b62299ee5cbc35a">PUSH</a>(v)&#160;&#160;&#160;(<a class="el" href="ceforth__36x_8cpp.html#a7e81b454b53e2c568a108cffaebfb93b">ss.push</a>(<a class="el" href="ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>), <a class="el" href="ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>=(v))</td></tr>
+<tr class="memitem:af5e48aa480f649754b62299ee5cbc35a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#af5e48aa480f649754b62299ee5cbc35a">PUSH</a>(v)&#160;&#160;&#160;(<a class="el" href="ceforth__36x_8cpp.html#a7e81b454b53e2c568a108cffaebfb93b">ss.push</a>(<a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>), <a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>=(v))</td></tr>
 <tr class="separator:af5e48aa480f649754b62299ee5cbc35a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1f75956c7e91b6411417071ea93f7bfe"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a1f75956c7e91b6411417071ea93f7bfe">BOOL</a>(f)&#160;&#160;&#160;((f) ? -1 : 0)</td></tr>
 <tr class="separator:a1f75956c7e91b6411417071ea93f7bfe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aea1786a26de1ef1661d8396e996016e3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(i)&#160;&#160;&#160;(*<a class="el" href="ceforth_8cpp.html#aa086a2419b6fa4292fe7a96ade49cfd4">dict</a>[i]-&gt;pf[0]-&gt;<a class="el" href="ceforth__36b_8cpp.html#a9c4f0869ed5b474291ef4e1585bd4855">q.data</a>())</td></tr>
+<tr class="memitem:aea1786a26de1ef1661d8396e996016e3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(i)&#160;&#160;&#160;(*<a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[i]-&gt;pf[0]-&gt;<a class="el" href="ceforth__36b_8cpp.html#a9c4f0869ed5b474291ef4e1585bd4855">q.data</a>())</td></tr>
 <tr class="separator:aea1786a26de1ef1661d8396e996016e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a79bcfb6bde984f42d1124b068a509af7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a79bcfb6bde984f42d1124b068a509af7">BASE</a>&#160;&#160;&#160;(<a class="el" href="ceForth__410_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(0))   /* borrow <a class="el" href="ceforth_8cpp.html#aa086a2419b6fa4292fe7a96ade49cfd4">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceforth_8cpp.html#a58cada70b9f980affc304ae09ca337fe">base</a> (numeric radix) */</td></tr>
+<tr class="memitem:a79bcfb6bde984f42d1124b068a509af7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a79bcfb6bde984f42d1124b068a509af7">BASE</a>&#160;&#160;&#160;(<a class="el" href="src_2ceforth_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(0))   /* borrow <a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceForth__40c_8cpp.html#a19437a5875428e719515fb20de8a6927">base</a> (numeric radix) */</td></tr>
 <tr class="separator:a79bcfb6bde984f42d1124b068a509af7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad5b3ec1ce839fa1c4337a7d0312e9749"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#ad5b3ec1ce839fa1c4337a7d0312e9749">millis</a>()</td></tr>
 <tr class="separator:ad5b3ec1ce839fa1c4337a7d0312e9749"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a490de61fb7c91d13a8c01c38e7bc55a7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a490de61fb7c91d13a8c01c38e7bc55a7">CODE</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>,  g)&#160;&#160;&#160;new <a class="el" href="classCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="classCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; })</td></tr>
+<tr class="memitem:a490de61fb7c91d13a8c01c38e7bc55a7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a490de61fb7c91d13a8c01c38e7bc55a7">CODE</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>,  g)&#160;&#160;&#160;new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; })</td></tr>
 <tr class="separator:a490de61fb7c91d13a8c01c38e7bc55a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3cf456b56a0211b127a0f7e446488a9e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a3cf456b56a0211b127a0f7e446488a9e">IMMD</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>,  g)&#160;&#160;&#160;new <a class="el" href="classCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="classCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, true)</td></tr>
+<tr class="memitem:a3cf456b56a0211b127a0f7e446488a9e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a3cf456b56a0211b127a0f7e446488a9e">IMMD</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>,  g)&#160;&#160;&#160;new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, true)</td></tr>
 <tr class="separator:a3cf456b56a0211b127a0f7e446488a9e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="typedef-members"></a>
 Typedefs</h2></td></tr>
-<tr class="memitem:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a507179c6c60ff4d3e1b2c80ccdb875ee">XT</a>) (<a class="el" href="classCode.html">Code</a> *)</td></tr>
+<tr class="memitem:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a507179c6c60ff4d3e1b2c80ccdb875ee">XT</a>) (<a class="el" href="structCode.html">Code</a> *)</td></tr>
 <tr class="memdesc:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">forward declaration  <a href="ceForth__410_8cpp.html#a507179c6c60ff4d3e1b2c80ccdb875ee">More...</a><br /></td></tr>
 <tr class="separator:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ada75a1cac437ea2327a847b34aaca829"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classCode.html">Code</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#ada75a1cac437ea2327a847b34aaca829">find</a> (string <a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>)</td></tr>
-<tr class="memdesc:ada75a1cac437ea2327a847b34aaca829"><td class="mdescLeft">&#160;</td><td class="mdescRight">fwd declared for <a class="el" href="classCode.html" title="Forth operator.">Code</a>  <a href="ceForth__410_8cpp.html#ada75a1cac437ea2327a847b34aaca829">More...</a><br /></td></tr>
+<tr class="memitem:ada75a1cac437ea2327a847b34aaca829"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structCode.html">Code</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#ada75a1cac437ea2327a847b34aaca829">find</a> (string <a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>)</td></tr>
+<tr class="memdesc:ada75a1cac437ea2327a847b34aaca829"><td class="mdescLeft">&#160;</td><td class="mdescRight">fwd declared for <a class="el" href="structCode.html" title="Forth operator.">Code</a>  <a href="ceForth__410_8cpp.html#ada75a1cac437ea2327a847b34aaca829">More...</a><br /></td></tr>
 <tr class="separator:ada75a1cac437ea2327a847b34aaca829"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8c226ea3e83d7102f33d1575b060f511"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a8c226ea3e83d7102f33d1575b060f511">words</a> ()</td></tr>
 <tr class="memdesc:a8c226ea3e83d7102f33d1575b060f511"><td class="mdescLeft">&#160;</td><td class="mdescRight">fwd declared for dict  <a href="ceForth__410_8cpp.html#a8c226ea3e83d7102f33d1575b060f511">More...</a><br /></td></tr>
@@ -153,7 +153,7 @@ Functions</h2></td></tr>
 <tr class="separator:aacac6fce8cec524f2cf17c6328ca1d76"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab1af80f82e78f51b4aa81f0784c84459"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#ab1af80f82e78f51b4aa81f0784c84459">ss_dump</a> ()</td></tr>
 <tr class="separator:ab1af80f82e78f51b4aa81f0784c84459"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afd461a3b5cbb4aabe98353250eb4c5e7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#afd461a3b5cbb4aabe98353250eb4c5e7">see</a> (<a class="el" href="classCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>, int dp)</td></tr>
+<tr class="memitem:afd461a3b5cbb4aabe98353250eb4c5e7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#afd461a3b5cbb4aabe98353250eb4c5e7">see</a> (<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>, int dp)</td></tr>
 <tr class="separator:afd461a3b5cbb4aabe98353250eb4c5e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac9c76201d1930e75c9196dd2c01ce308"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#ac9c76201d1930e75c9196dd2c01ce308">POP</a> ()</td></tr>
 <tr class="memdesc:ac9c76201d1930e75c9196dd2c01ce308"><td class="mdescLeft">&#160;</td><td class="mdescRight"><blockquote class="doxtable">
@@ -179,7 +179,7 @@ Variables</h2></td></tr>
 <tr class="separator:aef05b34af1a92f91c23c8fde1941e5a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af93f4f37fc2ad9c37af4a715423b110c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#af93f4f37fc2ad9c37af4a715423b110c">top</a> = -1</td></tr>
 <tr class="separator:af93f4f37fc2ad9c37af4a715423b110c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a19809bf672fbc19ef62d024f889a73c4"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structForthList.html">ForthList</a>&lt; <a class="el" href="classCode.html">Code</a> * &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a19809bf672fbc19ef62d024f889a73c4">dict</a></td></tr>
+<tr class="memitem:a19809bf672fbc19ef62d024f889a73c4"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structForthList.html">ForthList</a>&lt; <a class="el" href="structCode.html">Code</a> * &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a19809bf672fbc19ef62d024f889a73c4">dict</a></td></tr>
 <tr class="separator:a19809bf672fbc19ef62d024f889a73c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -194,7 +194,7 @@ Variables</h2></td></tr>
           <td>(</td>
           <td class="paramtype">&#160;</td>
           <td class="paramname">v</td><td>)</td>
-          <td>&#160;&#160;&#160;(<a class="el" href="ceforth__36x_8cpp.html#a7e81b454b53e2c568a108cffaebfb93b">ss.push</a>(<a class="el" href="ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>), <a class="el" href="ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>=(v))</td>
+          <td>&#160;&#160;&#160;(<a class="el" href="ceforth__36x_8cpp.html#a7e81b454b53e2c568a108cffaebfb93b">ss.push</a>(<a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>), <a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>=(v))</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -230,7 +230,7 @@ Variables</h2></td></tr>
           <td>(</td>
           <td class="paramtype">&#160;</td>
           <td class="paramname">i</td><td>)</td>
-          <td>&#160;&#160;&#160;(*<a class="el" href="ceforth_8cpp.html#aa086a2419b6fa4292fe7a96ade49cfd4">dict</a>[i]-&gt;pf[0]-&gt;<a class="el" href="ceforth__36b_8cpp.html#a9c4f0869ed5b474291ef4e1585bd4855">q.data</a>())</td>
+          <td>&#160;&#160;&#160;(*<a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[i]-&gt;pf[0]-&gt;<a class="el" href="ceforth__36b_8cpp.html#a9c4f0869ed5b474291ef4e1585bd4855">q.data</a>())</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -244,7 +244,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define BASE&#160;&#160;&#160;(<a class="el" href="ceForth__410_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(0))   /* borrow <a class="el" href="ceforth_8cpp.html#aa086a2419b6fa4292fe7a96ade49cfd4">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceforth_8cpp.html#a58cada70b9f980affc304ae09ca337fe">base</a> (numeric radix) */</td>
+          <td class="memname">#define BASE&#160;&#160;&#160;(<a class="el" href="src_2ceforth_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(0))   /* borrow <a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceForth__40c_8cpp.html#a19437a5875428e719515fb20de8a6927">base</a> (numeric radix) */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -291,7 +291,7 @@ Variables</h2></td></tr>
         <tr>
           <td></td>
           <td>)</td>
-          <td></td><td>&#160;&#160;&#160;new <a class="el" href="classCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="classCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; })</td>
+          <td></td><td>&#160;&#160;&#160;new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; })</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -319,7 +319,7 @@ Variables</h2></td></tr>
         <tr>
           <td></td>
           <td>)</td>
-          <td></td><td>&#160;&#160;&#160;new <a class="el" href="classCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="classCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, true)</td>
+          <td></td><td>&#160;&#160;&#160;new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, true)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -334,7 +334,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">typedef void(* XT) (<a class="el" href="classCode.html">Code</a> *)</td>
+          <td class="memname">typedef void(* XT) (<a class="el" href="structCode.html">Code</a> *)</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -352,7 +352,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="classCode.html">Code</a>* find </td>
+          <td class="memname"><a class="el" href="structCode.html">Code</a>* find </td>
           <td>(</td>
           <td class="paramtype">string&#160;</td>
           <td class="paramname"><em>s</em></td><td>)</td>
@@ -361,7 +361,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>fwd declared for <a class="el" href="classCode.html" title="Forth operator.">Code</a> </p>
+<p>fwd declared for <a class="el" href="structCode.html" title="Forth operator.">Code</a> </p>
 <blockquote class="doxtable">
 <p>search dictionary from last to first </p>
 </blockquote>
@@ -446,7 +446,7 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">void see </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="classCode.html">Code</a> *&#160;</td>
+          <td class="paramtype"><a class="el" href="structCode.html">Code</a> *&#160;</td>
           <td class="paramname"><em>c</em>, </td>
         </tr>
         <tr>
@@ -645,7 +645,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="structForthList.html">ForthList</a>&lt;<a class="el" href="classCode.html">Code</a>*&gt; dict</td>
+          <td class="memname"><a class="el" href="structForthList.html">ForthList</a>&lt;<a class="el" href="structCode.html">Code</a>*&gt; dict</td>
         </tr>
       </table>
 </div><div class="memdoc">
