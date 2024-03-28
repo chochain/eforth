@@ -694,10 +694,9 @@ int forth_core(const char *idiom) {
 ///
 void forth_init() {
     static bool init = false;
-    if (!init) {               ///> check dictionary initilized
-        dict_compile();        ///> compile dictionary
-        mem_stat();            ///> display memory statistics
-    }
+    if (init) return;          ///> check dictionary initilized
+    
+    dict_compile();            ///> compile dictionary
 }
 void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
     fin.clear();               ///> clear input stream error bit if any
@@ -711,14 +710,4 @@ void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
     if (!compile) ss_dump();   /// * dump stack and display ok prompt
 }
 ///====================================================================
-///
-/// eForth platform specific code
-///
-#if    DO_WASM
-#include "../platform/wasm.cpp"
-#elif  (ARDUINO || ESP32)
-#include "../platform/mcu.cpp"
-#else  // !DO_WASM && !ARDUINO && !ESP32
-#include "../platform/main.cpp"
-#endif
 
