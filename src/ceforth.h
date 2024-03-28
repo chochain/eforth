@@ -40,11 +40,11 @@ struct Code {
     FV<Code*> pf;            ///< parameter field
     FV<Code*> p1;            ///< parameter field - if..else, aft..then
     FV<Code*> p2;            ///< parameter field - then..next
-    FV<int>   q;             ///< parameter field - literal
+    FV<DU>    q;             ///< parameter field - literal
     Code(string n, XT fp, bool im)        ///> primitive
         : name(n), xt(fp), immd(im), token(here++) {}
     Code(string n, bool f=false);         ///> colon word, f=new word
-    Code(string n, int d);                ///> dolit, dovar
+    Code(string n, DU d);                 ///> dolit, dovar
     Code(string n, string s);             ///> dostr, dotstr
     Code *immediate()  { immd = true; return this; }  ///> set flag
     Code *add(Code *w) { pf.push(w);  return this; }  ///> add token
