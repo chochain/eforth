@@ -388,7 +388,7 @@ int main(int ac, char* av[]) {
 }
 /* End of ceforth_36.cpp */
 
-
+#if 0  // 36a
 void(*primitives[120])(void) = {
 	/// Stack ops
 	/* -1 "ret" */ [] {next(); },
@@ -746,5 +746,6 @@ int main(int ac, char* av[]) {
 	words();
 	outer();
 }
+#endif
 /* End of ceforth_36.cpp */
 

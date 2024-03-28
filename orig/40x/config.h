@@ -10,9 +10,17 @@
 ///
 ///@name Conditional compililation options
 ///@}
-#define CC_DEBUG        0               /**< debug level 0|1|2      */
+#define CC_DEBUG        1               /**< debug level 0|1|2      */
+#define RANGE_CHECK     0               /**< vector range check     */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
+///@}
+///@name Memory block configuation
+///@{
+#define E4_RS_SZ        32
+#define E4_SS_SZ        16
+#define E4_DICT_SZ      400
+#define E4_PMEM_SZ      (32*1024)
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
@@ -36,6 +44,18 @@ typedef int32_t         DU;
 #define UINT(v)         (abs(v))
 
 #endif // USE_FLOAT
+typedef uint16_t        IU;    ///< instruction pointer unit
+///@}
+///@name Inline & Alignment macros
+///@{
+#pragma GCC optimize("align-functions=4")    // we need fn alignment
+#define INLINE          __attribute__((always_inline))
+#define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
+#define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
+#define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
+#define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
+#define ALIGN(sz)       ALIGN2(sz)
+#define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
 ///@}
 ///@name Multi-platform support
 ///@{
@@ -77,8 +97,8 @@ typedef int32_t         DU;
     #define LOGX(v)     Serial.print(v, HEX)
 #else  // !(ARDUINO || ESP32)
     #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-ld", (int64_t)(v))
-    #define LOGX(v)     printf("%-lx", (uint64_t)(v))
+    #define LOG(v)      printf("%-d", (int32_t)(v))
+    #define LOGX(v)     printf("%-x", (uint32_t)(v))
 #endif // (ARDUINO || ESP32)
     
 #define LOG_NA()        LOGS("N/A\n")

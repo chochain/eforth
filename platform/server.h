@@ -7,6 +7,8 @@
 #define __EFORTH_PLATFORM_SERVER_H
 #include <WiFi.h>
 
+extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
+
 const char *HTML_INDEX PROGMEM = R"XX(
 HTTP/1.1 200 OK
 Content-type:text/html
