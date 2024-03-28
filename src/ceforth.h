@@ -56,4 +56,10 @@ struct Code {
         }
     }
 };
+///
+///> OS platform specific implementation
+///
+extern void mem_stat();
+extern void forth_include(const char *fn);
+
 #endif  // __EFORTH_CEFORTH_H
