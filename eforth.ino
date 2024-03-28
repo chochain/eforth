@@ -4,14 +4,11 @@
 ///
 ///====================================================================
 ///
-///> interface to eForth
-///
-extern void forth_init();
-extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
-///
 ///> ESP32 WiFi setup
 ///
+#include "platform/mcu.h"              ///< Forth VM interfaces
 #include "platform/server.h"           ///< ESP32 Web Server
+
 const char *WIFI_SSID = "Amitofo-NV";  ///< use your own SSID
 const char *WIFI_PASS = "AlseTron";    ///< and the password
 ///
@@ -25,6 +22,7 @@ void setup() {
 
     ForthServer::setup(WIFI_SSID, WIFI_PASS);
     forth_init();                     ///> initialize Forth VM
+    mem_stat();
 
     tib.reserve(256);                 ///> reserve 256 bytes for input
 }

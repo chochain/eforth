@@ -1,3 +1,5 @@
+#ifndef __EFORTH_PLATFORM_MCU_H
+#define __EFORTH_PLATFORM_MCU_H
 ///
 /// @file
 /// @brief eForth implemented for ESP32
@@ -57,5 +59,5 @@ int forth_include(const char *fname) {
     SPIFFS.end();
     return 0;
 }
-
+#endif // __EFORTH_PLATFORM_MCU_H
 
