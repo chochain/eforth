@@ -5,6 +5,10 @@
 #include <iostream>      // cin, cout
 #include <fstream>       // ifstream
 #include <sys/sysinfo.h>
+using namespace std;
+
+extern void forth_init();
+extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
 
 const char* APP_VERSION = "eForth v4.2";
 ///====================================================================
@@ -12,16 +16,13 @@ const char* APP_VERSION = "eForth v4.2";
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
 void mem_stat() {
+	cout << APP_VERSION;
 	struct sysinfo si;
-	LOGS(APP_VERSION);
 	if (sysinfo(&si)!=-1) {
-		LOG_KX(", RAM free 0x", si.freeram);
-		LOG_KX("/0x", si.totalram);
+		cout << ", RAM free 0x" << si.freeram
+		     << "/0x" << si.totalram;
 	}
-    LOG_KV("\n  dict: ",   dict.size());
-    LOG_KV(", ",           sizeof(Code)); LOGS("-byte/entry");
-    LOG_KV("\n  ss  : ",   ss.size());    LOGS("\n");
-	
+	cout << endl;
 }
 ///
 ///> include external Forth script
