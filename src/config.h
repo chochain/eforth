@@ -11,16 +11,8 @@
 ///@name Conditional compililation options
 ///@}
 #define CC_DEBUG        1               /**< debug level 0|1|2      */
-#define RANGE_CHECK     0               /**< vector range check     */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
-///@}
-///@name Memory block configuation
-///@{
-#define E4_RS_SZ        32
-#define E4_SS_SZ        16
-#define E4_DICT_SZ      400
-#define E4_PMEM_SZ      (32*1024)
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
