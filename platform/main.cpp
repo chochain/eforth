@@ -19,8 +19,10 @@ void mem_stat() {
 	cout << APP_VERSION;
 	struct sysinfo si;
 	if (sysinfo(&si)!=-1) {
-		cout << ", RAM free 0x" << si.freeram
-		     << "/0x" << si.totalram;
+        int p = 1000 * si.freeram / si.totalram;
+		cout << ", RAM " << static_cast<float>(p) * 0.1
+             << "% free (0x" << si.freeram
+             << " / 0x" << si.totalram << ")";
 	}
 	cout << endl;
 }
@@ -42,8 +44,8 @@ int forth_include(const char *fn) {
 /// main program - Note: Arduino and ESP32 have their own main-loop
 ///
 int main(int ac, char* av[]) {
-	mem_stat();
-    forth_init();                              ///> initialize dictionary
+    forth_init();                       ///> initialize dictionary
+	mem_stat();                         ///> show memory status
     
     auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
