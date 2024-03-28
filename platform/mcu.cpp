@@ -6,43 +6,33 @@
 ///    1440ms Dr. Ting's orig/esp32forth_82
 ///    1240ms ~/Download/forth/esp32/esp32forth8_exp9
 ///    1045ms orig/esp32forth8_1
-///     999ms src/ceforth subroutine indirect threading, with 16-bit offset
-///     940ms src/ceforth use cached xt offsets in nest()
+///     999ms orig/40x/ceforth subroutine-threaded, 16-bit xt offset
+///     940ms orig/40x/ceforth use cached xt offsets in nest()
+///     665ms src/ceforth vector-based token-threaded
 ///
+extern void forth_init();
+extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
+
+#define LOGS(s) Serial.print(F(s))
+#define LOG(s)  Serial.print(s)
+
 const char *APP_VERSION = "eForth v4.2";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
 void mem_stat()  {
-    LOGS(APP_VERSION);
-    LOG_KV("\n  dict: ",   dict.idx); LOG_KV("/", E4_DICT_SZ);
-    LOG_KV(", ",           sizeof(Code));  LOGS("-byte/entry");
-    LOG_KV("\n  ss  : ",   ss.idx);   LOG_KV("/", E4_SS_SZ);
-    LOG_KV(" (max ",       ss.max);   LOGS(")");
-    LOG_KV("\n  rs  : ",   rs.idx);   LOG_KV("/", E4_RS_SZ);
-    LOG_KV(" (max ",       rs.max);   LOGS(")");
-    LOG_KX("\n  here: 0x", HERE);     LOG_KX("/0x", E4_PMEM_SZ);
-    LOG_KV("\nForth VM on Core ", xPortGetCoreID());
-    LOG_KX(", RAM avail/free 0x", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-    LOG_KX("/0x",      heap_caps_get_free_size(MALLOC_CAP_8BIT));
-    LOG_KX(" (min 0x", heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
-//    LOG_KX(", watermark high 0x", uxTaskGetStackHighWaterMark(NULL));
-    LOGS(")\n");
-    if (!heap_caps_check_integrity_all(true)) {
-//        heap_trace_dump();     // dump memory, if we have to
-        abort();                 // bail, on any memory error
-    }
+    size_t t = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+    size_t f = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    int    p = static_cast<int>(1000 * f / t);
+    LOGS("eForth 4.2 on Core "); LOG(xPortGetCoreID());
+    LOGS(", RAM "); LOG(static_cast<float>(p) * 0.1);
+    LOGS("% free ("); LOG(f); LOGS(" / "); LOG(t); LOGS(")\n");
 }
-/// Arduino extra string handlers
-int  find(string &s)  { return find(s.c_str()); }
-void colon(string &s) { colon(s.c_str()); }
 ///====================================================================
 ///
 ///> Arduino/ESP32 SPIFFS interfaces
-///
-///
-///> eForth turn-key code loader (from Flash memory)
+///  @brief eForth turn-key code loader (from Flash memory)
 ///
 #include <SPIFFS.h>
 int forth_include(const char *fname) {
