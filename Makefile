@@ -18,8 +18,11 @@ wasm: tests/eforth.js
 
 all: exe 403 wasm
 
-tests/eforth: src/ceforth.cpp
-	$(CC) -Isrc -o $@ $< -O3
+%.o: %.cpp
+	$(CC) -Isrc -c -o $@ $< -O3
+
+tests/eforth: platform/main.o src/ceforth.o
+	$(CC) -o $@ $^ -O3
 
 tests/ceforth403: orig/ting/ceForth_403.cpp
 	$(CC) -Isrc -o $@ $< -O3
@@ -32,6 +35,6 @@ tests/eforth.js: src/ceforth.cpp
 	cp tests/eforth.* ../weforth/tests
 
 clean:
-	rm $(FLST)
+	rm src/*.o platform/*.o $(FLST)
 
 
