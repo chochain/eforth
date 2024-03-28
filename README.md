@@ -27,15 +27,15 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 > cd eforth
 </pre>
 
-#### Build Dr. Ting's last eForth in one C file - 345 lines
-Kept in orig/ting/ceForth_403.cpp [here](https://chochain.github.io/orig/ting/ceForth_403.cpp)
+#### Build 359-line C++, vector-based token-threaded, eForth collaborated with Dr. Ting
+Kept in orig/ting/ceForth_410.cpp [here](https://chochain.github.io/orig/ting/ceForth_410.cpp)
 <pre>
-> make 403
-> ./tests/eforth403
-> to quit, type 'exit' or ctrl-C
+> make 410
+> ./tests/eforth410
+> to quit, type 'bye' or ctrl-C
 </pre>
 
-#### Build eForth on Linux and Cygwin
+#### Build 32-bit subroutine-threaded eForth on Linux and Cygwin, 16-bit xt offset enhanced
 <pre>
 > make
 > ./tests/eforth
@@ -61,175 +61,44 @@ Kept in orig/ting/ceForth_403.cpp [here](https://chochain.github.io/orig/ting/ce
 
 ### Evolution - continuation of Dr. Ting's final work
 Source codes kept under ~/orig/ting and details [here](https://chochain.github.io/eforth/orig/index.html)
+#### ting - Dr. Ting's original ceForth
 <pre>
-ceForth_10 - 2009       Dr. Ting first attempt of Forth in C
-ceForth_23 - 2017-07-13 Dr. Ting last version of ceForth with pre-built ROM (compiled in F#)
-ceForth_33 - 2019-07-01 Dr. Ting used CODE/LABEL/... functions as the macro assembler, 100% in C
-
-ceForth_40 - 2021-07-27 Lee suggested Dr. Ting to use
-                        + struct for dictionary entry with name and lambda pointers,
-                        + std::vector for dict/ss/rs, and
-                        + std::map to host dictionary
-ceForth_40a- 2021-07-28 Lee suggested using VT macros to build dictionary entries (struct)
-ceForth_40b- 2021-07-31 Lee replaced std::vector with ForthList struct for dict/ss/rs
-ceForth_401- 2021-08-01 Dr. Ting adopted VT macro
-ceForth_402- 2021-08-03 Dr. Ting adopted ForthList
-ceForth_403- 2021-08-06 Lee refined _402
-                        Dr. Ting add docs and presented it on Forth2020
-
-ceForth_36 - 2021-09-27 Dr. Ting, learnt from _40x, upgraded his _33 to _36 (retained linear memory model)
-ceForth_36a- 2021-10-03 Lee added CODE/IMMD macros
-ceForth_36b- 2021-10-03 Dr. Ting added Code struct and lambda,
-                        ported to esp32forth_85 and presented in Forth2020
-ceForth_36x- 2022-01-13 Dr. Ting final archive, great for understanding Forth building
+  + _23 - cross-compiled ROM, token-threaded
+  + _33 - macro assembler, token-threaded
 </pre>
+#### 33b - code analysis of Dr. Ting's original ceForth_33
+<pre>
+  + eforth_asm - assembler
+  + eforth_vm  - inner interpreter
+  + eforth     - main
+</pre>
+#### ting - Dr. Ting's adaptation by my input
+<pre>
+  + _40, _40b, _40c       - vector-based, token-threaded
+  + _401, _402, _403      - intrim work (email exchange) of _40
+  + _36, _36b, _36c, _36x - back to linear memory subroutine-threaded
+</pre>
+#### 802 - the original source for esp32forth_82
+<pre>
+  + originated from Dr. Ting's esp32forth_63.ino (see esp32 below)
+  + 20210827 - first proposed to Dr. Ting. 
+  + 20210831 - I combined them into one file and presented to Dr. Ting as esp32forth_82.ino
+</pre>
+#### esp32 - the original source for esp32forth
+  + see esp32/README
+
+#### 40x - refactor _40, vector-based subroutine-threaded, with 16-bit offset enhanced
+<pre>
+  + src/ceforth - multi-platform supporting code base
+  + platform/   - platform specific for C++, WASM, ESP32
+</pre>  
+#### life after _403 (final version from Dr. Ting)
+<pre>
+  + _410 - refactored (initializer_list, iterator) and bug fixes
+</pre>  
 
 ### Changes - what did we do?
-Even with metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.
-
-**Change 1: Separation of parameter memory and dictionary**
-<pre>
-+ it makes dictionary uniform size which eliminates the need for link field
-- the down side is that it requires manual array size tuning
-</pre>
-   
-eForth_33 uses functions i.g. CODE, LABEL, HEADER, ... as macros to assemble dictionary which just mimicing how classic Forth creates the dictionary. Visually, it is not that different from using Forth which is challenging for new comers.
-
-**Change 2: Use struct to host a dictionary entry**
-<pre>
-struct Code {
-    string name;
-    void   (*xt)(void);
-    int    immd;
-};
-+ it simpify the classic field management of Forth
-- extra space to store the name and code pointers
-</pre>
-
-**Change 3: Build array-based dictionary**
-<pre>
-Code* primitives[] = {
-    CODE("dup",  stack[++S] = top),
-    CODE("drop", pop()),
-    CODE("over", push(stack[S])),
-    ...
-    CODE("+",    top += pop()),
-    CODE("-",    top -= pop()),
-    CODE("*",    top *= pop()),
-    CODE("/",    top /= pop()),
-    ...
-    CODE("delay", sleep(pop())),
-    ...
-};
-+ it makes the size of dictionary entries uniform
-+ it removes the need for threading the linked-list (and link field)
-+ using lambda syntax makes the intention easy to understand
-+ OS library functions can be called directly by opcode
-</pre>
-
-C language on modern OS have good libraries for I/O interfaces, the classic way of TX/RX bytes or using block to manage files are no more essential. They were necessary, but no more for today's Forth.
-
-**Change 4: Use Streams for input/output**
-<pre>
-CODE(".",  cout << pop() << " "),
-CODE("cr", cout << ENDL),
-+ the I/O opcodes are easy to write and understand
-+ they can be easily redirected to/from various interfaces/devices
-</pre>
-or
-<pre>
-while (cin >> idiom) {
-    int w = find_word(idiom);
-    if (w) {
-        if (compile && !dict[w].immd) comma(w);
-        else                          run(w);
-    }
-    else {
-        int n = get_number(idiom);
-        if (compile) comma(n);
-        else         push(n);
-    }
-}
-+ our outer-interpreter is understandable even without any comment
-</pre>
-
-Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of a subroutine indirect threading model.
-
-**Change 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits)**
-<pre>
-+ it avoids the double lookup of token threaded indexing
-+ it reduces parameter storage requirement from 32-bit to 16-bit
-+ it speeds up by reading only 2-bytes from RAM instead of 4-bytes (cache hit more)
-+ it unifies xt/pfa parameter storage
-+ it uses the LSB for id flag (2-byte aligned, so LSB is free)
-- it limits function pointer spread to 64KB range
-- the words created are not binary portable anymore
-</pre>
-
-### Memory Structures
-**Struct to host a dictionary entry**
-<pre>
-Universal functor (no STL) and Code class
-  Code class on 64-bit systems (expand pfa possible)
-  +-------------------+-------------------+
-  |    *name          |       xt          |
-  +-------------------+----+----+---------+
-                      |attr|pfa |xxxxxxxxx|
-                      +----+----+---------+
-  Code class on 32-bit systems (memory best utilized)
-  +---------+---------+
-  |  *name  |   xt    |
-  +---------+----+----+
-            |attr|pfa |
-            +----+----+
-  Code class on WASM/32-bit (a bit wasteful)
-  +---------+---------+---------+
-  |  *name  |   xt    |attr|xxxx|
-  +---------+----+----+---------+
-            |pfa |xxxx|
-            +----+----+
-</pre>
-
-**Macros to build dictionary entry*8
-<pre>
-#define ADD_CODE(n, g, im) {    \
-    Code c(n, []{ g; }, im);	\
-    dict.push(c);               \
-    }
-#define CODE(n, g) ADD_CODE(n, g, false)
-#define IMMD(n, g) ADD_CODE(n, g, true)
-</pre>
-
-**Global memory blocks**
-<pre>
-  Dictionary structure (N=E4_DICT_SZ in config.h)
-     dict[0].xt ---------> pointer to primitive word lambda[0]
-     dict[1].xt ---------> pointer to primitive word lambda[1]
-     ...
-     dict[N-1].xt -------> pointer to last primitive word lambda[N-1]
-
-  Parameter memory structure (memory block=E4_PMEM_SZ in config.h)
-     dict[N].xt ----+ user defined colon word)    dict[N+1].xt------+
-                    |                                               |
-     +--MEM0        v                                               v
-     +--------------+--------+--------+-----+------+----------------+-----
-     | str nameN \0 |  parm1 |  parm2 | ... | ffff | str nameN+1 \0 | ...
-     +--------------+--------+--------+-----+------+----------------+-----
-     ^              ^        ^        ^     ^      ^
-     | strlen+1     | 2-byte | 2-byte |     |      |
-     +--------------+--------+--------+-----+------+---- 2-byte aligned
-
-  Parameter structure - 16-bit aligned (use LSB for colon word flag)
-     primitive word (16-bit xt offset with LSB set to 0)
-     +--------------+-+
-     | dict.xtoff() |0|   call (XT0 + *IP)() to execute
-     +--------------+-+   this save the extra memory lookup for xt
-
-     colon (user defined) word (16-bit pmem offset with LSB set to 1)
-     +--------------+-+
-     |  dict.pfa    |1|   next IP = *(MEM0 + (*IP & ~1))
-     +--------------+-+
- </pre>
+Even with vocabulary, multi-tasking, and metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.
  
 ### Source Code directories
 <pre>
@@ -237,6 +106,7 @@ Universal functor (no STL) and Code class
 + ~/orig/33b      refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
 + ~/orig/ting     ceForth source codes collaborated with Dr. Ting
 + ~/orig/802      esp32forth source codes collaborated with Dr. Ting
++ ~/orig/40x      my work to refactor _40 into vector-based subroutine-threaded with 16-bit offset enhancement
 </pre>
 
 ### Benchmark
