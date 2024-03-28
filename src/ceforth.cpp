@@ -27,6 +27,9 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 Code *find(string s);                  ///> forward declare for Code
 void words();
 
+///====================================================================
+///> Code Class implementation
+///
 int Code::here = 0;                             ///< init static var
 Code::Code(string n, bool f)                    ///> colon word
     : name(n), token(f ? here++ : 0) {
@@ -65,14 +68,22 @@ void see(Code *c, int dp) {          ///> disassemble a colon word
     if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
 }
 ///
-///> Forth dictionary assembler
+///> Forth Dictionary Assembler
+/// @note:
+///    1. Words are assembled by calling C++ initializer_list
+///       Currently, C++ compiler instainciate them at start up
+///       but we hope it can become a static ROM in the future.
+///    2. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  new Code(s, [](Code *c){ g; }, false)
-#define IMMD(s, g)  new Code(s, [](Code *c){ g; }, true)
+#define CODE(s, g)  (new Code(s, [](Code *c){ g; }, false))
+#define IMMD(s, g)  (new Code(s, [](Code *c){ g; }, true))
 
 FV<Code*> dict = {                 ///< Forth dictionary
     CODE("bye",    exit(0)),       // exit to OS
-    // stack ops
+    ///
+    /// @defgroup Data Stack ops
+    /// @brief - opcode sequence can be changed below this line
+    /// @{
     CODE("dup",    PUSH(top)),
     CODE("drop",   top=ss.pop()),  // note: ss.pop() != POP()
     CODE("swap",   DU n = ss.pop(); PUSH(n)),
@@ -81,42 +92,69 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("-rot",   DU n = ss.pop(); DU m = ss.pop(); PUSH(m);  PUSH(n)),
     CODE("pick",   top = ss[-top]),
     CODE("nip",    ss.pop()),
+    CODE("?dup",   if (top != DU0) PUSH(top)),
+    /// @}
+    /// @defgroup Data Stack ops - double
+    /// @{
     CODE("2dup",   PUSH(ss[-2]); PUSH(ss[-2])),
     CODE("2drop",  ss.pop(); top=ss.pop()),
     CODE("2swap",  DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
                    ss.push(n); PUSH(l); PUSH(m)),
     CODE("2over",  PUSH(ss[-4]); PUSH(ss[-4])),
+    /// @}
+    /// @defgroup Return Stack ops
+    /// @{
     CODE(">r",     rs.push(POP())),
     CODE("r>",     PUSH(rs.pop())),
     CODE("r@",     PUSH(rs[-1])),
-    // ALU ops
+    /// @}
+    /// @defgroup ALU ops
+    /// @{
     CODE("+",      top += ss.pop()),
     CODE("-",      top =  ss.pop() - top),
     CODE("*",      top *= ss.pop()),
     CODE("/",      top =  ss.pop() / top),
     CODE("mod",    top =  ss.pop() % top),
     CODE("*/",     top =  ss.pop() * ss.pop() / top),
-    CODE("*/mod",  DU2 n = (DU2)ss.pop() * ss.pop();
-                   ss.push(n % top); top = (n / top)),
+    CODE("/mod",   DU n = ss.pop(); DU t = top;
+                   ss.push(n % t); top = (n / t)),
+    CODE("*/mod",  DU2 n = (DU2)ss.pop() * ss.pop(); DU2 t=top;
+                   ss.push((DU)(n % t)); top = (DU)(n / t)),
     CODE("and",    top &= ss.pop()),
     CODE("or",     top |= ss.pop()),
     CODE("xor",    top ^= ss.pop()),
-    CODE("negate", top = -top),
     CODE("abs",    top = abs(top)),
-    // logic ops
-    CODE("0=",     top = BOOL(top == 0)),
-    CODE("0<",     top = BOOL(top <  0)),
-    CODE("0>",     top = BOOL(top >  0)),
+    CODE("negate", top = -top),
+    CODE("invert", top = ~top),
+    CODE("rshift", top = ss.pop() >> top),
+    CODE("lshift", top = ss.pop() << top),
+    CODE("max",    DU n=ss.pop(); top = (top>n)?top:n),
+    CODE("min",    DU n=ss.pop(); top = (top<n)?top:n),
+    CODE("2*",     top *= 2),
+    CODE("2/",     top /= 2),
+    CODE("1+",     top += 1),
+    CODE("1-",     top -= 1),
+    /// @}
+    /// @defgroup Logic ops
+    /// @{
+    CODE("0=",     top = BOOL(top == DU0)),
+    CODE("0<",     top = BOOL(top <  DU0)),
+    CODE("0>",     top = BOOL(top >  DU0)),
     CODE("=",      top = BOOL(ss.pop() == top)),
     CODE(">",      top = BOOL(ss.pop() >  top)),
     CODE("<",      top = BOOL(ss.pop() <  top)),
     CODE("<>",     top = BOOL(ss.pop() != top)),
     CODE(">=",     top = BOOL(ss.pop() >= top)),
     CODE("<=",     top = BOOL(ss.pop() <= top)),
-    // IO ops
+    CODE("u<",     top = BOOL(UINT(ss.pop()) < UINT(top))),
+    CODE("u>",     top = BOOL(UINT(ss.pop()) > UINT(top))),
+    /// @}
+    /// @defgroup IO ops
+    /// @{
     CODE("base",   PUSH(0)),   // dict[0]->pf[0]->q[0] used for base
-    CODE("hex",    BASE = 16),
     CODE("decimal",BASE = 10),
+    CODE("hex",    BASE = 16),
+    CODE("bl",     fout << " "),
     CODE("cr",     fout << ENDL),
     CODE(".",      fout << setbase(BASE) << POP() << " "),
     CODE(".r",     fout << setbase(BASE) << setw(POP()) << POP()),
@@ -125,17 +163,22 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
-    // literals
+    /// @}
+    /// @defgroup Literal ops
+    /// @{
     CODE("_str",   fout << c->str),
     CODE("_lit",   PUSH(c->q[0])),
     CODE("_var",   PUSH(c->token)),
-    IMMD(".\"",
-         string s = next_idiom('"');
-         dict[-1]->add(new Code("_str", s.substr(1)))),
     IMMD("(",      next_idiom(')')),
     IMMD(".(",     fout << next_idiom(')')),
     IMMD("\\",     string s; getline(fin, s, '\n')), // flush input
-    // branching ops - if...then, if...else...then
+    IMMD(".\"",
+         string s = next_idiom('"');
+         dict[-1]->add(new Code("_str", s.substr(1)))),
+    /// @}
+    /// @defgroup Branching ops
+    /// @brief - if...then, if...else...then
+    /// @{
     CODE("_bran",
          for (Code *w : (POP() ? c->pf : c->p1)) w->exec()),
     IMMD("if",
@@ -157,7 +200,10 @@ FV<Code*> dict = {                 ///< Forth dictionary
              if (last->stage == 1) dict.pop(); // CC: memory leak?
              else tmp->pf.clear();
          }),
-    // loop ops - begin..again, begin..f until, begin..f while..repeat
+    /// @}
+    /// @defgroup Loops
+    /// @brief  - begin...again, begin...f until, begin...f while...repeat
+    /// @{
     CODE("_loop", int b = c->stage;            ///< stage=looping type
          while (true) {
              for (Code *w : c->pf) w->exec();  // begin..
@@ -183,7 +229,10 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("until",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop()),
-    // loops ops - for...next, for...aft...then...next
+    /// @}
+    /// @defgrouop For loops
+    /// @brief  - for...next, for...aft...then...next
+    /// @{
     CODE("_for",
          do { for (Code *w : c->pf) w->exec(); }
          while (c->stage==0 && rs.dec_i() >=0);   // for...next only
@@ -206,39 +255,35 @@ FV<Code*> dict = {                 ///< Forth dictionary
          if (last->stage == 0) last->pf.merge(tmp->pf);
          else last->p2.merge(tmp->pf);
          dict.pop()),                             // CC: memory leak?
-    // compiler ops
+    /// @}
+    /// @defgrouop Compiler ops
+    /// @{
+    CODE("exit",   throw length_error("")),       // --
     CODE("[",      compile = false),
     CODE("]",      compile = true),
-    CODE("exec",   dict[top]->exec()),            // xt --
-    CODE("exit",   throw length_error("")),       // --
     CODE(":",
          dict.push(new Code(next_idiom(), true)); // create new word
          compile = true),
     IMMD(";", compile = false),
-    CODE("immediate", dict[-1]->immediate()),
+    CODE("constant",
+         dict.push(new Code(next_idiom(), true));
+         Code *last = dict[-1]->add(new Code("_lit", POP()));
+         last->pf[0]->token = last->token),
     CODE("variable",
          dict.push(new Code(next_idiom(), true));
          Code *last = dict[-1]->add(new Code("_var", 0));
          last->pf[0]->token = last->token),
+    CODE("immediate", dict[-1]->immediate()),
+    /// @}
+    /// @defgroup metacompiler
+    /// @brief - dict is directly used, instead of shield by macros
+    /// @{
+    CODE("exec",   dict[top]->exec()),            // xt --
     CODE("create",
          dict.push(new Code(next_idiom(), true));
          Code *last = dict[-1]->add(new Code("_var", 0));
          last->pf[0]->token = last->token;
          last->pf[0]->q.pop()),
-    CODE("constant",
-         dict.push(new Code(next_idiom(), true));
-         Code *last = dict[-1]->add(new Code("_lit", POP()));
-         last->pf[0]->token = last->token),
-    CODE("@",      DU w=POP(); PUSH(VAR(w))),                     // w -- n
-    CODE("!",      DU w=POP(); VAR(w) = POP()),                   // n w --
-    CODE("+!",     DU w=POP(); VAR(w) += POP()),                  // n w --
-    CODE("?",      DU w=POP(); fout << VAR(w) << " "),            // w --
-    CODE("array@", DU i=POP(); int w=POP(); PUSH(*(&VAR(w)+i))),  // w i -- n
-    CODE("array!", DU i=POP(); int w=POP(); *(&VAR(w)+i)=POP()),  // n w i --
-    CODE(",",      dict[-1]->pf[0]->q.push(POP())),
-    CODE("allot",                                     // n --
-         int n = POP();
-         for (int i=0; i<n; i++) dict[-1]->pf[0]->q.push(0)),
     CODE("_does",
          bool hit = false;
          for (Code *w : dict[c->token]->pf) {
@@ -257,13 +302,36 @@ FV<Code*> dict = {                 ///< Forth dictionary
          int n = POP();                               // like this word
          dict[-1]->xt = dict[n]->xt;                  // if primitive
          dict[-1]->pf = dict[n]->pf),                 // or colon word
-    // debugging ops
+    /// @}
+    /// @defgroup Memory Access ops
+    /// @{
+    CODE("@",      DU w=POP(); PUSH(VAR(w))),                     // w -- n
+    CODE("!",      DU w=POP(); VAR(w) = POP()),                   // n w --
+    CODE("+!",     DU w=POP(); VAR(w) += POP()),                  // n w --
+    CODE("?",      DU w=POP(); fout << VAR(w) << " "),            // w --
+    CODE("array@", DU i=POP(); int w=POP(); PUSH(*(&VAR(w)+i))),  // w i -- n
+    CODE("array!", DU i=POP(); int w=POP(); *(&VAR(w)+i)=POP()),  // n w i --
+    CODE(",",      dict[-1]->pf[0]->q.push(POP())),
+    CODE("allot",                                     // n --
+         int n = POP();
+         for (int i=0; i<n; i++) dict[-1]->pf[0]->q.push(0)),
+    /// @}
+    /// @defgroup Debug ops
+    /// @{
     CODE("here",  PUSH(dict[-1]->token)),
-    CODE("words", words()),
-    CODE(".s",    ss_dump()),
     CODE("'",     Code *w = find(next_idiom()); if (w) PUSH(w->token)),
+    CODE(".s",    ss_dump()),
+    CODE("words", words()),
     CODE("see",   Code *w = find(next_idiom()); if (w) see(w, 0); fout << ENDL),
+    /// @}
+    /// @defgroup OS ops
+    /// @{
+    CODE("mstat", mem_stat()),
     CODE("ms",    PUSH(millis())),
+    CODE("delay", delay(POP())),
+    CODE("included",                        // include external file
+         const char *fn = "TODO";           // file name
+         forth_include(fn)),                // include file
     CODE("forget",
          Code *w = find(next_idiom()); if (!w) return;
          int t = max(w->token, find("boot")->token);
@@ -303,7 +371,7 @@ void words() {              ///> display word list
 void forth_init() {
     dict[0]->add(new Code("_var", 10));   /// * borrow dict[0] for base
 }
-///=======================================================================
+///====================================================================
 ///
 ///> Forth outer interpreter
 ///
@@ -331,9 +399,7 @@ DU parse_number(string idiom, int *err) {
 
 void forth_core(string idiom) {
     Code *w = find(idiom);            /// * search through dictionary
-    cout << idiom << "=>";
     if (w) {                          /// * word found?
-        cout << w->token << endl;
         if (compile && !w->immd)
             dict[-1]->add(w);         /// * add token to word
         else w->exec();               /// * execute forth word
@@ -343,7 +409,6 @@ void forth_core(string idiom) {
 	int err = 0;
 	DU  n   = parse_number(idiom, &err);
 	if (err) throw length_error("");        /// * not number
-	cout << n << endl;
 	if (compile)
 		dict[-1]->add(new Code("_lit", n)); /// * add to current word
 	else PUSH(n);                           /// * add value to data stack
@@ -364,7 +429,7 @@ void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
             compile = false;
             getline(fin, pad, '\n'); /// * flush to end-of-line
         }
-        if (!compile) ss_dump();
     }
+    if (!compile) ss_dump();
 }
-///=======================================================================
+///====================================================================
