@@ -26,7 +26,7 @@ const char *APP_VERSION = "eForth v4.2";
 void mem_stat()  {
     size_t t = heap_caps_get_total_size(MALLOC_CAP_8BIT);
     size_t f = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    int    p = static_cast<int>(1000 * f / t);
+    int    p = static_cast<int>(1000 * (t - f) / t);
     LOGS("eForth 4.2 on Core "); LOG(xPortGetCoreID());
     LOGS(", RAM "); LOG(static_cast<float>(p) * 0.1);
     LOGS("% free ("); LOG(f); LOGS(" / "); LOG(t); LOGS(")\n");
