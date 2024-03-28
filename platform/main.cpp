@@ -4,22 +4,24 @@
 ///
 #include <iostream>      // cin, cout
 #include <fstream>       // ifstream
+#include <sys/sysinfo.h>
 
-const char* APP_VERSION = "eForth v2.2";
+const char* APP_VERSION = "eForth v4.2";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
 void mem_stat() {
+	struct sysinfo si;
 	LOGS(APP_VERSION);
-    LOG_KV("\n  dict: ",   dict.idx); LOG_KV("/", E4_DICT_SZ);
-    LOG_KV(", ",           sizeof(Code));  LOGS("-byte/entry");
-    LOG_KV("\n  ss  : ",   ss.idx);   LOG_KV("/", E4_SS_SZ);
-    LOG_KV(" (max ",       ss.max);   LOGS(")");
-    LOG_KV("\n  rs  : ",   rs.idx);   LOG_KV("/", E4_RS_SZ);
-    LOG_KV(" (max ",       rs.max);   LOGS(")");
-    LOG_KX("\n  here: 0x", HERE);     LOG_KX("/0x", E4_PMEM_SZ);
-    LOG_KX(" (free 0x",    E4_PMEM_SZ - HERE); LOGS(")\n");
+	if (sysinfo(&si)!=-1) {
+		LOG_KX(", RAM free 0x", si.freeram);
+		LOG_KX("/0x", si.totalram);
+	}
+    LOG_KV("\n  dict: ",   dict.size());
+    LOG_KV(", ",           sizeof(Code)); LOGS("-byte/entry");
+    LOG_KV("\n  ss  : ",   ss.size());    LOGS("\n");
+	
 }
 ///
 ///> include external Forth script
@@ -36,10 +38,11 @@ int forth_include(const char *fn) {
 }
 ///====================================================================
 ///
-/// main program - Note: Arduino and ESP32 is have their own main-loop
+/// main program - Note: Arduino and ESP32 have their own main-loop
 ///
 int main(int ac, char* av[]) {
-    forth_init();    ///> initialize dictionary
+	mem_stat();
+    forth_init();                              ///> initialize dictionary
     
     auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
