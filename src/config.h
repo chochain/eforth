@@ -10,7 +10,7 @@
 ///
 ///@name Conditional compililation options
 ///@}
-#define CC_DEBUG        1               /**< debug level 0|1|2      */
+#define CC_DEBUG        0               /**< debug level 0|1|2      */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
@@ -77,8 +77,8 @@ typedef int32_t         DU;
     #define LOGX(v)     Serial.print(v, HEX)
 #else  // !(ARDUINO || ESP32)
     #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-d", (int32_t)(v))
-    #define LOGX(v)     printf("%-x", (uint32_t)(v))
+    #define LOG(v)      printf("%-ld", (int64_t)(v))
+    #define LOGX(v)     printf("%-lx", (uint64_t)(v))
 #endif // (ARDUINO || ESP32)
     
 #define LOG_NA()        LOGS("N/A\n")
