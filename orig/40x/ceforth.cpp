@@ -410,92 +410,86 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     /// @{
-    CODE("_exit",    IP = rs.pop());                    // handled in nest()
+    CODE("_exit",   IP = rs.pop());                     // handled in nest()
     CODE("_donext",                                     // handled in nest()
          if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);    // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); });
-    CODE("_dolit",   PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
-    CODE("_dovar",   PUSH(IP);            IP += sizeof(DU));
-    CODE("_dostr",
-         const char *s = (const char*)MEM(IP);     // get string pointer
-         IU    len = STRLEN(s);
-         PUSH(IP); PUSH(len); IP += len);
-    CODE("_dotstr",
-         const char *s = (const char*)MEM(IP);     // get string pointer
-         fout << s;  IP += STRLEN(s));             // send to output console
-    CODE("_bran" ,   IP = *(IU*)MEM(IP));          // unconditional branch
-    CODE("_0bran",   IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
-    CODE("_dodoes",
-         add_w(BRAN);                              // branch to does> section
-         add_iu(IP + sizeof(IU));                  // encode IP
-         add_w(EOW));                              // not really needed but cleaner
-    CODE(">r",   rs.push(POP()));
-    CODE("r>",   PUSH(rs.pop()));
-    CODE("r@",   PUSH(rs[-1]));                    // same as I (the loop counter)
+    CODE("_dolit",  PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
+    CODE("_dovar",  PUSH(IP);            IP += sizeof(DU));
+    CODE("_dostr",  const char *s = (const char*)MEM(IP);     // get string pointer
+                    IU    len = STRLEN(s);
+                    PUSH(IP); PUSH(len); IP += len);
+    CODE("_dotstr", const char *s = (const char*)MEM(IP);     // get string pointer
+                    fout << s;  IP += STRLEN(s));             // send to output console
+    CODE("_bran" ,  IP = *(IU*)MEM(IP));                      // unconditional branch
+    CODE("_0bran",  IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
+    CODE("_dodoes", add_w(BRAN);                              // branch to does> section
+                    add_iu(IP + sizeof(IU));                  // encode IP
+                    add_w(EOW));                              // not really needed but cleaner
+    CODE(">r",      rs.push(POP()));
+    CODE("r>",      PUSH(rs.pop()));
+    CODE("r@",      PUSH(rs[-1]));                      // same as I (the loop counter)
     /// @}
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
     /// @{
-    CODE("dup",  PUSH(top));
-    CODE("drop", top = ss.pop());
-    CODE("over", PUSH(ss[-1]));
-    CODE("swap", DU n = ss.pop(); PUSH(n));
-    CODE("rot",  DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m));
-    CODE("pick", DU i = top; top = ss[-i]);
+    CODE("dup",     PUSH(top));
+    CODE("drop",    top = ss.pop());
+    CODE("over",    PUSH(ss[-1]));
+    CODE("swap",    DU n = ss.pop(); PUSH(n));
+    CODE("rot",     DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m));
+    CODE("pick",    DU i = top; top = ss[-i]);
     /// @}
     /// @defgroup Stack ops - double
     /// @{
-    CODE("2dup", PUSH(ss[-1]); PUSH(ss[-1]));
-    CODE("2drop",ss.pop(); top = ss.pop());
-    CODE("2over",PUSH(ss[-3]); PUSH(ss[-3]));
-    CODE("2swap",
-         DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
-         ss.push(n); PUSH(l); PUSH(m));
-    CODE("?dup", if (top != DU0) PUSH(top));
+    CODE("2dup",    PUSH(ss[-1]); PUSH(ss[-1]));
+    CODE("2drop",   ss.pop(); top = ss.pop());
+    CODE("2over",   PUSH(ss[-3]); PUSH(ss[-3]));
+    CODE("2swap",   DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
+                    ss.push(n); PUSH(l); PUSH(m));
+    CODE("?dup",    if (top != DU0) PUSH(top));
     /// @}
     /// @defgroup ALU ops
     /// @{
-    CODE("+",    top += ss.pop());
-    CODE("*",    top *= ss.pop());
-    CODE("-",    top =  ss.pop() - top);
-    CODE("/",    top =  ss.pop() / top);
-    CODE("mod",  top =  ss.pop() % top);
-    CODE("*/",   top =  (DU2)ss.pop() * ss.pop() / top);
-    CODE("/mod",
-         DU n = ss.pop(); DU t = top;
-         ss.push(n % t); top = (n / t));
-    CODE("*/mod",
-         DU2 n = (DU2)ss.pop() * ss.pop();
-         DU2 t = top;
-         ss.push((DU)(n % t)); top = (DU)(n / t));
-    CODE("and",  top = ss.pop() & top);
-    CODE("or",   top = ss.pop() | top);
-    CODE("xor",  top = ss.pop() ^ top);
-    CODE("abs",  top = abs(top));
-    CODE("negate", top = -top);
-    CODE("invert", top = ~top);
-    CODE("rshift", top = ss.pop() >> top);
-    CODE("lshift", top = ss.pop() << top);
-    CODE("max",  DU n=ss.pop(); top = (top>n)?top:n);
-    CODE("min",  DU n=ss.pop(); top = (top<n)?top:n);
-    CODE("2*",   top *= 2);
-    CODE("2/",   top /= 2);
-    CODE("1+",   top += 1);
-    CODE("1-",   top -= 1);
+    CODE("+",       top += ss.pop());
+    CODE("*",       top *= ss.pop());
+    CODE("-",       top =  ss.pop() - top);
+    CODE("/",       top =  ss.pop() / top);
+    CODE("mod",     top =  ss.pop() % top);
+    CODE("*/",      top =  (DU2)ss.pop() * ss.pop() / top);
+    CODE("/mod",    DU n = ss.pop(); DU t = top;
+                    ss.push(n % t); top = (n / t));
+    CODE("*/mod",   DU2 n = (DU2)ss.pop() * ss.pop();
+                    DU2 t = top;
+                    ss.push((DU)(n % t)); top = (DU)(n / t));
+    CODE("and",     top = ss.pop() & top);
+    CODE("or",      top = ss.pop() | top);
+    CODE("xor",     top = ss.pop() ^ top);
+    CODE("abs",     top = abs(top));
+    CODE("negate",  top = -top);
+    CODE("invert",  top = ~top);
+    CODE("rshift",  top = ss.pop() >> top);
+    CODE("lshift",  top = ss.pop() << top);
+    CODE("max",     DU n=ss.pop(); top = (top>n)?top:n);
+    CODE("min",     DU n=ss.pop(); top = (top<n)?top:n);
+    CODE("2*",      top *= 2);
+    CODE("2/",      top /= 2);
+    CODE("1+",      top += 1);
+    CODE("1-",      top -= 1);
     /// @}
     /// @defgroup Logic ops
     /// @{
-    CODE("0= ",  top = BOOL(top == DU0));
-    CODE("0<",   top = BOOL(top <  DU0));
-    CODE("0>",   top = BOOL(top >  DU0));
-    CODE("=",    top = BOOL(ss.pop() == top));
-    CODE(">",    top = BOOL(ss.pop() >  top));
-    CODE("<",    top = BOOL(ss.pop() <  top));
-    CODE("<>",   top = BOOL(ss.pop() != top));
-    CODE(">=",   top = BOOL(ss.pop() >= top));
-    CODE("<=",   top = BOOL(ss.pop() <= top));
-    CODE("u<",   top = BOOL(UINT(ss.pop()) < UINT(top)));
-    CODE("u>",   top = BOOL(UINT(ss.pop()) > UINT(top)));
+    CODE("0= ",     top = BOOL(top == DU0));
+    CODE("0<",      top = BOOL(top <  DU0));
+    CODE("0>",      top = BOOL(top >  DU0));
+    CODE("=",       top = BOOL(ss.pop() == top));
+    CODE(">",       top = BOOL(ss.pop() >  top));
+    CODE("<",       top = BOOL(ss.pop() <  top));
+    CODE("<>",      top = BOOL(ss.pop() != top));
+    CODE(">=",      top = BOOL(ss.pop() >= top));
+    CODE("<=",      top = BOOL(ss.pop() <= top));
+    CODE("u<",      top = BOOL(UINT(ss.pop()) < UINT(top)));
+    CODE("u>",      top = BOOL(UINT(ss.pop()) > UINT(top)));
     /// @}
     /// @defgroup IO ops
     /// @{
