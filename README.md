@@ -21,24 +21,17 @@ Utilizing modern OS and tool chains, a new generation of Forths implemented in j
 
 In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceforth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
 
-### How To Compile/Build/Run
+### How To Compile/Build/Run this pure C/C++ eForth
 <pre>
 > git clone https://github.com/chochain/eforth to your local machine
 > cd eforth
 </pre>
 
-#### Build 359-line C++, vector-based token-threaded, eForth collaborated with Dr. Ting
-Kept in orig/ting/ceForth_410.cpp [here](https://chochain.github.io/orig/ting/ceForth_410.cpp)
-<pre>
-> make 410
-> ./tests/eforth410
-> to quit, type 'bye' or ctrl-C
-</pre>
-
-#### Build 32-bit subroutine-threaded eForth on Linux and Cygwin, 16-bit xt offset enhanced
+#### Build eForth on Linux or Cygwin
 <pre>
 > make
 > ./tests/eforth
+> to quit, type 'bye' or Ctrl-C
 </pre>
 
 #### Build for WASM
@@ -59,71 +52,79 @@ Kept in orig/ting/ceForth_410.cpp [here](https://chochain.github.io/orig/ting/ce
 > from your browser, enter the IP address to access the ESP32 web server
 </pre>
 
-### Evolution - continuation of Dr. Ting's final work
-Source codes kept under ~/orig/ting and details [here](https://chochain.github.io/eforth/orig/index.html)
-#### ting - Dr. Ting's original ceForth
+#### Build Dr. Ting's legacy eForth, 32-bit token-threaded
 <pre>
-  + _23 - cross-compiled ROM, token-threaded
-  + _33 - macro assembler, token-threaded
+> make 36b
+> ./tests/ceforth36b
 </pre>
-#### 33b - code analysis of Dr. Ting's original ceForth_33
-<pre>
-  + eforth_asm - assembler
-  + eforth_vm  - inner interpreter
-  + eforth     - main
-</pre>
-#### ting - Dr. Ting's adaptation by my input
-<pre>
-  + _40, _40b, _40c       - vector-based, token-threaded
-  + _401, _402, _403      - intrim work (email exchange) of _40
-  + _36, _36b, _36c, _36x - back to linear memory subroutine-threaded
-</pre>
-#### 802 - the original source for esp32forth_82
-<pre>
-  + originated from Dr. Ting's esp32forth_63.ino (see esp32 below)
-  + 20210827 - first proposed to Dr. Ting. 
-  + 20210831 - I combined them into one file and presented to Dr. Ting as esp32forth_82.ino
-</pre>
-#### esp32 - the original source for esp32forth
-  + see esp32/README
 
-#### 40x - refactor _40, vector-based subroutine-threaded, with 16-bit offset enhanced
+#### Build array-based, linear-memory eForth, subroutine-threaded with 16-bit xt offset
 <pre>
-  + src/ceforth - multi-platform supporting code base
-  + platform/   - platform specific for C++, WASM, ESP32
-</pre>  
-#### life after _403 (final version from Dr. Ting)
-<pre>
-  + _410 - refactored (initializer_list, iterator) and bug fixes
-</pre>  
+> make 40x
+> ./tests/eforth40x
+</pre>
 
-### Changes - what did we do?
-Even with vocabulary, multi-tasking, and metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.
+### Changes - What have we done!
+Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'. Often, the low-level core are built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but now became the show-stopper for many newbies. Because, one have to learn the assembly language, understand the memory model before appreciating the internal of Forth.
+
+Traditially, high-level languages like C or C++ are generally avoided for implementing Forth. However, through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth even building their own, one day.
  
 ### Source Code directories
 <pre>
 + ~/src           common source for ceforth, esp32forth, wineForth, and weForth
 + ~/orig/33b      refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
 + ~/orig/ting     ceForth source codes collaborated with Dr. Ting
-+ ~/orig/802      esp32forth source codes collaborated with Dr. Ting
-+ ~/orig/40x      my work to refactor _40 into vector-based subroutine-threaded with 16-bit offset enhancement
++ ~/orig/esp32    esp32forth source codes collaborated with Dr. Ting
++ ~/orig/40x      my experimental work, refactor _40 into vector-based subroutine-threaded with 16-bit offset enhancement
+</pre>
+
+### Evolution - continuation of Dr. Ting's final work
+Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/index.html)
+#### ~/orig/ting - Dr. Ting's original ceForth
+<pre>
+  + ting/_23                 - cross-compiled ROM, token-threaded
+  + ting/_33                 - assembler with C functions as macro, token-threaded
+  + 33b/                     - from _33, I refactored assembler from inner interpreter
+  + ting/_40, _40b, _40c     - my input, array-based, token-threaded
+  + ting/_401, _402, _403    - email exchange on _40 with Dr. Ting
+  + ting/_36, _36b, _36x     - from _33, Dr. Ting updated his linear memory, subroutine-threaded
+  + ting/_410                - from _403, I refactored with initializer_list, and bug fixes
+</pre>
+#### ~/orig/esp32 - the origin of ESP32Forth
+<pre>
+  + esp32/_54, _59           - cross-compiled ROM, token-threaded
+  + esp32/_62, _63           - assembler with C functions as macros, from ceForth_33
+  + esp32/_705               - ESP32Forth v7, C macro-based assembler with Brad and Peter
+  + esp32/_802               - my interim work shown to Dr. Ting, sync ceForth_403
+  + esp32/_82, _83, _84, _85 - from _63, Dr. Ting adapted array-based, token-threaded
+</pre>
+#### ~/orig/40x - experiments on _40 for various implementation and tuning
+<pre>
+  + 40x/ceforth - array-based subroutine-threaded, with 16-bit offset enhanced
+</pre>  
+#### life after _410 and 40x - my current work
+<pre>
+  + src/ceforth - multi-platform supporting code base
+  + platform/   - platform specific for C++, ESP32, WASM
 </pre>
 
 ### Benchmark
-**Desktop PC - 10K*10K cycles on 3.2GHz AMD**
+#### Desktop PC - 10K*10K cycles on 3.2GHz AMD**
 <pre>
-+ 4452ms: ceForth_36x, linear memory, 32-bit, token indirect threading
-+ 1450ms: ceForth_403, dict/pf vector<*Code>, subroutine indirect threading
-+ 1050ms: src/ceforth, subroutine indirect threading, with 16-bit offset
-+  890ms: src/ceforth, inner interpreter with cached xt offsets
++ 4452ms: ~/orig/ting/ceforth_36b, linear memory, 32-bit, token threading
++ 1450ms: ~/orig/ting/ceForth_403, dict/pf array-based, subroutine threading
++ 1050ms: ~/orig/40x/ceforth, subroutine indirect threading, with 16-bit offset
++  890ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
++  740ms: ~/src/ceforth, dynamic vector, token threading
 </pre>
 
-**ESP32 - 1K*1K cycles on NodeMCU**
+#### ESP32 - 1K*1K cycles on 80MHz NodeMCU**
 <pre>
 + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
-+ 1045ms: ~/esp32forth/orig/esp32forth8_1, token indirect threading
-+  990ms: src/ceforth, subroutine indirect threading, with 16-bit offset
-+  930ms: src/ceforth, inner interpreter with cached xt offsets
++ 1045ms: ~/orig/esp32/ceforth802, array-based, token threading
++  990ms: ~/orig/40x/ceforth, linear-memory, subroutine threading, with 16-bit offset
++  930ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
++  665ms: ~/src/ceforth dynamic vector, token threading
 </pre>
 
 ### Revision History
@@ -145,9 +146,9 @@ Even with vocabulary, multi-tasking, and metacompilation (the black-belt stuffs 
 * CC 20231011: Review
   > Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before main(), moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning.
   > LAMBDA_OK option was originally intended for full VM implementation but 2x slower. Dropped to reduce source clutter.
-* CC 20240308: Refactor for multi-platform
+* CC 20240308: Refactor for multi-platform, adopt dynamic vectors
   > To support cross-platform, i.g. WIN32, Arduino/ESP, Linux, and WASM, there were many conditional compilation branches which make the code really messy.
-  + Separate cross-platform and configuation into ~/src/config.h
+  + Separate cross-platform and configuration into ~/src/config.h
   + Separate platform specific code into ~/platform/*.cpp
   + add include opcode for Forth script loading
 
