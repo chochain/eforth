@@ -305,10 +305,10 @@ void forth_init() {
 }
 ///=======================================================================
 ///
-///> main - Forth outer interpreter
+///> Forth outer interpreter
 ///
 DU parse_number(string idiom, int *err) {
-	const char *cs = idiom.c_str();
+    const char *cs = idiom.c_str();
     int b = BASE;
     switch (*cs) {                    ///> base override
     case '%': b = 2;  cs++; break;
@@ -331,36 +331,40 @@ DU parse_number(string idiom, int *err) {
 
 void forth_core(string idiom) {
     Code *w = find(idiom);            /// * search through dictionary
-	cout << idiom << "=>" << w->token << endl;
-	return;
+    cout << idiom << "=>";
     if (w) {                          /// * word found?
+        cout << w->token << endl;
         if (compile && !w->immd)
             dict[-1]->add(w);         /// * add token to word
         else w->exec();               /// * execute forth word
-		return;
+        return;
     }
 	// try as a number
 	int err = 0;
 	DU  n   = parse_number(idiom, &err);
-    if (err) throw length_error("");        /// * not number
+	if (err) throw length_error("");        /// * not number
+	cout << n << endl;
 	if (compile)
 		dict[-1]->add(new Code("_lit", n)); /// * add to current word
 	else PUSH(n);                           /// * add value to data stack
 }
-
+///
+///> Forth VM - interface to outside world
+///
 void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
-    fin.clear();               ///> clear input stream error bit if any
-    fin.str(cmd);              ///> feed user command into input stream
-    fout_cb = callback;        ///> setup callback function
-    fout.str("");              ///> clean output buffer, ready for next run
-    while (fin >> pad) {       ///> outer interpreter loop
-        try { forth_core(pad); }    ///> single command to Forth core
+    fin.clear();                ///> clear input stream error bit if any
+    fin.str(cmd);               ///> feed user command into input stream
+    fout_cb = callback;         ///> setup callback function
+    fout.str("");               ///> clean output buffer, ready for next run
+    string idiom;
+    while (fin >> idiom) {           ///> outer interpreter loop
+        try { forth_core(idiom); }   ///> single command to Forth core
         catch(...) {
-            fout << pad << "? " << ENDL;
+            fout << idiom << "? " << ENDL;
             compile = false;
-            getline(fin, pad, '\n');  /// * flush to end-of-line
+            getline(fin, pad, '\n'); /// * flush to end-of-line
         }
+        if (!compile) ss_dump();
     }
 }
 ///=======================================================================
-#include "../platform/main.cpp"
