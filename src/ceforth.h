@@ -46,6 +46,7 @@ struct Code {
     Code(string n, bool f=false);         ///> colon word, f=new word
     Code(string n, DU d);                 ///> dolit, dovar
     Code(string n, string s);             ///> dostr, dotstr
+    ~Code();
     Code *immediate()  { immd = true; return this; }  ///> set flag
     Code *add(Code *w) { pf.push(w);  return this; }  ///> add token
     void exec() {                         ///> inner interpreter
