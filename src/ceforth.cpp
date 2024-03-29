@@ -39,11 +39,6 @@ Code::Code(string n, int d)                     ///> dolit, dovar
     : name(""), xt(find(n)->xt) { q.push(d); }
 Code::Code(string n, string s)                  ///> dostr, dotstr
     : name("_$"), xt(find(n)->xt), str(s) {}
-Code::~Code() {
-    for (Code *w : pf) delete w;
-    for (Code *w : p1) delete w;
-    for (Code *w : p2) delete w;
-}
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
@@ -192,18 +187,15 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("else",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
-         tmp->pf.clear();
          last->stage = 1),
     IMMD("then",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          if (last->stage == 0) {               // if...then
              last->pf.merge(tmp->pf);
-             delete dict.pop();
          }
          else {                                // if..else..then, or
              last->p1.merge(tmp->pf);          // for..aft..then..next
-             if (last->stage == 1) delete dict.pop();
-             else tmp->pf.clear();
+             if (last->stage == 1) dict.pop();
          }),
     /// @}
     /// @defgroup Loops
@@ -223,17 +215,17 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("while",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
-         tmp->pf.clear(); last->stage = 2),
+         last->stage = 2),
     IMMD("repeat",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->p1.merge(tmp->pf); delete dict.pop()),
+         last->p1.merge(tmp->pf); dict.pop()),
     IMMD("again",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
-         last->stage = 1; delete dict.pop()),
+         last->stage = 1; dict.pop()),
     IMMD("until",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->pf.merge(tmp->pf); delete dict.pop()),
+         last->pf.merge(tmp->pf); dict.pop()),
     /// @}
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
@@ -254,12 +246,12 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("aft",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
-         tmp->pf.clear(); last->stage = 3),
+         last->stage = 3),
     IMMD("next",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          if (last->stage == 0) last->pf.merge(tmp->pf);
          else last->p2.merge(tmp->pf);
-         delete dict.pop()),                      // CC: memory leak?
+         dict.pop()),                      // CC: memory leak?
     /// @}
     /// @defgrouop Compiler ops
     /// @{
@@ -340,10 +332,10 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("forget",
          Code *w = find(next_idiom()); if (!w) return;
          int t = max(w->token, find("boot")->token);
-         for (int i=dict.size(); i>t; i--) delete dict.pop()),
+         for (int i=dict.size(); i>t; i--) dict.pop()),
     CODE("boot",
          int t = find("boot")->token + 1;
-         for (int i=dict.size(); i>t; i--) delete dict.pop())
+         for (int i=dict.size(); i>t; i--) dict.pop())
 };
 Code *find(string s) {      ///> scan dictionary, last to first
     for (int i = dict.size() - 1; i >= 0; --i) {
@@ -358,7 +350,7 @@ void words() {              ///> display word list
     for (Code *w : dict) {
 #if CC_DEBUG
         fout << setw(4) << w->token << "> "
-             << setw(8) << (uintptr_t)w->xt
+             << setw(8) << (UPF)w->xt
              << ":" << (w->immd ? '*' : ' ')
              << w->name << "  " << ENDL;
 #else
