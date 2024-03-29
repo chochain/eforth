@@ -16,7 +16,7 @@ template<typename T>
 struct FV : public vector<T> {         ///< our super-vector class
     FV()                        : vector<T>()    {}
     FV(initializer_list<T> lst) : vector<T>(lst) {}
-    FV *merge(FV<T> v) {
+    FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
     T    dec_i()   { return (this->back() -= 1); }
@@ -36,7 +36,6 @@ struct Code {
     int       token = 0;     ///< dict index, 0=param word
     bool      immd  = false; ///< immediate flag
     int       stage = 0;     ///< branching stage (looping condition)
-    string    str;           ///< string literal
     FV<Code*> pf;            ///< parameter field
     FV<Code*> p1;            ///< parameter field - if..else, aft..then
     FV<Code*> p2;            ///< parameter field - then..next
