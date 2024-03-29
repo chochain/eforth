@@ -33,19 +33,25 @@ struct Code {
     static int here;         ///< token incremental counter
     string    name;          ///< name of word
     XT        xt    = NULL;  ///< execution token
-    int       token = 0;     ///< dict index, 0=param word
-    bool      immd  = false; ///< immediate flag
-    int       stage = 0;     ///< branching stage (looping condition)
     FV<Code*> pf;            ///< parameter field
     FV<Code*> p1;            ///< parameter field - if..else, aft..then
     FV<Code*> p2;            ///< parameter field - then..next
     FV<DU>    q;             ///< parameter field - literal
+    union {                  ///< union to reduce struct size
+        int attr = 0;        /// * zero all sub-fields
+        struct {
+            int token : 30;  ///< dict index, 0=param word
+            int stage :  2;  ///< compile stages
+            int str   :  1;  ///< string node
+            int immd  :  1;  ///< immediate flag
+        };
+    };
     Code(string n, XT fp, bool im)        ///> primitive
         : name(n), xt(fp), immd(im), token(here++) {}
     Code(string n, bool f=false);         ///> colon word, f=new word
     Code(string n, DU d);                 ///> dolit, dovar
     Code(string n, string s);             ///> dostr, dotstr
-    Code *immediate()  { immd = true; return this; }  ///> set flag
+    Code *immediate()  { immd = 1;    return this; }  ///> set flag
     Code *add(Code *w) { pf.push(w);  return this; }  ///> add token
     void exec() {                         ///> inner interpreter
         if (xt) { xt(this); return; }     /// * run primitive word
