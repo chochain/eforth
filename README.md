@@ -67,15 +67,17 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 ### Changes - What have we done!
 Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'. Often, the low-level core are built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but now became the show-stopper for many newbies. Because, one have to learn the assembly language, understand the memory model before appreciating the internal of Forth.
 
-Traditially, high-level languages like C or C++ are generally avoided for implementing Forth. However, through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth even building their own, one day.
+Traditially, high-level languages like C or C++ are generally avoided for implementing Forth. However, through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
  
-### Source Code directories
+### Source Code Directories
 <pre>
-+ ~/src           common source for ceforth, esp32forth, wineForth, and weForth
-+ ~/orig/33b      refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
-+ ~/orig/ting     ceForth source codes collaborated with Dr. Ting
-+ ~/orig/esp32    esp32forth source codes collaborated with Dr. Ting
-+ ~/orig/40x      my experimental work, refactor _40 into vector-based subroutine-threaded with 16-bit offset enhancement
++ ~/src       - common source code for all supported platforms
++ ~/platform  - platform specific code for C++, ESP32, Windows, and WASM
++ ~/orig      - arcive from Dr. Ting and my past works
++    /33b     - refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
++    /ting    - ceForth source codes collaborated with Dr. Ting
++    /esp32   - esp32forth source codes collaborated with Dr. Ting
++    /40x     - my experiments, refactor _40 into vector-based subroutine-threaded, with 16-bit offset
 </pre>
 
 ### Evolution - continuation of Dr. Ting's final work
