@@ -19,9 +19,10 @@ void mem_stat() {
 	cout << APP_VERSION;
 	struct sysinfo si;
 	if (sysinfo(&si)!=-1) {
-        int p = 1000 * (si.totalram - si.freeram) / si.totalram;
-		cout << ", RAM " << static_cast<float>(p) * 0.1
-             << "% free (" << si.freeram << " / " << si.totalram << ")";
+        int64_t p = 1000L * si.freeram / si.totalram;
+		cout << ", RAM "   << static_cast<float>(p) * 0.1
+             << "% free (" << (si.freeram>>20)
+             << " / "      << (si.totalram>>20) << " MB)";
 	}
 	cout << endl;
 }

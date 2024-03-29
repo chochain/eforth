@@ -24,17 +24,19 @@ const char *APP_VERSION = "eForth v4.2";
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
 void mem_stat()  {
-    size_t t = heap_caps_get_total_size(MALLOC_CAP_8BIT);
-    size_t f = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    int    p = static_cast<int>(1000 * (t - f) / t);
+    size_t  t = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+    size_t  f = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    int64_t p = 1000L * f / t;
     LOGS("eForth 4.2 on Core "); LOG(xPortGetCoreID());
-    LOGS(", RAM "); LOG(static_cast<float>(p) * 0.1);
-    LOGS("% free ("); LOG(f); LOGS(" / "); LOG(t); LOGS(")\n");
+    LOGS(", RAM ");   LOG(static_cast<float>(p) * 0.1);
+    LOGS("% free ("); LOG(f>>10);
+    LOGS(" / ");      LOG(t>>10); LOGS(" KB)\n");
 }
 ///====================================================================
 ///
 ///> Arduino/ESP32 SPIFFS interfaces
-///  @brief eForth turn-key code loader (from Flash memory)
+///  @brief eForth external file loader from Flash memory
+///         can be called in setup() to become a turn-key system
 ///
 #include <SPIFFS.h>
 int forth_include(const char *fname) {
