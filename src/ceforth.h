@@ -17,7 +17,7 @@ struct FV : public vector<T> {         ///< our super-vector class
     FV()                        : vector<T>()    {}
     FV(initializer_list<T> lst) : vector<T>(lst) {}
     FV *merge(FV<T> v) {
-        this->insert(this->end(), v.begin(), v.end()); return this;
+        this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
     T    dec_i()   { return (this->back() -= 1); }
     void push(T n) { this->push_back(n); }
