@@ -72,5 +72,5 @@ var searchData=
   ['as_5fxorr_1007',['as_xorr',['../ceForth__33_8cpp.html#a6f4441799ba4c7b0fdd069c9368da193',1,'ceForth_33.cpp']]],
   ['as_5fzless_1008',['as_zless',['../ceForth__33_8cpp.html#a43a8507bc34d03e80b01aec126faf425',1,'ceForth_33.cpp']]],
   ['athread_1009',['aThread',['../eforth__asm_8cpp.html#afeb921a3ef6cf6d442fd9f9a997c4ef5',1,'eforth_asm.cpp']]],
-  ['attr_1010',['attr',['../structCode.html#aaf3023800839f76152f31297ae46201a',1,'Code']]]
+  ['attr_1010',['attr',['../structCode.html#aaf3023800839f76152f31297ae46201a',1,'Code::attr()'],['../structCode.html#add0f1495d4283ba4a9eddadc5120fac7',1,'Code::attr()']]]
 ];

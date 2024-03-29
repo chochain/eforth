@@ -116,5 +116,7 @@ var structCode =
     [ "pf", "structCode.html#a94a0a12391eba098096ec9c650ff127c", null ],
     [ "p1", "structCode.html#a471c476cd1718082ed512957a4be878d", null ],
     [ "p2", "structCode.html#aae9146f98fc3a068780b35dffd752618", null ],
-    [ "q", "structCode.html#a8435f8755d56bff2d2b2cc574b4e829d", null ]
+    [ "q", "structCode.html#a8435f8755d56bff2d2b2cc574b4e829d", null ],
+    [ "attr", "structCode.html#add0f1495d4283ba4a9eddadc5120fac7", null ],
+    [ "str", "structCode.html#aaa09b1233a2ecc9c5e56d82a4766100e", null ]
 ];

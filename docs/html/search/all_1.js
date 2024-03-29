@@ -93,5 +93,5 @@ var searchData=
   ['assemble_180',['assemble',['../eforth_8cpp.html#a2469eb556e0f6b9d1c97610ef37f4f4c',1,'assemble(U8 *cdata):&#160;eforth_asm.cpp'],['../eforth__asm_8cpp.html#a2469eb556e0f6b9d1c97610ef37f4f4c',1,'assemble(U8 *cdata):&#160;eforth_asm.cpp']]],
   ['at_181',['at',['../ceForth__23_8c.html#af7434f89ce8b677399efa8e116d3fe64',1,'at(void):&#160;ceForth_23.c'],['../ceForth__33_8cpp.html#af7434f89ce8b677399efa8e116d3fe64',1,'at(void):&#160;ceForth_33.cpp']]],
   ['athread_182',['aThread',['../eforth__asm_8cpp.html#afeb921a3ef6cf6d442fd9f9a997c4ef5',1,'eforth_asm.cpp']]],
-  ['attr_183',['attr',['../structCode.html#aaf3023800839f76152f31297ae46201a',1,'Code']]]
+  ['attr_183',['attr',['../structCode.html#aaf3023800839f76152f31297ae46201a',1,'Code::attr()'],['../structCode.html#add0f1495d4283ba4a9eddadc5120fac7',1,'Code::attr()']]]
 ];
