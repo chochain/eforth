@@ -118,13 +118,13 @@ Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/inde
 +  740ms: ~/src/ceforth, dynamic vector, token threading
 </pre>
 
-#### ESP32 - 1K*1K cycles on 80MHz NodeMCU**
+#### ESP32 - 1K*1K cycles on 240MHz NodeMCU**
 <pre>
 + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
 + 1045ms: ~/orig/esp32/ceforth802, array-based, token threading
 +  990ms: ~/orig/40x/ceforth, linear-memory, subroutine threading, with 16-bit offset
 +  930ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
-+  665ms: ~/src/ceforth dynamic vector, token threading
++  644ms: ~/src/ceforth dynamic vector, token threading
 </pre>
 
 ### Revision History
