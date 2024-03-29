@@ -14,6 +14,7 @@ FV<DU> ss;                             ///< data stack
 FV<DU> rs;                             ///< return stack
 DU     top     = -1;                   ///< cached top of stack
 bool   compile = false;                ///< compiling flag
+string tmpstr;                         ///< temp storage for string
 ///
 ///> I/O streaming interface
 ///
@@ -38,7 +39,7 @@ Code::Code(string n, bool f)                    ///> colon word
 Code::Code(string n, int d)                     ///> dolit, dovar
     : name(""), xt(find(n)->xt) { q.push(d); }
 Code::Code(string n, string s)                  ///> dostr, dotstr
-    : name("_$"), xt(find(n)->xt), str(s) {}
+    : name("_str"), xt(find(n)->xt), str(s) { token=0; }
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
@@ -62,7 +63,9 @@ void see(Code *c, int dp) {          ///> disassemble a colon word
         int i = dp; fout << ENDL; while (i--) fout << "  "; fout << s;
         for (Code *w : v) if (dp < 2) see(w, dp + 1); /// * depth controlled
     };
-    pp(dp, (c->name=="_$" ? ".\" "+c->str+"\"" : c->name), c->pf);
+	string s = c->name=="_str"
+		? (c->token ? "s\" " : ".\" ")+c->str+"\"" : c->name;
+    pp(dp, s, c->pf);
     if (c->p1.size() > 0) pp(dp, "( 1-- )", c->p1);
     if (c->p2.size() > 0) pp(dp, "( 2-- )", c->p2);
     if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
@@ -163,18 +166,30 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
+    CODE("type",   int n = POP(); fout << dict[POP()]->pf[n]->str),
     /// @}
     /// @defgroup Literal ops
     /// @{
-    CODE("_str",   fout << c->str),
+    CODE("_str",   if (c->token) {
+                       PUSH(c->token & 0xffff); PUSH(c->token >> 16);
+                   }
+                     else fout << c->str),
     CODE("_lit",   PUSH(c->q[0])),
     CODE("_var",   PUSH(c->token)),
     IMMD("(",      next_idiom(')')),
     IMMD(".(",     fout << next_idiom(')')),
     IMMD("\\",     string s; getline(fin, s, '\n')), // flush input
     IMMD(".\"",
-         string s = next_idiom('"');
-         dict[-1]->add(new Code("_str", s.substr(1)))),
+         string s = next_idiom('"').substr(1);
+         dict[-1]->add(new Code("_str", s))),
+    IMMD("s\"",
+         string s = next_idiom('"').substr(1);
+         if (compile) {
+             Code *w = new Code("_str", s); Code *last = dict[-1];
+             w->token = last->token | (last->pf.size() << 16);
+             last->add(w);
+         }
+         else tmpstr = s),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -183,7 +198,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          for (Code *w : (POP() ? c->pf : c->p1)) w->exec()),
     IMMD("if",
          dict[-1]->add(new Code("_bran"));
-         dict.push(new Code("tmp"))),                // scratch pad
+         dict.push(new Code(" tmp"))),         // scratch pad
     IMMD("else",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
@@ -327,7 +342,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("ms",    PUSH(millis())),
     CODE("delay", delay(POP())),
     CODE("included",                        // include external file
-         const char *fn = "TODO";           // file name
+         const char *fn = tmpstr.c_str();   // file name
+         cout << "fn=" << fn; return;
          forth_include(fn)),                // include file
     CODE("forget",
          Code *w = find(next_idiom()); if (!w) return;
@@ -402,13 +418,13 @@ void forth_core(string idiom) {
         else w->exec();               /// * execute forth word
         return;
     }
-	// try as a number
-	int err = 0;
-	DU  n   = parse_number(idiom, &err);
-	if (err) throw length_error("");        /// * not number
-	if (compile)
-		dict[-1]->add(new Code("_lit", n)); /// * add to current word
-	else PUSH(n);                           /// * add value to data stack
+    // try as a number
+    int err = 0;
+    DU  n   = parse_number(idiom, &err);
+    if (err) throw length_error("");        /// * not number
+    if (compile)
+        dict[-1]->add(new Code("_lit", n)); /// * add to current word
+    else PUSH(n);                           /// * add value to data stack
 }
 ///
 ///> Forth VM - interface to outside world
