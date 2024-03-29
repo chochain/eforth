@@ -27,10 +27,11 @@ void mem_stat()  {
     size_t  t = heap_caps_get_total_size(MALLOC_CAP_8BIT);
     size_t  f = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     int64_t p = 1000L * f / t;
-    LOGS("eForth 4.2 on Core "); LOG(xPortGetCoreID());
-    LOGS(", RAM ");   LOG(static_cast<float>(p) * 0.1);
-    LOGS("% free ("); LOG(f>>10);
-    LOGS(" / ");      LOG(t>>10); LOGS(" KB)\n");
+    LOGS("eForth 4.2 on Core["); LOG(xPortGetCoreID());
+    LOGS("] at ");               LOG(getCpuFrequencyMhz());      
+    LOGS(" MHz, RAM ");          LOG(static_cast<float>(p) * 0.1);
+    LOGS("% free (");            LOG(f>>10);
+    LOGS(" / ");                 LOG(t>>10); LOGS(" KB)\n");
 }
 ///====================================================================
 ///

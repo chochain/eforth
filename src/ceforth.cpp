@@ -39,7 +39,7 @@ Code::Code(string n, bool f)                    ///> colon word
 Code::Code(string n, int d)                     ///> dolit, dovar
     : name(""), xt(find(n)->xt) { q.push(d); }
 Code::Code(string n, string s)                  ///> dostr, dotstr
-    : name("~str"), xt(find(n)->xt), str(s) { token=0; }
+    : name(s), xt(find(n)->xt)  { str=1; }
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
@@ -63,8 +63,8 @@ void see(Code *c, int dp) {          ///> disassemble a colon word
         int i = dp; fout << ENDL; while (i--) fout << "  "; fout << s;
         for (Code *w : v) if (dp < 2) see(w, dp + 1); /// * depth controlled
     };
-    string s = c->name=="~str"
-        ? (c->token ? "s\" " : ".\" ")+c->str+"\"" : c->name;
+    string s = c->str
+        ? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
     pp(dp, s, c->pf);
     if (c->p1.size() > 0) pp(dp, "( 1-- )", c->p1);
     if (c->p2.size() > 0) pp(dp, "( 2-- )", c->p2);
@@ -166,13 +166,13 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
-    CODE("type",   DU len = POP(); DU n = POP();
-                   fout << dict[n & 0xffff]->pf[n >> 16]->str),
+    CODE("type",   DU len = POP(); DU i_w = POP();
+                   fout << dict[i_w & 0xffff]->pf[i_w >> 16]->name),
     /// @}
     /// @defgroup Literal ops
     /// @{
-    CODE("~str",   if (!c->token) fout << c->str;
-                   else { PUSH(c->token); PUSH(c->str.size()); }),
+    CODE("~str",   if (!c->token) fout << c->name;
+                   else { PUSH(c->token); PUSH(c->name.size()); }),
     CODE("~lit",   PUSH(c->q[0])),
     CODE("~var",   PUSH(c->token)),
     IMMD("(",      next_idiom(')')),
@@ -185,8 +185,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
          string s = next_idiom('"').substr(1);
          if (compile) {
              Code *w = new Code("~str", s); Code *last = dict[-1];
-             w->token = last->token | (last->pf.size() << 16);
-             last->add(w);
+             DU i_w  = last->token | (last->pf.size() << 16);
+             w->token = i_w; last->add(w);
          }
          else tmpstr = s),
     /// @}
@@ -204,18 +204,17 @@ FV<Code*> dict = {                 ///< Forth dictionary
          last->stage = 1),
     IMMD("then",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         if (last->stage == 0) {               // if...then
-             last->pf.merge(tmp->pf);
-         }
+         int  b = last->stage;                 ///< branching state
+         if (b==0) last->pf.merge(tmp->pf);    // if...then
          else {                                // if..else..then, or
              last->p1.merge(tmp->pf);          // for..aft..then..next
-             if (last->stage == 1) dict.pop();
+             if (b==1) dict.pop();
          }),
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
-    CODE("~loop", int b = c->stage;           ///< stage=looping type
+    CODE("~loop", int b = c->stage;            ///< branching state
          while (true) {
              for (Code *w : c->pf) w->exec();  // begin..
              if (b==0 && POP()!=0) break;      // ..until
@@ -225,7 +224,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          }),
     IMMD("begin",
          dict[-1]->add(new Code("~loop"));
-         dict.push(new Code("~tmp"))),
+         dict.push(new Code("tmp"))),
     IMMD("while",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
@@ -245,27 +244,29 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @brief  - for...next, for...aft...then...next
     /// @{
     CODE("~for",
-         do { for (Code *w : c->pf) w->exec(); }
-         while (c->stage==0 && rs.dec_i() >=0);   // for...next only
-         while (c->stage > 0) {                   // aft
-             for (Code *w : c->p2) w->exec();     // then...next
+         int b = c->stage;                       // kept in register
+         do {
+             for (Code *w : c->pf) w->exec();
+         } while (b==0 && rs.dec_i() >=0);       // for...next only
+         while (b) {                             // aft
+             for (Code *w : c->p2) w->exec();    // then...next
              if (rs.dec_i() < 0) break;
-             for (Code *w : c->p1) w->exec();     // aft...then
+             for (Code *w : c->p1) w->exec();    // aft...then
          }
          rs.pop()),
     IMMD("for",
          dict[-1]->add(new Code(">r"));
          dict[-1]->add(new Code("~for"));
-         dict.push(new Code("~tmp"))),
+         dict.push(new Code("tmp"))),
     IMMD("aft",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
          last->stage = 3),
     IMMD("next",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         if (last->stage == 0) last->pf.merge(tmp->pf);
-         else last->p2.merge(tmp->pf);
-         dict.pop()),                      // CC: memory leak?
+         if (last->stage==0) last->pf.merge(tmp->pf);  // for..next
+         else                last->p2.merge(tmp->pf);  // then..next
+         dict.pop()),
     /// @}
     /// @defgrouop Compiler ops
     /// @{
