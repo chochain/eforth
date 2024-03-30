@@ -3,7 +3,7 @@ With all the advantages, it is unfortunate that Forth lost out to C language ove
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
-Dr. Ting, a pillar of Forth community, created eForth along with Bill Muench for educational purpose. He described Forth in his well-written eForth [genesis](https://chochain.github.io/eforth/docs/eForthAndZen.pdf) and [overview](https://chochain.github.io/eforth/docs/eForthOverviewv5.pdf)
+Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for educational purpose. He described Forth in his well-written eForth [genesis](https://chochain.github.io/eforth/docs/eForthAndZen.pdf) and [overview](https://chochain.github.io/eforth/docs/eForthOverviewv5.pdf)
 
 > The language consists of a collection of words, which reside in the memory of a computer and can be executed by entering their names on the computer keyboard. A list of words can be compiled, given a new name and made a new word. In fact, most words in Forth are defined as lists of existing words. A small set of primitive words are defined in machine code of the native CPU. All other words are built from this primitive words and eventually refer to them when executed.
 
@@ -67,13 +67,13 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 ### Changes - What have we done!
 Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'. Often, the low-level core are built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but now became the show-stopper for many newbies. Because, one have to learn the assembly language, understand the memory model before appreciating the internal of Forth.
 
-Traditially, high-level languages like C or C++ are generally avoided for implementing Forth. However, through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
+Traditionally, high-level languages like C or C++ are generally avoided for implementing Forth. However, through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
  
 ### Source Code Directories
 <pre>
 + ~/src       - common source code for all supported platforms
 + ~/platform  - platform specific code for C++, ESP32, Windows, and WASM
-+ ~/orig      - arcive from Dr. Ting and my past works
++ ~/orig      - archive from Dr. Ting and my past works
 +    /33b     - refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
 +    /ting    - ceForth source codes collaborated with Dr. Ting
 +    /esp32   - esp32forth source codes collaborated with Dr. Ting
@@ -110,7 +110,7 @@ Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/inde
   + platform/   - platform specific for C++, ESP32, WASM
 </pre>
 
-### Benchmark
+### Benchmark and Tuning
 #### Desktop PC - 10K*10K cycles on 3.2GHz AMD**
 <pre>
 + 4452ms: ~/orig/ting/ceforth_36b, linear memory, 32-bit, token threading
@@ -128,6 +128,15 @@ Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/inde
 +  930ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
 +  644ms: ~/src/ceforth dynamic vector, token threading
 </pre>
+
+#### Memory Consumption Consideration
+Though the use of C++ standard libraries helps us understanding what Forth does but, even on machines with GBs, we still need to be mindful of the followings. It gets expensive especially on MCUs.
+<pre>
++ A pointer takes 8-byte on a 64-bit machine,
++ A C++ string, needs 3 to 4 pointers, will require 24-32 bytes,
++ A vector, takes 3 pointers, is 24 bytes
+</pre>
+The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Now go figure how the classic Forths needs only 2 or 4 bytes per node, aka linked-field, and you might understand why the old Forth builders see C/C++ like plaque.
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011
@@ -148,9 +157,11 @@ Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/inde
 * CC 20231011: Review
   > Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before main(), moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning.
   > LAMBDA_OK option was originally intended for full VM implementation but 2x slower. Dropped to reduce source clutter.
-* CC 20240308: Refactor for multi-platform, adopt dynamic vectors
+* CC 20240308: Refactor for multi-platform, accept dynamic vectors
   > To support cross-platform, i.g. WIN32, Arduino/ESP, Linux, and WASM, there were many conditional compilation branches which make the code really messy.
-  + Separate cross-platform and configuration into ~/src/config.h
-  + Separate platform specific code into ~/platform/*.cpp
-  + add include opcode for Forth script loading
+  <pre>
+      + Separate cross-platform and configuration into ~/src/config.h
+      + Separate platform specific code into ~/platform/*.cpp
+      + add include opcode for Forth script loading
+  </pre>
 
