@@ -15,14 +15,17 @@ const char* APP_VERSION = "eForth v4.2";
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
 ///
+typedef uint64_t U64;
 void mem_stat() {
 	cout << APP_VERSION;
 	struct sysinfo si;
 	if (sysinfo(&si)!=-1) {
-        int64_t p = 1000L * si.freeram / si.totalram;
+		U64 f = (U64)si.freeram  * si.mem_unit;
+		U64 t = (U64)si.totalram * si.mem_unit;
+        U64 p = f * 1000L / t;
 		cout << ", RAM "   << static_cast<float>(p) * 0.1
-             << "% free (" << (si.freeram>>20)
-             << " / "      << (si.totalram>>20) << " MB)";
+             << "% free (" << (f >> 20)
+             << " / "      << (t >> 20) << " MB)";
 	}
 	cout << endl;
 }
