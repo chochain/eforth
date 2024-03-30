@@ -32,7 +32,7 @@ typedef void (*XT)(Code*);   ///< function pointer
 struct Code {
     static int here;         ///< token incremental counter
     string    name;          ///< name of word
-    XT        xt    = NULL;  ///< execution token
+    XT        xt = NULL;     ///< execution token
     FV<Code*> pf;            ///< parameter field
     FV<Code*> p1;            ///< parameter field - if..else, aft..then
     FV<Code*> p2;            ///< parameter field - then..next
@@ -40,8 +40,8 @@ struct Code {
     union {                  ///< union to reduce struct size
         int attr = 0;        /// * zero all sub-fields
         struct {
-            U32 token : 30;  ///< dict index, 0=param word
-            U32 stage :  2;  ///< compile stages
+            U32 token : 28;  ///< dict index, 0=param word
+            U32 stage :  2;  ///< branching state
             U32 str   :  1;  ///< string node
             U32 immd  :  1;  ///< immediate flag
         };
