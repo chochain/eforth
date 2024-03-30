@@ -40,10 +40,10 @@ struct Code {
     union {                  ///< union to reduce struct size
         int attr = 0;        /// * zero all sub-fields
         struct {
-            int token : 30;  ///< dict index, 0=param word
-            int stage :  2;  ///< compile stages
-            int str   :  1;  ///< string node
-            int immd  :  1;  ///< immediate flag
+            U32 token : 30;  ///< dict index, 0=param word
+            U32 stage :  2;  ///< compile stages
+            U32 str   :  1;  ///< string node
+            U32 immd  :  1;  ///< immediate flag
         };
     };
     Code(string n, XT fp, bool im)        ///> primitive
