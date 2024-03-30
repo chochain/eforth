@@ -166,8 +166,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
-    CODE("type",   DU len = POP(); DU i_w = POP();
-                   fout << dict[i_w & 0xffff]->pf[i_w >> 16]->name),
+    CODE("type",   DU len = POP(); DU w_i = POP();
+                   fout << dict[w_i >> 16]->pf[w_i & 0xffff]->name),
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -185,8 +185,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
          string s = next_idiom('"').substr(1);
          if (compile) {
              Code *w = new Code("~str", s); Code *last = dict[-1];
-             DU i_w  = last->token | (last->pf.size() << 16);
-             w->token = i_w; last->add(w);
+             DU w_i  = (last->token << 16) | last->pf.size();
+             w->token = w_i; last->add(w);
          }
          else tmpstr = s),
     /// @}
@@ -348,7 +348,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          for (int i=dict.size(); i>t; i--) dict.pop()),
     CODE("boot",
          int t = find("boot")->token + 1;
-         for (int i=dict.size(); i>t; i--) dict.pop())
+         for (int i=dict.size(); i>t; i--) dict.pop()),
 };
     
 Code *find(string s) {      ///> scan dictionary, last to first
