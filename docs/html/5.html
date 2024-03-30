@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.17"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>eForth: $title</title>
+<title>eForth: - Experimental implementation for Tuning and Sizing</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -81,7 +81,14 @@ $(document).ready(function(){initNavTree('5.html',''); initResizable(); });
 </iframe>
 </div>
 
-<div class="PageDoc"><div class="contents">
+<div class="PageDoc"><div class="header">
+  <div class="headertitle">
+<div class="title"><ul>
+<li>Experimental implementation for Tuning and Sizing </li>
+</ul>
+</div>  </div>
+</div><!--header-->
+<div class="contents">
 <div class="textblock"><h3>Why</h3>
 <p>Even with vocabulary, multi-tasking, and metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.</p>
 <h3>Synopsis</h3>

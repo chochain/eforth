@@ -23,12 +23,12 @@ for the JavaScript code in this file
 var NAVTREE =
 [
   [ "eForth", "index.html", [
+    [ "Forth - is it still relevant?", "index.html", null ],
     [ "- Original Documentations by Dr. Ting", "4.html", null ],
-    [ "5", "5.html", null ],
+    [ "- Experimental implementation for Tuning and Sizing", "5.html", null ],
     [ "- Evolution of ESP32Forth", "3.html", null ],
     [ "- Evolution of ceForth", "2.html", null ],
     [ "- Platform Specific Code directory", "1.html", null ],
-    [ "Forth - is it still relevant?", "md_README.html", null ],
     [ "Modules", "modules.html", "modules" ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
