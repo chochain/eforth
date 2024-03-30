@@ -92,15 +92,29 @@ $(document).ready(function(){initNavTree('wasm_8cpp.html',''); initResizable(); 
 
 <p>eForth platform for WASM  
 <a href="#details">More...</a></p>
-<table class="memberdecls">
+<div class="textblock"><code>#include &lt;stdio.h&gt;</code><br />
+</div><div class="textblock"><div class="dynheader">
+Include dependency graph for wasm.cpp:</div>
+<div class="dyncontent">
+<div class="center"><img src="wasm_8cpp__incl.png" border="0" usemap="#platform_2wasm_8cpp" alt=""/></div>
+<map name="platform_2wasm_8cpp" id="platform_2wasm_8cpp">
+<area shape="rect" title="eForth platform for WASM" alt="" coords="5,5,153,32"/>
+<area shape="rect" title=" " alt="" coords="46,80,113,107"/>
+</map>
+</div>
+</div><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:a7f66d1cf6a56ed50c9abd5331ed2073e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wasm_8cpp.html#a7f66d1cf6a56ed50c9abd5331ed2073e">forth_init</a> ()</td></tr>
+<tr class="separator:a7f66d1cf6a56ed50c9abd5331ed2073e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8c87f3590669c015f51863d357c405ff"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wasm_8cpp.html#a8c87f3590669c015f51863d357c405ff">forth_vm</a> (const char *<a class="el" href="ceForth__401_8cpp.html#a90e155eddac72ef87020b85a704d97be">cmd</a>, void(*callback)(int, const char *))</td></tr>
+<tr class="separator:a8c87f3590669c015f51863d357c405ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abbce13f8751c5d6d194da4e408317bad"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wasm_8cpp.html#abbce13f8751c5d6d194da4e408317bad">mem_stat</a> ()</td></tr>
 <tr class="memdesc:abbce13f8751c5d6d194da4e408317bad"><td class="mdescLeft">&#160;</td><td class="mdescRight">forward decl (implemented in platform specific)  <a href="wasm_8cpp.html#abbce13f8751c5d6d194da4e408317bad">More...</a><br /></td></tr>
 <tr class="separator:abbce13f8751c5d6d194da4e408317bad"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac0fd47776c33f55abe0077eb4d77ce0c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wasm_8cpp.html#ac0fd47776c33f55abe0077eb4d77ce0c">forth_include</a> (const char *fn)</td></tr>
-<tr class="memdesc:ac0fd47776c33f55abe0077eb4d77ce0c"><td class="mdescLeft">&#160;</td><td class="mdescRight">eForth external file loader from Flash memory can be called in <a class="el" href="namespaceForthServer.html#afee65e71e0f678bf0c1bfa5401da18a8">setup()</a> to become a turn-key system  <a href="wasm_8cpp.html#ac0fd47776c33f55abe0077eb4d77ce0c">More...</a><br /></td></tr>
-<tr class="separator:ac0fd47776c33f55abe0077eb4d77ce0c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afe87aaa52726b2b91843a8b167e97be7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wasm_8cpp.html#afe87aaa52726b2b91843a8b167e97be7">forth_include</a> (const char *fn)</td></tr>
+<tr class="memdesc:afe87aaa52726b2b91843a8b167e97be7"><td class="mdescLeft">&#160;</td><td class="mdescRight">eForth external file loader from Flash memory can be called in <a class="el" href="namespaceForthServer.html#afee65e71e0f678bf0c1bfa5401da18a8">setup()</a> to become a turn-key system  <a href="wasm_8cpp.html#afe87aaa52726b2b91843a8b167e97be7">More...</a><br /></td></tr>
+<tr class="separator:afe87aaa52726b2b91843a8b167e97be7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adacbe0175a79dff748855d8c9839f82b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wasm_8cpp.html#adacbe0175a79dff748855d8c9839f82b">main</a> (int ac, char *av[])</td></tr>
 <tr class="separator:adacbe0175a79dff748855d8c9839f82b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3633b5f7243178aa548bd2b9ffba1443"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wasm_8cpp.html#a3633b5f7243178aa548bd2b9ffba1443">forth</a> (int <a class="el" href="ceForth__33_8cpp.html#a5d905ebdebe427aa5285939ab6008c59">n</a>, char *<a class="el" href="ceForth__401_8cpp.html#a90e155eddac72ef87020b85a704d97be">cmd</a>)</td></tr>
@@ -114,6 +128,116 @@ Variables</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>eForth platform for WASM </p>
 </div><h2 class="groupheader">Function Documentation</h2>
+<a id="a7f66d1cf6a56ed50c9abd5331ed2073e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7f66d1cf6a56ed50c9abd5331ed2073e">&#9670;&nbsp;</a></span>forth_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void forth_init </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p>====================================================================</p>
+<p>Forth VM external command processor</p>
+<blockquote class="doxtable">
+<p>setup user variables </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>check dictionary initilized </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>compile dictionary </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>check dictionary initilized </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>compile dictionary </p>
+</blockquote>
+<ul>
+<li>borrow dict[0] for base</li>
+</ul>
+
+</div>
+</div>
+<a id="a8c87f3590669c015f51863d357c405ff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8c87f3590669c015f51863d357c405ff">&#9670;&nbsp;</a></span>forth_vm()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void forth_vm </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>cmd</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void(*)(int, const char *)&#160;</td>
+          <td class="paramname"><em>callback</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<blockquote class="doxtable">
+<p>Forth VM - interface to outside world </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>clear input stream error bit if any </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>feed user command into input stream </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>setup callback function </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>clean output buffer, ready for next run </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>outer interpreter loop </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>single command to Forth core </p>
+</blockquote>
+<ul>
+<li>dump stack and display ok prompt</li>
+</ul>
+<blockquote class="doxtable">
+<p>clear input stream error bit if any </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>feed user command into input stream </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>setup callback function </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>clean output buffer, ready for next run </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>outer interpreter loop </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>single command to Forth core </p>
+</blockquote>
+<ul>
+<li>flush to end-of-line</li>
+</ul>
+
+</div>
+</div>
 <a id="abbce13f8751c5d6d194da4e408317bad"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#abbce13f8751c5d6d194da4e408317bad">&#9670;&nbsp;</a></span>mem_stat()</h2>
 
@@ -137,14 +261,14 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="ac0fd47776c33f55abe0077eb4d77ce0c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac0fd47776c33f55abe0077eb4d77ce0c">&#9670;&nbsp;</a></span>forth_include()</h2>
+<a id="afe87aaa52726b2b91843a8b167e97be7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afe87aaa52726b2b91843a8b167e97be7">&#9670;&nbsp;</a></span>forth_include()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int forth_include </td>
+          <td class="memname">void forth_include </td>
           <td>(</td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>fn</em></td><td>)</td>
