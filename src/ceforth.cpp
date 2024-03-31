@@ -358,7 +358,7 @@ Code *find(string s) {      ///> scan dictionary, last to first
 }
 void words() {              ///> display word list
     const int WIDTH = 60;
-    int i = 0, x = 0;
+    int x = 0;
     fout << setbase(16) << setfill('0');
     for (Code *w : dict) {
 #if CC_DEBUG
@@ -370,8 +370,8 @@ void words() {              ///> display word list
         if (w->name[0]=='~') continue;
         fout << w->name << "  ";
         x += (w->name.size() + 2);
-#endif
         if (x > WIDTH) { fout << ENDL; x = 0; }
+#endif
     }
     fout << setfill(' ') << setbase(BASE) << ENDL;
 }
