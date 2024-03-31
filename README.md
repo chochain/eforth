@@ -136,7 +136,7 @@ Though the use of C++ standard libraries helps us understanding what Forth does 
 + A C++ string, needs 3 to 4 pointers, will require 24-32 bytes,
 + A vector, takes 3 pointers, is 24 bytes
 </pre>
-The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Now go figure how the classic Forths needs only 2 or 4 bytes per node, aka linked-field, with the final executable in a just a few KB, you might start to understand why the old Forth builders see C/C++ like plaque.
+The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Now go figure how the classic Forths needs only 2 or 4 bytes per node, aka linked-field, with the final executable in a just a few KB. You might start to understand why the old Forth builders see C/C++ like plaque.
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011
@@ -148,17 +148,17 @@ The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 
 * CC 20210816: Code Merge
   > Targeting multi-platform. Common source by consolidating ceForth, wineForth, ESP32forth (kept in ~/orig/*). Officially version 8.0
 * CC 20220512: Refactor
-  >  Though the goal of Dr. Ting's eForth is to demonstrate how a Forth can be easily understood and cleanly constructed. However, the token threading method used is costly (slow) because each call needs 2 indirect lookups (token->dict, dict->xt). On top of that, C/C++ callframe needs to be setup/teardown. It is worsen by the branch prediction missing every call stalling the CPU pipeline. Bad stuffs!
-  > Refactor to subroutine indirect threading. It's not portable but does speed up 25% (see benchmark above).
-  > Using 16-bit offsets for pointer arithmetic which speed up another 5% while maintaining 16-bit parameter space consumption.
+  >  Though the goal of Dr. Ting's eForth is to demonstrate how a Forth can be easily understood and cleanly constructed. However, the token threading method used is costly (slow) because each call needs 2 indirect lookups (token->dict, dict->xt). On top of that, C/C++ callframe needs to be setup/teardown. It is worsen by the branch prediction missing every call stalling the CPU pipeline. Bad stuffs!<br/>
+  > Refactor to subroutine indirect threading. It's not portable but does speed up 25% (see benchmark above).<br/>
+  > Using 16-bit offsets for pointer arithmetic which speed up another 5% while maintaining 16-bit parameter space consumption.<br/>
   > Since C++ code is at least 4-byte aligned and parameter is 2-byte aligned, the LSB of a given parameter is utilized for colon word identification.
 * CC 20221118: Refactor
   > WASM function pointer is U32 (index). Token-indirect worked but the two indirect look-up is even slower. Since WASM uses 64K linear memory block, 16-bit pointer offset is a better option. However, the xt "function pointer" in code space is simply an index to the shared _indirect_function_table. Since LSB is used, so we are forced to use MSB to differentiate primitive word from colon word. This left us 15-bit, i.e. 32K, parameter offset available.
 * CC 20231011: Review
-  > Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before main(), moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning.
+  > Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before main(), moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning.<br/>
   > LAMBDA_OK option was originally intended for full VM implementation but 2x slower. Dropped to reduce source clutter.
 * CC 20240308: Refactor for multi-platform, accept dynamic vectors
-  > Experiment various threading and memory pointer models, archive into ~/orig/40x
+  > Experiment various threading and memory pointer models, archive into ~/orig/40x<br/>
   > To support cross-platform, i.g. Linux/Cygwin, Arduino/ESP32, Win32, and WASM, there were many conditional compilation branches which make the code really messy. The following were done
   <pre>
       + Separate cross-platform and configuration into ~/src/config.h
