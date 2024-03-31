@@ -35,7 +35,7 @@ void mem_stat()  {
     LOGS(" MHz, RAM ");          LOG(static_cast<float>(p) * 0.1);
     LOGS("% free (");            LOG(f>>10);
     LOGS(" / ");                 LOG(t>>10); LOGS(" KB)\n");
-    LOGS("  pinMode INPUT|OUTPUT|PULLUP|PULLDOWN=", INPUT);
+    LOG_KV("  pinMode INPUT|OUTPUT|PULLUP|PULLDOWN=", INPUT);
     LOG_KV("|", OUTPUT);         LOG_KV("|", INPUT_PULLUP);
     LOG_KV("|", INPUT_PULLDOWN);
     LOG_KV(", digitalWrite HIGH|LOW=", HIGH);
