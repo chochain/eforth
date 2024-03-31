@@ -117,7 +117,7 @@ Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/inde
 + 1450ms: ~/orig/ting/ceForth_403, dict/pf array-based, subroutine threading
 + 1050ms: ~/orig/40x/ceforth, subroutine indirect threading, with 16-bit offset
 +  890ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
-+  740ms: ~/src/ceforth, dynamic vector, token threading
++  780ms: ~/src/ceforth, dynamic vector, token threading
 </pre>
 
 #### ESP32 - 1K*1K cycles on 240MHz NodeMCU**
@@ -136,7 +136,7 @@ Though the use of C++ standard libraries helps us understanding what Forth does 
 + A C++ string, needs 3 to 4 pointers, will require 24-32 bytes,
 + A vector, takes 3 pointers, is 24 bytes
 </pre>
-The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Now go figure how the classic Forths needs only 2 or 4 bytes per node, aka linked-field, and you might understand why the old Forth builders see C/C++ like plaque.
+The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Now go figure how the classic Forths needs only 2 or 4 bytes per node, aka linked-field, with the final executable in a just a few KB, you might start to understand why the old Forth builders see C/C++ like plaque.
 
 ### Revision History
 * Dr. Ting's work on eForth between 1995~2011
@@ -158,10 +158,11 @@ The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 
   > Since the original intention of having a pre-compiled ROM dictionary still end up in C++ static initialization run before main(), moved dictionary compilation into dict_compile as function calls gives a little more debugging control and opportunity for fine tuning.
   > LAMBDA_OK option was originally intended for full VM implementation but 2x slower. Dropped to reduce source clutter.
 * CC 20240308: Refactor for multi-platform, accept dynamic vectors
-  > To support cross-platform, i.g. WIN32, Arduino/ESP, Linux, and WASM, there were many conditional compilation branches which make the code really messy.
+  > Experiment various threading and memory pointer models, archive into ~/orig/40x
+  > To support cross-platform, i.g. Linux/Cygwin, Arduino/ESP32, Win32, and WASM, there were many conditional compilation branches which make the code really messy. The following were done
   <pre>
       + Separate cross-platform and configuration into ~/src/config.h
-      + Separate platform specific code into ~/platform/*.cpp
-      + add include opcode for Forth script loading
+      + Separate platform specific code into ~/platform
+      + add included opcode for Forth script loading
   </pre>
 
