@@ -14,13 +14,12 @@ FV<DU> ss;                             ///< data stack
 FV<DU> rs;                             ///< return stack
 DU     top     = -1;                   ///< cached top of stack
 bool   compile = false;                ///< compiling flag
-string tmpstr;                         ///< temp storage for string
 ///
 ///> I/O streaming interface
 ///
 istringstream   fin;                   ///< forth_in
 ostringstream   fout;                  ///< forth_out
-string          pad;                   ///< input string buffer
+string          pad;                   ///< string buffers
 void (*fout_cb)(int, const char*);     ///< forth output callback functi
 ///
 ///> Code class implementation
@@ -188,7 +187,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
              DU w_i  = (last->token << 16) | last->pf.size();
              w->token = w_i; last->add(w);
          }
-         else tmpstr = s),
+         else pad = s),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -330,18 +329,18 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     CODE("here",    PUSH(dict[-1]->token)),
     CODE("'",       Code *w = find(next_idiom()); if (w) PUSH(w->token)),
-    CODE(".s",      ss_dump()),
-    CODE("words",   words()),
+    CODE(".s",      ss_dump()),        // dump parameter stack
+    CODE("words",   words()),          // display word lists
     CODE("see",     Code *w = find(next_idiom()); if (w) see(w, 0); fout << ENDL),
     /// @}
     /// @defgroup OS ops
     /// @{
-    CODE("mstat",   mem_stat()),
-    CODE("ms",      PUSH(millis())),
-    CODE("delay",   delay(POP())),
+    CODE("mstat",   mem_stat()),       // display memory stat
+    CODE("ms",      PUSH(millis())),   // get system clock in msec
+    CODE("delay",   delay(POP())),     // n -- delay n msec
     CODE("included",
-         const char *fn = tmpstr.c_str(); // cached string as filename
-         forth_include(fn)),              // load external Forth script
+         const char *fn = pad.c_str(); // file name from cached string
+         forth_include(fn)),           // load external Forth script
     CODE("forget",
          Code *w = find(next_idiom()); if (!w) return;
          int t = max(w->token, find("boot")->token);
@@ -381,6 +380,9 @@ void words() {              ///> display word list
 ///
 void forth_init() {
     dict[0]->add(new Code("~var", 10));   /// * borrow dict[0] for base
+#if DO_WASM    
+    fout << "WASM build" << endl;
+#endif
 }
 ///====================================================================
 ///
@@ -438,7 +440,7 @@ void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
         catch(...) {
             fout << idiom << "? " << ENDL;
             compile = false;
-            getline(fin, pad, '\n'); /// * flush to end-of-line
+            getline(fin, idiom, '\n'); /// * flush to end-of-line
         }
     }
     if (!compile) ss_dump();
