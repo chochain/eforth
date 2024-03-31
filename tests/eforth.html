@@ -38,11 +38,11 @@
         }
         catch(e) { console.log(e.toString()+'\n') }
         finally  {                         /// * clear input buffer
-            tib.value=''
-            tib.focus()
+            tib.value=''; tib.focus()
         }
     }
     window.onload = ()=>tib.focus()
     </script>
+    <script type="text/javascript" src="eforth.js"></script>
   </body>
 </html>
