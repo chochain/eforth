@@ -77,9 +77,6 @@ void see(Code *c, int dp) {          ///> disassemble a colon word
 ///       but we hope it can become a static ROM in the future.
 ///    2. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  (new Code(s, [](Code *c){ g; }, false))
-#define IMMD(s, g)  (new Code(s, [](Code *c){ g; }, true))
-
 FV<Code*> dict = {                 ///< Forth dictionary
     CODE("bye",    exit(0)),       // exit to OS
     ///
