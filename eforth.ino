@@ -21,7 +21,7 @@ void setup() {
     delay(100);
 
     ForthServer::setup(WIFI_SSID, WIFI_PASS);
-    forth_init();                     ///> initialize Forth VM
+    mcu_init();                     ///> initialize Forth VM
     mem_stat();
 
     tib.reserve(256);                 ///> reserve 256 bytes for input
