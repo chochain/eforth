@@ -17,9 +17,9 @@ Content-type:text/html
 <style>body{font-family:'Courier New',monospace;font-size:14px;}</style>
 </head>
 <body>
-    <div id='log' style='float:left;overflow:auto;height:600px;width:600px;
+    <div id='log' style='float:left;overflow:auto;height:100%;width:60%;
          background-color:#f8f0f0;'>eForth 4.2</div>
-    <textarea id='tib' style='height:600px;width:400px;'
+    <textarea id='tib' style='height:100%;width:40%;resize:none'
         onkeydown='if (13===event.keyCode) forth()'></textarea>
 </body>
 <script>
@@ -30,7 +30,8 @@ function send_post(url, ary) {
     let id  = '_'+(idx++).toString()
     let cmd = '\n---CMD'+id+'\n'
     let req = ary.slice(0,30).join('\n')
-    log.innerHTML += '<div id='+id+'><font color=blue>'+req.replace(/\n/g,'<br/>')+'</font><br/></div>'
+    log.innerHTML += '<div id='+id+'><font color=blue>'+
+                     req.replace(/\n/g,'<br/>')+'</font><br/></div>'
     fetch(url, {
         method: 'POST', headers: { 'Context-Type': 'text/plain' },
         body: cmd+req+cmd
@@ -45,9 +46,9 @@ function send_post(url, ary) {
 function forth() {
     let ary = tib.value.split('\n')
     send_post('/input', ary)
-    tib.value = ''
+    tib.value = ''; tib.focus(); return false
 }
-window.onload = ()=>tib.focus()
+window.onload = ()=>forth()
 </script></html>
 
 )XX";
