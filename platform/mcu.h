@@ -72,22 +72,22 @@ inline  DU POP() { DU n=top; top=ss.pop(); return n; }
 #define PEEK(a)    (U32)(*(U32*)((UFP)(a)))
 #define POKE(a, c) (*(U32*)((UFP)(a))=(U32)(c))
 
+FV<Code*> ops = {
+    CODE("pinmode",DU p = POP(); pinMode(p, POP())),          // n p --
+    CODE("in",     DU p = POP(); PUSH(digitalRead(p))),       // p -- n
+    CODE("out",    DU p = POP(); digitalWrite(p, POP())),     // n p --
+    CODE("adc",    DU p = POP(); PUSH(analogRead(p))),        // p -- n
+    CODE("duty",   DU p = POP(); analogWrite(p, POP(), 255)), // n ch
+    CODE("attach", DU p = POP(); ledcAttachPin(p, POP())),    // ch p --
+    CODE("setup",  DU ch= POP(); DU freq=POP();               // res freq ch --
+                       ledcSetup(ch, freq, POP())),
+    CODE("tone",   DU ch= POP(); ledcWriteTone(ch, POP())),   // duty ch --
+    CODE("peek",   DU a = POP(); PUSH(PEEK(a))),              // a -- n
+    CODE("poke",   DU a = POP(); POKE(a, POP())),             // n a --
+};
+
 void mcu_init() {
     forth_init();
-    
-    FV<Code*> ops = {
-        CODE("pin",    DU p = POP(); pinMode(p, POP())),          // n p --
-        CODE("in",     DU p = POP(); PUSH(digitalRead(p))),       // p -- n
-        CODE("out",    DU p = POP(); digitalWrite(p, POP())),     // n p --
-        CODE("adc",    DU p = POP(); PUSH(analogRead(p))),        // p -- n
-        CODE("duty",   DU p = POP(); analogWrite(p, POP(), 255)), // n ch
-        CODE("attach", DU p = POP(); ledcAttachPin(p, POP())),    // ch p --
-        CODE("setup",  DU ch= POP(); DU freq=POP();               // res freq ch --
-                       ledcSetup(ch, freq, POP())),
-        CODE("tone",   DU ch= POP(); ledcWriteTone(ch, POP())),   // duty ch --
-        CODE("peek",   DU a = POP(); PUSH(PEEK(a))),              // a -- n
-        CODE("poke",   DU a = POP(); POKE(a, POP())),             // n a --
-    };
     dict.merge(ops);
 }
 #endif // __EFORTH_PLATFORM_MCU_H
