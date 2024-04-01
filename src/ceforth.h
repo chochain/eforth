@@ -49,10 +49,11 @@ struct Code {
     Code(string n, XT fp, bool im)        ///> primitive
         : name(n), xt(fp), immd(im), token(here++) {}
     Code(string n, bool f=false);         ///> colon word, f=new word
-    Code(string n, DU d);                 ///> dolit, dovar
-    Code(string n, string s);             ///> dostr, dotstr
-    Code *immediate()  { immd = 1;    return this; }  ///> set flag
-    Code *add(Code *w) { pf.push(w);  return this; }  ///> add token
+    Code(XT fp, string s, int t=0, bool q=false)        ///> q=0, bran, cycle, for, does>
+        : name(s), xt(fp), token(t), str(q) {}          ///> q=1, dostr, dotstr
+    Code(XT fp, DU d) : name(""), xt(fp) { q.push(d); } ///> dolit, dovar
+    Code *immediate()  { immd = 1;   return this; } ///> set flag
+    Code *add(Code *w) { pf.push(w); return this; } ///> add token
     void exec() {                         ///> inner interpreter
         if (xt) { xt(this); return; }     /// * run primitive word
         for (Code *w : pf) {              /// * run colon word
