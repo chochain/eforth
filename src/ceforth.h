@@ -47,18 +47,11 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string n, XT fp, bool im)              ///> primitive
-        : name(n), xt(fp), immd(im), token(here++) {}
-    Code(string n, bool t=true)                 ///> colon word, t=new word
-        : name(n), token(t ? here++ : 0) {
-        if (t) { Code *w = find(n); xt = w ? w->xt : NULL; }
-    }
-    Code(XT fp, string s)                       ///> bran, cycle, for, does>
-        : name(s), xt(fp), token(0), str(0) {}
-    Code(XT fp, string s, int t)                ///> dostr, dotstr
-        : name(s), xt(fp), token(t), str(1) {}
-    Code(XT fp, DU d)                           ///> dolit, dovar
-        : name(""), xt(fp) { q.push(d); }
+    Code(string n, XT fp, bool im) : name(n), xt(fp), immd(im), token(here++) {} ///> primitive
+    Code(string n, bool t=true);                                                 ///> colon word, t=new word
+    Code(XT fp, string s)          : name(s), xt(fp), token(0), str(0) {}        ///> bran, cycle, for, does>
+    Code(XT fp, string s, int t)   : name(s), xt(fp), token(t), str(1) {}        ///> dostr, dotstr
+    Code(XT fp, DU d)              : name(""), xt(fp) { q.push(d); }             ///> dolit, dovar
     Code *immediate()  { immd = 1;   return this; } ///> set flag
     Code *add(Code *w) { pf.push(w); return this; } ///> add token
     void exec() {                         ///> inner interpreter
