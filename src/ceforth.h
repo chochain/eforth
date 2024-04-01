@@ -49,9 +49,9 @@ struct Code {
     };
     Code(string n, XT fp, bool im)              ///> primitive
         : name(n), xt(fp), immd(im), token(here++) {}
-    Code(string n, bool f=false)                ///> colon word, f=new word
-        : name(n), token(f ? here++ : 0) {
-        Code *w = find(n); xt = w ? w->xt : NULL;
+    Code(string n, bool t=true)                 ///> colon word, t=new word
+        : name(n), token(t ? here++ : 0) {
+        if (t) { Code *w = find(n); xt = w ? w->xt : NULL; }
     }
     Code(XT fp, string s)                       ///> bran, cycle, for, does>
         : name(s), xt(fp), token(0), str(0) {}

@@ -268,15 +268,15 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("[",      compile = false),
     CODE("]",      compile = true),
     CODE(":",
-         dict.push(new Code(next_idiom(), true)); // create new word
+         dict.push(new Code(next_idiom())); // create new word
          compile = true),
     IMMD(";", compile = false),
     CODE("constant",
-         dict.push(new Code(next_idiom(), true));
+         dict.push(new Code(next_idiom()));
          Code *last = dict[-1]->add(new Code(_lit, POP()));
          last->pf[0]->token = last->token),
     CODE("variable",
-         dict.push(new Code(next_idiom(), true));
+         dict.push(new Code(next_idiom()));
          Code *last = dict[-1]->add(new Code(_var, 0));
          last->pf[0]->token = last->token),
     CODE("immediate", dict[-1]->immediate()),
@@ -286,7 +286,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     CODE("exec",   dict[POP()]->exec()),              // w --
     CODE("create",
-         dict.push(new Code(next_idiom(), true));
+         dict.push(new Code(next_idiom()));
          Code *last = dict[-1]->add(new Code(_var, 0));
          last->pf[0]->token = last->token;
          last->pf[0]->q.pop()),
@@ -297,7 +297,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          Code *w=find(next_idiom()); if (!w) return;
          VAR(w->token) = POP()),                      // update value
     CODE("is",                                        // w -- 
-         dict.push(new Code(next_idiom()));           // create word
+         dict.push(new Code(next_idiom(), false));    // create word
          int w = POP();                               // like this word
          dict[-1]->xt = dict[w]->xt;                  // if primitive
          dict[-1]->pf = dict[w]->pf),                 // or colon word
