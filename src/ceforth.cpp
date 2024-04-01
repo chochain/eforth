@@ -25,7 +25,12 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 ///====================================================================
 ///> Code Class implementation
 ///
-int Code::here = 0;                             ///< init static var
+int Code::here = 0;                    ///< init static var
+Code::Code(string n, bool t)
+    : name(n), token(t ? here++ : 0) { ///> colon word, t=new word
+        Code *w = find(n); xt = w ? w->xt : NULL;
+        if (t && w) fout << "reDef?";
+    }
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
@@ -35,7 +40,7 @@ inline  DU POP() { DU n=top; top=ss.pop(); return n; }
 #define VAR(i)   (*dict[(int)(i)]->pf[0]->q.data())
 #define BASE     (VAR(0))   /* borrow dict[0] to store base (numeric radix) */
 ///
-///> Internal branching methods
+///> Internal literal and branching words
 ///
 void _str(Code *c)  {
     if (!c->token) fout << c->name;
@@ -68,6 +73,7 @@ void _for(Code *c) {
     }
     rs.pop();
 }
+void _does(Code *c);  ///> forward declared, needs dict
 ///
 ///> IO functions
 ///
@@ -90,8 +96,7 @@ void see(Code *c, int dp) {          ///> disassemble a colon word
     if (c->p2.size() > 0) pp(dp, "( 2-- )", c->p2);
     if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
 }
-void words();                     ///> forward declarations
-void _does(Code *c);              ///> which need dict
+void words();                      /// forward declard, needs dict
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -174,8 +179,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @defgroup IO ops
     /// @{
     CODE("base",   PUSH(0)),   // dict[0]->pf[0]->q[0] used for base
-    CODE("decimal",BASE = 10),
-    CODE("hex",    BASE = 16),
+    CODE("decimal",fout << setbase(BASE = 10)),
+    CODE("hex",    fout << setbase(BASE = 16)),
     CODE("bl",     fout << " "),
     CODE("cr",     fout << ENDL),
     CODE(".",      fout << setbase(BASE) << POP() << " "),
@@ -210,7 +215,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     IMMD("if",
          dict[-1]->add(new Code(_bran, "if"));
-         dict.push(new Code("tmp"))),          // scratch pad
+         dict.push(new Code(" tmp", false))),  // scratch pad
     IMMD("else",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
@@ -229,7 +234,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     IMMD("begin",
          dict[-1]->add(new Code(_cycle, "begin"));
-         dict.push(new Code("tmp"))),
+         dict.push(new Code(" tmp", false))),
     IMMD("while",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
@@ -249,9 +254,9 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @brief  - for...next, for...aft...then...next
     /// @{
     IMMD("for",
-         dict[-1]->add(new Code(">r"));
+         dict[-1]->add(new Code(">r", false));
          dict[-1]->add(new Code(_for, "for"));
-         dict.push(new Code("tmp"))),
+         dict.push(new Code(" tmp", false))),
     IMMD("aft",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
@@ -264,11 +269,11 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE("exit",   throw length_error("")),       // --
+    CODE("exit",   throw runtime_error("")), // -- (exit from word)
     CODE("[",      compile = false),
     CODE("]",      compile = true),
     CODE(":",
-         dict.push(new Code(next_idiom())); // create new word
+         dict.push(new Code(next_idiom()));  // create new word
          compile = true),
     IMMD(";", compile = false),
     CODE("constant",
@@ -332,7 +337,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          forth_include(fn)),           // load external Forth script
     CODE("forget",
          Code *w = find(next_idiom()); if (!w) return;
-         int t = max(w->token, find("boot")->token);
+         int   t = max((int)w->token, find("boot")->token + 1);
          for (int i=dict.size(); i>t; i--) dict.pop()),
     CODE("boot",
          int t = find("boot")->token + 1;
@@ -353,7 +358,7 @@ void _does(Code *c) {
         if (hit) dict[-1]->add(w);          // copy rest of pf
         if (w->name=="does>") hit = true;
     }
-    throw length_error("");                 // exit caller
+    throw runtime_error("");                // exit caller
 }
 void words() {              ///> display word list
     const int WIDTH = 60;
@@ -362,7 +367,7 @@ void words() {              ///> display word list
     for (Code *w : dict) {
 #if CC_DEBUG
         fout << setw(4) << w->token << "> "
-             << setw(8) << (UPF)w->xt
+             << setw(8) << (UFP)w->xt
              << ":" << (w->immd ? '*' : ' ')
              << w->name << "  " << ENDL;
 #else
@@ -386,7 +391,7 @@ void forth_init() {
 ///
 ///> Forth outer interpreter
 ///
-DU parse_number(string idiom, int *err) {
+DU parse_number(string idiom) {
     const char *cs = idiom.c_str();
     int b = BASE;
     switch (*cs) {                    ///> base override
@@ -396,7 +401,6 @@ DU parse_number(string idiom, int *err) {
     case '$': b = 16; cs++; break;
     }
     char *p;
-    *err = errno = 0;
 #if DU==float
     DU n = (b==10)
         ? static_cast<DU>(strtof(cs, &p))
@@ -404,7 +408,7 @@ DU parse_number(string idiom, int *err) {
 #else
     DU n = static_cast<DU>(strtol(cs, &p, b));
 #endif
-    if (errno || *p != '\0') *err = 1;
+    if (errno || *p != '\0') throw runtime_error("");
     return n;
 }
 
@@ -416,10 +420,7 @@ void forth_core(string idiom) {
         else w->exec();               /// * execute forth word
         return;
     }
-    // try as a number
-    int err = 0;
-    DU  n   = parse_number(idiom, &err);
-    if (err) throw length_error("");        /// * not number
+    DU  n = parse_number(idiom);      ///< try as a number
     if (compile)
         dict[-1]->add(new Code(_lit, n));   /// * add to current word
     else PUSH(n);                           /// * add value to data stack
