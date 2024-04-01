@@ -27,7 +27,8 @@ struct FV : public vector<T> {         ///< our super-vector class
 ///
 ///> data structure for dictionary entry
 ///
-struct Code;                 ///< forward declaration
+struct Code;                 ///< Code class forward declaration
+Code   *find(string s);      ///< dictionary scanner forward declare
 typedef void (*XT)(Code*);   ///< function pointer
 struct Code {
     static int here;         ///< token incremental counter
@@ -46,9 +47,12 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string n, XT fp, bool im)        ///> primitive
+    Code(string n, XT fp, bool im)              ///> primitive
         : name(n), xt(fp), immd(im), token(here++) {}
-    Code(string n, bool f=false);         ///> colon word, f=new word
+    Code(string n, bool f=false)                ///> colon word, f=new word
+        : name(n), token(f ? here++ : 0) {
+        Code *w = find(n); xt = w ? w->xt : NULL;
+    }
     Code(XT fp, string s)                       ///> bran, cycle, for, does>
         : name(s), xt(fp), token(0), str(0) {}
     Code(XT fp, string s, int t)                ///> dostr, dotstr
