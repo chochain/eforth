@@ -49,9 +49,12 @@ struct Code {
     Code(string n, XT fp, bool im)        ///> primitive
         : name(n), xt(fp), immd(im), token(here++) {}
     Code(string n, bool f=false);         ///> colon word, f=new word
-    Code(XT fp, string s, int t=0, bool q=false)        ///> q=0, bran, cycle, for, does>
-        : name(s), xt(fp), token(t), str(q) {}          ///> q=1, dostr, dotstr
-    Code(XT fp, DU d) : name(""), xt(fp) { q.push(d); } ///> dolit, dovar
+    Code(XT fp, string s)                       ///> bran, cycle, for, does>
+        : name(s), xt(fp), token(0), str(0) {}
+    Code(XT fp, string s, int t)                ///> dostr, dotstr
+        : name(s), xt(fp), token(t), str(1) {}
+    Code(XT fp, DU d)                           ///> dolit, dovar
+        : name(""), xt(fp) { q.push(d); }
     Code *immediate()  { immd = 1;   return this; } ///> set flag
     Code *add(Code *w) { pf.push(w); return this; } ///> add token
     void exec() {                         ///> inner interpreter
