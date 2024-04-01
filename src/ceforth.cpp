@@ -401,6 +401,7 @@ DU parse_number(string idiom) {
     case '$': b = 16; cs++; break;
     }
     char *p;
+    errno = 0;                       ///> clear overflow flag
 #if DU==float
     DU n = (b==10)
         ? static_cast<DU>(strtof(cs, &p))
