@@ -51,7 +51,11 @@ struct List {
 #define UDF_ATTR   0x0001   /** user defined word  */
 #define IMM_ATTR   0x0002   /** immediate word     */
 #define MSK_ATTR   ~0x3
+#if DO_WASM
+#define UDF_FLAG   0x8000   /** xt/pfa selector    */
+#else  // !DO_WASM
 #define UDF_FLAG   0x0001   /** xt/pfa selector    */
+#endif // DO_WASM
 
 #define IS_UDF(w) (dict[w].attr & UDF_ATTR)
 #define IS_IMM(w) (dict[w].attr & IMM_ATTR)
