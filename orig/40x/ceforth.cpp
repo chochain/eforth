@@ -41,15 +41,19 @@
 ///
 ///> Parameter structure - 16-bit aligned (use LSB for colon word flag)
 ///   * primitive word
-///     16-bit xt offset with LSB set to 0
+///     16-bit xt offset with LSB set to 0 (1 less mem lookup for xt)
 ///     +--------------+-+
 ///     | dict.xtoff() |0|   call (XT0 + *IP)() to execute
-///     +--------------+-+   this save the extra memory lookup for xt
+///     +--------------+-+   
+///     |0| dict.xtoff() |   WASM XT0=0, xt is index to vtable
+///     +--------------+-+   
 ///
 ///   * colon word (user defined)
 ///     16-bit pmem offset with LSB set to 1
 ///     +--------------+-+
 ///     |  dict.pfa    |1|   next IP = *(MEM0 + (*IP & ~1))
+///     +--------------+-+
+///     |1|   dict.pfa   |   WASM (32K max parameter space)
 ///     +--------------+-+
 ///
 List<DU,   E4_RS_SZ>   rs;         ///< return stack
@@ -401,7 +405,11 @@ void dict_dump() {
 ///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
+#if DO_WASM
+UFP Code::XT0 =  0;    ///< WASM xt is index to vtable
+#else  // !DO_WASM
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
+#endif // DO_WASM
 
 void dict_compile() {  ///< compile primitive words into dictionary
 	base = (int*)MEM(pmem.idx);                         ///< set pointer to base
@@ -479,7 +487,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @}
     /// @defgroup Logic ops
     /// @{
-    CODE("0= ",     top = BOOL(top == DU0));
+    CODE("0=",      top = BOOL(top == DU0));
     CODE("0<",      top = BOOL(top <  DU0));
     CODE("0>",      top = BOOL(top >  DU0));
     CODE("=",       top = BOOL(ss.pop() == top));
@@ -493,7 +501,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("case!",   ucase = POP() == DU0);          // case insensitive
+    CODE("case!",   ucase = POP() == DU0);  // case insensitive
     CODE("base",    PUSH(((U8*)base - MEM0)));
     CODE("decimal", fout << setbase(*base = 10));
     CODE("hex",     fout << setbase(*base = 16));
@@ -503,10 +511,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("u.",      fout << UINT(POP()) << " ");
     CODE(".r",      DU n = POP(); dot_r(n, POP()));
     CODE("u.r",     DU n = POP(); dot_r(n, UINT(POP())));
-    CODE("type",
-         IU    len  = POP();                        // string length (not used)
-         const char *s = (const char*)MEM(POP());   // get string pointer
-         fout << s);                                // send to output console
+    CODE("type",    POP();                  // string length (not used)
+         fout << (const char*)MEM(POP()));  // get string pointer
     CODE("key",     PUSH(next_idiom()[0]));
     CODE("emit",    char b = (char)POP(); fout << b);
     CODE("space",   spaces(1));
@@ -610,7 +616,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
          IU w = find(next_idiom()); if (!w) return;
          fout << ": " << dict[w].name;
          if (IS_UDF(w)) see(dict[w].pfa);
-         else fout << " ( primitive ) ;" << ENDL);
+         else           fout << " ( primitive ) ;";
+         fout << ENDL);
     CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
     CODE("dict",  dict_dump());
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
@@ -631,7 +638,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("ms",    PUSH(millis()));
     CODE("delay", delay(POP()));
     CODE("included",                        // include external file
-         IU len = POP();                    // string length, not used
+         POP();                             // string length, not used
          U8 *fn = MEM(POP());               // file name
          forth_include((const char*)fn));   // include file
     CODE("bye",   exit(0));
