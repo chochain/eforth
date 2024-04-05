@@ -213,6 +213,10 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
+    ///     dict[-2]->pf[0,1,2,...,-1] as *last
+    ///                              \--->pf[...] if  <--+ merge
+    ///                               \-->p1[...] else   |
+    ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
     IMMD("if",
          dict[-1]->add(new Code(_bran, "_if"));
@@ -228,9 +232,9 @@ FV<Code*> dict = {                 ///< Forth dictionary
 			 last->pf.merge(tmp->pf);          /// * if.{pf}.then
 			 dict.pop();
 		 }
-         else {                                /// * if..else..then
-             last->p1.merge(tmp->pf);          /// * else.{p1}.then, or then.{p1}.next
-             if (b==1) dict.pop();
+         else {                                /// * else.{p1}.then, or
+             last->p1.merge(tmp->pf);          /// * then.{p1}.next
+             if (b==1) dict.pop();             /// * if..else..then
          }),
     /// @}
     /// @defgroup Loops
