@@ -77,7 +77,7 @@ void _does(Code *c);  ///> forward declared, needs dict
 ///
 ///> IO functions
 ///
-string next_idiom(char delim=0) {    ///> read next idiom form input stream
+string word(char delim=0) {          ///> read next idiom form input stream
     string s; delim ? getline(fin, s, delim) : fin >> s; return s;
 }
 void ss_dump() {                     ///> display data stack and ok promt
@@ -187,7 +187,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE(".",      fout << setbase(BASE) << POP() << " "),
     CODE(".r",     fout << setbase(BASE) << setw(POP()) << POP()),
     CODE("u.r",    fout << setbase(BASE) << setw(POP()) << abs(POP())),
-    CODE("key",    PUSH(next_idiom()[0])),
+    CODE("key",    PUSH(word()[0])),
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
@@ -196,14 +196,14 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @}
     /// @defgroup Literal ops
     /// @{
-    IMMD("(",      next_idiom(')')),
-    IMMD(".(",     fout << next_idiom(')')),
+    IMMD("(",      word(')')),
+    IMMD(".(",     fout << word(')')),
     IMMD("\\",     string s; getline(fin, s, '\n')), // flush input
     IMMD(".\"",
-         string s = next_idiom('"').substr(1);
+         string s = word('"').substr(1);
          dict[-1]->add(new Code(_str, s, 0))),
     IMMD("s\"",
-         string s = next_idiom('"').substr(1);
+         string s = word('"').substr(1);
          if (compile) {
              Code *last = dict[-1];
              DU    w_i  = (last->token << 16) | last->pf.size();
@@ -277,15 +277,15 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("[",      compile = false),
     CODE("]",      compile = true),
     CODE(":",
-         dict.push(new Code(next_idiom()));  // create new word
+         dict.push(new Code(word()));  // create new word
          compile = true),
     IMMD(";", compile = false),
     CODE("constant",
-         dict.push(new Code(next_idiom()));
+         dict.push(new Code(word()));
          Code *last = dict[-1]->add(new Code(_lit, POP()));
          last->pf[0]->token = last->token),
     CODE("variable",
-         dict.push(new Code(next_idiom()));
+         dict.push(new Code(word()));
          Code *last = dict[-1]->add(new Code(_var, 0));
          last->pf[0]->token = last->token),
     CODE("immediate", dict[-1]->immediate()),
@@ -295,7 +295,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     CODE("exec",   dict[POP()]->exec()),              // w --
     CODE("create",
-         dict.push(new Code(next_idiom()));
+         dict.push(new Code(word()));
          Code *last = dict[-1]->add(new Code(_var, 0));
          last->pf[0]->token = last->token;
          last->pf[0]->q.pop()),
@@ -303,10 +303,10 @@ FV<Code*> dict = {                 ///< Forth dictionary
          dict[-1]->add(new Code(_does, "_does"));
          dict[-1]->pf[-1]->token = dict[-1]->token),  // keep WP
     CODE("to",                                        // n --
-         Code *w=find(next_idiom()); if (!w) return;
+         Code *w=find(word()); if (!w) return;
          VAR(w->token) = POP()),                      // update value
     CODE("is",                                        // w -- 
-         dict.push(new Code(next_idiom(), false));    // create word
+         dict.push(new Code(word(), false));    // create word
          int w = POP();                               // like this word
          dict[-1]->xt = dict[w]->xt;                  // if primitive
          dict[-1]->pf = dict[w]->pf),                 // or colon word
@@ -326,10 +326,10 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @defgroup Debug ops
     /// @{
     CODE("here",    PUSH(dict[-1]->token)),
-    CODE("'",       Code *w = find(next_idiom()); if (w) PUSH(w->token)),
+    CODE("'",       Code *w = find(word()); if (w) PUSH(w->token)),
     CODE(".s",      ss_dump()),        // dump parameter stack
     CODE("words",   words()),          // display word lists
-    CODE("see",     Code *w = find(next_idiom()); if (w) see(w, 0); fout << ENDL),
+    CODE("see",     Code *w = find(word()); if (w) see(w, 0); fout << ENDL),
     /// @}
     /// @defgroup OS ops
     /// @{
@@ -340,7 +340,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          const char *fn = pad.c_str(); // file name from cached string
          forth_include(fn)),           // load external Forth script
     CODE("forget",
-         Code *w = find(next_idiom()); if (!w) return;
+         Code *w = find(word()); if (!w) return;
          int   t = max((int)w->token, find("boot")->token + 1);
          for (int i=dict.size(); i>t; i--) dict.pop()),
     CODE("boot",
