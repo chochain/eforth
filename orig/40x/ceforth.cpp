@@ -238,7 +238,7 @@ int def_word(const char* name) {                ///< display if redefined
     colon(name);                                /// * create a colon word
     return 1;                                   /// * created OK
 }
-char *next_idiom() {                            ///< get next idiom
+char *word() {                            ///< get next idiom
     if (!(fin >> pad)) pad.clear();             /// * input buffer exhausted?
     return (char*)pad.c_str();
 }
@@ -513,7 +513,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("u.r",     DU n = POP(); dot_r(n, UINT(POP())));
     CODE("type",    POP();                  // string length (not used)
          fout << (const char*)MEM(POP()));  // get string pointer
-    CODE("key",     PUSH(next_idiom()[0]));
+    CODE("key",     PUSH(word()[0]));
     CODE("emit",    char b = (char)POP(); fout << b);
     CODE("space",   spaces(1));
     CODE("spaces",  spaces(POP()));
@@ -563,17 +563,17 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE(":",       compile = def_word(next_idiom()));
+    CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EOW); compile = false);
     CODE("exit",    add_w(EXIT));                               // early exit the colon word
     CODE("variable",                                            // create a variable
-         if (def_word(next_idiom())) {                          // create a new word on dictionary
+         if (def_word(word())) {                          // create a new word on dictionary
              add_w(DOVAR);                                      // dovar (+parameter field)
              add_du(DU0);                                       // data storage (32-bit integer now)
              add_w(EOW);
          });
     CODE("constant",                                            // create a constant
-         if (def_word(next_idiom())) {                          // create a new word on dictionary
+         if (def_word(word())) {                          // create a new word on dictionary
              add_w(DOLIT);                                      // dovar (+parameter field)
              add_du(POP());                                     // data storage (32-bit integer now)
              add_w(EOW);
@@ -585,15 +585,15 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("exec",  IU w = POP(); CALL(w));                       // execute word
     CODE("create",                                              // dovar (+ parameter field)
-         if (def_word(next_idiom())) {                          // create a new word on dictionary
+         if (def_word(word())) {                          // create a new word on dictionary
              add_w(DOVAR);
          });
     IMMD("does>", add_w(DODOES); add_w(EOW));                   // CREATE...DOES>... meta-program
     CODE("to",              // 3 to x                           // alter the value of a constant
-         IU w = find(next_idiom());                             // to save the extra @ of a variable
+         IU w = find(word());                             // to save the extra @ of a variable
          *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
     CODE("is",              // ' y is x                         // alias a word
-         IU w = find(next_idiom());                             // copy entire union struct
+         IU w = find(word());                             // copy entire union struct
          dict[POP()].xt = dict[w].xt);
     ///
     /// be careful with memory access, especially BYTE because
@@ -609,11 +609,11 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgroup Debug ops
     /// @{
     CODE("here",  PUSH(HERE));
-    CODE("'",     IU w = find(next_idiom()); if (w) PUSH(w));
+    CODE("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump());
     CODE("words", words());
     CODE("see",
-         IU w = find(next_idiom()); if (!w) return;
+         IU w = find(word()); if (!w) return;
          fout << ": " << dict[w].name;
          if (IS_UDF(w)) see(dict[w].pfa);
          else           fout << " ( primitive ) ;";
@@ -623,7 +623,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("peek",  DU a = POP(); PUSH(PEEK(a)));
     CODE("poke",  DU a = POP(); POKE(a, POP()));
     CODE("forget",
-         IU w = find(next_idiom()); if (!w) return;
+         IU w = find(word()); if (!w) return;
          IU b = find("boot")+1;
          if (w > b) {
              dict.clear(w);
