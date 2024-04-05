@@ -87,13 +87,14 @@ void ss_dump() {                     ///> display data stack and ok promt
 void see(Code *c, int dp) {          ///> disassemble a colon word
     auto pp = [](int dp, string s, FV<Code*> v) {     ///> recursive dump with indent
         int i = dp; fout << ENDL; while (i--) fout << "  "; fout << s;
-        for (Code *w : v) if (dp < 2) see(w, dp + 1); /// * depth controlled
+        for (Code *w : v) if (dp < 3) see(w, dp + 1); /// * depth controlled
     };
-    string s = c->str
-        ? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
-    pp(dp, s, c->pf);
-    if (c->p1.size() > 0) pp(dp, "( 1-- )", c->p1);
-    if (c->p2.size() > 0) pp(dp, "( 2-- )", c->p2);
+    string sn = c->str
+		? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
+	string bn = c->stage==2	? "_while" : (c->stage==3 ? "_aft" : "_else");
+    pp(dp, sn, c->pf);
+    if (c->p1.size() > 0) pp(dp, bn, c->p1);
+    if (c->p2.size() > 0) pp(dp, "_then", c->p2);
     if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
 }
 void words();                      /// forward declard, needs dict
@@ -214,7 +215,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @brief - if...then, if...else...then
     /// @{
     IMMD("if",
-         dict[-1]->add(new Code(_bran, "if"));
+         dict[-1]->add(new Code(_bran, "_if"));
          dict.push(new Code(" tmp", false))),  // scratch pad
     IMMD("else",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
@@ -223,9 +224,12 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("then",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          int  b = last->stage;                 ///< branching state
-         if (b==0) last->pf.merge(tmp->pf);    // if...then
-         else {                                // if..else..then, or
-             last->p1.merge(tmp->pf);          // for..aft..then..next
+         if (b==0) {                           
+			 last->pf.merge(tmp->pf);          /// * if.{pf}.then
+			 dict.pop();
+		 }
+         else {                                /// * if..else..then
+             last->p1.merge(tmp->pf);          /// * else.{p1}.then, or then.{p1}.next
              if (b==1) dict.pop();
          }),
     /// @}
@@ -233,38 +237,38 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
     IMMD("begin",
-         dict[-1]->add(new Code(_cycle, "begin"));
+         dict[-1]->add(new Code(_cycle, "_begin"));
          dict.push(new Code(" tmp", false))),
     IMMD("while",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->pf.merge(tmp->pf);
+         last->pf.merge(tmp->pf);                      /// * begin.{pf}.f.while
          last->stage = 2),
     IMMD("repeat",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->p1.merge(tmp->pf); dict.pop()),
+         last->p1.merge(tmp->pf); dict.pop()),         /// * while.{p1}.repeat
     IMMD("again",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->pf.merge(tmp->pf);
-         last->stage = 1; dict.pop()),
+         last->pf.merge(tmp->pf); dict.pop();          /// * begin.{pf}.again
+	     last->stage = 1),
     IMMD("until",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->pf.merge(tmp->pf); dict.pop()),
+         last->pf.merge(tmp->pf); dict.pop()),         /// * begin.{pf}.f.until
     /// @}
     /// @defgrouop For loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
     IMMD("for",
          dict[-1]->add(new Code(">r", false));
-         dict[-1]->add(new Code(_for, "for"));
+         dict[-1]->add(new Code(_for, "_for"));
          dict.push(new Code(" tmp", false))),
     IMMD("aft",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->pf.merge(tmp->pf);
+         last->pf.merge(tmp->pf);                      /// * for.{pf}.aft
          last->stage = 3),
     IMMD("next",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         if (last->stage==0) last->pf.merge(tmp->pf);  // for..next
-         else                last->p2.merge(tmp->pf);  // then..next
+         if (last->stage==0) last->pf.merge(tmp->pf);  /// * for.{pf}.next
+         else                last->p2.merge(tmp->pf);  /// * then.{p2}.next
          dict.pop()),
     /// @}
     /// @defgrouop Compiler ops
@@ -296,7 +300,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          last->pf[0]->token = last->token;
          last->pf[0]->q.pop()),
     IMMD("does>",
-         dict[-1]->add(new Code(_does, "does>"));
+         dict[-1]->add(new Code(_does, "_does"));
          dict[-1]->pf[-1]->token = dict[-1]->token),  // keep WP
     CODE("to",                                        // n --
          Code *w=find(next_idiom()); if (!w) return;
