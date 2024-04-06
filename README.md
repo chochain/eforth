@@ -22,24 +22,24 @@ Utilizing modern OS and tool chains, a new generation of Forths implemented in j
 
 In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceforth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
 
-## How To Compile/Build/Run this pure C/C++ eForth
+## How To Build and Run
 
     > git clone https://github.com/chochain/eforth to your local machine
     > cd eforth
     
-### Build eForth on Linux or Cygwin
+### Linux or Cygwin
 
     > make
     > ./tests/eforth
     > to quit, type 'bye' or Ctrl-C
 
-### Build for WASM
+### WASM
 
     > make wasm
     > python3 -m http.server
     > from your browser, open http://localhost:80/tests/eforth.html
 
-### Build for ESP32
+### ESP32
 
     > ensure your Arduino IDE have ESP32 libraries installed
     > open eforth.ino with Arduino IDE
@@ -49,12 +49,12 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
     > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
     > from your browser, enter the IP address to access the ESP32 web server
 
-### Build Dr. Ting's legacy eForth, 32-bit token-threaded
+### Legacy ceForth, 32-bit token-threaded
 
     > make 36b
     > ./tests/ceforth36b
 
-### Build array-based, linear-memory eForth, subroutine-threaded with 16-bit xt offset
+### Experimental ceForth, Linear-memory, 32-bit subroutine-threaded
 
     > make 40x
     > ./tests/eforth40x
