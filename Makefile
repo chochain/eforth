@@ -1,6 +1,6 @@
 EM = em++
 CC = g++
-CC_FLAG = -std=c++17 -O3 -Wall 
+CC_FLAG = -std=c++17 -O2 -Wall 
 
 FLST = \
 	tests/ceforth36b \
@@ -32,7 +32,7 @@ tests/ceforth40x: platform/main.o orig/40x/ceforth.cpp
 	$(CC) $(CC_FLAG) -Iorig/40x/src -o $@ $^
 
 tests/eforth.js: platform/wasm.cpp src/ceforth.cpp
-	$(EM) -Isrc -o $@ $^ -sEXPORTED_FUNCTIONS=_main,_forth -sEXPORTED_RUNTIME_METHODS=cwrap -O3
+	$(EM) -Isrc -o $@ $^ -sEXPORTED_FUNCTIONS=_main,_forth -sEXPORTED_RUNTIME_METHODS=cwrap -O2
 
 clean:
 	rm src/*.o platform/*.o $(FLST)
