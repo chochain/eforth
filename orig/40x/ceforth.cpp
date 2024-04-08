@@ -175,7 +175,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
 ///
 void nest() {
     static IU _NXT = dict[find("_donext")].xtoff();  ///> cache offsets to funtion pointers
-	static IU _LIT = dict[find("_dolit")].xtoff();
+    static IU _LIT = dict[find("_dolit")].xtoff();
     int dp = 0;                        ///> iterator implementation (instead of recursive)
     while (dp >= 0) {                  ///> depth control
         IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
@@ -249,8 +249,7 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 ///
 ///> IO & debug functions
 ///
-inline void dot_r(int n, int v) { fout << setw(n) << setfill(' ') << v; }
-void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
+void spaces(int n)  { for (int i = 0; i < n; i++) fout << " "; }
 void s_quote(IU op) {
     const char *s = scan('"')+1;       ///> string skip first blank
     if (compile) {
@@ -299,7 +298,7 @@ void to_s(IU w, U8 *ip) {
     case DODOES:   fout << "does>" ;                    break;
     default:       fout << dict[w].name;                break;
     }
-    fout << setw(-1);        ///> restore output format settings
+    fout << setfill(' ') << setw(-1); ///> restore output format settings
 }
 void see(IU pfa, int dp=1) {
     auto pfa2opcode = [](IU ix) {                  ///> reverse lookup
@@ -380,7 +379,7 @@ void mem_dump(IU p0, DU sz) {
         fout << ENDL;
         yield();
     }
-    fout << setbase(*base);
+    fout << setbase(*base) << setfill(' ');
 }
 ///====================================================================
 ///
@@ -398,7 +397,7 @@ void dict_dump() {
              << ", name=" << setw(8) << (UFP)c.name
              << " "       << c.name << ENDL;
     }
-    fout << setw(-1) << setbase(*base);
+    fout << setbase(*base) << setfill(' ') << setw(-1);
 }
 ///====================================================================
 ///
@@ -412,8 +411,8 @@ UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros
 #endif // DO_WASM
 
 void dict_compile() {  ///< compile primitive words into dictionary
-	base = (int*)MEM(pmem.idx);                         ///< set pointer to base
-	add_du(10);                                         ///< default radix=10
+    base = (int*)MEM(pmem.idx);                         ///< set pointer to base
+    add_du(10);                                         ///< default radix=10
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
@@ -501,7 +500,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("case!",   ucase = POP() == DU0);  // case insensitive
+    CODE("case!",   ucase = POP() == DU0);    // case insensitive
     CODE("base",    PUSH(((U8*)base - MEM0)));
     CODE("decimal", fout << setbase(*base = 10));
     CODE("hex",     fout << setbase(*base = 16));
@@ -509,10 +508,10 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("cr",      fout << ENDL);
     CODE(".",       fout << POP() << " ");
     CODE("u.",      fout << UINT(POP()) << " ");
-    CODE(".r",      DU n = POP(); dot_r(n, POP()));
-    CODE("u.r",     DU n = POP(); dot_r(n, UINT(POP())));
-    CODE("type",    POP();                  // string length (not used)
-         fout << (const char*)MEM(POP()));  // get string pointer
+    CODE(".r",      fout << setbase(*base) << setw(POP()) << POP());
+    CODE("u.r",     fout << setbase(*base) << setw(POP()) << UINT(POP()));
+    CODE("type",    POP();                    // string length (not used)
+         fout << (const char*)MEM(POP()));    // get string pointer
     CODE("key",     PUSH(word()[0]));
     CODE("emit",    char b = (char)POP(); fout << b);
     CODE("space",   spaces(1));
