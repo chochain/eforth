@@ -48,30 +48,44 @@ void _str(Code *c)  {
 }
 void _lit(Code *c)  { PUSH(c->q[0]);  }
 void _var(Code *c)  { PUSH(c->token); }
+void _tor(Code *c)  { rs.push(POP()); }
+void _dor(Code *c)  { rs.push(ss.pop()); rs.push(POP()); }
 void _bran(Code *c) {
     for (Code *w : (POP() ? c->pf : c->p1)) w->exec();
 }
-void _cycle(Code *c) {
+void _cycle(Code *c) {           ///> begin.while.repeat, begin.until
     int b = c->stage;            ///< branching state
     while (true) {
-        for (Code *w : c->pf) w->exec();    // begin..
-        if (b==0 && POP()!=0) break;        // ..until
-        if (b==1)             continue;     // ..again
-        if (b==2 && POP()==0) break;        // ..while..repeat
+        for (Code *w : c->pf) w->exec();     /// * begin..
+        if (b==0 && POP()!=0) break;         /// * ..until
+        if (b==1)             continue;      /// * ..again
+        if (b==2 && POP()==0) break;         /// * ..while..repeat
         for (Code *w : c->p1) w->exec();
     }
 }
-void _for(Code *c) {
-    int b = c->stage;                       // kept in register
-    do {
-        for (Code *w : c->pf) w->exec();
-    } while (b==0 && rs.dec_i() >=0);       // for...next only
-    while (b) {                             // aft
-        for (Code *w : c->p2) w->exec();    // then...next
-        if (rs.dec_i() < 0) break;
-        for (Code *w : c->p1) w->exec();    // aft...then
+void _for(Code *c) {             ///> for..next
+    int b = c->stage;                        /// * kept in register
+    try {
+        do {
+            for (Code *w : c->pf) w->exec();
+        } while (b==0 && (rs[-1]-=1) >=0);   /// * for...next only
+        while (b) {                          /// * aft
+            for (Code *w : c->p2) w->exec(); /// * then...next
+            if ((rs[-1]-=1) < 0) break;      /// * decrement counter
+            for (Code *w : c->p1) w->exec(); /// * aft...then
+        }
+        rs.pop();
     }
-    rs.pop();
+    catch (...) { rs.pop(); }                // handle EXIT
+}
+void _doloop(Code *c) {         ///> do..loop
+    try { 
+        do {
+            for (Code *w : c->pf) w->exec();
+        } while ((rs[-1]+=1) < rs[-2]);      // increment counter
+        rs.pop(); rs.pop();
+    }
+    catch (...) {}                           // handle LEAVE
 }
 void _does(Code *c);  ///> forward declared, needs dict
 ///
@@ -258,11 +272,11 @@ FV<Code*> dict = {                 ///< Forth dictionary
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop()),         /// * begin.{pf}.f.until
     /// @}
-    /// @defgrouop For loops
+    /// @defgrouop FOR loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
     IMMD("for",
-         dict[-1]->add(new Code(">r", false));
+         dict[-1]->add(new Code(_tor, ">r"));
          dict[-1]->add(new Code(_for, "_for"));
          dict.push(new Code(" tmp", false))),
     IMMD("aft",
@@ -273,6 +287,21 @@ FV<Code*> dict = {                 ///< Forth dictionary
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          if (last->stage==0) last->pf.merge(tmp->pf);  /// * for.{pf}.next
          else                last->p2.merge(tmp->pf);  /// * then.{p2}.next
+         dict.pop()),
+    /// @}
+    /// @defgrouop DO loops
+    /// @brief  - do...loop, do..leave..loop
+    /// @{
+    IMMD("do",
+         dict[-1]->add(new Code(_dor, "swap >r >r"));  ///< ( limit first -- )
+         dict[-1]->add(new Code(_doloop, "_do"));
+         dict.push(new Code(" tmp", false))),
+    CODE("i",      PUSH(rs[-1])),
+    CODE("leave",
+         rs.pop(); rs.pop(); throw runtime_error("")),
+    IMMD("loop",
+         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         last->pf.merge(tmp->pf);      /// * do.{pf}.loop
          dict.pop()),
     /// @}
     /// @defgrouop Compiler ops
@@ -334,6 +363,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE(".s",      ss_dump()),        // dump parameter stack
     CODE("words",   words()),          // display word lists
     CODE("see",     Code *w = find(word()); if (w) see(w, 0); fout << ENDL),
+    CODE("depth",   PUSH(ss.size())),  // data stack depth
     /// @}
     /// @defgroup OS ops
     /// @{
