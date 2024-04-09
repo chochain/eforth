@@ -445,6 +445,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("over",    PUSH(ss[-1]));
     CODE("swap",    DU n = ss.pop(); PUSH(n));
     CODE("rot",     DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m));
+    CODE("-rot",    DU n = ss.pop(); DU m = ss.pop(); PUSH(m); PUSH(n));
     CODE("pick",    DU i = top; top = ss[-i]);
     /// @}
     /// @defgroup Stack ops - double
