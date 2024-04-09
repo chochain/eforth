@@ -19,10 +19,9 @@ struct FV : public vector<T> {         ///< our super-vector class
     FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
-    T    dec_i()   { return (this->back() -= 1); }
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
-    T    operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
+    T    &operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
 };
 ///
 ///> data structure for dictionary entry
