@@ -91,6 +91,7 @@ struct Code {
         IU   pfa;           ///< i.e. no LSBs available
     };
     IU attr = 0;            ///< So, attributes need to be separated
+    static FPTR XT(IU ix)   INLINE { return (FPTR)((UFP)ix); }
 #else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
@@ -99,8 +100,8 @@ struct Code {
             IU pfa;         ///< offset to pmem space (16-bit for 64K range)
         };
     };
-#endif // DO_WASM
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)ix); }
+#endif // DO_WASM
     static void exec(IU ix) INLINE { (*XT(ix))(); }
 
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
@@ -112,10 +113,11 @@ struct Code {
 #endif // CC_DEBUG > 1
     }
     Code() {}               ///< create a blank struct (for initilization)
-    IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
 #if DO_WASM    
+    IU   xtoff() INLINE { return (IU)((UFP)xt); }        ///< vtable index
     void call()  INLINE { (*xt)(); }
 #else  // !DO_WASM    
+    IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
     void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
 #endif // DO_WASM    
 };
