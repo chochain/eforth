@@ -261,22 +261,18 @@ void s_quote(IU op) {
 ///
 void to_s(IU w, U8 *ip) {
 #if CC_DEBUG
-    auto show_addr = [](IU w, U8 *ip) {
+    auto d_addr = [](IU w, U8 *ip) {
         fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
-        if (w==EOW) fout << "EOW ";
-        else {
-			IU o = dict[w].xtoff();                               ///> xt offset
-			fout << setbase(16)
-				 << setw(2) << (o & 0xff) << setw(2) << (o >> 8); /// * little endian
-		}
-        fout << "] ) " << setfill(' ') << setbase(*base);
+        if (w==EOW) fout << "EOW";
+        else        fout << setfill(' ') << setw(3) << w;
+        fout << "] ) ";
     };
-    auto show_jmp = [](U8 *ip) {
+    auto d_jmp = [](U8 *ip) {
         fout << " ( " << setfill('0') << setw(4) << *(IU*)ip << " )";
     };
-	show_addr(w, ip);    ///> vtable idex
+	d_addr(w, ip);    ///> display address
 #else  // !CC_DEBUG
-    auto show_jmp  = [](U8 *ip) {}
+    auto d_jmp  = [](U8 *ip) {}
 #endif // CC_DEBUG
     
     ip += sizeof(IU);                  ///> calculate next ip
@@ -290,8 +286,8 @@ void to_s(IU w, U8 *ip) {
     }
     switch (w) {
     case NEXT: case LOOP:
-    case BRAN: case ZBRAN: show_jmp(ip); break;
-    default: /* do nothing */            break;
+    case BRAN: case ZBRAN: d_jmp(ip); break;
+    default: /* do nothing */         break;
     }
     fout << setfill(' ') << setw(-1); ///> restore output format settings
 }
