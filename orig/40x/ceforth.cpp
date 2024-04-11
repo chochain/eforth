@@ -90,6 +90,7 @@ typedef enum {
 ///
 DU   top     = -1;      ///< top of stack (cached)
 IU   IP      = 0;       ///< current instruction pointer
+bool run     = 1;       ///< VM nest() control
 bool compile = false;   ///< compiler flag
 bool ucase   = false;   ///< case sensitivity control
 DU   *base;             ///< numeric radix (a pointer)
@@ -166,13 +167,12 @@ void add_w(IU w) {                  ///< add a word index into pmem
 ///    2. Co-routine
 ///
 void nest() {
-    static IU _EXIT= dict[find("exit ")].xtoff();   ///> cache offsets to funtion pointers
-    static IU _NXT = dict[find("next ")].xtoff();
+    static IU _NXT = dict[find("next ")].xtoff(); ///> cache offsets to funtion pointers
     static IU _LIT = dict[find("lit ")].xtoff();
     int dp = 0;                        ///> iterator implementation (instead of recursive)
     while (dp >= 0) {                  ///> depth control
         IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
-        while (ix != EOW) {            ///> fetch till end of word hit
+        while (run && ix != EOW) {     ///> fetch till end of word hit
             IP += sizeof(IU);          /// * advance inst. ptr
             if (ix & UDF_FLAG) {       ///> is it a colon word?
                 rs.push(IP);
@@ -188,11 +188,11 @@ void nest() {
                 top = *(DU*)MEM(IP);   ///> from hot cache, hopefully
                 IP += sizeof(DU);
             }
-            else if (ix == _EXIT) break;
             else Code::exec(ix);       ///> execute primitive word
             
             ix = *(IU*)MEM(IP);        ///> fetch next opcode
         }
+        run = true;                    ///> re-enable loop control
         if (dp-- > 0) IP = rs.pop();   ///> pop off a level
 
         yield();                       ///> give other tasks some time
@@ -280,8 +280,8 @@ void to_s(IU w, U8 *ip) {
     ip += sizeof(IU);                  ///> calculate next ip
     switch (w) {
     case EOW:  fout << ";";                         break;
-    case LIT:  fout << *(DU*)ip;                    break;
-    case VAR:  fout << *(DU*)ip << " ( variable )"; break;
+    case LIT:  fout << *(DU*)ip << "  ( const )";   break;
+    case VAR:  fout << *(DU*)ip << "  ( var )";     break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     default:   fout << dict[w].name;                break;
@@ -565,6 +565,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
+    CODE("leave",   rs.pop(); rs.pop(); run = false);
     /// @}
     /// @defgrouop return stack ops
     /// @{
@@ -576,7 +577,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EOW); compile = false);
-    IMMD("exit",    add_w(EXIT));                               // early exit the colon word
+    CODE("exit",    run = false);                               // early exit the colon word
     CODE("variable",                                            // create a variable
          if (def_word(word())) {                                // create a new word on dictionary
              add_w(VAR);                                        // dovar (+parameter field)
@@ -601,10 +602,10 @@ void dict_compile() {  ///< compile primitive words into dictionary
          });
     IMMD("does>", add_w(DOES); add_w(EOW));                     // CREATE...DOES>... meta-program
     CODE("to",              // 3 to x                           // alter the value of a constant
-         IU w = find(word());                                   // to save the extra @ of a variable
+         IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
          *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
     CODE("is",              // ' y is x                         // alias a word
-         IU w = find(word());                             // copy entire union struct
+         IU w = find(word()); if (!w) return;                   // copy entire union struct
          dict[POP()].xt = dict[w].xt);
     ///
     /// be careful with memory access, especially BYTE because
