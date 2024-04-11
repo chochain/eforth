@@ -141,7 +141,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
     Code &c = dict[w];              ///< ref to dictionary entry
     IU   ip = c.attr & UDF_ATTR     ///< check whether colon word
         ? (c.pfa | UDF_FLAG)        ///< pfa with colon word flag
-        : (w==EXIT ? EXIT : c.xtoff();   ///< XT offset
+        : (w==EXIT ? EXIT : c.xtoff());   ///< XT offset
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
@@ -170,7 +170,8 @@ void nest() {
     int dp = 0;                        ///> iterator implementation (instead of recursive)
     while (dp >= 0) {                  ///> depth control
         IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
-        while (run && ix==EXIT) {      ///> loop till end of word hit
+        run = true;                    ///> re-enable loop control
+        while (run && ix) {            ///> loop till 0 (EXIT) hit
             IP += sizeof(IU);          /// * advance inst. ptr
             if (ix & UDF_FLAG) {       ///> is it a colon word?
                 rs.push(IP);
@@ -190,7 +191,6 @@ void nest() {
             
             ix = *(IU*)MEM(IP);        ///> fetch next opcode
         }
-        run = true;                    ///> re-enable loop control
         if (dp-- > 0) IP = rs.pop();   ///> pop off a level
 
         yield();                       ///> give other tasks some time
@@ -415,7 +415,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     ///        - the build-in control words have extra last blank char
     /// @{
-    CODE("exit ",   IP = rs.pop());                     // handled in nest()
+    CODE("exit ",   {});                                // dict[0] also the storage for base
     CODE("next ",                                       // handled in nest()
          if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);    // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); });
@@ -431,9 +431,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
                     fout << s;  IP += STRLEN(s));             // send to output console
     CODE("bran " ,  IP = *(IU*)MEM(IP));                      // unconditional branch
     CODE("0bran ",  IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
-    CODE("does> ",  add_w(BRAN);                              // branch to does> section
-                    add_iu(IP + sizeof(IU));                  // encode IP
-                    add_w(EXIT));                             // not really needed but cleaner
+    CODE("does> ",  add_w(BRAN);                              // jmp to next IP
+                    add_iu(IP + sizeof(IU));                  // encode current IP
+                    run = false);                             // not needed but cleaner
     CODE("for ",    rs.push(POP()));
     CODE("do ",     rs.push(ss.pop()); rs.push(POP()));       // DO..LOOP control
     /// - DO NOT change the sequence above (see forth_opcode enum)
@@ -564,7 +564,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
-    CODE("leave",   rs.pop(); rs.pop(); run = false);
+    CODE("leave",   rs.pop(); rs.pop(); run = false);           // quit DO..LOOP
     /// @}
     /// @defgrouop return stack ops
     /// @{
@@ -578,28 +578,21 @@ void dict_compile() {  ///< compile primitive words into dictionary
     IMMD(";",       add_w(EXIT); compile = false);
     CODE("exit",    run = false);                               // early exit the colon word
     CODE("variable",                                            // create a variable
-         if (def_word(word())) {                                // create a new word on dictionary
-             add_w(VAR);                                        // dovar (+parameter field)
-             add_du(DU0);                                       // data storage (32-bit integer now)
-             add_w(EXIT);
-         });
+         def_word(word());                                      // create a new word on dictionary
+         add_w(VAR); add_du(DU0);                               // dovar (+parameter field, default 0)
+         add_w(EXIT));
     CODE("constant",                                            // create a constant
-         if (def_word(word())) {                                // create a new word on dictionary
-             add_w(LIT);                                        // dovar (+parameter field)
-             add_du(POP());                                     // data storage (32-bit integer now)
-             add_w(EXIT);
-         });
+         def_word(word());                                      // create a new word on dictionary
+         add_w(LIT); add_du(POP());                             // dovar (+parameter field)
+         add_w(EXIT));
     IMMD("immediate", dict[-1].attr |= IMM_ATTR);
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",  IU w = POP(); CALL(w));                       // execute word
-    CODE("create",                                              // dovar (+ parameter field)
-         if (def_word(word())) {                                // create a new word on dictionary
-             add_w(VAR);
-         });
-    IMMD("does>", add_w(DOES); add_w(EXIT));                    // CREATE...DOES>... meta-program
+    CODE("create", def_word(word()); add_w(VAR));               // dovar (+ parameter field)
+    IMMD("does>", add_w(DOES));
     CODE("to",              // 3 to x                           // alter the value of a constant
          IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
          *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
