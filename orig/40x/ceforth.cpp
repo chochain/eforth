@@ -80,7 +80,6 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 /// but make sure the sequence is in-sync with word list in dict_compile
 ///
 typedef enum {
-    EOW = 0xffff & ~UDF_ATTR,        ///< token for end of colon word
     EXIT=0, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN, DOES, FOR, DO
 } forth_opcode;
 ///
@@ -139,11 +138,10 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    bool x  = w==EOW;               ///< adjust end of word token
-    Code &c = dict[x ? EXIT : w];   ///< ref to dictionary entry
+    Code &c = dict[w];              ///< ref to dictionary entry
     IU   ip = c.attr & UDF_ATTR     ///< check whether colon word
         ? (c.pfa | UDF_FLAG)        ///< pfa with colon word flag
-        : (x ? EOW : c.xtoff());    ///< XT offset
+        : (w==EXIT ? EXIT : c.xtoff();   ///< XT offset
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
@@ -172,7 +170,7 @@ void nest() {
     int dp = 0;                        ///> iterator implementation (instead of recursive)
     while (dp >= 0) {                  ///> depth control
         IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
-        while (run && ix != EOW) {     ///> fetch till end of word hit
+        while (run && ix==EXIT) {      ///> loop till end of word hit
             IP += sizeof(IU);          /// * advance inst. ptr
             if (ix & UDF_FLAG) {       ///> is it a colon word?
                 rs.push(IP);
@@ -232,7 +230,7 @@ int def_word(const char* name) {                ///< display if redefined
     colon(name);                                /// * create a colon word
     return 1;                                   /// * created OK
 }
-char *word() {                            ///< get next idiom
+char *word() {                                  ///< get next idiom
     if (!(fin >> pad)) pad.clear();             /// * input buffer exhausted?
     return (char*)pad.c_str();
 }
@@ -265,8 +263,8 @@ void to_s(IU w, U8 *ip) {
 #if CC_DEBUG
     auto d_addr = [](IU w, U8 *ip) {
         fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
-        if (w==EOW) fout << "EOW";
-        else        fout << setfill(' ') << setw(3) << w;
+        if (w==EXIT) fout << "EOW";
+        else         fout << setfill(' ') << setw(3) << w;
         fout << "] ) ";
     };
     auto d_jmp = [](U8 *ip) {
@@ -279,8 +277,8 @@ void to_s(IU w, U8 *ip) {
     
     ip += sizeof(IU);                  ///> calculate next ip
     switch (w) {
-    case EOW:  fout << ";";                         break;
-    case LIT:  fout << *(DU*)ip << "  ( const )";   break;
+    case EXIT: fout << ";";                         break;
+    case LIT:  fout << *(DU*)ip << "  ( lit )";     break;
     case VAR:  fout << *(DU*)ip << "  ( var )";     break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
@@ -295,16 +293,16 @@ void to_s(IU w, U8 *ip) {
 }
 void see(IU pfa, int dp=1) {
     auto pfa2opcode = [](IU ix) {                  ///> reverse lookup
-        if (ix==EOW) return (int)EOW;              ///> end of word handler
+        if (ix==EXIT) return (int)EXIT;            ///> end of word handler
         IU   pfa = ix & ~UDF_FLAG;                 ///> pfa (mask colon word)
         FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
-        for (int i = dict.idx - 1; i >= 0; --i) {
+        for (int i = dict.idx - 1; i > 0; --i) {
             if (ix & UDF_FLAG) {
                 if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
             }
             else if (dict[i].xt == xt) return i;   ///> compare xt
         }
-        return -1;
+        return -1;                                 /// * not found
     };
     U8 *ip = MEM(pfa);
     while (1) {
@@ -313,7 +311,7 @@ void see(IU pfa, int dp=1) {
         
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  "; ///> indent
         to_s(w, ip);                    ///> display opcode
-        if (w==EOW) break;              ///> done with the colon word
+        if (w==EXIT) break;             ///> done with the colon word
 
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
@@ -415,6 +413,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
+    ///        - the build-in control words have extra last blank char
     /// @{
     CODE("exit ",   IP = rs.pop());                     // handled in nest()
     CODE("next ",                                       // handled in nest()
@@ -434,7 +433,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("0bran ",  IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
     CODE("does> ",  add_w(BRAN);                              // branch to does> section
                     add_iu(IP + sizeof(IU));                  // encode IP
-                    add_w(EOW));                              // not really needed but cleaner
+                    add_w(EXIT));                             // not really needed but cleaner
     CODE("for ",    rs.push(POP()));
     CODE("do ",     rs.push(ss.pop()); rs.push(POP()));       // DO..LOOP control
     /// - DO NOT change the sequence above (see forth_opcode enum)
@@ -576,19 +575,19 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgrouop Compiler ops
     /// @{
     CODE(":",       compile = def_word(word()));
-    IMMD(";",       add_w(EOW); compile = false);
+    IMMD(";",       add_w(EXIT); compile = false);
     CODE("exit",    run = false);                               // early exit the colon word
     CODE("variable",                                            // create a variable
          if (def_word(word())) {                                // create a new word on dictionary
              add_w(VAR);                                        // dovar (+parameter field)
              add_du(DU0);                                       // data storage (32-bit integer now)
-             add_w(EOW);
+             add_w(EXIT);
          });
     CODE("constant",                                            // create a constant
          if (def_word(word())) {                                // create a new word on dictionary
              add_w(LIT);                                        // dovar (+parameter field)
              add_du(POP());                                     // data storage (32-bit integer now)
-             add_w(EOW);
+             add_w(EXIT);
          });
     IMMD("immediate", dict[-1].attr |= IMM_ATTR);
     /// @}
@@ -600,7 +599,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
          if (def_word(word())) {                                // create a new word on dictionary
              add_w(VAR);
          });
-    IMMD("does>", add_w(DOES); add_w(EOW));                     // CREATE...DOES>... meta-program
+    IMMD("does>", add_w(DOES); add_w(EXIT));                    // CREATE...DOES>... meta-program
     CODE("to",              // 3 to x                           // alter the value of a constant
          IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
          *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
