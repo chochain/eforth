@@ -81,7 +81,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///
 typedef enum {
     EOW = 0xffff & ~UDF_ATTR,        ///< token for end of colon word
-    EXIT=0, NEXT, LOOP, LEAVE, LIT, VAR, STR, DOTQ, BRAN, ZBRAN, DOES, FOR, DO
+    EXIT=0, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN, DOES, FOR, DO
 } forth_opcode;
 ///
 ///====================================================================
@@ -186,6 +186,7 @@ void nest() {
                 ss.push(top);
                 top = *(DU*)MEM(IP);   ///> from hot cache, hopefully
                 IP += sizeof(DU);
+                continue;
             }
             else Code::exec(ix);       ///> execute primitive word
             
@@ -319,7 +320,7 @@ void see(IU pfa, int dp=1) {
         case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
         case BRAN:  case ZBRAN:
         case NEXT:  case LOOP:
-        case LEAVE: case DOES:  ip += sizeof(IU);        break;
+        case DOES:              ip += sizeof(IU);        break;
         }
 #if CC_DEBUG > 1
         ///> walk recursively
@@ -421,7 +422,6 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("loop ",                                       // handled in nest()
          if ((rs[-1] += 1) < rs[-2]) IP = *(IU*)MEM(IP);
          else { IP += sizeof(IU); rs.pop(); rs.pop(); });
-    CODE("leave ",  rs.pop(); rs.pop());
     CODE("lit ",    PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
     CODE("var ",    PUSH(IP);            IP += sizeof(DU));
     CODE("str ",    const char *s = (const char*)MEM(IP);     // get string pointer
@@ -563,7 +563,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
-    IMMD("leave",   add_w(LEAVE); add_w(EOW));
+//    CODE("leave",   rs.pop(); rs.pop());
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
