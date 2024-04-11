@@ -166,7 +166,8 @@ void add_w(IU w) {                  ///< add a word index into pmem
 ///    2. Co-routine
 ///
 void nest() {
-    static IU _NXT = dict[find("next ")].xtoff();  ///> cache offsets to funtion pointers
+    static IU _EXIT= dict[find("exit ")].xtoff();   ///> cache offsets to funtion pointers
+    static IU _NXT = dict[find("next ")].xtoff();
     static IU _LIT = dict[find("lit ")].xtoff();
     int dp = 0;                        ///> iterator implementation (instead of recursive)
     while (dp >= 0) {                  ///> depth control
@@ -186,8 +187,8 @@ void nest() {
                 ss.push(top);
                 top = *(DU*)MEM(IP);   ///> from hot cache, hopefully
                 IP += sizeof(DU);
-                continue;
             }
+            else if (ix == _EXIT) break;
             else Code::exec(ix);       ///> execute primitive word
             
             ix = *(IU*)MEM(IP);        ///> fetch next opcode
@@ -271,7 +272,7 @@ void to_s(IU w, U8 *ip) {
     auto d_jmp = [](U8 *ip) {
         fout << " ( " << setfill('0') << setw(4) << *(IU*)ip << " )";
     };
-	d_addr(w, ip);    ///> display address
+    d_addr(w, ip);    ///> display address
 #else  // !CC_DEBUG
     auto d_jmp  = [](U8 *ip) {}
 #endif // CC_DEBUG
@@ -563,7 +564,6 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
-//    CODE("leave",   rs.pop(); rs.pop());
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
@@ -576,7 +576,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EOW); compile = false);
-    CODE("exit",    add_w(EXIT));                               // early exit the colon word
+    IMMD("exit",    add_w(EXIT));                               // early exit the colon word
     CODE("variable",                                            // create a variable
          if (def_word(word())) {                                // create a new word on dictionary
              add_w(VAR);                                        // dovar (+parameter field)
