@@ -89,7 +89,7 @@ typedef enum {
 ///
 DU   top     = -1;      ///< top of stack (cached)
 IU   IP      = 0;       ///< current instruction pointer
-bool run     = 1;       ///< VM nest() control
+bool run     = true;    ///< VM nest() control
 bool compile = false;   ///< compiler flag
 bool ucase   = false;   ///< case sensitivity control
 DU   *base;             ///< numeric radix (a pointer)
@@ -188,7 +188,7 @@ void nest() {
                 IP += sizeof(DU);
             }
             else Code::exec(ix);       ///> execute primitive word
-            
+
             ix = *(IU*)MEM(IP);        ///> fetch next opcode
         }
         if (dp-- > 0) IP = rs.pop();   ///> pop off a level
@@ -270,7 +270,7 @@ void to_s(IU w, U8 *ip) {
     auto d_jmp = [](U8 *ip) {
         fout << " ( " << setfill('0') << setw(4) << *(IU*)ip << " )";
     };
-    d_addr(w, ip);    ///> display address
+    d_addr(w, ip);                     ///> display address
 #else  // !CC_DEBUG
     auto d_jmp  = [](U8 *ip) {}
 #endif // CC_DEBUG
@@ -318,8 +318,7 @@ void see(IU pfa, int dp=1) {
         case LIT:   case VAR:   ip += sizeof(DU);        break;
         case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
         case BRAN:  case ZBRAN:
-        case NEXT:  case LOOP:
-        case DOES:              ip += sizeof(IU);        break;
+        case NEXT:  case LOOP:  ip += sizeof(IU);        break;
         }
 #if CC_DEBUG > 1
         ///> walk recursively
@@ -431,9 +430,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
                     fout << s;  IP += STRLEN(s));             // send to output console
     CODE("bran " ,  IP = *(IU*)MEM(IP));                      // unconditional branch
     CODE("0bran ",  IP = POP() ? IP + sizeof(IU) : *(IU*)MEM(IP)); // conditional branch
-    CODE("does> ",  add_w(BRAN);                              // jmp to next IP
-                    add_iu(IP + sizeof(IU));                  // encode current IP
-                    run = false);                             // not needed but cleaner
+    CODE("does> ",  add_w(BRAN); add_iu(IP); run = false);    // encode current IP, and bail
     CODE("for ",    rs.push(POP()));
     CODE("do ",     rs.push(ss.pop()); rs.push(POP()));       // DO..LOOP control
     /// - DO NOT change the sequence above (see forth_opcode enum)
@@ -563,8 +560,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
-    IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     CODE("leave",   rs.pop(); rs.pop(); run = false);           // quit DO..LOOP
+    IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
     /// @{
