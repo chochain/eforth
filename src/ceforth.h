@@ -19,20 +19,20 @@ struct FV : public vector<T> {         ///< our super-vector class
     FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
-    T    dec_i()   { return (this->back() -= 1); }
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
-    T    operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
+    T    &operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
 };
 ///
 ///> data structure for dictionary entry
 ///
-struct Code;                 ///< forward declaration
+struct Code;                 ///< Code class forward declaration
+Code   *find(string s);      ///< dictionary scanner forward declare
 typedef void (*XT)(Code*);   ///< function pointer
 struct Code {
     static int here;         ///< token incremental counter
     string    name;          ///< name of word
-    XT        xt    = NULL;  ///< execution token
+    XT        xt = NULL;     ///< execution token
     FV<Code*> pf;            ///< parameter field
     FV<Code*> p1;            ///< parameter field - if..else, aft..then
     FV<Code*> p2;            ///< parameter field - then..next
@@ -40,19 +40,19 @@ struct Code {
     union {                  ///< union to reduce struct size
         int attr = 0;        /// * zero all sub-fields
         struct {
-            int token : 30;  ///< dict index, 0=param word
-            int stage :  2;  ///< compile stages
-            int str   :  1;  ///< string node
-            int immd  :  1;  ///< immediate flag
+            U32 token : 28;  ///< dict index, 0=param word
+            U32 stage :  2;  ///< branching state
+            U32 str   :  1;  ///< string node
+            U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string n, XT fp, bool im)        ///> primitive
-        : name(n), xt(fp), immd(im), token(here++) {}
-    Code(string n, bool f=false);         ///> colon word, f=new word
-    Code(string n, DU d);                 ///> dolit, dovar
-    Code(string n, string s);             ///> dostr, dotstr
-    Code *immediate()  { immd = 1;    return this; }  ///> set flag
-    Code *add(Code *w) { pf.push(w);  return this; }  ///> add token
+    Code(string n, XT fp, bool im) : name(n), xt(fp), immd(im), token(here++) {} ///> primitive
+    Code(string n, bool t=true);                                                 ///> colon word, t=new word
+    Code(XT fp, string s)          : name(s), xt(fp), token(0), str(0) {}        ///> bran, cycle, for, does>
+    Code(XT fp, string s, int t)   : name(s), xt(fp), token(t), str(1) {}        ///> dostr, dotstr
+    Code(XT fp, DU d)              : name(""), xt(fp) { q.push(d); }             ///> dolit, dovar
+    Code *immediate()  { immd = 1;   return this; } ///> set flag
+    Code *add(Code *w) { pf.push(w); return this; } ///> add token
     void exec() {                         ///> inner interpreter
         if (xt) { xt(this); return; }     /// * run primitive word
         for (Code *w : pf) {              /// * run colon word
@@ -61,6 +61,11 @@ struct Code {
         }
     }
 };
+///
+///> macros to create primitive words (opcodes)
+///
+#define CODE(s, g)  (new Code(s, [](Code *c){ g; }, false))
+#define IMMD(s, g)  (new Code(s, [](Code *c){ g; }, true))
 ///
 ///> OS platform specific implementation
 ///

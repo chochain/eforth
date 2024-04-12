@@ -50,8 +50,13 @@ struct List {
 ///@{
 #define UDF_ATTR   0x0001   /** user defined word  */
 #define IMM_ATTR   0x0002   /** immediate word     */
+#if DO_WASM
+#define MSK_ATTR   ~0x0     /** no masking         */
+#define UDF_FLAG   0x8000   /** xt/pfa selector    */
+#else  // !DO_WASM
 #define MSK_ATTR   ~0x3
 #define UDF_FLAG   0x0001   /** xt/pfa selector    */
+#endif // DO_WASM
 
 #define IS_UDF(w) (dict[w].attr & UDF_ATTR)
 #define IS_IMM(w) (dict[w].attr & IMM_ATTR)
@@ -109,11 +114,7 @@ struct Code {
     }
     Code() {}               ///< create a blank struct (for initilization)
     IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
-#if DO_WASM    
-    void call()  INLINE { (*xt)(); }
-#else  // !DO_WASM    
     void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
-#endif // DO_WASM    
 };
 ///
 ///> Add a Word to dictionary

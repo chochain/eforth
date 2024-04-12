@@ -3,11 +3,12 @@
   <title>eForth v4.2</title>
   <style>
     .txt { width:96%; display:flex; flex-direction:column; overflow-x:scroll; }
+    .cmd  { color:#48f; margin: 2px; }
   </style>
   </head>
   <body>
     <div style='display:flex; flex-direction:column; width:100%; height:100%'>
-      <pre id='txt' class='txt'></pre>
+      <pre id='txt' class='txt'>eForth 4.2</pre>
       <input id='tib' tabindex='0' onkeydown='if (13===event.keyCode) forth_eval()'></input>
     </div>
     <script>
@@ -38,11 +39,11 @@
         }
         catch(e) { console.log(e.toString()+'\n') }
         finally  {                         /// * clear input buffer
-            tib.value=''
-            tib.focus()
+            tib.value=''; tib.focus()
         }
     }
     window.onload = ()=>tib.focus()
     </script>
+    <script type="text/javascript" src="eforth.js"></script>
   </body>
 </html>

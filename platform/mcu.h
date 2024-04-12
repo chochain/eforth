@@ -12,13 +12,16 @@
 ///     940ms orig/40x/ceforth use cached xt offsets in nest()
 ///     665ms src/ceforth vector-based token-threaded
 ///
+const char *APP_VERSION = "eForth v4.2";
+///
+///> interface to core module
+///
+#include "../src/ceforth.h"
 extern void forth_init();
 extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
-
-#define LOGS(s) Serial.print(F(s))
-#define LOG(s)  Serial.print(s)
-
-const char *APP_VERSION = "eForth v4.2";
+extern DU       top;
+extern FV<Code*>dict;
+extern FV<DU>   ss;
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
@@ -32,6 +35,11 @@ void mem_stat()  {
     LOGS(" MHz, RAM ");          LOG(static_cast<float>(p) * 0.1);
     LOGS("% free (");            LOG(f>>10);
     LOGS(" / ");                 LOG(t>>10); LOGS(" KB)\n");
+    LOG_KV("  pinMode INPUT|OUTPUT|PULLUP|PULLDOWN=", INPUT);
+    LOG_KV("|", OUTPUT);         LOG_KV("|", INPUT_PULLUP);
+    LOG_KV("|", INPUT_PULLDOWN);
+    LOG_KV(", digitalWrite HIGH|LOW=", HIGH);
+    LOG_KV("|", LOW); LOGS("\n");
 }
 ///====================================================================
 ///
@@ -40,14 +48,14 @@ void mem_stat()  {
 ///         can be called in setup() to become a turn-key system
 ///
 #include <SPIFFS.h>
-int forth_include(const char *fname) {
+void forth_include(const char *fname) {
     auto dumb = [](int, const char *) { /* silent output */ };
     if (!SPIFFS.begin()) {
-        LOGS("Error mounting SPIFFS"); return 1;
+        LOGS("Error mounting SPIFFS"); return;
     }
     File file = SPIFFS.open(fname, "r");
     if (!file) {
-        LOGS("Error opening file:"); LOG(fname); return 1;
+        LOGS("Error opening file:"); LOG(fname); return;
     }
     LOGS("Loading file: "); LOG(fname); LOGS("...");
     while (file.available()) {
@@ -60,7 +68,32 @@ int forth_include(const char *fname) {
     LOGS("Done loading.\n");
     file.close();
     SPIFFS.end();
-    return 0;
+}
+///
+///> add ESP32 specific opcodes
+///
+inline  DU POP() { DU n=top; top=ss.pop(); return n; }
+#define PUSH(v)  (ss.push(top), top=(v))
+#define PEEK(a)    (U32)(*(U32*)((UFP)(a)))
+#define POKE(a, c) (*(U32*)((UFP)(a))=(U32)(c))
+
+FV<Code*> ops = {
+    CODE("pinmode",DU p = POP(); pinMode(p, POP())),          // n p --
+    CODE("in",     DU p = POP(); PUSH(digitalRead(p))),       // p -- n
+    CODE("out",    DU p = POP(); digitalWrite(p, POP())),     // n p --
+    CODE("adc",    DU p = POP(); PUSH(analogRead(p))),        // p -- n
+    CODE("duty",   DU p = POP(); analogWrite(p, POP(), 255)), // n ch
+    CODE("attach", DU p = POP(); ledcAttachPin(p, POP())),    // ch p --
+    CODE("setup",  DU ch= POP(); DU freq=POP();               // res freq ch --
+                       ledcSetup(ch, freq, POP())),
+    CODE("tone",   DU ch= POP(); ledcWriteTone(ch, POP())),   // duty ch --
+    CODE("peek",   DU a = POP(); PUSH(PEEK(a))),              // a -- n
+    CODE("poke",   DU a = POP(); POKE(a, POP())),             // n a --
+};
+
+void mcu_init() {
+    forth_init();
+    dict.merge(ops);
 }
 #endif // __EFORTH_PLATFORM_MCU_H
 
