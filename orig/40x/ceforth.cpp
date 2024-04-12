@@ -384,7 +384,7 @@ void dict_dump() {
         Code &c = dict[i];
         fout << setfill('0') << setw(3) << i
              << "> attr=" << (c.attr & ~MSK_ATTR)
-             << ", xt="   << setw(4) << c.xtoff()
+             << ", xt="   << setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
              << ":"       << setw(8) << (UFP)c.xt
              << ", name=" << setw(8) << (UFP)c.name
              << " "       << c.name << ENDL;
