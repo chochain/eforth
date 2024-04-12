@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['zbran_1200',['ZBRAN',['../orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a85aab50c7e8b897e918adf1592b14a2f',1,'ceforth.cpp']]]
+  ['next_1153',['NEXT',['../orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553ab13b96bf99a409e019f70dc1602532fd',1,'ceforth.cpp']]]
 ];

@@ -84,6 +84,7 @@ $(document).ready(function(){initNavTree('src_2ceforth_8h.html',''); initResizab
 <div class="header">
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
 <a href="#func-members">Functions</a>  </div>
   <div class="headertitle">
@@ -117,8 +118,9 @@ This graph shows which files directly or indirectly include this file:</div>
 <div class="dyncontent">
 <div class="center"><img src="src_2ceforth_8h__dep__incl.png" border="0" usemap="#src_2ceforth_8hdep" alt=""/></div>
 <map name="src_2ceforth_8hdep" id="src_2ceforth_8hdep">
-<area shape="rect" title="eForth header &#45; C++ vector&#45;based, token&#45;threaded" alt="" coords="13,5,116,32"/>
-<area shape="rect" href="src_2ceforth_8cpp.html" title="eForth &#45; C++ vector&#45;based token&#45;threaded implementation" alt="" coords="5,80,124,107"/>
+<area shape="rect" title="eForth header &#45; C++ vector&#45;based, token&#45;threaded" alt="" coords="87,5,190,32"/>
+<area shape="rect" href="mcu_8h.html" title="eForth implemented for ESP32" alt="" coords="5,80,128,107"/>
+<area shape="rect" href="src_2ceforth_8cpp.html" title="eForth &#45; C++ vector&#45;based token&#45;threaded implementation" alt="" coords="153,80,271,107"/>
 </map>
 </div>
 </div>
@@ -132,14 +134,24 @@ Data Structures</h2></td></tr>
 <tr class="memdesc:"><td class="mdescLeft">&#160;</td><td class="mdescRight">Forth operator.  <a href="structCode.html#details">More...</a><br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:a490de61fb7c91d13a8c01c38e7bc55a7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2ceforth_8h.html#a490de61fb7c91d13a8c01c38e7bc55a7">CODE</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>,  g)&#160;&#160;&#160;(new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, false))</td></tr>
+<tr class="separator:a490de61fb7c91d13a8c01c38e7bc55a7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3cf456b56a0211b127a0f7e446488a9e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2ceforth_8h.html#a3cf456b56a0211b127a0f7e446488a9e">IMMD</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>,  g)&#160;&#160;&#160;(new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, true))</td></tr>
+<tr class="separator:a3cf456b56a0211b127a0f7e446488a9e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="typedef-members"></a>
 Typedefs</h2></td></tr>
 <tr class="memitem:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="memItemLeft" align="right" valign="top">typedef void(*&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2ceforth_8h.html#a507179c6c60ff4d3e1b2c80ccdb875ee">XT</a>) (<a class="el" href="structCode.html">Code</a> *)</td></tr>
-<tr class="memdesc:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">forward declaration  <a href="src_2ceforth_8h.html#a507179c6c60ff4d3e1b2c80ccdb875ee">More...</a><br /></td></tr>
+<tr class="memdesc:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">function pointer  <a href="src_2ceforth_8h.html#a507179c6c60ff4d3e1b2c80ccdb875ee">More...</a><br /></td></tr>
 <tr class="separator:a507179c6c60ff4d3e1b2c80ccdb875ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ada75a1cac437ea2327a847b34aaca829"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structCode.html">Code</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2ceforth_8h.html#ada75a1cac437ea2327a847b34aaca829">find</a> (string <a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>)</td></tr>
+<tr class="memdesc:ada75a1cac437ea2327a847b34aaca829"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="structCode.html" title="Forth operator.">Code</a> class forward declaration.  <a href="src_2ceforth_8h.html#ada75a1cac437ea2327a847b34aaca829">More...</a><br /></td></tr>
+<tr class="separator:ada75a1cac437ea2327a847b34aaca829"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abbce13f8751c5d6d194da4e408317bad"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="src_2ceforth_8h.html#abbce13f8751c5d6d194da4e408317bad">mem_stat</a> ()</td></tr>
 <tr class="memdesc:abbce13f8751c5d6d194da4e408317bad"><td class="mdescLeft">&#160;</td><td class="mdescRight">forward decl (implemented in platform specific)  <a href="src_2ceforth_8h.html#abbce13f8751c5d6d194da4e408317bad">More...</a><br /></td></tr>
 <tr class="separator:abbce13f8751c5d6d194da4e408317bad"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -150,7 +162,67 @@ Functions</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>eForth header - C++ vector-based, token-threaded </p>
 <hr  />
- </div><h2 class="groupheader">Typedef Documentation</h2>
+ </div><h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="a490de61fb7c91d13a8c01c38e7bc55a7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a490de61fb7c91d13a8c01c38e7bc55a7">&#9670;&nbsp;</a></span>CODE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CODE</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">g&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td>&#160;&#160;&#160;(new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, false))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<blockquote class="doxtable">
+<p>macros to create primitive words (opcodes) </p>
+</blockquote>
+
+</div>
+</div>
+<a id="a3cf456b56a0211b127a0f7e446488a9e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3cf456b56a0211b127a0f7e446488a9e">&#9670;&nbsp;</a></span>IMMD</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define IMMD</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">g&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td>&#160;&#160;&#160;(new <a class="el" href="structCode.html">Code</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>, [](<a class="el" href="structCode.html">Code</a> *<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>){ g; }, true))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<h2 class="groupheader">Typedef Documentation</h2>
 <a id="a507179c6c60ff4d3e1b2c80ccdb875ee"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a507179c6c60ff4d3e1b2c80ccdb875ee">&#9670;&nbsp;</a></span>XT</h2>
 
@@ -163,12 +235,62 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>forward declaration </p>
 <p>function pointer </p>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="ada75a1cac437ea2327a847b34aaca829"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ada75a1cac437ea2327a847b34aaca829">&#9670;&nbsp;</a></span>find()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structCode.html">Code</a>* find </td>
+          <td>(</td>
+          <td class="paramtype">string&#160;</td>
+          <td class="paramname"><em>s</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p><a class="el" href="structCode.html" title="Forth operator.">Code</a> class forward declaration. </p>
+<p>dictionary scanner forward declare</p>
+<p>dictionary scanner, return found cfa or 0</p>
+<p><a class="el" href="structCode.html" title="Forth operator.">Code</a> class forward declaration.</p>
+<p>instruction and parameter pointers</p>
+<p>instruction and parameter pointers dictionary search function</p>
+<p><a class="el" href="structCode.html" title="Forth operator.">Code</a> class forward declaration.</p>
+<blockquote class="doxtable">
+<p>forward declared, post implementated </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>search dictionary from last to first </p>
+</blockquote>
+<ul>
+<li>word not found</li>
+</ul>
+<p>search dictionary reversely</p>
+<p>search dictionary reversely</p>
+<p>search dictionary reversely</p>
+<p>search dictionary reversely</p>
+<blockquote class="doxtable">
+<p>search dictionary from last to first </p>
+</blockquote>
+<ul>
+<li>word not found</li>
+</ul>
+<blockquote class="doxtable">
+<p>scan dictionary, last to first </p>
+</blockquote>
+<ul>
+<li>word not found</li>
+</ul>
+
+</div>
+</div>
 <a id="abbce13f8751c5d6d194da4e408317bad"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#abbce13f8751c5d6d194da4e408317bad">&#9670;&nbsp;</a></span>mem_stat()</h2>
 
@@ -187,6 +309,10 @@ Functions</h2></td></tr>
 <p>forward decl (implemented in platform specific) </p>
 <blockquote class="doxtable">
 <p>OS platform specific implementation </p>
+</blockquote>
+<p>====================================================================</p>
+<blockquote class="doxtable">
+<p>System statistics - for heap, stack, external memory debugging </p>
 </blockquote>
 <p>====================================================================</p>
 <blockquote class="doxtable">

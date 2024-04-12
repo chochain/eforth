@@ -1,4 +1,11 @@
 <map id="platform/mcu.h" name="platform/mcu.h">
-<area shape="rect" id="node1" title="eForth implemented for ESP32" alt="" coords="5,5,128,32"/>
-<area shape="rect" id="node2" title=" " alt="" coords="28,80,105,107"/>
+<area shape="rect" id="node1" title="eForth implemented for ESP32" alt="" coords="239,5,361,32"/>
+<area shape="rect" id="node2" href="$src_2ceforth_8h.html" title="eForth header &#45; C++ vector&#45;based, token&#45;threaded" alt="" coords="183,80,297,107"/>
+<area shape="rect" id="node9" title=" " alt="" coords="321,80,399,107"/>
+<area shape="rect" id="node3" title=" " alt="" coords="5,155,85,181"/>
+<area shape="rect" id="node4" title=" " alt="" coords="109,155,184,181"/>
+<area shape="rect" id="node5" title=" " alt="" coords="209,155,271,181"/>
+<area shape="rect" id="node6" title=" " alt="" coords="296,155,363,181"/>
+<area shape="rect" id="node7" href="$src_2config_8h.html" title=" " alt="" coords="387,155,461,181"/>
+<area shape="rect" id="node8" title=" " alt="" coords="382,229,466,256"/>
 </map>

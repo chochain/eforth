@@ -70,8 +70,8 @@ var NAVTREEINDEX =
 "ceforth__36_8cpp.html#a53ee12f4dd53b3aa1de7e6aa2e3d61fe",
 "eforth_8h.html#a06fc87d81c62e9abb8790b6e5713c55ba088c34301636340570ba6ab9aa0a4038",
 "eforth__vm_8cpp.html#aecac6f5bd98330178f6a1757503a81ae",
-"orig_240x_2config_8h.html#a14694ee4ae482f0c98e7e4c5ed6a357f",
-"structForthList.html#a3d40b29334a208e5e896bc3a2a6010a2"
+"orig_240x_2ceforth_8h.html#ad59eb14dcff82995aba75fff6e6919ee",
+"structFV.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

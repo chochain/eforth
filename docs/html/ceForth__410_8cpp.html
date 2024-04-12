@@ -126,7 +126,7 @@ Macros</h2></td></tr>
 <tr class="separator:a1f75956c7e91b6411417071ea93f7bfe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aea1786a26de1ef1661d8396e996016e3"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(i)&#160;&#160;&#160;(*<a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[i]-&gt;pf[0]-&gt;<a class="el" href="ceforth__36b_8cpp.html#a9c4f0869ed5b474291ef4e1585bd4855">q.data</a>())</td></tr>
 <tr class="separator:aea1786a26de1ef1661d8396e996016e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a79bcfb6bde984f42d1124b068a509af7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a79bcfb6bde984f42d1124b068a509af7">BASE</a>&#160;&#160;&#160;(<a class="el" href="src_2ceforth_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(0))   /* borrow <a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceForth__40c_8cpp.html#a19437a5875428e719515fb20de8a6927">base</a> (numeric radix) */</td></tr>
+<tr class="memitem:a79bcfb6bde984f42d1124b068a509af7"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a79bcfb6bde984f42d1124b068a509af7">BASE</a>&#160;&#160;&#160;(<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553af68346ce0bfce7ab2ca0a240f5132863">VAR</a>(0))   /* borrow <a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceForth__40c_8cpp.html#a19437a5875428e719515fb20de8a6927">base</a> (numeric radix) */</td></tr>
 <tr class="separator:a79bcfb6bde984f42d1124b068a509af7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad5b3ec1ce839fa1c4337a7d0312e9749"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#ad5b3ec1ce839fa1c4337a7d0312e9749">millis</a>()</td></tr>
 <tr class="separator:ad5b3ec1ce839fa1c4337a7d0312e9749"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -178,8 +178,10 @@ Variables</h2></td></tr>
 <tr class="memdesc:aef05b34af1a92f91c23c8fde1941e5a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">compiling flag  <a href="ceForth__410_8cpp.html#aef05b34af1a92f91c23c8fde1941e5a8">More...</a><br /></td></tr>
 <tr class="separator:aef05b34af1a92f91c23c8fde1941e5a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af93f4f37fc2ad9c37af4a715423b110c"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#af93f4f37fc2ad9c37af4a715423b110c">top</a> = -1</td></tr>
+<tr class="memdesc:af93f4f37fc2ad9c37af4a715423b110c"><td class="mdescLeft">&#160;</td><td class="mdescRight">top of stack (cached)  <a href="ceForth__410_8cpp.html#af93f4f37fc2ad9c37af4a715423b110c">More...</a><br /></td></tr>
 <tr class="separator:af93f4f37fc2ad9c37af4a715423b110c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a19809bf672fbc19ef62d024f889a73c4"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structForthList.html">ForthList</a>&lt; <a class="el" href="structCode.html">Code</a> * &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="ceForth__410_8cpp.html#a19809bf672fbc19ef62d024f889a73c4">dict</a></td></tr>
+<tr class="memdesc:a19809bf672fbc19ef62d024f889a73c4"><td class="mdescLeft">&#160;</td><td class="mdescRight">dictionary  <a href="ceForth__410_8cpp.html#a19809bf672fbc19ef62d024f889a73c4">More...</a><br /></td></tr>
 <tr class="separator:a19809bf672fbc19ef62d024f889a73c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Macro Definition Documentation</h2>
@@ -244,7 +246,7 @@ Variables</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define BASE&#160;&#160;&#160;(<a class="el" href="src_2ceforth_8cpp.html#aea1786a26de1ef1661d8396e996016e3">VAR</a>(0))   /* borrow <a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceForth__40c_8cpp.html#a19437a5875428e719515fb20de8a6927">base</a> (numeric radix) */</td>
+          <td class="memname">#define BASE&#160;&#160;&#160;(<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553af68346ce0bfce7ab2ca0a240f5132863">VAR</a>(0))   /* borrow <a class="el" href="src_2ceforth_8cpp.html#a625d9073e0cd229451515cd092be20a3">dict</a>[0] to <a class="el" href="ceForth__33_8cpp.html#aaefaac2ed4c54f2008d8d236392c7261">store</a> <a class="el" href="ceForth__40c_8cpp.html#a19437a5875428e719515fb20de8a6927">base</a> (numeric radix) */</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -362,6 +364,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 
 <p>fwd declared for <a class="el" href="structCode.html" title="Forth operator.">Code</a> </p>
+<p><a class="el" href="structCode.html" title="Forth operator.">Code</a> class forward declaration. </p>
 <blockquote class="doxtable">
 <p>search dictionary from last to first </p>
 </blockquote>
@@ -604,6 +607,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 
 <p>parameter stack </p>
+<p>parameter stack </p>
 
 </div>
 </div>
@@ -634,6 +638,8 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+
+<p>top of stack (cached) </p>
 <p>cached top of stack </p>
 
 </div>
@@ -649,6 +655,8 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+
+<p>dictionary </p>
 <blockquote class="doxtable">
 <p>Forth dictionary assembler </p>
 </blockquote>

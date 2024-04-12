@@ -38,9 +38,10 @@ var structCode =
     [ "Code", "structCode.html#a3dbbedc5bd7fcb36bde8d7e22daa20e2", null ],
     [ "Code", "structCode.html#ab9bf03d9cdd6bf3e65612f94d4555b0b", null ],
     [ "Code", "structCode.html#a4777698e1ca56b73543030ad10f6c6c3", null ],
-    [ "Code", "structCode.html#a65fbca179080c32956ff571fb5f2f77e", null ],
-    [ "Code", "structCode.html#a15d82445b3783969f56bbdb48aa8f766", null ],
-    [ "Code", "structCode.html#ab9bf03d9cdd6bf3e65612f94d4555b0b", null ],
+    [ "Code", "structCode.html#a7ade689ed26658caa21e2bc74bd7c3a4", null ],
+    [ "Code", "structCode.html#afbedd9871f649eaf2579be9402d6fa83", null ],
+    [ "Code", "structCode.html#ad226217f6444aaf327ef049bcfbec91d", null ],
+    [ "Code", "structCode.html#ae0b07075b8ff348f9e5af21fb1e7a595", null ],
     [ "XT", "structCode.html#ad735a0bfc1345c6d5ee006bc400c627c", null ],
     [ "exec", "structCode.html#a536838b5cf43b6a613e398fdd5236589", null ],
     [ "call", "structCode.html#a125b94d3a52d36e5ad7db6c5f39a8743", null ],
@@ -118,5 +119,8 @@ var structCode =
     [ "p2", "structCode.html#aae9146f98fc3a068780b35dffd752618", null ],
     [ "q", "structCode.html#a8435f8755d56bff2d2b2cc574b4e829d", null ],
     [ "attr", "structCode.html#add0f1495d4283ba4a9eddadc5120fac7", null ],
-    [ "str", "structCode.html#aaa09b1233a2ecc9c5e56d82a4766100e", null ]
+    [ "token", "structCode.html#a232a0ad26f0c521f3d5c4a58361b41a8", null ],
+    [ "stage", "structCode.html#a988bb5153a9b75685a2eaae38940df5b", null ],
+    [ "str", "structCode.html#ac7d3291d8454a8d20cfe220503e77699", null ],
+    [ "immd", "structCode.html#add941caf31c677ad640e47eb428d32e0", null ]
 ];

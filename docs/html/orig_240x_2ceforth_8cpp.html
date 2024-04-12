@@ -135,31 +135,24 @@ Macros</h2></td></tr>
 <tr class="separator:abc4b981c6dc73973a1fba2c05b54b1bd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aedb0320e993911a93a9d9c587dea3f00"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#aedb0320e993911a93a9d9c587dea3f00">SETJMP</a>(a)&#160;&#160;&#160;(*(<a class="el" href="orig_240x_2config_8h.html#aff5e3e5f0579f9bce7aeaeac9d89d33a">IU</a>*)&amp;<a class="el" href="orig_240x_2ceforth_8cpp.html#ad2bf19bcc0873d759b452babdb340575">pmem</a>[a] = <a class="el" href="orig_240x_2ceforth_8cpp.html#a3fe03e23176f4fe277d1d3b41f3d3d06">HERE</a>)</td></tr>
 <tr class="separator:aedb0320e993911a93a9d9c587dea3f00"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr><td colspan="2"><div class="groupHeader">Global memory access macros</div></td></tr>
-<tr><td colspan="2"><div class="groupText"><p>macros for ESP memory space access (be very careful of these)</p>
-<dl class="section note"><dt>Note</dt><dd>4000_0000 is instruction bus, access needs to be 32-bit aligned 3fff_ffff and below is data bus, no alignment requirement </dd></dl>
-</div></td></tr>
-<tr class="memitem:ad5af2e29fe5a36faedfad7af0f80507f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#ad5af2e29fe5a36faedfad7af0f80507f">PEEK</a>(a)&#160;&#160;&#160;(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>)(*(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a)))</td></tr>
-<tr class="separator:ad5af2e29fe5a36faedfad7af0f80507f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6a8de3b28dfd37b735671bdf31124063"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#a6a8de3b28dfd37b735671bdf31124063">POKE</a>(a,  <a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>)&#160;&#160;&#160;(*(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a))=(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>)(<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>))</td></tr>
-<tr class="separator:a6a8de3b28dfd37b735671bdf31124063"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="enum-members"></a>
 Enumerations</h2></td></tr>
 <tr class="memitem:aaa0aba801a492f1b85e6e0f23e3c8553"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553">forth_opcode</a> { <br />
-&#160;&#160;<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a40cf0c9ddd32c3d410cc58322ef5b6d5">EOW</a> = 0xffff &amp; ~UDF_ATTR, 
-<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a7a10b5d68d31711288e1fe0fa17dbf4f">EXIT</a> =0, 
-<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553abd536a3b91ea327d7b034463cc1fe982">DONEXT</a>, 
-<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553aba7bc33152a3d349dd479fd2f8e58bb8">DOLIT</a>, 
+&#160;&#160;<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a7a10b5d68d31711288e1fe0fa17dbf4f">EXIT</a> =0, 
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553ab13b96bf99a409e019f70dc1602532fd">NEXT</a>, 
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a61f7f1587bd5fe978d9ff3ece8d0624c">LOOP</a>, 
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a3b759690471ed29ecd243a8f36b93f60">LIT</a>, 
 <br />
-&#160;&#160;<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a6f5ba9949050dc830cb91b12f636d1b7">DOVAR</a>, 
-<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a6e579448d09cadafd7b4e23212fb6aeb">DOSTR</a>, 
-<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a35ee803243b30538b9ccd901a01ed9c3">DOTSTR</a>, 
+&#160;&#160;<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553af68346ce0bfce7ab2ca0a240f5132863">VAR</a>, 
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553aec41e801b43cfbec49d343c900360bf9">STR</a>, 
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a095d6c606e30118fcd45095816ebb017">DOTQ</a>, 
 <a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a0d3163a24760c4c2b59a2ac47b233d43">BRAN</a>, 
 <br />
 &#160;&#160;<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553a85aab50c7e8b897e918adf1592b14a2f">ZBRAN</a>, 
-<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553af97504b8da66825287050e477b8a6235">DODOES</a>, 
-<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553ada27aaee300d100894b7052b2063d6dd">TOR</a>
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553abb20064cb680106e5c1c45d02000df9a">DOES</a>, 
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553aa809654855caa62449850d9122fd77a8">FOR</a>, 
+<a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0aba801a492f1b85e6e0f23e3c8553abfea6036e64d9c7c773d277a57d2f959">DO</a>
 <br />
  }</td></tr>
 <tr class="separator:aaa0aba801a492f1b85e6e0f23e3c8553"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -182,16 +175,14 @@ Functions</h2></td></tr>
 <tr class="separator:a724b39fd304fec7d17cfd9af5171683f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aaa0fe6aede838886c3897f55c3d28ddd"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#aaa0fe6aede838886c3897f55c3d28ddd">def_word</a> (const char *name)</td></tr>
 <tr class="separator:aaa0fe6aede838886c3897f55c3d28ddd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a327ce17f2659c7355ce894aa49266e21"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#a327ce17f2659c7355ce894aa49266e21">next_idiom</a> ()</td></tr>
-<tr class="separator:a327ce17f2659c7355ce894aa49266e21"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af629538f3b0c84bcc653fb92698c4f05"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#af629538f3b0c84bcc653fb92698c4f05">word</a> ()</td></tr>
+<tr class="separator:af629538f3b0c84bcc653fb92698c4f05"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6f241997f1fbe0bb5ddde7d646f96a4c"><td class="memItemLeft" align="right" valign="top">char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#a6f241997f1fbe0bb5ddde7d646f96a4c">scan</a> (char <a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>)</td></tr>
 <tr class="separator:a6f241997f1fbe0bb5ddde7d646f96a4c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5fdde0871776510df64f500650209b27"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#a5fdde0871776510df64f500650209b27">PUSH</a> (<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> v)</td></tr>
 <tr class="separator:a5fdde0871776510df64f500650209b27"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac84ee2b65e9f8a8a435a447462c6d6a0"><td class="memItemLeft" align="right" valign="top"><a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a> ()</td></tr>
 <tr class="separator:ac84ee2b65e9f8a8a435a447462c6d6a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abcd8f8ba8645646ff9ab9b3bb3039c77"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#abcd8f8ba8645646ff9ab9b3bb3039c77">dot_r</a> (int <a class="el" href="ceForth__33_8cpp.html#a5d905ebdebe427aa5285939ab6008c59">n</a>, int v)</td></tr>
-<tr class="separator:abcd8f8ba8645646ff9ab9b3bb3039c77"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a59a029cd22163e0e580d06b4bc9b93e3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#a59a029cd22163e0e580d06b4bc9b93e3">spaces</a> (int <a class="el" href="ceForth__33_8cpp.html#a5d905ebdebe427aa5285939ab6008c59">n</a>)</td></tr>
 <tr class="separator:a59a029cd22163e0e580d06b4bc9b93e3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a168711010d4425c759bc859f985e08b1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#a168711010d4425c759bc859f985e08b1">s_quote</a> (<a class="el" href="orig_240x_2config_8h.html#aff5e3e5f0579f9bce7aeaeac9d89d33a">IU</a> <a class="el" href="ceForth__40a_8cpp.html#a3955fbf4c6caadbd4ff969e56fe5f3a6">op</a>)</td></tr>
@@ -242,6 +233,9 @@ Variables</h2></td></tr>
 <tr class="memitem:afbbad1e6f5dfbd3664246a4a3a623559"><td class="memItemLeft" align="right" valign="top"><a class="el" href="orig_240x_2config_8h.html#aff5e3e5f0579f9bce7aeaeac9d89d33a">IU</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#afbbad1e6f5dfbd3664246a4a3a623559">IP</a> = 0</td></tr>
 <tr class="memdesc:afbbad1e6f5dfbd3664246a4a3a623559"><td class="mdescLeft">&#160;</td><td class="mdescRight">current instruction pointer  <a href="orig_240x_2ceforth_8cpp.html#afbbad1e6f5dfbd3664246a4a3a623559">More...</a><br /></td></tr>
 <tr class="separator:afbbad1e6f5dfbd3664246a4a3a623559"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3e6f76368abfbc8709f4c1346dfa6a20"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#a3e6f76368abfbc8709f4c1346dfa6a20">run</a> = true</td></tr>
+<tr class="memdesc:a3e6f76368abfbc8709f4c1346dfa6a20"><td class="mdescLeft">&#160;</td><td class="mdescRight">VM <a class="el" href="orig_240x_2ceforth_8cpp.html#ad846502b6abc77557b95ffb1d08699cc">nest()</a> control.  <a href="orig_240x_2ceforth_8cpp.html#a3e6f76368abfbc8709f4c1346dfa6a20">More...</a><br /></td></tr>
+<tr class="separator:a3e6f76368abfbc8709f4c1346dfa6a20"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aef05b34af1a92f91c23c8fde1941e5a8"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="orig_240x_2ceforth_8cpp.html#aef05b34af1a92f91c23c8fde1941e5a8">compile</a> = false</td></tr>
 <tr class="memdesc:aef05b34af1a92f91c23c8fde1941e5a8"><td class="mdescLeft">&#160;</td><td class="mdescRight">compiler flag  <a href="orig_240x_2ceforth_8cpp.html#aef05b34af1a92f91c23c8fde1941e5a8">More...</a><br /></td></tr>
 <tr class="separator:aef05b34af1a92f91c23c8fde1941e5a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -360,52 +354,6 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="ad5af2e29fe5a36faedfad7af0f80507f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad5af2e29fe5a36faedfad7af0f80507f">&#9670;&nbsp;</a></span>PEEK</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define PEEK</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">a</td><td>)</td>
-          <td>&#160;&#160;&#160;(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>)(*(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a)))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
-<a id="a6a8de3b28dfd37b735671bdf31124063"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6a8de3b28dfd37b735671bdf31124063">&#9670;&nbsp;</a></span>POKE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define POKE</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">a, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname"><a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td>&#160;&#160;&#160;(*(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a))=(<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>)(<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-</div>
-</div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
 <a id="aaa0aba801a492f1b85e6e0f23e3c8553"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aaa0aba801a492f1b85e6e0f23e3c8553">&#9670;&nbsp;</a></span>forth_opcode</h2>
@@ -418,20 +366,20 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
-<p>enum used for built-in opcode tokens to simplify compiler i.g, add_w(find("_donext")) can be reduced to add_w(DONEXT) but make sure the sequence is in-sync with word list in dict_compile </p>
+<p>enum used for built-in opcode tokens to simplify compiler i.g, add_w(find("donext ")) can be reduced to add_w(NEXT) but make sure the sequence is in-sync with word list in dict_compile </p>
 <table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a40cf0c9ddd32c3d410cc58322ef5b6d5"></a>EOW&#160;</td><td class="fielddoc"><p>token for end of colon word </p>
-</td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a7a10b5d68d31711288e1fe0fa17dbf4f"></a>EXIT&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553abd536a3b91ea327d7b034463cc1fe982"></a>DONEXT&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553aba7bc33152a3d349dd479fd2f8e58bb8"></a>DOLIT&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a6f5ba9949050dc830cb91b12f636d1b7"></a>DOVAR&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a6e579448d09cadafd7b4e23212fb6aeb"></a>DOSTR&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a35ee803243b30538b9ccd901a01ed9c3"></a>DOTSTR&#160;</td><td class="fielddoc"></td></tr>
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a7a10b5d68d31711288e1fe0fa17dbf4f"></a>EXIT&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553ab13b96bf99a409e019f70dc1602532fd"></a>NEXT&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a61f7f1587bd5fe978d9ff3ece8d0624c"></a>LOOP&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a3b759690471ed29ecd243a8f36b93f60"></a>LIT&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553af68346ce0bfce7ab2ca0a240f5132863"></a>VAR&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553aec41e801b43cfbec49d343c900360bf9"></a>STR&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a095d6c606e30118fcd45095816ebb017"></a>DOTQ&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a0d3163a24760c4c2b59a2ac47b233d43"></a>BRAN&#160;</td><td class="fielddoc"></td></tr>
 <tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553a85aab50c7e8b897e918adf1592b14a2f"></a>ZBRAN&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553af97504b8da66825287050e477b8a6235"></a>DODOES&#160;</td><td class="fielddoc"></td></tr>
-<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553ada27aaee300d100894b7052b2063d6dd"></a>TOR&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553abb20064cb680106e5c1c45d02000df9a"></a>DOES&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553aa809654855caa62449850d9122fd77a8"></a>FOR&#160;</td><td class="fielddoc"></td></tr>
+<tr><td class="fieldname"><a id="aaa0aba801a492f1b85e6e0f23e3c8553abfea6036e64d9c7c773d277a57d2f959"></a>DO&#160;</td><td class="fielddoc"></td></tr>
 </table>
 
 </div>
@@ -570,7 +518,6 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <p>&lt; add a word index into pmem</p>
-<p>&lt; adjust end of word token</p>
 <p>&lt; ref to dictionary entry</p>
 <p>&lt; check whether colon word</p>
 <p>&lt; pfa with colon word flag</p>
@@ -620,7 +567,10 @@ Variables</h2></td></tr>
 <p>fetch opcode, hopefully cached </p>
 </blockquote>
 <blockquote class="doxtable">
-<p>fetch till end of word hit </p>
+<p>re-enable loop control </p>
+</blockquote>
+<blockquote class="doxtable">
+<p>loop till 0 (EXIT) hit </p>
 </blockquote>
 <ul>
 <li>advance inst. ptr</li>
@@ -635,7 +585,7 @@ Variables</h2></td></tr>
 <p>go one level deeper </p>
 </blockquote>
 <blockquote class="doxtable">
-<p>cached DONEXT, DOLIT handlers, </p>
+<p>cached NEXT, LIT handlers, </p>
 </blockquote>
 <blockquote class="doxtable">
 <p>10% faster on AMD, 5% on ESP32 </p>
@@ -709,14 +659,14 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="a327ce17f2659c7355ce894aa49266e21"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a327ce17f2659c7355ce894aa49266e21">&#9670;&nbsp;</a></span>next_idiom()</h2>
+<a id="af629538f3b0c84bcc653fb92698c4f05"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af629538f3b0c84bcc653fb92698c4f05">&#9670;&nbsp;</a></span>word()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">char* next_idiom </td>
+          <td class="memname">char* word </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -807,46 +757,6 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="abcd8f8ba8645646ff9ab9b3bb3039c77"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abcd8f8ba8645646ff9ab9b3bb3039c77">&#9670;&nbsp;</a></span>dot_r()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void dot_r </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>n</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>v</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-<p>====================================================================</p>
-<blockquote class="doxtable">
-<p>IO &amp; debug functions </p>
-</blockquote>
-
-</div>
-</div>
 <a id="a59a029cd22163e0e580d06b4bc9b93e3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a59a029cd22163e0e580d06b4bc9b93e3">&#9670;&nbsp;</a></span>spaces()</h2>
 
@@ -862,6 +772,10 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+<p>====================================================================</p>
+<blockquote class="doxtable">
+<p>IO &amp; debug functions </p>
+</blockquote>
 
 </div>
 </div>
@@ -940,7 +854,7 @@ Variables</h2></td></tr>
 <p>addr </p>
 </blockquote>
 <blockquote class="doxtable">
-<p>display address &amp; opcode </p>
+<p>display address </p>
 </blockquote>
 <blockquote class="doxtable">
 <p>calculate next ip </p>
@@ -994,6 +908,9 @@ Variables</h2></td></tr>
 <blockquote class="doxtable">
 <p>compare xt </p>
 </blockquote>
+<ul>
+<li>not found</li>
+</ul>
 <blockquote class="doxtable">
 <p>fetch word index by pfa </p>
 </blockquote>
@@ -1328,8 +1245,10 @@ Variables</h2></td></tr>
 <p>Parameter structure - 16-bit aligned (use LSB for colon word flag) </p>
 </blockquote>
 <ul>
-<li>primitive word 16-bit xt offset with LSB set to 0 +-----------&mdash;+-+ | dict.xtoff() |0| call (XT0 + *IP)() to execute +-----------&mdash;+-+ this save the extra memory lookup for xt</li>
-<li>colon word (user defined) 16-bit pmem offset with LSB set to 1 +-----------&mdash;+-+ | dict.pfa |1| next IP = *(MEM0 + (*IP &amp; ~1)) +-----------&mdash;+-+ </li>
+<li>primitive word 16-bit xt offset with LSB set to 0 (1 less mem lookup for xt) +-----------&mdash;+-+ | dict.xtoff() |0| call (XT0 + *IP)() to execute +-----------&mdash;+-+ <br  />
+ |0| dict.xtoff() | WASM XT0=0, xt is index to vtable +-----------&mdash;+-+ <br  />
+</li>
+<li>colon word (user defined) 16-bit pmem offset with LSB set to 1 +-----------&mdash;+-+ | dict.pfa |1| next IP = *(MEM0 + (*IP &amp; ~1)) +-----------&mdash;+-+ |1| dict.pfa | WASM (32K max parameter space) +-----------&mdash;+-+ </li>
 </ul>
 
 </div>
@@ -1430,6 +1349,22 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 
 <p>current instruction pointer </p>
+
+</div>
+</div>
+<a id="a3e6f76368abfbc8709f4c1346dfa6a20"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3e6f76368abfbc8709f4c1346dfa6a20">&#9670;&nbsp;</a></span>run</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool run = true</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>VM <a class="el" href="orig_240x_2ceforth_8cpp.html#ad846502b6abc77557b95ffb1d08699cc">nest()</a> control. </p>
 
 </div>
 </div>

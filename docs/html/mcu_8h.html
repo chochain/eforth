@@ -93,14 +93,22 @@ $(document).ready(function(){initNavTree('mcu_8h.html',''); initResizable(); });
 
 <p>eForth implemented for ESP32  
 <a href="#details">More...</a></p>
-<div class="textblock"><code>#include &lt;SPIFFS.h&gt;</code><br />
+<div class="textblock"><code>#include &quot;<a class="el" href="src_2ceforth_8h_source.html">../src/ceforth.h</a>&quot;</code><br />
+<code>#include &lt;SPIFFS.h&gt;</code><br />
 </div><div class="textblock"><div class="dynheader">
 Include dependency graph for mcu.h:</div>
 <div class="dyncontent">
 <div class="center"><img src="mcu_8h__incl.png" border="0" usemap="#platform_2mcu_8h" alt=""/></div>
 <map name="platform_2mcu_8h" id="platform_2mcu_8h">
-<area shape="rect" title="eForth implemented for ESP32" alt="" coords="5,5,128,32"/>
-<area shape="rect" title=" " alt="" coords="28,80,105,107"/>
+<area shape="rect" title="eForth implemented for ESP32" alt="" coords="239,5,361,32"/>
+<area shape="rect" href="src_2ceforth_8h.html" title="eForth header &#45; C++ vector&#45;based, token&#45;threaded" alt="" coords="183,80,297,107"/>
+<area shape="rect" title=" " alt="" coords="321,80,399,107"/>
+<area shape="rect" title=" " alt="" coords="5,155,85,181"/>
+<area shape="rect" title=" " alt="" coords="109,155,184,181"/>
+<area shape="rect" title=" " alt="" coords="209,155,271,181"/>
+<area shape="rect" title=" " alt="" coords="296,155,363,181"/>
+<area shape="rect" href="src_2config_8h.html" title=" " alt="" coords="387,155,461,181"/>
+<area shape="rect" title=" " alt="" coords="382,229,466,256"/>
 </map>
 </div>
 </div>
@@ -108,10 +116,12 @@ Include dependency graph for mcu.h:</div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:a23c9be2739d1f57d5e53c91a5644ef84"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a23c9be2739d1f57d5e53c91a5644ef84">LOGS</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>)&#160;&#160;&#160;Serial.print(F(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>))</td></tr>
-<tr class="separator:a23c9be2739d1f57d5e53c91a5644ef84"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a570713ca4a493fc4d2130a405f3b87ea"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a570713ca4a493fc4d2130a405f3b87ea">LOG</a>(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>)&#160;&#160;&#160;Serial.print(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>)</td></tr>
-<tr class="separator:a570713ca4a493fc4d2130a405f3b87ea"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af5e48aa480f649754b62299ee5cbc35a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#af5e48aa480f649754b62299ee5cbc35a">PUSH</a>(v)&#160;&#160;&#160;(<a class="el" href="ceforth__36x_8cpp.html#a7e81b454b53e2c568a108cffaebfb93b">ss.push</a>(<a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>), <a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>=(v))</td></tr>
+<tr class="separator:af5e48aa480f649754b62299ee5cbc35a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad5af2e29fe5a36faedfad7af0f80507f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#ad5af2e29fe5a36faedfad7af0f80507f">PEEK</a>(a)&#160;&#160;&#160;(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>)(*(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a)))</td></tr>
+<tr class="separator:ad5af2e29fe5a36faedfad7af0f80507f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6a8de3b28dfd37b735671bdf31124063"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a6a8de3b28dfd37b735671bdf31124063">POKE</a>(a,  <a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>)&#160;&#160;&#160;(*(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a))=(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>)(<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>))</td></tr>
+<tr class="separator:a6a8de3b28dfd37b735671bdf31124063"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
@@ -122,49 +132,92 @@ Functions</h2></td></tr>
 <tr class="memitem:abbce13f8751c5d6d194da4e408317bad"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#abbce13f8751c5d6d194da4e408317bad">mem_stat</a> ()</td></tr>
 <tr class="memdesc:abbce13f8751c5d6d194da4e408317bad"><td class="mdescLeft">&#160;</td><td class="mdescRight">forward decl (implemented in platform specific)  <a href="mcu_8h.html#abbce13f8751c5d6d194da4e408317bad">More...</a><br /></td></tr>
 <tr class="separator:abbce13f8751c5d6d194da4e408317bad"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3f8eab276f8243188b3deaa87df7d72e"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a3f8eab276f8243188b3deaa87df7d72e">forth_include</a> (const char *fname)</td></tr>
-<tr class="memdesc:a3f8eab276f8243188b3deaa87df7d72e"><td class="mdescLeft">&#160;</td><td class="mdescRight">eForth external file loader from Flash memory can be called in <a class="el" href="namespaceForthServer.html#afee65e71e0f678bf0c1bfa5401da18a8">setup()</a> to become a turn-key system  <a href="mcu_8h.html#a3f8eab276f8243188b3deaa87df7d72e">More...</a><br /></td></tr>
-<tr class="separator:a3f8eab276f8243188b3deaa87df7d72e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a02721e43e871ad52b2a7aa4efb2cf52b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a02721e43e871ad52b2a7aa4efb2cf52b">forth_include</a> (const char *fname)</td></tr>
+<tr class="memdesc:a02721e43e871ad52b2a7aa4efb2cf52b"><td class="mdescLeft">&#160;</td><td class="mdescRight">eForth external file loader from Flash memory can be called in <a class="el" href="namespaceForthServer.html#afee65e71e0f678bf0c1bfa5401da18a8">setup()</a> to become a turn-key system  <a href="mcu_8h.html#a02721e43e871ad52b2a7aa4efb2cf52b">More...</a><br /></td></tr>
+<tr class="separator:a02721e43e871ad52b2a7aa4efb2cf52b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac84ee2b65e9f8a8a435a447462c6d6a0"><td class="memItemLeft" align="right" valign="top"><a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a> ()</td></tr>
+<tr class="separator:ac84ee2b65e9f8a8a435a447462c6d6a0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac99420a9239f778f5191fc1ecb2bc158"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#ac99420a9239f778f5191fc1ecb2bc158">mcu_init</a> ()</td></tr>
+<tr class="separator:ac99420a9239f778f5191fc1ecb2bc158"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
 <tr class="memitem:abcce9d05c096e802201685c6fe8d2316"><td class="memItemLeft" align="right" valign="top">const char *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#abcce9d05c096e802201685c6fe8d2316">APP_VERSION</a> = &quot;eForth v4.2&quot;</td></tr>
 <tr class="separator:abcce9d05c096e802201685c6fe8d2316"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1dbe10e65bdf6af195b87f91d4d68bd7"><td class="memItemLeft" align="right" valign="top"><a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a></td></tr>
+<tr class="memdesc:a1dbe10e65bdf6af195b87f91d4d68bd7"><td class="mdescLeft">&#160;</td><td class="mdescRight">top of stack (cached)  <a href="mcu_8h.html#a1dbe10e65bdf6af195b87f91d4d68bd7">More...</a><br /></td></tr>
+<tr class="separator:a1dbe10e65bdf6af195b87f91d4d68bd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a625d9073e0cd229451515cd092be20a3"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structFV.html">FV</a>&lt; <a class="el" href="structCode.html">Code</a> * &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a625d9073e0cd229451515cd092be20a3">dict</a></td></tr>
+<tr class="memdesc:a625d9073e0cd229451515cd092be20a3"><td class="mdescLeft">&#160;</td><td class="mdescRight">dictionary  <a href="mcu_8h.html#a625d9073e0cd229451515cd092be20a3">More...</a><br /></td></tr>
+<tr class="separator:a625d9073e0cd229451515cd092be20a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a74375ddf0bd69889d020aebec1439bb2"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structFV.html">FV</a>&lt; <a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#a74375ddf0bd69889d020aebec1439bb2">ss</a></td></tr>
+<tr class="memdesc:a74375ddf0bd69889d020aebec1439bb2"><td class="mdescLeft">&#160;</td><td class="mdescRight">parameter stack  <a href="mcu_8h.html#a74375ddf0bd69889d020aebec1439bb2">More...</a><br /></td></tr>
+<tr class="separator:a74375ddf0bd69889d020aebec1439bb2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeff342c843ea2f5cc70fd654638bc92d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structFV.html">FV</a>&lt; <a class="el" href="structCode.html">Code</a> * &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mcu_8h.html#aeff342c843ea2f5cc70fd654638bc92d">ops</a></td></tr>
+<tr class="separator:aeff342c843ea2f5cc70fd654638bc92d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>eForth implemented for ESP32 </p>
 <dl class="section note"><dt>Note</dt><dd>benchmark: 1K*1K test case 1440ms Dr. Ting's orig/esp32forth_82 1240ms ~/Download/forth/esp32/esp32forth8_exp9 1045ms orig/esp32forth8_1 999ms orig/40x/ceforth subroutine-threaded, 16-bit xt offset 940ms orig/40x/ceforth use cached xt offsets in <a class="el" href="orig_240x_2ceforth_8cpp.html#ad846502b6abc77557b95ffb1d08699cc">nest()</a> 665ms src/ceforth vector-based token-threaded </dd></dl>
 </div><h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a23c9be2739d1f57d5e53c91a5644ef84"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a23c9be2739d1f57d5e53c91a5644ef84">&#9670;&nbsp;</a></span>LOGS</h2>
+<a id="af5e48aa480f649754b62299ee5cbc35a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af5e48aa480f649754b62299ee5cbc35a">&#9670;&nbsp;</a></span>PUSH</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define LOGS</td>
+          <td class="memname">#define PUSH</td>
           <td>(</td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname"><a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a></td><td>)</td>
-          <td>&#160;&#160;&#160;Serial.print(F(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>))</td>
+          <td class="paramname">v</td><td>)</td>
+          <td>&#160;&#160;&#160;(<a class="el" href="ceforth__36x_8cpp.html#a7e81b454b53e2c568a108cffaebfb93b">ss.push</a>(<a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>), <a class="el" href="src_2ceforth_8cpp.html#a1dbe10e65bdf6af195b87f91d4d68bd7">top</a>=(v))</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 </div>
 </div>
-<a id="a570713ca4a493fc4d2130a405f3b87ea"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a570713ca4a493fc4d2130a405f3b87ea">&#9670;&nbsp;</a></span>LOG</h2>
+<a id="ad5af2e29fe5a36faedfad7af0f80507f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad5af2e29fe5a36faedfad7af0f80507f">&#9670;&nbsp;</a></span>PEEK</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define LOG</td>
+          <td class="memname">#define PEEK</td>
           <td>(</td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname"><a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a></td><td>)</td>
-          <td>&#160;&#160;&#160;Serial.print(<a class="el" href="ceforth__36b_8cpp.html#aa8270a1ba8295884567e0a0c93135f05">s</a>)</td>
+          <td class="paramname">a</td><td>)</td>
+          <td>&#160;&#160;&#160;(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>)(*(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a)))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="a6a8de3b28dfd37b735671bdf31124063"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6a8de3b28dfd37b735671bdf31124063">&#9670;&nbsp;</a></span>POKE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define POKE</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">a, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td>&#160;&#160;&#160;(*(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>*)((<a class="el" href="orig_240x_2config_8h.html#a34c9e39f868b60a2945e499befe08091">UFP</a>)(a))=(<a class="el" href="eforth_8h.html#a696390429f2f3b644bde8d0322a24124">U32</a>)(<a class="el" href="ceforth__36b_8cpp.html#a089aacf63ed94ae0e667bb8f6db3e853">c</a>))</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -186,6 +239,9 @@ Variables</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+<blockquote class="doxtable">
+<p>interface to core module </p>
+</blockquote>
 <p>====================================================================</p>
 <p>Forth VM external command processor</p>
 <blockquote class="doxtable">
@@ -305,14 +361,14 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="a3f8eab276f8243188b3deaa87df7d72e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3f8eab276f8243188b3deaa87df7d72e">&#9670;&nbsp;</a></span>forth_include()</h2>
+<a id="a02721e43e871ad52b2a7aa4efb2cf52b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a02721e43e871ad52b2a7aa4efb2cf52b">&#9670;&nbsp;</a></span>forth_include()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int forth_include </td>
+          <td class="memname">void forth_include </td>
           <td>(</td>
           <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>fname</em></td><td>)</td>
@@ -332,6 +388,51 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a id="ac84ee2b65e9f8a8a435a447462c6d6a0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac84ee2b65e9f8a8a435a447462c6d6a0">&#9670;&nbsp;</a></span>POP()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> POP </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+<blockquote class="doxtable">
+<p>add ESP32 specific opcodes </p>
+</blockquote>
+
+</div>
+</div>
+<a id="ac99420a9239f778f5191fc1ecb2bc158"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac99420a9239f778f5191fc1ecb2bc158">&#9670;&nbsp;</a></span>mcu_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void mcu_init </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 <h2 class="groupheader">Variable Documentation</h2>
 <a id="abcce9d05c096e802201685c6fe8d2316"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#abcce9d05c096e802201685c6fe8d2316">&#9670;&nbsp;</a></span>APP_VERSION</h2>
@@ -347,8 +448,112 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a id="a1dbe10e65bdf6af195b87f91d4d68bd7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1dbe10e65bdf6af195b87f91d4d68bd7">&#9670;&nbsp;</a></span>top</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> top</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>top of stack (cached) </p>
+<hr  />
+<blockquote class="doxtable">
+<p>VM states (single task) </p>
+</blockquote>
+<p>top of stack (cached)</p>
+<p>cached top of stack </p>
+
+</div>
+</div>
+<a id="a625d9073e0cd229451515cd092be20a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a625d9073e0cd229451515cd092be20a3">&#9670;&nbsp;</a></span>dict</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structFV.html">FV</a>&lt;<a class="el" href="structCode.html">Code</a>*&gt; dict</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>dictionary </p>
+<p>dictionary</p>
+<blockquote class="doxtable">
+<p>Forth dictionary assembler </p>
+</blockquote>
+<p>forward declard, needs dict </p><blockquote class="doxtable">
+<p>Forth Dictionary Assembler </p>
+</blockquote>
+<dl class="section note"><dt>Note</dt><dd>:<ol type="1">
+<li>Words are assembled by calling C++ initializer_list Currently, C++ compiler instainciate them at start up but we hope it can become a static ROM in the future.</li>
+<li>a degenerated lambda becomes a function pointer </li>
+</ol>
+</dd></dl>
+
+</div>
+</div>
+<a id="a74375ddf0bd69889d020aebec1439bb2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a74375ddf0bd69889d020aebec1439bb2">&#9670;&nbsp;</a></span>ss</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structFV.html">FV</a>&lt;<a class="el" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a>&gt; ss</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>parameter stack </p>
+<p>parameter stack</p>
+<p>parameter stack</p>
+<blockquote class="doxtable">
+<p>Forth VM state variables </p>
+</blockquote>
+
+</div>
+</div>
+<a id="aeff342c843ea2f5cc70fd654638bc92d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeff342c843ea2f5cc70fd654638bc92d">&#9670;&nbsp;</a></span>ops</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structFV.html">FV</a>&lt;<a class="el" href="structCode.html">Code</a>*&gt; ops</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;pinmode&quot;</span>,<a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> p = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); pinMode(p, <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>())),          </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;in&quot;</span>,     <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> p = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); <a class="code" href="mcu_8h.html#af5e48aa480f649754b62299ee5cbc35a">PUSH</a>(digitalRead(p))),       </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;out&quot;</span>,    <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> p = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); digitalWrite(p, <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>())),     </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;adc&quot;</span>,    <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> p = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); <a class="code" href="mcu_8h.html#af5e48aa480f649754b62299ee5cbc35a">PUSH</a>(analogRead(p))),        </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;duty&quot;</span>,   <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> p = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); analogWrite(p, <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(), 255)), </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;attach&quot;</span>, <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> p = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); ledcAttachPin(p, <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>())),    </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;setup&quot;</span>,  <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> ch= <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> freq=<a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>();               </div>
+<div class="line">                       ledcSetup(ch, freq, <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>())),</div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;tone&quot;</span>,   <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> ch= <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); ledcWriteTone(ch, <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>())),   </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;peek&quot;</span>,   <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> a = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); <a class="code" href="mcu_8h.html#af5e48aa480f649754b62299ee5cbc35a">PUSH</a>(<a class="code" href="mcu_8h.html#ad5af2e29fe5a36faedfad7af0f80507f">PEEK</a>(a))),              </div>
+<div class="line">    <a class="code" href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a>(<span class="stringliteral">&quot;poke&quot;</span>,   <a class="code" href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a> a = <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>(); <a class="code" href="mcu_8h.html#a6a8de3b28dfd37b735671bdf31124063">POKE</a>(a, <a class="code" href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a>())),             </div>
+<div class="line">}</div>
+</div><!-- fragment -->
+</div>
+</div>
 </div><!-- contents -->
 </div><!-- doc-content -->
+<div class="ttc" id="amcu_8h_html_ac84ee2b65e9f8a8a435a447462c6d6a0"><div class="ttname"><a href="mcu_8h.html#ac84ee2b65e9f8a8a435a447462c6d6a0">POP</a></div><div class="ttdeci">DU POP()</div><div class="ttdef"><b>Definition:</b> mcu.h:75</div></div>
+<div class="ttc" id="amcu_8h_html_ad5af2e29fe5a36faedfad7af0f80507f"><div class="ttname"><a href="mcu_8h.html#ad5af2e29fe5a36faedfad7af0f80507f">PEEK</a></div><div class="ttdeci">#define PEEK(a)</div><div class="ttdef"><b>Definition:</b> mcu.h:77</div></div>
+<div class="ttc" id="aorig_240x_2config_8h_html_aa37b071e9b75686518ba19bfc6526b04"><div class="ttname"><a href="orig_240x_2config_8h.html#aa37b071e9b75686518ba19bfc6526b04">DU</a></div><div class="ttdeci">int32_t DU</div><div class="ttdef"><b>Definition:</b> config.h:42</div></div>
+<div class="ttc" id="amcu_8h_html_a6a8de3b28dfd37b735671bdf31124063"><div class="ttname"><a href="mcu_8h.html#a6a8de3b28dfd37b735671bdf31124063">POKE</a></div><div class="ttdeci">#define POKE(a, c)</div><div class="ttdef"><b>Definition:</b> mcu.h:78</div></div>
+<div class="ttc" id="aorig_240x_2ceforth_8h_html_ac58d1e15f0f77a1be59e0392d69347c2"><div class="ttname"><a href="orig_240x_2ceforth_8h.html#ac58d1e15f0f77a1be59e0392d69347c2">CODE</a></div><div class="ttdeci">#define CODE(n, g)</div><div class="ttdef"><b>Definition:</b> ceforth.h:127</div></div>
+<div class="ttc" id="amcu_8h_html_af5e48aa480f649754b62299ee5cbc35a"><div class="ttname"><a href="mcu_8h.html#af5e48aa480f649754b62299ee5cbc35a">PUSH</a></div><div class="ttdeci">#define PUSH(v)</div><div class="ttdef"><b>Definition:</b> mcu.h:76</div></div>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>

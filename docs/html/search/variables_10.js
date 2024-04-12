@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['v_1099',['v',['../structList.html#a579cae793c8856db82c099d3028d99ea',1,'List::v()'],['../structForthList.html#a96f515a64bb7f86686d2714b41e6e4b5',1,'ForthList::v()']]]
+  ['ucase_1117',['ucase',['../orig_240x_2ceforth_8cpp.html#a537a52244510eb47aeb9478bea0b3d4e',1,'ucase():&#160;ceforth.cpp'],['../ceforth__36_8cpp.html#a7ce46661a2390309cbac799d0191b4b9',1,'ucase():&#160;ceforth_36.cpp'],['../ceforth__36a_8cpp.html#a7ce46661a2390309cbac799d0191b4b9',1,'ucase():&#160;ceforth_36a.cpp'],['../ceforth__36b_8cpp.html#a7ce46661a2390309cbac799d0191b4b9',1,'ucase():&#160;ceforth_36b.cpp'],['../ceforth__36x_8cpp.html#a7ce46661a2390309cbac799d0191b4b9',1,'ucase():&#160;ceforth_36x.cpp']]]
 ];
