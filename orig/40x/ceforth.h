@@ -50,10 +50,11 @@ struct List {
 ///@{
 #define UDF_ATTR   0x0001   /** user defined word  */
 #define IMM_ATTR   0x0002   /** immediate word     */
-#define MSK_ATTR   ~0x3
 #if DO_WASM
+#define MSK_ATTR   ~0x0     /** no masking         */
 #define UDF_FLAG   0x8000   /** xt/pfa selector    */
 #else  // !DO_WASM
+#define MSK_ATTR   ~0x3
 #define UDF_FLAG   0x0001   /** xt/pfa selector    */
 #endif // DO_WASM
 
@@ -91,7 +92,6 @@ struct Code {
         IU   pfa;           ///< i.e. no LSBs available
     };
     IU attr = 0;            ///< So, attributes need to be separated
-    static FPTR XT(IU ix)   INLINE { return (FPTR)((UFP)ix); }
 #else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
@@ -100,8 +100,8 @@ struct Code {
             IU pfa;         ///< offset to pmem space (16-bit for 64K range)
         };
     };
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)ix); }
 #endif // DO_WASM
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)ix); }
     static void exec(IU ix) INLINE { (*XT(ix))(); }
 
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
@@ -113,13 +113,8 @@ struct Code {
 #endif // CC_DEBUG > 1
     }
     Code() {}               ///< create a blank struct (for initilization)
-#if DO_WASM    
-    IU   xtoff() INLINE { return (IU)((UFP)xt); }        ///< vtable index
-    void call()  INLINE { (*xt)(); }
-#else  // !DO_WASM    
     IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
     void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
-#endif // DO_WASM    
 };
 ///
 ///> Add a Word to dictionary
