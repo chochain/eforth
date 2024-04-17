@@ -95,15 +95,22 @@ string word(char delim=0) {          ///> read next idiom form input stream
     string s; delim ? getline(fin, s, delim) : fin >> s; return s;
 }
 void ss_dump(DU base) {              ///> display data stack and ok promt
-    bool d = base==10;
-    fout << "< ";
-    for (DU i : ss) {
-        if (d) fout << i << " ";
-        else   fout << (U32)i << " ";
+    char buf[34];
+    auto rdx = [&buf](DU v, int b) {      ///> display v by radix
+        int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
+        DU  n = v < 0 ? -v : v;           ///< handle negative
+        while (n && i) {                  ///> digit-by-digit
+            U8 d = (U8)(n % b);  n /= b;
+            buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
+        }
+        if (v < 0) buf[--i]='-';
+        return &buf[i];
+    };
+    fout << " <";
+    for (DU v : ss) {
+        fout << rdx(v, base) << " ";
     }
-    if (d) fout << top;
-    else   fout << (U32)top;
-    fout << " > ok" << ENDL;
+    fout << rdx(top, base) << "> ok" << ENDL;
 }
 void see(Code *c, int dp) {          ///> disassemble a colon word
     auto pp = [](int dp, string s, FV<Code*> v) {     ///> recursive dump with indent

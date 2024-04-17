@@ -352,15 +352,22 @@ void words() {
     fout << setbase(*base) << ENDL;
 }
 void ss_dump() {
-    bool d = *base==10;
+    char buf[34];
+    auto rdx = [&buf](DU v, int b) {      ///> display v by radix
+        int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
+        DU  n = v < 0 ? -v : v;           ///< handle negative
+        while (n && i) {                  ///> digit-by-digit
+            U8 d = (U8)(n % b);  n /= b;
+            buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
+        }
+        if (v < 0) buf[--i]='-';
+        return &buf[i];
+    };
     fout << " <";
     for (int i=0; i<ss.idx; i++) {
-		if (d) fout << ss[i] << " ";
-		else   fout << (U32)ss[i] << " ";
+        fout << rdx(ss[i], *base) << " ";
     }
-    if (d) fout << top;
-    else   fout << (U32)top;
-	fout << "> ok" << ENDL;
+    fout << rdx(top, *base) << "> ok" << ENDL;
 }
 void mem_dump(IU p0, DU sz) {
     fout << setbase(16) << setfill('0');
@@ -405,13 +412,13 @@ void dict_dump() {
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 #if DO_WASM
 /// function in worker thread
-EM_JS(void, canvas, (char *arg, U32 v=0), {
+EM_JS(void, js, (char *arg, U32 v=0), {
         postMessage(['js', [ UTF8ToString(arg), v]])
     });
 #endif // DO_WASM
 
 void dict_compile() {  ///< compile primitive words into dictionary
-    base = (int*)MEM(pmem.idx);                         ///< set pointer to base
+    base = (DU*)MEM(pmem.idx);                          ///< set pointer to base
     add_du(10);                                         ///< default radix=10
     ///
     /// @defgroup Execution flow ops
