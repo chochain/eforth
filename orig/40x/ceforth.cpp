@@ -352,9 +352,15 @@ void words() {
     fout << setbase(*base) << ENDL;
 }
 void ss_dump() {
+    bool d = *base==10;
     fout << " <";
-    for (int i=0; i<ss.idx; i++) { fout << ss[i] << " "; }
-    fout << top << "> ok" << ENDL;
+    for (int i=0; i<ss.idx; i++) {
+		if (d) fout << ss[i] << " ";
+		else   fout << (U32)ss[i] << " ";
+    }
+    if (d) fout << top;
+    else   fout << (U32)top;
+	fout << "> ok" << ENDL;
 }
 void mem_dump(IU p0, DU sz) {
     fout << setbase(16) << setfill('0');
@@ -399,14 +405,9 @@ void dict_dump() {
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 #if DO_WASM
 /// function in worker thread
-EM_JS(void, canvas, (const char *arg, U32 v=0), {
-        postMessage(['ui', [ UTF8ToString(arg), v]])
+EM_JS(void, canvas, (char *arg, U32 v=0), {
+        postMessage(['js', [ UTF8ToString(arg), v]])
     });
-int RGB() {            ///< ( r g b -- )
-    int rgb = top | (ss.pop()<<8) | (ss.pop()<<16);
-    top = ss.pop();
-    return rgb;
-}
 #endif // DO_WASM
 
 void dict_compile() {  ///< compile primitive words into dictionary
@@ -472,14 +473,14 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("*/mod",   DU2 n = (DU2)ss.pop() * ss.pop();
                     DU2 t = top;
                     ss.push((DU)(n % t)); top = (DU)(n / t));
-    CODE("and",     top = ss.pop() & top);
-    CODE("or",      top = ss.pop() | top);
-    CODE("xor",     top = ss.pop() ^ top);
+    CODE("and",     top = (U32)ss.pop() & (U32)top);
+    CODE("or",      top = (U32)ss.pop() | (U32)top);
+    CODE("xor",     top = (U32)ss.pop() ^ (U32)top);
     CODE("abs",     top = abs(top));
     CODE("negate",  top = -top);
     CODE("invert",  top = ~top);
-    CODE("rshift",  top = ss.pop() >> top);
-    CODE("lshift",  top = ss.pop() << top);
+    CODE("rshift",  top = (U32)ss.pop() >> (U32)top);
+    CODE("lshift",  top = (U32)ss.pop() << (U32)top);
     CODE("max",     DU n=ss.pop(); top = (top>n)?top:n);
     CODE("min",     DU n=ss.pop(); top = (top<n)?top:n);
     CODE("2*",      top *= 2);
@@ -646,7 +647,12 @@ void dict_compile() {  ///< compile primitive words into dictionary
          POP();                             // string length, not used
          U8 *fn = MEM(POP());               // file name
          forth_include((const char*)fn));   // include file
-    /// @}
+#if DO_WASM    
+    CODE("JS",                              // Javascript interface
+         POP();                             // strlen, not used
+         char *op = (char*)MEM(POP());      // pointer to string
+         js(op, POP()));                    // call Emscripten js function
+#endif // DO_WASM    
     CODE("bye",   exit(0));
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
