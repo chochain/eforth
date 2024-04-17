@@ -95,15 +95,15 @@ string word(char delim=0) {          ///> read next idiom form input stream
     string s; delim ? getline(fin, s, delim) : fin >> s; return s;
 }
 void ss_dump(DU base) {              ///> display data stack and ok promt
-	bool d = base==10;
+    bool d = base==10;
     fout << "< ";
-	for (DU i : ss) {
-		if (d) fout << i << " ";
-		else   fout << (U32)i << " ";
-	}
-	if (d) fout << top;
-	else   fout << (U32)top;
-	fout << " > ok" << ENDL;
+    for (DU i : ss) {
+        if (d) fout << i << " ";
+        else   fout << (U32)i << " ";
+    }
+    if (d) fout << top;
+    else   fout << (U32)top;
+    fout << " > ok" << ENDL;
 }
 void see(Code *c, int dp) {          ///> disassemble a colon word
     auto pp = [](int dp, string s, FV<Code*> v) {     ///> recursive dump with indent
@@ -111,8 +111,8 @@ void see(Code *c, int dp) {          ///> disassemble a colon word
         for (Code *w : v) if (dp < 3) see(w, dp + 1); /// * depth controlled
     };
     string sn = c->str
-		? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
-	string bn = c->stage==2	? "_while" : (c->stage==3 ? "_aft" : "_else");
+        ? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
+    string bn = c->stage==2    ? "_while" : (c->stage==3 ? "_aft" : "_else");
     pp(dp, sn, c->pf);
     if (c->p1.size() > 0) pp(dp, bn, c->p1);
     if (c->p2.size() > 0) pp(dp, "_then", c->p2);
@@ -250,9 +250,9 @@ FV<Code*> dict = {                 ///< Forth dictionary
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          int  b = last->stage;                 ///< branching state
          if (b==0) {                           
-			 last->pf.merge(tmp->pf);          /// * if.{pf}.then
-			 dict.pop();
-		 }
+             last->pf.merge(tmp->pf);          /// * if.{pf}.then
+             dict.pop();
+         }
          else {                                /// * else.{p1}.then, or
              last->p1.merge(tmp->pf);          /// * then.{p1}.next
              if (b==1) dict.pop();             /// * if..else..then
@@ -274,7 +274,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("again",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop();          /// * begin.{pf}.again
-	     last->stage = 1),
+         last->stage = 1),
     IMMD("until",
          Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop()),         /// * begin.{pf}.f.until
