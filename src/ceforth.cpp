@@ -94,9 +94,16 @@ void _does(Code *c);  ///> forward declared, needs dict
 string word(char delim=0) {          ///> read next idiom form input stream
     string s; delim ? getline(fin, s, delim) : fin >> s; return s;
 }
-void ss_dump() {                     ///> display data stack and ok promt
-    fout << "< "; for (DU i : ss) fout << i << " ";
-    fout << top << " > ok" << ENDL;
+void ss_dump(DU base) {              ///> display data stack and ok promt
+	bool d = base==10;
+    fout << "< ";
+	for (DU i : ss) {
+		if (d) fout << i << " ";
+		else   fout << (U32)i << " ";
+	}
+	if (d) fout << top;
+	else   fout << (U32)top;
+	fout << " > ok" << ENDL;
 }
 void see(Code *c, int dp) {          ///> disassemble a colon word
     auto pp = [](int dp, string s, FV<Code*> v) {     ///> recursive dump with indent
@@ -162,14 +169,14 @@ FV<Code*> dict = {                 ///< Forth dictionary
                    ss.push(n % t); top = (n / t)),
     CODE("*/mod",  DU2 n = (DU2)ss.pop() * ss.pop(); DU2 t=top;
                    ss.push((DU)(n % t)); top = (DU)(n / t)),
-    CODE("and",    top &= ss.pop()),
-    CODE("or",     top |= ss.pop()),
-    CODE("xor",    top ^= ss.pop()),
-    CODE("abs",    top = abs(top)),
-    CODE("negate", top = -top),
-    CODE("invert", top = ~top),
-    CODE("rshift", top = ss.pop() >> top),
-    CODE("lshift", top = ss.pop() << top),
+    CODE("and",    top =  (U32)ss.pop() & (U32)top),
+    CODE("or",     top =  (U32)ss.pop() | (U32)top),
+    CODE("xor",    top =  (U32)ss.pop() ^ (U32)top),
+    CODE("abs",    top =  abs(top)),
+    CODE("negate", top =  -top),
+    CODE("invert", top =  ~top),
+    CODE("rshift", top =  (U32)ss.pop() >> (U32)top),
+    CODE("lshift", top =  (U32)ss.pop() << (U32)top),
     CODE("max",    DU n=ss.pop(); top = (top>n)?top:n),
     CODE("min",    DU n=ss.pop(); top = (top<n)?top:n),
     CODE("2*",     top *= 2),
@@ -360,7 +367,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     CODE("here",    PUSH(dict[-1]->token)),
     CODE("'",       Code *w = find(word()); if (w) PUSH(w->token)),
-    CODE(".s",      ss_dump()),        // dump parameter stack
+    CODE(".s",      ss_dump(BASE)),    // dump parameter stack
     CODE("words",   words()),          // display word lists
     CODE("see",     Code *w = find(word()); if (w) see(w, 0); fout << ENDL),
     CODE("depth",   PUSH(ss.size())),  // data stack depth
@@ -409,7 +416,7 @@ void words() {              ///> display word list
              << ":" << (w->immd ? '*' : ' ')
              << w->name << "  " << ENDL;
 #else
-        fout << w->name << "  ";
+        fout << "  " << w->name;
         x += (w->name.size() + 2);
         if (x > WIDTH) { fout << ENDL; x = 0; }
 #endif
@@ -481,6 +488,6 @@ void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
             getline(fin, idiom, '\n'); /// * flush to end-of-line
         }
     }
-    if (!compile) ss_dump();
+    if (!compile) ss_dump(BASE);
 }
 ///====================================================================
