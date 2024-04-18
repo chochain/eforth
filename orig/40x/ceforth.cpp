@@ -363,11 +363,10 @@ void ss_dump() {
         if (v < 0) buf[--i]='-';
         return &buf[i];
     };
-    fout << " <";
     for (int i=0; i<ss.idx; i++) {
-        fout << rdx(ss[i], *base) << " ";
+        fout << rdx(ss[i], *base) << ' ';
     }
-    fout << rdx(top, *base) << "> ok" << ENDL;
+    fout << rdx(top, *base) << " -> ok" << ENDL;
 }
 void mem_dump(IU p0, DU sz) {
     fout << setbase(16) << setfill('0');
