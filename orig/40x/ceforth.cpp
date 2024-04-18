@@ -421,9 +421,9 @@ void call_js() {                           ///> ( n addr u -- )
     pad.append((char*)MEM(POP()));         /// copy string on stack
     for (size_t i=pad.find_last_of('%');   ///> find % from back
          i!=string::npos;                  /// * until not found
-         i=pad.find_last_of('%', i-1)) {
+         i=pad.find_last_of('%',i?i-1:0)) {
         if (i && pad[i-1]=='%') {          /// * double %%
-            pad.replace(i--,1,"");         /// * drop one %
+            pad.replace(--i,1,"");         /// * drop one %
         }
         else pad.replace(i,1,to_string(POP()));
     }
