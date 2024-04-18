@@ -406,16 +406,25 @@ void dict_dump() {
 }
 ///====================================================================
 ///
-///> eForth dictionary assembler
-///  Note: sequenced by enum forth_opcode as following
+///> Javascript/WASM interface
 ///
-UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 #if DO_WASM
 /// function in worker thread
 EM_JS(void, js, (const char *op), {
     postMessage(['js', UTF8ToString(op)])
 });
 void call_js() {                           ///> ( n addr u -- )
+    stringstream n;
+    auto t2s = [&n](char c) {              ///< template to string
+        n.str("");                         /// * clear stream
+        switch (c) {
+        case 'd': n << POP();                    break;
+        case 'x': n << "0x" << hex << POP();     break;
+        case 's': POP(); n << (char*)MEM(POP()); break;
+        default : n << c << '?';                 break;
+        }
+        return n.str();
+    };
     POP();                                 /// * strlen, not used
     pad.clear();                           /// * borrow PAD for string op
     pad.append((char*)MEM(POP()));         /// copy string on stack
@@ -425,11 +434,17 @@ void call_js() {                           ///> ( n addr u -- )
         if (i && pad[i-1]=='%') {          /// * double %%
             pad.replace(--i,1,"");         /// * drop one %
         }
-        else pad.replace(i,1,to_string(POP()));
+        else pad.replace(i, 2, t2s(pad[i+1]));
     }
-    js(pad.c_str());     /// * call Emscripten js function
+    js(pad.c_str());    /// * call Emscripten js function
 }
 #endif // DO_WASM
+///====================================================================
+///
+///> eForth dictionary assembler
+///  Note: sequenced by enum forth_opcode as following
+///
+UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 
 void dict_compile() {  ///< compile primitive words into dictionary
     base = (DU*)MEM(pmem.idx);                          ///< set pointer to base
