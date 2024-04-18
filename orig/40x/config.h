@@ -18,7 +18,7 @@
 ///@name Memory block configuation
 ///@{
 #define E4_RS_SZ        32
-#define E4_SS_SZ        16
+#define E4_SS_SZ        32
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
 ///@}
