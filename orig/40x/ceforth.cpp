@@ -395,7 +395,7 @@ void dict_dump() {
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         fout << setfill('0') << setw(3) << i
-             << "> attr=" << (c.attr & ~MSK_ATTR)
+             << "> attr=" << (c.attr & 0x3)
              << ", xt="   << setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
              << ":"       << setw(8) << (UFP)c.xt
              << ", name=" << setw(8) << (UFP)c.name
@@ -409,8 +409,8 @@ void dict_dump() {
 ///
 #if DO_WASM
 /// function in worker thread
-EM_JS(void, js, (const char *op), {
-    postMessage(['js', UTF8ToString(op)])
+EM_JS(void, js, (const char *ops), {
+    postMessage(['js', UTF8ToString(ops)])
 });
 void call_js() {                           ///> ( n addr u -- )
     stringstream n;
@@ -745,22 +745,31 @@ int forth_core(const char *idiom) {
 ///
 void forth_init() {
     static bool init = false;
-    if (init) return;          ///> check dictionary initilized
+    if (init) return;            ///> check dictionary initilized
     
-    dict_compile();            ///> compile dictionary
+    dict_compile();              ///> compile dictionary
 }
-void forth_vm(const char *cmd, void(*callback)(int, const char*)) {
-    fin.clear();               ///> clear input stream error bit if any
-    fin.str(cmd);              ///> feed user command into input stream
-    fout_cb = callback;        ///> setup callback function
-    fout.str("");              ///> clean output buffer, ready for next run
-    while (fin >> pad) {       ///> outer interpreter loop
-        const char *idiom = pad.c_str();
-        forth_core(idiom);     ///> single command to Forth core
+void forth_vm(const char *cmd, void(*hook)(int, const char*)) {
+    auto outer = []() {          ///< Forth outer interpreter
+        string idiom;
+        while (fin >> idiom) {          ///> fetch a word
+            forth_core(idiom.c_str());  ///> send to Forth core
+        }
+    };
+    auto cb = [](int, const char *rst) { printf("%s", rst); };
+    fout_cb = hook ? hook : cb;
+
+    istringstream stm(cmd);      ///< input stream
+    string        line;          ///< command line
+    fout.str("");                /// * clean output buffer
+    while (getline(stm, line)) {
+        fin.clear();             ///> clear input stream error bit if any
+        fin.str(line);           ///> feed user command into input stream
+        outer();                 /// * invoke Forth outer interpreter
     }
 #if DO_WASM    
     if (!compile) fout << "ok" << ENDL;
 #else
-    if (!compile) ss_dump();   /// * dump stack and display ok prompt
+    if (!compile) ss_dump();     /// * dump stack and display ok prompt
 #endif  // DO_WASM
 }
