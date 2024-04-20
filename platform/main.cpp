@@ -8,7 +8,7 @@
 using namespace std;
 
 extern void forth_init();
-extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
+extern void forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
 
 const char* APP_VERSION = "eForth v4.2";
 ///====================================================================
@@ -32,14 +32,14 @@ void mem_stat() {
 ///
 ///> include external Forth script
 ///
+#include <sstream>                   /// stringstream
 int forth_include(const char *fn) {
-    auto send_to_con = [](int len, const char *rst) { cout << rst; };
-    string   cmd;
-    ifstream ifile(fn);                 ///> open input stream
-    while (getline(ifile, cmd)) {
-        forth_vm(cmd.c_str(), send_to_con);
-    }
+    stringstream cmd;                ///< command stream buffer
+    ifstream     ifile(fn);          ///< open input stream
+    cmd << ifile.rdbuf();
     ifile.close();
+
+    forth_vm(cmd.str().c_str());
     return 0;
 }
 ///====================================================================
@@ -50,11 +50,10 @@ int main(int ac, char* av[]) {
     forth_init();                       ///> initialize dictionary
 	mem_stat();                         ///> show memory status
     
-    auto send_to_con = [](int len, const char *rst) { cout << rst; };
     string cmd;
-    while (getline(cin, cmd)) {                ///> fetch user input
+    while (getline(cin, cmd)) {         ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
-        forth_vm(cmd.c_str(), send_to_con);    ///> execute outer interpreter
+        forth_vm(cmd.c_str());          ///> execute outer interpreter
     }
     cout << "Done!" << endl;
     return 0;

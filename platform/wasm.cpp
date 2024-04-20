@@ -3,9 +3,10 @@
 /// @brief eForth platform for WASM
 ///
 #include <stdio.h>
+#include <emscripten.h>
 
 extern void forth_init();
-extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
+extern void forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
 
 const char* APP_VERSION = "eForth v4.2";
 ///====================================================================
@@ -27,10 +28,6 @@ int main(int ac, char* av[]) {
 ///
 /// WASM/Emscripten ccall interfaces
 ///
-#include <emscripten.h>
 extern "C" {
-void forth(int n, char *cmd) {
-    auto rsp_to_con = [](int len, const char *rst) { printf("%s", rst); };
-    forth_vm(cmd, rsp_to_con);
-}
+    void forth(int n, char *cmd) { forth_vm(cmd); }
 }
