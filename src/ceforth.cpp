@@ -481,6 +481,17 @@ void forth_core(string idiom) {
 ///> Forth VM - interface to outside world
 ///
 void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
+    auto outer = []() {               ///< outer interpreter
+        string idiom;
+        while (fin >> idiom) {
+            try { forth_core(idiom); }     ///> single command to Forth core
+            catch(...) {
+                fout << idiom << "? " << ENDL;
+                compile = false;
+                getline(fin, idiom, '\n'); /// * flush to end-of-line
+            }
+        }
+    };
     auto cb = [](int,const char* rst) { cout << rst; };
     fout_cb = hook ? hook : cb;       ///> setup callback function
     
@@ -491,15 +502,7 @@ void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
     while (getline(istm, line)) {     /// * fetch line by line
         fin.clear();                  ///> clear input stream error bit if any
         fin.str(line);                ///> feed user command into input stream
-        string idiom;
-        while (fin >> idiom) {        ///> outer interpreter loop
-            try { forth_core(idiom); }     ///> single command to Forth core
-            catch(...) {
-                fout << idiom << "? " << ENDL;
-                compile = false;
-                getline(fin, idiom, '\n'); /// * flush to end-of-line
-            }
-        }
+        outer();                      /// * call Forth outer interpreter
     }
     if (!compile) ss_dump(BASE);
 }
