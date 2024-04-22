@@ -106,10 +106,10 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
         if (v < 0) buf[--i]='-';
         return &buf[i];
     };
-    for (DU v : ss) {
-        fout << rdx(v, base) << ' ';
-    }
-    fout << rdx(top, base) << " -> ok" << ENDL;
+    ss.push(top);
+    for (DU v : ss) { fout << rdx(v, base) << ' '; }
+    top = ss.pop();
+    fout << "-> ok" << ENDL;
 }
 void see(Code *c, int dp) {          ///> disassemble a colon word
     auto pp = [](int dp, string s, FV<Code*> v) {     ///> recursive dump with indent
