@@ -103,7 +103,7 @@ int streq(const char *s1, const char *s2) {
 }
 IU find(const char *s) {
     IU v = 0;
-    for (IU i = dict.idx - (compile ? 2 : 1); i > 0; --i) {
+    for (IU i = dict.idx - 1; i > 0; --i) {
         if (streq(s, dict[i].name)) { v = i; break; }
     }
 #if CC_DEBUG > 1
@@ -363,10 +363,12 @@ void ss_dump() {
         if (v < 0) buf[--i]='-';
         return &buf[i];
     };
+    ss.push(top);
     for (int i=0; i<ss.idx; i++) {
         fout << rdx(ss[i], *base) << ' ';
     }
-    fout << rdx(top, *base) << " -> ok" << ENDL;
+    top = ss.pop();
+    fout << "-> ok" << ENDL;
 }
 void mem_dump(IU p0, DU sz) {
     fout << setbase(16) << setfill('0');
