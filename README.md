@@ -31,9 +31,9 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 
     > make
     > ./tests/eforth             # to bring up the Forth interpreter
-    > > words                    \ to see avilable Forth words
-    > > 1 2 +                    \ see Forth in action
-    > > bye or Ctrl-C            \ to exit eForth
+    > type> words⏎               \ to see available Forth words
+    > type> 1 2 +⏎               \ see Forth in action
+    > type> bye⏎  or Ctrl-C      \ to exit eForth
 
 ### WASM
 
