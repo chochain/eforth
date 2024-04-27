@@ -30,8 +30,10 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 ### Linux or Cygwin
 
     > make
-    > ./tests/eforth
-    > to quit, type 'bye' or Ctrl-C
+    > ./tests/eforth             # to bring up the Forth interpreter
+    > > words                    \ to see avilable Forth words
+    > > 1 2 +                    \ see Forth in action
+    > > bye or Ctrl-C            \ to exit eForth
 
 ### WASM
 
