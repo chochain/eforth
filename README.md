@@ -1,5 +1,5 @@
 # Forth - is it still relevant?
-With all the advantages, it is unfortunate that Forth lost out to C language over the years and have been reduced to a niche. Per ChatGPT: *due to C's border appeal, standardization, and support ecosystem likely contributed to its greater adoption and use in mainstream computing*.
+With all the advantages, it is unfortunate that Forth lost out to C language over the years and have been reduced to a niche. Per ChatGPT: *due to C's broader appeal, standardization, and support ecosystem likely contributed to its greater adoption and use in mainstream computing*.
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
@@ -63,9 +63,11 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 
 ## Changes - What have we done!
 
-Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'. Often, the low-level core are built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but now became the show-stopper for many newbies. Because, one have to learn the assembly language, understand the memory model before appreciating the internal of Forth.
+Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'.
 
-Traditionally, high-level languages like C or C++ are generally avoided for implementing Forth. However, through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
+Traditionally, high-level languages like C or C++ are generally avoided for implementing Forth. The low-level core are built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but unfortunately, also became the show-stopper for many newbies. Because, one have to learn the assembly language, understand the memory model before appreciating the internal of Forth.
+
+Through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
  
 ## Source Code Directories
 
