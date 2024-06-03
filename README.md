@@ -65,7 +65,7 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 
 Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'.
 
-Traditionally, high-level languages like C or C++ are generally avoided for implementing Forth. The low-level core are built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but unfortunately, also became the show-stopper for many newbies. Because, one have to learn the assembly language, understand the memory model before appreciating the internal of Forth.
+Traditionally, high-level languages like C or C++ are avoided for implementing Forth. The low-level core is built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but unfortunately, also became the entry barrier for many newbies because tney have to learn the assembly language, understand the memory model before even peeking into the internal of Forth not to mention appreciating it.
 
 Through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
  
@@ -135,7 +135,7 @@ Though the use of C++ standard libraries helps us understanding what Forth does 
     + A C++ string, needs 3 to 4 pointers, will require 24-32 bytes,
     + A vector, takes 3 pointers, is 24 bytes
 
-The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Now go figure how the classic Forths needs only 2 or 4 bytes per node, aka linked-field, with the final executable in a just a few KB. You might start to understand why the old Forth builders see C/C++ like plaque.
+The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Go figure how the classic Forths needs only 2 or 4 bytes per node via linked-field and the final executable in a just a few KB. You might start to understand why the old Forth builders see C/C++ like plaque.
 
 ## Revision History
 
