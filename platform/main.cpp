@@ -33,14 +33,13 @@ void mem_stat() {
 ///> include external Forth script
 ///
 #include <sstream>                   /// stringstream
-int forth_include(const char *fn) {
+void forth_include(const char *fn) {
     stringstream cmd;                ///< command stream buffer
     ifstream     ifile(fn);          ///< open input stream
     cmd << ifile.rdbuf();
     ifile.close();
 
     forth_vm(cmd.str().c_str());
-    return 0;
 }
 ///====================================================================
 ///
