@@ -1,0 +1,46 @@
+﻿<html>
+  <head>    
+  <title>eForth v4.2</title>
+  <style>
+    .cmd  { color:#48f; margin: 2px; }
+    .dsp  { display:flex; flex-direction:column; height:100%; font-family:monospace; font-size:18px; }
+    .txt  { width:100%; height:auto; margin:4px; display:flex; flex-direction:column; overflow-x:scroll; display:block }
+  </style>
+  </head>
+  <body>
+    <div class='dsp'>
+      <pre id='txt' class='txt'></pre>
+      <input id='tib' type='text' style='width:100%; font-size:1.0em'
+             onkeydown='if (13===event.keyCode) forth_eval()'/>
+    </div>
+    <script>
+      const tib = document.getElementById('tib')
+      const txt = document.getElementById('txt')
+      
+      function to_txt(t, br=true) {
+          txt.innerHTML += br ? t + '<br/>' : t
+          txt.scrollTop = txt.scrollHeight
+      }
+      var Module = { print: to_txt }         ///< WASM global object
+      ///
+      /// Forth outer interpreter
+      ///
+      function forth_eval(echo=true) {
+          const xtib = ()=>{ tib.value=''; tib.focus() }
+          let cmd = tib.value
+          if (cmd=='clear') { txt.innerHTML=''; xtib(); return }
+          if (echo) to_txt('<pre class="cmd"><em>'+cmd+'</em></pre>', false)
+          try {
+              var forth = Module.cwrap('forth', null, ['number', 'string'])
+              forth(0, cmd);                 /// * call Forth in C/C++
+          }
+          catch(e) { console.log(e.toString()+'\n') }
+          finally  { xtib(); }
+      }
+      window.onload = ()=>setTimeout(()=>{
+          tib.value = 'mstat'; forth_eval(false)
+      }, 1000)
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>
