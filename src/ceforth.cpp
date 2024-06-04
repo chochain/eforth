@@ -88,6 +88,16 @@ void _doloop(Code *c) {         ///> do..loop
     catch (...) {}                           // handle LEAVE
 }
 void _does(Code *c);  ///> forward declared, needs dict
+void _load(const char *fn) {
+    void (*cb)(int, const char*) = fout_cb;  ///< keep output function
+    string in; getline(fin, in);             ///< keep input buffers
+    fout << ENDL;                            /// * flush output
+    
+    forth_include(fn);                       /// * send script to VM
+    
+    fout_cb = cb;                            /// * restore output cb
+    fin.clear(); fin.str(in);                /// * restore input
+}    
 ///
 ///> IO functions
 ///
@@ -383,9 +393,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("mstat",   mem_stat()),       // display memory stat
     CODE("ms",      PUSH(millis())),   // get system clock in msec
     CODE("delay",   delay(POP())),     // n -- delay n msec
-    CODE("included",
-         const char *fn = pad.c_str(); // file name from cached string
-         forth_include(fn)),           // load external Forth script
+    CODE("included", _load(pad.c_str())),
     CODE("forget",
          Code *w = find(word()); if (!w) return;
          int   t = max((int)w->token, find("boot")->token + 1);
