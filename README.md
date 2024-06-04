@@ -37,8 +37,9 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 
 ### WASM
 
-    > make wasm
-    > python3 -m http.server
+    > ensure you have Emscripten (WASM compiler) installed and configured
+    > type> make wasm
+    > type> python3 -m http.server
     > from your browser, open http://localhost:80/tests/eforth.html
 
 ### ESP32
