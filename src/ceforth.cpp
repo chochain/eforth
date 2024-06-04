@@ -503,7 +503,6 @@ void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
     auto cb = [](int,const char* rst) { cout << rst; };
     fout_cb = hook ? hook : cb;       ///> setup callback function
     
-    printf(">>%s\n", cmd);
     istringstream istm(cmd);          ///< input stream
     string        line;               ///< one line of command
     fout.str("");                     ///> clean output buffer
