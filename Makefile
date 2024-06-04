@@ -3,10 +3,11 @@ CC = g++
 CC_FLAG = -std=c++17 -O2 -Wall 
 
 FLST = \
-	tests/ceforth36b \
-	tests/ceforth40x \
-	tests/eforth     \
-	tests/eforth.js  \
+	tests/ceforth36b  \
+	tests/ceforth40x  \
+	tests/eforth      \
+	tests/eforth.html \
+	tests/eforth.js   \
 	tests/eforth.wasm
 
 exe: tests/eforth
@@ -15,7 +16,7 @@ exe: tests/eforth
 
 40x: tests/ceforth40x
 
-wasm: tests/eforth.js
+wasm: tests/eforth.html
 
 all: exe 36b 40x wasm
 
@@ -31,8 +32,11 @@ tests/ceforth36b: orig/ting/ceforth_36b.cpp
 tests/ceforth40x: platform/main.o orig/40x/ceforth.cpp
 	$(CC) $(CC_FLAG) -Iorig/40x/src -o $@ $^
 
-tests/eforth.js: platform/wasm.cpp src/ceforth.cpp
-	$(EM) -Isrc -o $@ $^ -sEXPORTED_FUNCTIONS=_main,_forth -sEXPORTED_RUNTIME_METHODS=cwrap -O2
+tests/eforth.html: platform/wasm.cpp src/ceforth.cpp
+	$(EM) -Isrc -o $@ $^ \
+	  --shell-file platform/eforth.html \
+	  -sEXPORTED_FUNCTIONS=_main,_forth \
+	  -sEXPORTED_RUNTIME_METHODS=cwrap -O2
 
 clean:
 	rm src/*.o platform/*.o $(FLST)
