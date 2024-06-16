@@ -52,17 +52,18 @@ The core of current implementation of eForth is the dictionary composed of an ar
     </pre>
     
 3. <b>Inner Interpreter</b> - *Code.exec()* is self-explanatory
-    <pre>
+    ```C
     if (xt) { xt(this); return; }         // run primitive word
     for (Code *w : pf) {                  // run colon word
         try { w->exec(); }                // execute recursively
         catch (...) { break; }            // also handle exit
     }
+    ```
+    
     i.e. either we call a primitive word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
-    </pre>
     
 4. <b>Outer Interpreter</b> - *forth_core()* is self-explanatory
-    <pre>
+    ```C
     Code *w = find(idiom);                // search dictionary
     if (w) {                              // word found?
         if (compile && !w->immd)          // are we compiling?
@@ -74,7 +75,7 @@ The core of current implementation of eForth is the dictionary composed of an ar
     if (compile)                          // are we compiling?
         dict[-1]->add(new Code(_lit, n)); // add to current word
     else PUSH(n);                         // push onto data stack
-    </pre>
+    ```
     
 ## ceForth - Where we came from
 
