@@ -14,13 +14,28 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for
 > 4. A user area in RAM memory to hold all the system variables.
 > 5. A CPU to move date among stacks and memory, and to do ALU operations to parameters stored on the data stack.
 
-## ceForth - on the shoulder of a giant
+## eForth now - What have we done!
+
+1. 100% C/C++ and cross-platform support. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
+2. No threading. Dictionary remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
+
+    To search for a word, simply scan the name string of dictionary entries. So, to define a new word during compile time is just to append those found word pointers to the its parameter array one by one.
+    
+    To execute become just a walk of the word pointers in the array. This is our inner interpreter.
+    
+3. Data and Return Stacks are arrays with Push, Pop and [] methods to clarify intentions.
+4. No vocabulary, multi-tasking, or meta-compilation. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
+
+
+## ceForth - Where we came from
 
 Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See [here](https://www.forth.org/OffeteStore/OffeteStore.html) for the detailed list. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
 
 Utilizing modern OS and tool chains, a new generation of Forths implemented in just a few hundreds lines of C code can help someone who did not know Forth to gain the core understanding much quickly. He called the insight **Forth without Forth**.
 
 In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceforth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
+
+We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
 
 ## How To Build and Run
 
@@ -62,14 +77,50 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
     > make 40x
     > ./tests/eforth40x
 
-## Changes - What have we done!
+## eForth Internals
+The core of current implementation of eForth is the dictionary which is an array of struct Code which is the basic unit of a Forth word.
 
-Even with vocabulary, multi-tasking, and meta-compilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth customarily uses linear memory blocks to host stacks and words in the dictionary. Forth manages code and their parameters, in bytes or CELLs, with a backward linked-list known for the term 'threading'.
+### *struct Code* - the heart of eForth, depends on the constructor called, the following are populated accordingly
+    + Code.name - a string that holds primitive word's name, i.e. NFA in classic FORTH
+    + Code.xt   - pointer to a lambda function for primitive words i.e. XT in classic FORTH
+    + Code.pf, p1, p2 - parameter arrays of struct Code for compound words, i.e. PFA in classic FORTH
+    + Code.q    - holds the literal value which classic FORTH keep on parameter memory
+    + Code.name - holds string or branching mnemonic for compound wordswhich classic FORTH keeps on parameter memory
 
-Traditionally, high-level languages like C or C++ are avoided for implementing Forth. The low-level core is built from ground up with assembly, then meta-compiled or boot-strapped with high-level Forth scripts. This model is crucial in the days when memory is scarce or compiler resource is just underwhelming. It gave the power to Forth, but unfortunately, also became the entry barrier for many newbies because tney have to learn the assembly language, understand the memory model before even peeking into the internal of Forth not to mention appreciating it.
+### Dictionary - an array of *struct Code*
+    + primitives - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt    
+        dict[0].xt ------> pointer to primitive word lambda[0]
+        dict[1].xt ------> pointer to primitive word lambda[1]
+        ...
+        dict[N-1].xt ----> pointer to last primitive word lambda[N-1]
+        
+    + colon (user defined) words - colection of word pointers during compile time
+        dict[N].pf   = [ *Code, *Code, ..., *Code ]
+        dict[N+1].pf = [ *Code, *Code, ..., *Code ]
+        ...
+        dict[-1].pf  = [ *Code, *Code, ..., *Code ]
 
-Through rounds of experiments, we concluded that by utilizing the dynamic allocation, streaming IO, and other C++ standard libraries can clarify the intention of our implementation of Forth to millions of C programmers potentially. We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
- 
+### Inner Interpreter - *Code.exec()* is self-explanatory
+    if (xt) { xt(this); return; }         // run primitive word
+    for (Code *w : pf) {                  // run colon word
+        try { w->exec(); }                // execute recursively
+        catch (...) { break; }            // also handle exit
+    }
+    i.e. either we call a primitive word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
+
+### Outer Interpreter - *forth_core()* is self-explanatory
+    Code *w = find(idiom);                // search dictionary
+    if (w) {                              // word found?
+        if (compile && !w->immd)          // are we compiling?
+            dict[-1]->add(w);             // add it to the new word
+        else w->exec();                   // or, execute the word
+        return;
+    }
+    DU n = parse_number(idiom);           // try as a number
+    if (compile)                          // are we compiling?
+        dict[-1]->add(new Code(_lit, n)); // add to current word
+    else PUSH(n);                         // push onto data stack
+    
 ## Source Code Directories
 
     + ~/src       - common source code for all supported platforms
