@@ -16,17 +16,63 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for
 
 ## eForth now - What have we done!
 
-1. 100% C/C++ and cross-platform support. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
-2. No threading. Dictionary remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
+1. *100% C/C++ and cross-platform support*. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
+2. *No threading*. Dictionary remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
 
     To search for a word, simply scan the name string of dictionary entries. So, to define a new word during compile time is just to append those found word pointers to the its parameter array one by one.
     
     To execute become just a walk of the word pointers in the array. This is our inner interpreter.
     
-3. Data and Return Stacks are arrays with Push, Pop and [] methods to clarify intentions.
-4. No vocabulary, multi-tasking, or meta-compilation. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
+3. *Data and Return Stacks are arrays*. With push, pop and [] methods to clarify intentions.
+4. *No vocabulary, multi-tasking, or meta-compilation*. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
 
+## eForth Internals
+The core of current implementation of eForth is the dictionary composed of an array of Code objects that represent each of Forth words.
 
+1. *Code* - the heart of eForth, depends on the constructor called, the following fields are populated accordingly
+    + Code.name - a string that holds primitive word's name, i.e. NFA in classic FORTH
+    + Code.xt   - pointer to a lambda function for primitive words i.e. XT in classic FORTH
+    + Code.pf, p1, p2 - parameter arrays of Code objects for compound words, i.e. PFA in classic FORTH
+    + Code.q    - holds the literal value which classic FORTH keep on parameter memory
+    + Code.name - holds string or branching mnemonic for compound wordswhich classic FORTH keeps on parameter memory
+
+2. *Dictionary* - an array of *Code* objects
+    + primitives - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt    
+        dict[0].xt ------> pointer to primitive word lambda[0]
+        dict[1].xt ------> pointer to primitive word lambda[1]
+        ...
+        dict[N-1].xt ----> pointer to last primitive word lambda[N-1]
+        
+    + colon (user defined) words - colection of word pointers during compile time
+        dict[N].pf   = [ *Code, *Code, ..., *Code ]
+        dict[N+1].pf = [ *Code, *Code, ..., *Code ]
+        ...
+        dict[-1].pf  = [ *Code, *Code, ..., *Code ]
+
+3. *Inner Interpreter* - Code.exec() is self-explanatory
+
+    if (xt) { xt(this); return; }         // run primitive word
+    for (Code *w : pf) {                  // run colon word
+        try { w->exec(); }                // execute recursively
+        catch (...) { break; }            // also handle exit
+    }
+    
+    i.e. either we call a primitive word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
+
+4. *Outer Interpreter* - forth_core() is self-explanatory
+
+    Code *w = find(idiom);                // search dictionary
+    if (w) {                              // word found?
+        if (compile && !w->immd)          // are we compiling?
+            dict[-1]->add(w);             // add it to the new word
+        else w->exec();                   // or, execute the word
+        return;
+    }
+    DU n = parse_number(idiom);           // try as a number
+    if (compile)                          // are we compiling?
+        dict[-1]->add(new Code(_lit, n)); // add to current word
+    else PUSH(n);                         // push onto data stack
+    
 ## ceForth - Where we came from
 
 Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See [here](https://www.forth.org/OffeteStore/OffeteStore.html) for the detailed list. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
@@ -77,50 +123,6 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > make 40x
     > ./tests/eforth40x
 
-## eForth Internals
-The core of current implementation of eForth is the dictionary which is an array of struct Code which is the basic unit of a Forth word.
-
-### *struct Code* - the heart of eForth, depends on the constructor called, the following are populated accordingly
-    + Code.name - a string that holds primitive word's name, i.e. NFA in classic FORTH
-    + Code.xt   - pointer to a lambda function for primitive words i.e. XT in classic FORTH
-    + Code.pf, p1, p2 - parameter arrays of struct Code for compound words, i.e. PFA in classic FORTH
-    + Code.q    - holds the literal value which classic FORTH keep on parameter memory
-    + Code.name - holds string or branching mnemonic for compound wordswhich classic FORTH keeps on parameter memory
-
-### Dictionary - an array of *struct Code*
-    + primitives - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt    
-        dict[0].xt ------> pointer to primitive word lambda[0]
-        dict[1].xt ------> pointer to primitive word lambda[1]
-        ...
-        dict[N-1].xt ----> pointer to last primitive word lambda[N-1]
-        
-    + colon (user defined) words - colection of word pointers during compile time
-        dict[N].pf   = [ *Code, *Code, ..., *Code ]
-        dict[N+1].pf = [ *Code, *Code, ..., *Code ]
-        ...
-        dict[-1].pf  = [ *Code, *Code, ..., *Code ]
-
-### Inner Interpreter - *Code.exec()* is self-explanatory
-    if (xt) { xt(this); return; }         // run primitive word
-    for (Code *w : pf) {                  // run colon word
-        try { w->exec(); }                // execute recursively
-        catch (...) { break; }            // also handle exit
-    }
-    i.e. either we call a primitive word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
-
-### Outer Interpreter - *forth_core()* is self-explanatory
-    Code *w = find(idiom);                // search dictionary
-    if (w) {                              // word found?
-        if (compile && !w->immd)          // are we compiling?
-            dict[-1]->add(w);             // add it to the new word
-        else w->exec();                   // or, execute the word
-        return;
-    }
-    DU n = parse_number(idiom);           // try as a number
-    if (compile)                          // are we compiling?
-        dict[-1]->add(new Code(_lit, n)); // add to current word
-    else PUSH(n);                         // push onto data stack
-    
 ## Source Code Directories
 
     + ~/src       - common source code for all supported platforms
