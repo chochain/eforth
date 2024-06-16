@@ -16,28 +16,29 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for
 
 ## eForth now - What have we done!
 
-1. *100% C/C++ and cross-platform support*. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
-2. *No threading*. Dictionary remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
-
-    To search for a word, simply scan the name string of dictionary entries. So, to define a new word during compile time is just to append those found word pointers to the its parameter array one by one.
+1. <b>100% C/C++ and cross-platform support</b>. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
+2. <b>No threading</b>. Dictionary remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
+    + To search for a word, simply scan the name string of dictionary entries. So, to define a new word during compile time is just to append those found word pointers to the its parameter array one by one.
+    + To execute become just a walk of the word pointers in the array. This is our inner interpreter.
     
-    To execute become just a walk of the word pointers in the array. This is our inner interpreter.
-    
-3. *Data and Return Stacks are arrays*. With push, pop and [] methods to clarify intentions.
-4. *No vocabulary, multi-tasking, or meta-compilation*. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
+3. <b>Data and Return Stacks are arrays</b>. With push, pop and [] methods to clarify intentions.
+4. <b>No vocabulary, multi-tasking, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
 
 ## eForth Internals
 The core of current implementation of eForth is the dictionary composed of an array of Code objects that represent each of Forth words.
 
-1. *Code* - the heart of eForth, depends on the constructor called, the following fields are populated accordingly
+1. <b>Code</b> - the heart of eForth, depends on the constructor called, the following fields are populated accordingly
+    <pre>
     + Code.name - a string that holds primitive word's name, i.e. NFA in classic FORTH
     + Code.xt   - pointer to a lambda function for primitive words i.e. XT in classic FORTH
     + Code.pf, p1, p2 - parameter arrays of Code objects for compound words, i.e. PFA in classic FORTH
     + Code.q    - holds the literal value which classic FORTH keep on parameter memory
     + Code.name - holds string or branching mnemonic for compound wordswhich classic FORTH keeps on parameter memory
-
-2. *Dictionary* - an array of *Code* objects
-    + primitives - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt    
+    </pre>
+    
+2. <b>Dictionary</b> - an array of *Code* objects
+    <pre>
+    + primitive words - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt    
         dict[0].xt ------> pointer to primitive word lambda[0]
         dict[1].xt ------> pointer to primitive word lambda[1]
         ...
@@ -48,19 +49,20 @@ The core of current implementation of eForth is the dictionary composed of an ar
         dict[N+1].pf = [ *Code, *Code, ..., *Code ]
         ...
         dict[-1].pf  = [ *Code, *Code, ..., *Code ]
-
-3. *Inner Interpreter* - Code.exec() is self-explanatory
-
+    </pre>
+    
+3. <b>Inner Interpreter</b> - *Code.exec()* is self-explanatory
+    <pre>
     if (xt) { xt(this); return; }         // run primitive word
     for (Code *w : pf) {                  // run colon word
         try { w->exec(); }                // execute recursively
         catch (...) { break; }            // also handle exit
     }
-    
     i.e. either we call a primitive word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
-
-4. *Outer Interpreter* - forth_core() is self-explanatory
-
+    </pre>
+    
+4. <b>Outer Interpreter</b> - *forth_core()* is self-explanatory
+    <pre>
     Code *w = find(idiom);                // search dictionary
     if (w) {                              // word found?
         if (compile && !w->immd)          // are we compiling?
@@ -72,6 +74,7 @@ The core of current implementation of eForth is the dictionary composed of an ar
     if (compile)                          // are we compiling?
         dict[-1]->add(new Code(_lit, n)); // add to current word
     else PUSH(n);                         // push onto data stack
+    </pre>
     
 ## ceForth - Where we came from
 
