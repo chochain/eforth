@@ -71,6 +71,7 @@ struct Code {
     Code(string n, XT fp, bool im)
         : name(n), xt(fp), immd(im) { token=here++; } ///> primitive
     Code(string n, bool t=true);                      ///> colon word
+    ~Code() {}                                        ///> do nothing
     
     Code *immediate()  { immd = 1;   return this; }   ///> set flag
     Code *add(Code *w) { pf.push(w); return this; }   ///> add token
