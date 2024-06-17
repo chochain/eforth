@@ -29,14 +29,23 @@ The core of current implementation of eForth is the dictionary composed of an ar
 
 1. <b>Code</b> - the heart of eForth, depends on the constructor called, the following fields are populated accordingly
     <pre>
-    + Code.name - a string that holds primitive word's name, i.e. NFA in classic FORTH
-    + Code.xt   - pointer to a lambda function for primitive words i.e. XT in classic FORTH
-    + Code.pf, p1, p2 - parameter arrays of Code objects for compound words, i.e. PFA in classic FORTH
-    + Code.q    - holds the literal value which classic FORTH keep on parameter memory
-    + Code.name - holds string or branching mnemonic for compound words which classic FORTH keeps on parameter memory
+    + name - a string that holds primitive word's name, i.e. NFA in classic FORTH,
+             can also holds branching mnemonic for compound words which classic FORTH keeps on parameter memory
+    + xt   - pointer to a lambda function for primitive words i.e. XT in classic FORTH
+    + pf, p1, p2 - parameter arrays of Code objects for compound words, i.e. PFA in classic FORTH
+    + q    - holds the literal value which classic FORTH keep on parameter memory
     </pre>
-    
-2. <b>Dictionary</b> - an array of *Code* objects
+
+2. <b>Lit, Var, Str, Bran, Tmp</b> - the polymorphic classes extended from the base class Code.
+    <pre>
+    + Lit  - numeric literals
+    + Var  - variable or constant
+    + Str  - string for dostr or dotstr
+    + Bran - Branching opcode
+    + Tmp  - temp storage for branching word
+    </pre>
+
+3. <b>Dictionary</b> - an array of *Code* objects
     <pre>
     + primitive words - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt    
         dict[0].xt ------> pointer to primitive word lambda[0]
@@ -51,29 +60,29 @@ The core of current implementation of eForth is the dictionary composed of an ar
         dict[-1].pf  = [ *Code, *Code, ..., *Code ]
     </pre>
     
-3. <b>Inner Interpreter</b> - *Code.exec()* is self-explanatory
+4. <b>Inner Interpreter</b> - *Code.exec()* is self-explanatory
     ```C
     if (xt) { xt(this); return; }         // run primitive word
     for (Code *w : pf) {                  // run colon word
         try { w->exec(); }                // execute recursively
-        catch (...) { break; }            // also handle exit
+        catch (...) { break; }            // handle exception if any
     }
     ```
     
     i.e. either we call a primitive word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
     
-4. <b>Outer Interpreter</b> - *forth_core()* is self-explanatory
+5. <b>Outer Interpreter</b> - *forth_core()* is self-explanatory
     ```C
     Code *w = find(idiom);                // search dictionary
     if (w) {                              // word found?
         if (compile && !w->immd)          // are we compiling?
-            dict[-1]->add(w);             // add it to the new word
+            dict[-1]->add(w);             // append to the new word
         else w->exec();                   // or, execute the word
         return;
     }
-    DU n = parse_number(idiom);           // try as a number
+    DU n = parse_number(idiom);           // word not found, try as a number
     if (compile)                          // are we compiling?
-        dict[-1]->add(new Code(_lit, n)); // add to current word
+        dict[-1]->add(new Lit(n));        // append number literal to the new word
     else PUSH(n);                         // push onto data stack
     ```
     
