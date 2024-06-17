@@ -266,8 +266,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @}
     /// @defgroup Memory Access ops
     /// @{
-    CODE("@",       _fetch()), //DU w=POP(); PUSH(VAR(w))),                     // w -- n
-    CODE("!",       _store()), //DU w=POP(); VAR(w) = POP()),                   // n w --
+    CODE("@",       DU w=POP(); PUSH(VAR(w))),                     // w -- n
+    CODE("!",       DU w=POP(); VAR(w) = POP()),                   // n w --
     CODE("+!",      DU w=POP(); VAR(w) += POP()),                  // n w --
     CODE("?",       DU w=POP(); fout << VAR(w) << " "),            // w --
     CODE("array@",  DU i=POP(); int w=POP(); PUSH(*(&VAR(w)+i))),  // w i -- n
@@ -300,27 +300,19 @@ FV<Code*> dict = {                 ///< Forth dictionary
          for (int i=dict.size(); i>t; i--) dict.pop()),
 };
 ///====================================================================
-///> Code Class implementation
 ///
-int Code::here = 0;                    ///< init static var
+///> Code Class constructors
+///
+Code::Code(string n, XT fp, bool im)     ///> primitive word
+    : name(n), xt(fp), immd(im) {
+    static int idx = 0;                  ///< array index
+    token = idx++;                       /// * keep dict index
+}
 Code::Code(string n, bool t) : name(n) { ///< new colon word
-    Code *w = find(n);                 /// * scan the dictionary
+    Code *w = find(n);                   /// * scan the dictionary
     xt    = w ? w->xt : NULL;
     token = t ? dict.size() : 0;
-    if (t && w) fout << "reDef?";      /// * warn word redefined
-}
-
-void _fetch() {
-    DU w  = POP();
-    DU *p = dict[w]->pf[0]->q.data();
-    PUSH(*p);
-}
-void _store() {
-    DU w = POP();
-    DU v = POP();
-    DU *p = dict[w]->pf[0]->q.data();
-    printf("dict[%d] %p=%d", w, p, v);
-    *p = v;
+    if (t && w) fout << "reDef?";        /// * warn word redefined
 }
 ///====================================================================
 ///
@@ -444,15 +436,6 @@ void load(const char *fn) {          ///> include script from stream
     fout_cb = cb;                            /// * restore output cb
     fin.clear(); fin.str(in);                /// * restore input
 }
-///
-///> setup user variables
-///
-void forth_init() {
-    dict[0]->add(new Var(10));   /// * borrow dict[0] for base
-#if DO_WASM
-    fout << "WASM build" << endl;
-#endif
-}
 ///====================================================================
 ///
 ///> Forth outer interpreter
@@ -499,9 +482,20 @@ void forth_core(string idiom) {
         dict[-1]->add(new Lit(n));    /// * add to current word
     else PUSH(n);                     /// * add value to data stack
 }
+///====================================================================
 ///
 ///> Forth VM - interface to outside world
 ///
+///
+///> setup user variables
+///
+void forth_init() {
+    dict[0]->add(new Var(10));        /// * borrow dict[0] for base
+#if DO_WASM
+    fout << "WASM build" << endl;
+#endif
+}
+
 void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
     auto outer = []() {               ///< outer interpreter
         string idiom;
