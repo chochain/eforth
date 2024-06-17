@@ -21,7 +21,7 @@ struct FV : public vector<T> {         ///< our super-vector class
     }
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
-    T    &operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
+    T    &operator[](int i) { return vector<T>::operator[](i < 0 ? (this->size() + i) : i); }
 };
 ///
 ///> Primitve object and function forward declarations
