@@ -28,10 +28,8 @@ inline  DU POP() { DU n=top; top=ss.pop(); return n; }
 #define PUSH(v)  (ss.push(top), top=(v))
 #define BOOL(f)  ((f) ? -1 : 0)
 #define VAR(i)   (*dict[(int)(i)]->pf[0]->q.data())
+#define LAST()   (dict[-2]->pf[-1])    /* jump target */
 #define BASE     (VAR(0))   /* borrow dict[0] to store base (numeric radix) */
-
-void _fetch();
-void _store();
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -156,11 +154,11 @@ FV<Code*> dict = {                 ///< Forth dictionary
          dict[-1]->add(new Bran(_bran));
          dict.push(new Tmp())),                /// scratch pad
     IMMD("else",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);
          last->stage = 1),
     IMMD("then",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          int  b = last->stage;                 ///< branching state
          if (b==0) {                           
              last->pf.merge(tmp->pf);          /// * if.{pf}.then
@@ -178,18 +176,18 @@ FV<Code*> dict = {                 ///< Forth dictionary
          dict[-1]->add(new Bran(_cycle));
          dict.push(new Tmp())),
     IMMD("while",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);                      /// * begin.{pf}.f.while
          last->stage = 2),
     IMMD("repeat",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          last->p1.merge(tmp->pf); dict.pop()),         /// * while.{p1}.repeat
     IMMD("again",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop();          /// * begin.{pf}.again
          last->stage = 1),
     IMMD("until",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          last->pf.merge(tmp->pf); dict.pop()),         /// * begin.{pf}.f.until
     /// @}
     /// @defgrouop FOR loops
@@ -200,11 +198,11 @@ FV<Code*> dict = {                 ///< Forth dictionary
          dict[-1]->add(new Bran(_for));
          dict.push(new Tmp())),
     IMMD("aft",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          last->pf.merge(tmp->pf);                      /// * for.{pf}.aft
          last->stage = 3),
     IMMD("next",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
+         Code *last = LAST(); Code *tmp = dict[-1];
          if (last->stage==0) last->pf.merge(tmp->pf);  /// * for.{pf}.next
          else                last->p2.merge(tmp->pf);  /// * then.{p2}.next
          dict.pop()),
@@ -220,8 +218,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("leave",
          rs.pop(); rs.pop(); throw runtime_error("")),
     IMMD("loop",
-         Code *last = dict[-2]->pf[-1]; Code *tmp = dict[-1];
-         last->pf.merge(tmp->pf);      /// * do.{pf}.loop
+         Code *last = LAST(); Code *tmp = dict[-1];
+         last->pf.merge(tmp->pf);       /// * do.{pf}.loop
          dict.pop()),
     /// @}
     /// @defgrouop Compiler ops
