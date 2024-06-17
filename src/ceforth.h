@@ -60,7 +60,7 @@ struct Code {
     FV<Code*> p2;            ///< parameter field - then..next
     FV<DU>    q;             ///< parameter field - literal
     union {                  ///< union to reduce struct size
-        int attr = 0;        /// * zero all sub-fields
+        U32 attr = 0;        /// * zero all sub-fields
         struct {
             U32 token : 28;  ///< dict index, 0=param word
             U32 stage :  2;  ///< branching state
@@ -69,7 +69,7 @@ struct Code {
         };
     };
     Code(string n, XT fp, bool im)
-        : name(n), xt(fp), immd(im), token(here++) {} ///> primitive
+        : name(n), xt(fp), immd(im) { token=here++; } ///> primitive
     Code(string n, bool t=true);                      ///> colon word
     
     Code *immediate()  { immd = 1;   return this; }   ///> set flag

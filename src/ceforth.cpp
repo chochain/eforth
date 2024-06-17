@@ -26,10 +26,10 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 ///> Code Class implementation
 ///
 int Code::here = 0;                    ///< init static var
-Code::Code(string n, bool t)           ///< new colon word
-    : name(n), token(t ? here++ : 0) { ///> colon word
+Code::Code(string n, bool t) : name(n) { ///< new colon word
     Code *w = find(n);                 /// * scan the dictionary
-    xt = w ? w->xt : NULL;
+    xt    = w ? w->xt : NULL;
+    token = t ? here++ : 0;
     if (t && w) fout << "reDef?";      /// * warn word redefined
 }
 ///
