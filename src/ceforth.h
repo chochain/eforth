@@ -52,7 +52,6 @@ Code   *find(string s);      ///< dictionary scanner forward declare
 ///> data structure for dictionary entry
 ///
 struct Code {
-    static int here;         ///< token incremental counter
     string    name;          ///< name of word
     XT        xt = NULL;     ///< execution token
     FV<Code*> pf;            ///< parameter field
@@ -68,10 +67,9 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string n, XT fp, bool im)
-        : name(n), xt(fp), immd(im) { token=here++; } ///> primitive
-    Code(string n, bool t=true);                      ///> colon word
-    ~Code() {}                                        ///> do nothing
+    Code(string n, XT fp, bool im);       ///> primitive 
+    Code(string n, bool t=true);          ///> colon word
+    ~Code() {}                            ///> do nothing now
     
     Code *immediate()  { immd = 1;   return this; }   ///> set flag
     Code *add(Code *w) { pf.push(w); return this; }   ///> add token
