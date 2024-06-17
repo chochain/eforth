@@ -24,11 +24,33 @@ struct FV : public vector<T> {         ///< our super-vector class
     T    &operator[](int i) { return this->at(i < 0 ? (this->size() + i) : i); }
 };
 ///
-///> data structure for dictionary entry
+///> Primitve object and function forward declarations
 ///
 struct Code;                 ///< Code class forward declaration
-Code   *find(string s);      ///< dictionary scanner forward declare
 typedef void (*XT)(Code*);   ///< function pointer
+
+void   _str(Code *c);        ///< dotstr, dostr
+void   _lit(Code *c);        ///< numeric liternal
+void   _var(Code *c);        ///< variable and constant
+void   _tor(Code *c);        ///< >r (for..next)
+void   _dor(Code *c);        ///< swap >r >r (do..loop)
+void   _bran(Code *c);       ///< if
+void   _cycle(Code *c);      ///< repeat
+void   _for(Code *c);        ///< for...next
+void   _doloop(Code *c);     ///< do...loop
+void   _does(Code *c);       ///< does> 
+///
+///> IO function declarations
+///
+string word(char delim=0);   ///< read next idiom from input stream
+void   ss_dump(DU base);     ///< display data stack contents
+void   see(Code *c, int dp); ///< disassemble word
+void   words();              ///< list words in dictionary
+void   load(const char *fn); ///< include script from stream
+Code   *find(string s);      ///< dictionary scanner forward declare
+///
+///> data structure for dictionary entry
+///
 struct Code {
     static int here;         ///< token incremental counter
     string    name;          ///< name of word
@@ -42,23 +64,44 @@ struct Code {
         struct {
             U32 token : 28;  ///< dict index, 0=param word
             U32 stage :  2;  ///< branching state
-            U32 str   :  1;  ///< string node
+            U32 is_str:  1;  ///< string flag
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string n, XT fp, bool im) : name(n), xt(fp), immd(im), token(here++) {} ///> primitive
-    Code(string n, bool t=true);                                                 ///> colon word, t=new word
-    Code(XT fp, string s)          : name(s), xt(fp), token(0), str(0) {}        ///> bran, cycle, for, does>
-    Code(XT fp, string s, int t)   : name(s), xt(fp), token(t), str(1) {}        ///> dostr, dotstr
-    Code(XT fp, DU d)              : name(""), xt(fp) { q.push(d); }             ///> dolit, dovar
-    Code *immediate()  { immd = 1;   return this; } ///> set flag
-    Code *add(Code *w) { pf.push(w); return this; } ///> add token
+    Code(string n, XT fp, bool im)
+        : name(n), xt(fp), immd(im), token(here++) {} ///> primitive
+    Code(string n, bool t=true);                      ///> colon word
+    
+    Code *immediate()  { immd = 1;   return this; }   ///> set flag
+    Code *add(Code *w) { pf.push(w); return this; }   ///> add token
     void exec() {                         ///> inner interpreter
         if (xt) { xt(this); return; }     /// * run primitive word
         for (Code *w : pf) {              /// * run colon word
             try { w->exec(); }            /// * execute recursively
             catch (...) { break; }        /// * also handle exit
         }
+    }
+};
+///
+///> polymophic constructors
+///
+struct Tmp : Code { Tmp() : Code(" tmp", NULL, false) { token=0;   } };
+struct Lit : Code { Lit(DU d) : Code("", _lit, false) { q.push(d); } };
+struct Var : Code { Var(DU d) : Code("", _var, false) { q.push(d); } };
+struct Str : Code {
+    Str(string s, int t=0) : Code(s, _str, false) { token=t; is_str=1; }
+};
+struct Bran: Code {
+    Bran(XT fp) : Code("", fp, false) {
+        const char *nm[] = {
+            "_if", "_begin", ">r", "_for", "swap >r >r", "_do", "_does"
+        };
+        XT xt[] = { _bran, _cycle, _tor, _for, _dor, _doloop, _does };
+    
+        for (int i=0; i < (int)(sizeof(nm)/sizeof(const char*)); i++) {
+            if ((uintptr_t)xt[i]==(uintptr_t)fp) name = nm[i];
+        }
+        token = is_str = 0;
     }
 };
 ///
