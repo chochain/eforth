@@ -16,12 +16,12 @@ Dr. Ting, a pillar of Forth community, created eForth along with Bill Munich for
 
 ## eForth now - What have we done!
 
-1. <b>100% C/C++ and cross-platform support</b>. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
-2. <b>No threading</b>. Dictionary remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
+1. <b>100% C/C++ with multi-platform support</b>. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
+2. <b>Dictionary is just an array</b>. It's remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
     + To search for a word, simply scan the name string of dictionary entries. So, to define a new word during compile time is just to append those found word pointers to the its parameter array one by one.
     + To execute become just a walk of the word pointers in the array. This is our inner interpreter.
     
-3. <b>Data and Return Stacks are arrays</b>. With push, pop and [] methods to clarify intentions.
+3. <b>Data and Return Stacks are also arrays</b>. With push, pop and [] methods to clarify intentions.
 4. <b>No vocabulary, multi-tasking, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
 
 ## eForth Internals
@@ -33,7 +33,7 @@ The core of current implementation of eForth is the dictionary composed of an ar
     + Code.xt   - pointer to a lambda function for primitive words i.e. XT in classic FORTH
     + Code.pf, p1, p2 - parameter arrays of Code objects for compound words, i.e. PFA in classic FORTH
     + Code.q    - holds the literal value which classic FORTH keep on parameter memory
-    + Code.name - holds string or branching mnemonic for compound wordswhich classic FORTH keeps on parameter memory
+    + Code.name - holds string or branching mnemonic for compound words which classic FORTH keeps on parameter memory
     </pre>
     
 2. <b>Dictionary</b> - an array of *Code* objects
