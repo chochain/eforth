@@ -71,8 +71,8 @@ struct Code {
     Code(string n, bool t=true);          ///> colon word
     ~Code() {}                            ///> do nothing now
     
-    Code *immediate()  { immd = 1;   return this; }   ///> set flag
-    Code *add(Code *w) { pf.push(w); return this; }   ///> add token
+    Code *immediate()     { immd = 1;   return this; } ///> set flag
+    Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void exec() {                         ///> inner interpreter
         if (xt) { xt(this); return; }     /// * run primitive word
         for (Code *w : pf) {              /// * run colon word
