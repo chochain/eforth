@@ -47,17 +47,18 @@ The core of current implementation of eForth is the dictionary composed of an ar
 
 3. <b>Dictionary</b> - an array of *Code* objects
     <pre>
-    + primitive words - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt    
-        dict[0].xt ------> pointer to primitive word lambda[0]
-        dict[1].xt ------> pointer to primitive word lambda[1]
-        ...
-        dict[N-1].xt ----> pointer to last primitive word lambda[N-1]
+    + primitive words - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt
+        dict[0].xt ------> lambda[0]         <== These function pointers can be converted
+        dict[1].xt ------> lambda[1]             into indices to a jump table
+        ...                                      which is exactly what WASM does
+        dict[N-1].xt ----> lambda[N-1]       <== N is number of primitive words
         
-    + colon (user defined) words - colection of word pointers during compile time
-        dict[N].pf   = [ *Code, *Code, ..., *Code ]
-        dict[N+1].pf = [ *Code, *Code, ..., *Code ]
-        ...
-        dict[-1].pf  = [ *Code, *Code, ..., *Code ]
+    + colon (user defined) words - collection of word pointers during compile time
+        dict[N].pf   = [ *Code, *Code, ... ] <== These are called the 'threads' in Forth's term
+        dict[N+1].pf = [ *Code, *Code, ... ]     So, instead of subroutine threading
+        ...                                      this is 'object' threading.
+        dict[-1].pf  = [ *Code, *Code, ... ]     It can be further compacted into
+                                                 token (i.e. dict index) threading if desired
     </pre>
     
 4. <b>Inner Interpreter</b> - *Code.exec()* is self-explanatory
@@ -73,16 +74,16 @@ The core of current implementation of eForth is the dictionary composed of an ar
     
 5. <b>Outer Interpreter</b> - *forth_core()* is self-explanatory
     ```C
-    Code *w = find(idiom);                // search dictionary
-    if (w) {                              // word found?
-        if (compile && !w->immd)          // are we compiling?
-            dict[-1]->add(w);             // append to the new word
-        else w->exec();                   // or, execute the word
+    Code *c = find(idiom);                // search dictionary
+    if (c) {                              // word found?
+        if (compile && !c->immd)          // are we compiling a new word?
+            dict[-1]->add(c);             // then append found code to it
+        else c->exec();                   // or, execute the code
         return;
     }
     DU n = parse_number(idiom);           // word not found, try as a number
-    if (compile)                          // are we compiling?
-        dict[-1]->add(new Lit(n));        // append number literal to the new word
+    if (compile)                          // are we compiling a new word?
+        dict[-1]->add(new Lit(n));        // append numeric literal to it
     else PUSH(n);                         // push onto data stack
     ```
     
