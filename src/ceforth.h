@@ -110,11 +110,6 @@ struct Bran: Code {
     }
 };
 ///
-///> macros to create primitive words (opcodes)
-///
-#define CODE(s, g)  (new Code(s, [](Code *c){ g; }, false))
-#define IMMD(s, g)  (new Code(s, [](Code *c){ g; }, true))
-///
 ///> OS platform specific implementation
 ///
 extern void mem_stat();
