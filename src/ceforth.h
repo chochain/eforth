@@ -21,7 +21,13 @@ struct FV : public vector<T> {         ///< our super-vector class
     }
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
-    T    &operator[](int i) { return vector<T>::operator[](i < 0 ? (this->size() + i) : i); }
+    T    &operator[](int i) {
+#if CC_DEBUG
+        return this->at(i < 0 ? (this->size() + i) : i); // range checked
+#else  // !CC_DEBUG
+        return vector<T>::operator[](i < 0 ? (this->size() + i) : i);
+#endif // CC_DEBUG        
+    }
 };
 ///
 ///> Primitve object and function forward declarations
@@ -77,7 +83,7 @@ struct Code {
         if (xt) { xt(this); return; }     /// * run primitive word
         for (Code *w : pf) {              /// * run colon word
             try { w->exec(); }            /// * execute recursively
-            catch (...) { break; }        /// * also handle exit
+            catch (...) { break; }        /// * break loop with throw 0
         }
     }
 };
