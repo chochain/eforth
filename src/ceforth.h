@@ -23,7 +23,7 @@ struct FV : public vector<T> {         ///< our super-vector class
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
     T    &operator[](int i) {
 #if CC_DEBUG
-        return this->at(i < 0 ? (this->size() + i) : i); // range checked
+        return this->at(i < 0 ? (this->size() + i) : i); // with range checked
 #else  // !CC_DEBUG
         return vector<T>::operator[](i < 0 ? (this->size() + i) : i);
 #endif // CC_DEBUG        

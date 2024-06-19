@@ -503,11 +503,11 @@ void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
         while (fin >> idiom) {
             try { forth_core(idiom); }     ///> single command to Forth core
 #if CC_DEBUG            
+            catch(exception &e) {          /// * 6% slower?
+                fout << idiom << "? " << e.what() << ENDL;
+#else // !CC_DEBUG
             catch(...) {
                 fout << idiom << "? " << ENDL;
-#else // !CC_DEBUG
-            catch(exception &e) {          /// * slower
-                fout << idiom << "? " << e.what() << ENDL;
 #endif // CC_DEBUG                
                 compile = false;
                 getline(fin, idiom, '\n'); /// * flush to end-of-line
