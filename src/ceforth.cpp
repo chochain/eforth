@@ -1,6 +1,6 @@
 ///
 /// @file
-/// @brief eForth - C++ vector-based token-threaded implementation
+/// @brief eForth - C++ vector-based object-threaded implementation
 ///
 ///====================================================================
 #include <sstream>                     /// iostream, stringstream
@@ -126,8 +126,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
-    CODE("type",   POP(); DU w_i = POP();            // len is not used
-                   fout << dict[w_i >> 16]->pf[w_i & 0xffff]->name),
+    CODE("type",   POP(); DU i_w = POP();            // decode pf and word indices
+                   fout << dict[i_w & 0xffff]->pf[i_w >> 16]->name),
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -140,8 +140,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("s\"",
          string s = word('"').substr(1);
          if (compile) {
-             DU w_i = (last->token << 16) | last->pf.size();
-             last->append(new Str(s, w_i));
+             DU i_w = (last->pf.size() << 16) | last->token; // encode pf and word indices
+             last->append(new Str(s, i_w));
          }
          else pad = s),
     /// @}
@@ -154,7 +154,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     IMMD("if",
          last->append(new Bran(_bran));
-         DICT_PUSH(new Tmp())),                /// scratch pad
+         DICT_PUSH(new Tmp())),                /// as branch target
     IMMD("else",
          Code *b = BRAN_TGT();
          b->pf.merge(last->pf);
@@ -176,7 +176,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @{
     IMMD("begin",
          last->append(new Bran(_cycle));
-         DICT_PUSH(new Tmp())),
+         DICT_PUSH(new Tmp())),                /// as branch target
     IMMD("while",
          Code *b = BRAN_TGT();
          b->pf.merge(last->pf);                /// * begin.{pf}.f.while
@@ -198,7 +198,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     IMMD("for",
          last->append(new Bran(_tor));
          last->append(new Bran(_for));
-         DICT_PUSH(new Tmp())),
+         DICT_PUSH(new Tmp())),                /// as branch target
     IMMD("aft",
          Code *b = BRAN_TGT();
          b->pf.merge(last->pf);                /// * for.{pf}.aft
