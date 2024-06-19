@@ -26,7 +26,7 @@ struct FV : public vector<T> {         ///< our super-vector class
         return this->at(i < 0 ? (this->size() + i) : i); // with range checked
 #else  // !CC_DEBUG
         return vector<T>::operator[](i < 0 ? (this->size() + i) : i);
-#endif // CC_DEBUG        
+#endif // CC_DEBUG
     }
 };
 ///
@@ -98,8 +98,8 @@ struct Str : Code {
 };
 struct Bran: Code {
     Bran(XT fp) : Code("", fp, false) {
-        const char *nm[] = {
-            "_if", "_begin", ">r", "_for", "swap >r >r", "_do", "_does"
+        const char *nm[] = {  /* space postfix prevent name collision */
+            "IF ", "BEGIN ", ">R ", "FOR ", "SWAP >R >R", "DO ", "DOES "
         };
         XT xt[] = { _bran, _cycle, _tor, _for, _dor, _doloop, _does };
     

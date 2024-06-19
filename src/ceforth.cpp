@@ -367,7 +367,7 @@ void _does(Code *c) {
     bool hit = false;
     for (Code *w : dict[c->token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
-        if (w->name=="_does") hit = true;
+        if (w->name=="DOES ") hit = true;
     }
     throw 0;                                // exit caller
 }
@@ -402,10 +402,10 @@ void see(Code *c, int dp) {  ///> disassemble a colon word
     };
     string sn = c->is_str
         ? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
-    string bn = c->stage==2 ? "_while" : (c->stage==3 ? "_aft" : "_else");
+    string bn = c->stage==2 ? "WHILE " : (c->stage==3 ? "AFT " : "ELSE ");
     pp(dp, sn, c->pf);
     if (c->p1.size() > 0) pp(dp, bn, c->p1);
-    if (c->p2.size() > 0) pp(dp, "_then", c->p2);
+    if (c->p2.size() > 0) pp(dp, "THEN ", c->p2);
     if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
 }
 void words() {              ///> display word list
