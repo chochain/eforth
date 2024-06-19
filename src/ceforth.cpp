@@ -218,7 +218,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          DICT_PUSH(new Tmp())),
     CODE("i",      PUSH(rs[-1])),
     CODE("leave",
-         rs.pop(); rs.pop(); throw runtime_error("")),
+         rs.pop(); rs.pop(); throw 0), /// * exit loop
     IMMD("loop",
          Code *b = BRAN_TGT();
          b->pf.merge(last->pf);        /// * do.{pf}.loop
@@ -226,7 +226,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE("exit",   throw runtime_error("")), // -- (exit from word)
+    CODE("exit",   throw 0),           // -- (exit from word)
     CODE("[",      compile = false),
     CODE("]",      compile = true),
     CODE(":",
@@ -367,9 +367,9 @@ void _does(Code *c) {
     bool hit = false;
     for (Code *w : dict[c->token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
-        if (w->name=="does>") hit = true;
+        if (w->name=="_does") hit = true;
     }
-    throw runtime_error("");                // exit caller
+    throw 0;                                // exit caller
 }
 ///====================================================================
 ///
@@ -415,14 +415,14 @@ void words() {              ///> display word list
     for (Code *w : dict) {
 #if CC_DEBUG
         fout << setw(4) << w->token << "> "
-             << setw(8) << (UFP)w->xt
+             << setw(8) << static_cast<U32>((UFP)w->xt)
              << ":" << (w->immd ? '*' : ' ')
              << w->name << "  " << ENDL;
-#else
+#else // !CC_DEBUG
         fout << "  " << w->name;
         x += (w->name.size() + 2);
         if (x > WIDTH) { fout << ENDL; x = 0; }
-#endif
+#endif // CC_DEBUG
     }
     fout << setfill(' ') << setbase(BASE) << ENDL;
 }
@@ -502,8 +502,13 @@ void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
         string idiom;
         while (fin >> idiom) {
             try { forth_core(idiom); }     ///> single command to Forth core
+#if CC_DEBUG            
             catch(...) {
                 fout << idiom << "? " << ENDL;
+#else // !CC_DEBUG
+            catch(exception &e) {          /// * slower
+                fout << idiom << "? " << e.what() << ENDL;
+#endif // CC_DEBUG                
                 compile = false;
                 getline(fin, idiom, '\n'); /// * flush to end-of-line
             }
