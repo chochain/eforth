@@ -58,6 +58,7 @@ Code   *find(string s);      ///< dictionary scanner forward declare
 ///> data structure for dictionary entry
 ///
 struct Code {
+    const static U32 IMMD_FLAG = 0x80000000;
     string    name;          ///< name of word
     XT        xt = NULL;     ///< execution token
     FV<Code*> pf;            ///< parameter field
@@ -73,11 +74,11 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string n, XT fp, bool im);       ///> primitive 
-    Code(string n, bool t=true);          ///> colon word
+    Code(string n, XT fp, U32 a);         ///> primitive words
+    Code(string n, bool t=true);          ///> colon words
+    Code(XT fp) : xt(fp) { attr=0; }      ///> sub-classes
     ~Code() {}                            ///> do nothing now
     
-    Code *immediate()     { immd = 1;   return this; } ///> set flag
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void exec() {                         ///> inner interpreter
         if (xt) { xt(this); return; }     /// * run primitive word
@@ -90,23 +91,23 @@ struct Code {
 ///
 ///> polymophic constructors
 ///
-struct Tmp : Code { Tmp() : Code(" tmp", NULL, false) { token=0;   } };
-struct Lit : Code { Lit(DU d) : Code("", _lit, false) { q.push(d); } };
-struct Var : Code { Var(DU d) : Code("", _var, false) { q.push(d); } };
+struct Tmp : Code { Tmp() : Code(NULL) {} };
+struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
+struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
-    Str(string s, int t=0) : Code(s, _str, false) { token=t; is_str=1; }
+    Str(string s, int t=0) : Code(_str) { name=s; token=t; is_str=1; }
 };
 struct Bran: Code {
-    Bran(XT fp) : Code("", fp, false) {
-        const char *nm[] = {  /* space postfix prevent name collision */
-            "IF ", "BEGIN ", ">R ", "FOR ", "SWAP >R >R", "DO ", "DOES "
+    Bran(XT fp) : Code(fp) {
+        const char *nm[] = {
+            "_if", "_begin", ">r", "_for", "swap >r >r", "_do", "_does"
         };
         XT xt[] = { _bran, _cycle, _tor, _for, _dor, _doloop, _does };
     
         for (int i=0; i < (int)(sizeof(nm)/sizeof(const char*)); i++) {
             if ((uintptr_t)xt[i]==(uintptr_t)fp) name = nm[i];
         }
-        token = is_str = 0;
+        is_str = 0;
     }
 };
 ///
