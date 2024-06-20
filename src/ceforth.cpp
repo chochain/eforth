@@ -36,44 +36,21 @@ inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 ///
 ///> Forth Dictionary Assembler
 /// @note:
-///    1. Words are assembled by calling C++ initializer_list
-///       Currently, C++ compiler instainciate them at start up
-///       but we hope it can become a static ROM in the future.
-///    2. a degenerated lambda becomes a function pointer
+///    1. Dictionary is assembled by calling C++ initializer_list
+///       Currently, C++ compiler instainciate them at start up.
+///       We like to find a way to make it as a static ROM and
+///       tokenize to make it portable.
+///    2. Using __COUNTER__ for array token/index can potetially
+///       make the dictionary static but need to be careful the
+///       potential issue comes with it.
+///    3. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  (new Code(s, [](Code *c){ g; }, false))
-#define IMMD(s, g)  (new Code(s, [](Code *c){ g; }, true))
+#define CODE(s, g)  (new Code(s, [](Code *c){ g; }, __COUNTER__))
+#define IMMD(s, g)  (new Code(s, [](Code *c){ g; }, __COUNTER__ | Code::IMMD_FLAG))
 
 FV<Code*> dict = {                 ///< Forth dictionary
     CODE("bye",    exit(0)),       // exit to OS
     ///
-    /// @defgroup Data Stack ops
-    /// @brief - opcode sequence can be changed below this line
-    /// @{
-    CODE("dup",    PUSH(top)),
-    CODE("drop",   top=ss.pop()),  // note: ss.pop() != POP()
-    CODE("swap",   DU n = ss.pop(); PUSH(n)),
-    CODE("over",   PUSH(ss[-2])),
-    CODE("rot",    DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m)),
-    CODE("-rot",   DU n = ss.pop(); DU m = ss.pop(); PUSH(m);  PUSH(n)),
-    CODE("pick",   top = ss[-top]),
-    CODE("nip",    ss.pop()),
-    CODE("?dup",   if (top != DU0) PUSH(top)),
-    /// @}
-    /// @defgroup Data Stack ops - double
-    /// @{
-    CODE("2dup",   PUSH(ss[-2]); PUSH(ss[-2])),
-    CODE("2drop",  ss.pop(); top=ss.pop()),
-    CODE("2swap",  DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
-                   ss.push(n); PUSH(l); PUSH(m)),
-    CODE("2over",  PUSH(ss[-4]); PUSH(ss[-4])),
-    /// @}
-    /// @defgroup Return Stack ops
-    /// @{
-    CODE(">r",     rs.push(POP())),
-    CODE("r>",     PUSH(rs.pop())),
-    CODE("r@",     PUSH(rs[-1])),
-    /// @}
     /// @defgroup ALU ops
     /// @{
     CODE("+",      top += ss.pop()),
@@ -114,6 +91,33 @@ FV<Code*> dict = {                 ///< Forth dictionary
     CODE("<=",     top = BOOL(ss.pop() <= top)),
     CODE("u<",     top = BOOL(abs(ss.pop()) < abs(top))),
     CODE("u>",     top = BOOL(abs(ss.pop()) > abs(top))),
+    /// @}
+    /// @defgroup Data Stack ops
+    /// @brief - opcode sequence can be changed below this line
+    /// @{
+    CODE("dup",    PUSH(top)),
+    CODE("drop",   top=ss.pop()),  // note: ss.pop() != POP()
+    CODE("swap",   DU n = ss.pop(); PUSH(n)),
+    CODE("over",   PUSH(ss[-2])),
+    CODE("rot",    DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m)),
+    CODE("-rot",   DU n = ss.pop(); DU m = ss.pop(); PUSH(m);  PUSH(n)),
+    CODE("pick",   top = ss[-top]),
+    CODE("nip",    ss.pop()),
+    CODE("?dup",   if (top != DU0) PUSH(top)),
+    /// @}
+    /// @defgroup Data Stack ops - double
+    /// @{
+    CODE("2dup",   PUSH(ss[-2]); PUSH(ss[-2])),
+    CODE("2drop",  ss.pop(); top=ss.pop()),
+    CODE("2swap",  DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
+                   ss.push(n); PUSH(l); PUSH(m)),
+    CODE("2over",  PUSH(ss[-4]); PUSH(ss[-4])),
+    /// @}
+    /// @defgroup Return Stack ops
+    /// @{
+    CODE(">r",     rs.push(POP())),
+    CODE("r>",     PUSH(rs.pop())),
+    CODE("r@",     PUSH(rs[-1])),
     /// @}
     /// @defgroup IO ops
     /// @{
@@ -244,7 +248,7 @@ FV<Code*> dict = {                 ///< Forth dictionary
          DICT_PUSH(new Code(word()));
          Code *w = last->append(new Var(DU0));
          w->pf[0]->token = w->token),
-    CODE("immediate", last->immediate()),
+    CODE("immediate", last->immd = 1),
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -306,11 +310,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
 ///
 ///> Code Class constructors
 ///
-Code::Code(string n, XT fp, bool im)     ///> primitive word
-    : name(n), xt(fp), immd(im) {
-    static int idx = 0;                  ///< array index
-    token = idx++;                       /// * keep dict index
-}
+Code::Code(string n, XT fp, U32 a)       ///> primitive word
+    : name(n), xt(fp), attr(a) {}
 Code::Code(string n, bool t) : name(n) { ///< new colon word
     Code *w = find(n);                   /// * scan the dictionary
     xt    = w ? w->xt : NULL;
@@ -405,10 +406,10 @@ void see(Code *c, int dp) {  ///> disassemble a colon word
     };
     string sn = c->is_str
         ? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
-    string bn = c->stage==2 ? "WHILE " : (c->stage==3 ? "AFT " : "ELSE ");
+    string bn = c->stage==2 ? "_while" : (c->stage==3 ? "_aft" : "_else");
     pp(dp, sn, c->pf);
     if (c->p1.size() > 0) pp(dp, bn, c->p1);
-    if (c->p2.size() > 0) pp(dp, "THEN ", c->p2);
+    if (c->p2.size() > 0) pp(dp, "_then", c->p2);
     if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
 }
 void words() {              ///> display word list
@@ -418,8 +419,9 @@ void words() {              ///> display word list
     for (Code *w : dict) {
 #if CC_DEBUG
         fout << setw(4) << w->token << "> "
+             << (UFP)w << ' '
              << setw(8) << static_cast<U32>((UFP)w->xt)
-             << ":" << (w->immd ? '*' : ' ')
+             << (w->is_str ? '"' : ':') << (w->immd ? '*' : ' ')
              << w->name << "  " << ENDL;
 #else // !CC_DEBUG
         fout << "  " << w->name;
