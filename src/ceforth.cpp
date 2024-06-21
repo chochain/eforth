@@ -310,13 +310,13 @@ FV<Code*> dict = {                 ///< Forth dictionary
 ///
 ///> Code Class constructors
 ///
-Code::Code(string n, XT fp, U32 a)       ///> primitive word
-    : name(n), xt(fp), attr(a) {}
-Code::Code(string n, bool t) : name(n) { ///< new colon word
-    Code *w = find(n);                   /// * scan the dictionary
+Code::Code(string s, XT fp, U32 a)       ///> primitive word
+    : name(s), xt(fp), attr(a) {}
+Code::Code(string s, bool n) : name(s) { ///< new colon word
+    Code *w = find(s);                   /// * scan the dictionary
     xt    = w ? w->xt : NULL;
-    token = t ? dict.size() : 0;
-    if (t && w) fout << "reDef?";        /// * warn word redefined
+    token = n ? dict.size() : 0;
+    if (n && w) fout << "reDef?";        /// * warn word redefined
 }
 ///====================================================================
 ///
@@ -371,7 +371,7 @@ void _does(Code *c) {
     bool hit = false;
     for (Code *w : dict[c->token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
-        if (w->name=="DOES ") hit = true;
+        if (w->name=="_does") hit = true;
     }
     throw 0;                                // exit caller
 }

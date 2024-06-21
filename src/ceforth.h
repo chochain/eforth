@@ -74,8 +74,8 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string n, XT fp, U32 a);         ///> primitive words
-    Code(string n, bool t=true);          ///> colon words
+    Code(string s, XT fp, U32 a);         ///> primitive
+    Code(string s, bool n=true);          ///> colon, n=new word
     Code(XT fp) : xt(fp) { attr=0; }      ///> sub-classes
     ~Code() {}                            ///> do nothing now
     
