@@ -198,9 +198,9 @@ Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/inde
 
 ### Dictionary of Pointers vs Objects
 
-What is the performance difference between having the dictionary and Code parameter vectors as
+What is the performance difference?
 1. vector<Code*> - where words are dynamically allocated as a collection of pointers, or
-2. vector<Code>  - where words are statically created as an array.
+2. vector<Code >  - where words are statically created as an array.
 
 I have created a git branch 'static' to compare to the 'master. The static version is about 10% slower on 64-bit machine and about 5% slower on 32-bits. This hasn't been carefully analyzed but my guess is because Code is big at 144-bytes on 64-bit. They might get pushed off L1 cache too often.
 
