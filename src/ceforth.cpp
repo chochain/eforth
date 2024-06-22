@@ -4,17 +4,19 @@
 ///
 ///====================================================================
 #include <sstream>                     /// iostream, stringstream
+#include <cstring>
 #include "ceforth.h"
 
 using namespace std;
 ///
 ///> Forth VM state variables
 ///
-FV<DU> ss;                             ///< data stack
-FV<DU> rs;                             ///< return stack
-DU     top     = -1;                   ///< cached top of stack
-bool   compile = false;                ///< compiling flag
-Code   *last;                          ///< cached dict[-1]
+FV<Code*> dict;                        ///< Forth dictionary
+FV<DU>    ss;                          ///< data stack
+FV<DU>    rs;                          ///< return stack
+DU        top     = -1;                ///< cached top of stack
+bool      compile = false;             ///< compiling flag
+Code      *last;                       ///< cached dict[-1]
 ///
 ///> I/O streaming interface
 ///
@@ -45,10 +47,11 @@ inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  (new Code(s, [](Code *c){ g; }, __COUNTER__))
-#define IMMD(s, g)  (new Code(s, [](Code *c){ g; }, __COUNTER__ | Code::IMMD_FLAG))
+#define CODE(s, g)  { s, [](Code *c){ g; }, __COUNTER__ }
+#define IMMD(s, g)  { s, [](Code *c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
 
-FV<Code*> dict = {                 ///< Forth dictionary
+void _if();
+const Code rom[] = {               ///< Forth dictionary
     CODE("bye",    exit(0)),       // exit to OS
     ///
     /// @defgroup ALU ops
@@ -160,8 +163,8 @@ FV<Code*> dict = {                 ///< Forth dictionary
     ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
     IMMD("if",
-         last->append(new Bran(_bran));
-         DICT_PUSH(new Tmp())),                /// as branch target
+	     last->append(new Bran(_bran));
+         DICT_PUSH(new Tmp())),
     IMMD("else",
          Code *b = BRAN_TGT();
          b->pf.merge(last->pf);
@@ -310,10 +313,11 @@ FV<Code*> dict = {                 ///< Forth dictionary
 ///
 ///> Code Class constructors
 ///
-Code::Code(string s, XT fp, U32 a)       ///> primitive word
+Code::Code(const char *s, XT fp, U32 a)  ///> primitive word
     : name(s), xt(fp), attr(a) {}
-Code::Code(string s, bool n) : name(s) { ///< new colon word
+Code::Code(string s, bool n) {           ///< new colon word
     Code *w = find(s);                   /// * scan the dictionary
+    name  = (new string(s))->c_str();
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
     if (n && w) fout << "reDef?";        /// * warn word redefined
@@ -324,7 +328,7 @@ Code::Code(string s, bool n) : name(s) { ///< new colon word
 ///
 void _str(Code *c)  {
     if (!c->token) fout << c->name;
-    else { PUSH(c->token); PUSH(c->name.size()); }
+    else { PUSH(c->token); PUSH(strlen(c->name)); }
 }
 void _lit(Code *c)  { PUSH(c->q[0]);  }
 void _var(Code *c)  { PUSH(c->token); }
@@ -371,7 +375,7 @@ void _does(Code *c) {
     bool hit = false;
     for (Code *w : dict[c->token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
-        if (w->name=="_does") hit = true;
+        if (strcmp(w->name, "_does")==0) hit = true;
     }
     throw 0;                                // exit caller
 }
@@ -404,8 +408,8 @@ void see(Code *c, int dp) {  ///> disassemble a colon word
         int i = dp; fout << ENDL; while (i--) fout << "  "; fout << s;
         for (Code *w : v) if (dp < 3) see(w, dp + 1); /// * depth controlled
     };
-    string sn = c->is_str
-        ? (c->token ? "s\" " : ".\" ")+c->name+"\"" : c->name;
+    string sn(c->name);
+    if (c->is_str) sn = (c->token ? "s\" " : ".\" ") + sn + "\"";
     string bn = c->stage==2 ? "_while" : (c->stage==3 ? "_aft" : "_else");
     pp(dp, sn, c->pf);
     if (c->p1.size() > 0) pp(dp, bn, c->p1);
@@ -425,7 +429,7 @@ void words() {              ///> display word list
              << w->name << "  " << ENDL;
 #else // !CC_DEBUG
         fout << "  " << w->name;
-        x += (w->name.size() + 2);
+        x += (strlen(w->name) + 2);
         if (x > WIDTH) { fout << ENDL; x = 0; }
 #endif // CC_DEBUG
     }
@@ -495,7 +499,11 @@ void forth_core(string idiom) {
 ///> setup user variables
 ///
 void forth_init() {
-    last = dict[-1];                  /// * cache last word
+    const int sz = (int)(sizeof(rom))/(sizeof(Code));
+    dict.reserve(sz * 2);
+    for (int i = 0; i < sz; i++) {    /// * collect Code pointers
+        DICT_PUSH((Code*)&rom[i]);
+    }
     dict[0]->append(new Var(10));     /// * borrow dict[0] for base
 #if DO_WASM
     fout << "WASM build" << endl;
