@@ -14,8 +14,8 @@ using namespace std;
 
 template<typename T>
 struct FV : public vector<T> {         ///< our super-vector class
-    FV()                        : vector<T>()    {}
-    FV(initializer_list<T> lst) : vector<T>(lst) {}
+//    FV()                        : vector<T>()    {}
+//    FV(initializer_list<T> lst) : vector<T>(lst) {}
     FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
@@ -59,12 +59,12 @@ Code   *find(string s);      ///< dictionary scanner forward declare
 ///
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
-    string    name;          ///< name of word
-    XT        xt = NULL;     ///< execution token
-    FV<Code*> pf;            ///< parameter field
-    FV<Code*> p1;            ///< parameter field - if..else, aft..then
-    FV<Code*> p2;            ///< parameter field - then..next
-    FV<DU>    q;             ///< parameter field - literal
+    const char *name;        ///< name of word
+    XT         xt = NULL;    ///< execution token
+    FV<Code*>  pf;           ///< parameter field
+    FV<Code*>  p1;           ///< parameter field - if..else, aft..then
+    FV<Code*>  p2;           ///< parameter field - then..next
+    FV<DU>     q;            ///< parameter field - literal
     union {                  ///< union to reduce struct size
         U32 attr = 0;        /// * zero all sub-fields
         struct {
@@ -74,9 +74,9 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(string s, XT fp, U32 a);         ///> primitive
-    Code(string s, bool n=true);          ///> colon, n=new word
-    Code(XT fp) : xt(fp) { attr=0; }      ///> sub-classes
+    Code(const char *s, XT fp, U32 a);    ///> primitive
+    Code(const string s, bool n=true);    ///> colon, n=new word
+    Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
     ~Code() {}                            ///> do nothing now
     
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
@@ -89,13 +89,17 @@ struct Code {
     }
 };
 ///
-///> polymophic constructors
+///> polymorphic constructors
 ///
 struct Tmp : Code { Tmp() : Code(NULL) {} };
 struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
 struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
-    Str(string s, int t=0) : Code(_str) { name=s; token=t; is_str=1; }
+    Str(string s, int t=0) : Code(_str) {
+        name  = (new string(s))->c_str();
+        token = t;
+        is_str= 1;
+    }
 };
 struct Bran: Code {
     Bran(XT fp) : Code(fp) {
