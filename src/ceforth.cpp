@@ -38,10 +38,9 @@ inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 ///
 ///> Forth Dictionary Assembler
 /// @note:
-///    1. Dictionary is assembled by calling C++ initializer_list
-///       Currently, C++ compiler instainciate them at start up.
-///       We like to find a way to make it as a static ROM and
-///       tokenize to make it portable.
+///    1. Dictionary construction sequence
+///       * Code rom[] in statically build in compile-time
+///       * vector<Code*> dict is populated in forth_init, i.e. first thing in main()
 ///    2. Using __COUNTER__ for array token/index can potetially
 ///       make the dictionary static but need to be careful the
 ///       potential issue comes with it.
@@ -500,7 +499,7 @@ void forth_core(string idiom) {
 ///
 void forth_init() {
     const int sz = (int)(sizeof(rom))/(sizeof(Code));
-    dict.reserve(sz * 2);
+    dict.reserve(sz * 2);             /// * pre-allocate vector
     for (int i = 0; i < sz; i++) {    /// * collect Code pointers
         DICT_PUSH((Code*)&rom[i]);
     }
