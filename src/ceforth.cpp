@@ -14,7 +14,7 @@ using namespace std;
 FV<Code*> dict;                        ///< Forth dictionary
 FV<DU>    ss;                          ///< data stack
 FV<DU>    rs;                          ///< return stack
-DU        top     = -1;                ///< cached top of stack
+DU        tos     = -1;                ///< cached top of stack
 bool      compile = false;             ///< compiling flag
 Code      *last;                       ///< cached dict[-1]
 ///
@@ -27,8 +27,8 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
-inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
-#define PUSH(v)      (ss.push(top), top=(v))
+inline  DU POP()     { DU n=tos; tos=ss.pop(); return n; }
+#define PUSH(v)      (ss.push(tos), tos=(v))
 #define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i)       (*dict[(int)(i)]->pf[0]->q.data())
 #define DICT_PUSH(c) (dict.push(last=(c)))
@@ -55,62 +55,62 @@ const Code rom[] = {               ///< Forth dictionary
     ///
     /// @defgroup ALU ops
     /// @{
-    CODE("+",      top += ss.pop()),
-    CODE("-",      top =  ss.pop() - top),
-    CODE("*",      top *= ss.pop()),
-    CODE("/",      top =  ss.pop() / top),
-    CODE("mod",    top =  ss.pop() % top),
-    CODE("*/",     top =  ss.pop() * ss.pop() / top),
-    CODE("/mod",   DU n = ss.pop(); DU t = top;
-                   ss.push(n % t); top = (n / t)),
-    CODE("*/mod",  DU2 n = (DU2)ss.pop() * ss.pop(); DU2 t=top;
-                   ss.push((DU)(n % t)); top = (DU)(n / t)),
-    CODE("and",    top &= ss.pop()),
-    CODE("or",     top |= ss.pop()),
-    CODE("xor",    top ^= ss.pop()),
-    CODE("abs",    top =  abs(top)),
-    CODE("negate", top =  -top),
-    CODE("invert", top =  ~top),
-    CODE("rshift", top =  (U32)ss.pop() >> top),
-    CODE("lshift", top =  (U32)ss.pop() << top),
-    CODE("max",    DU n=ss.pop(); top = (top>n)?top:n),
-    CODE("min",    DU n=ss.pop(); top = (top<n)?top:n),
-    CODE("2*",     top *= 2),
-    CODE("2/",     top /= 2),
-    CODE("1+",     top += 1),
-    CODE("1-",     top -= 1),
+    CODE("+",      tos += ss.pop()),
+    CODE("-",      tos =  ss.pop() - tos),
+    CODE("*",      tos *= ss.pop()),
+    CODE("/",      tos =  ss.pop() / tos),
+    CODE("mod",    tos =  ss.pop() % tos),
+    CODE("*/",     tos =  ss.pop() * ss.pop() / tos),
+    CODE("/mod",   DU n = ss.pop(); DU t = tos;
+                   ss.push(n % t); tos = (n / t)),
+    CODE("*/mod",  DU2 n = (DU2)ss.pop() * ss.pop(); DU2 t=tos;
+                   ss.push((DU)(n % t)); tos = (DU)(n / t)),
+    CODE("and",    tos &= ss.pop()),
+    CODE("or",     tos |= ss.pop()),
+    CODE("xor",    tos ^= ss.pop()),
+    CODE("abs",    tos =  abs(tos)),
+    CODE("negate", tos =  -tos),
+    CODE("invert", tos =  ~tos),
+    CODE("rshift", tos =  (U32)ss.pop() >> tos),
+    CODE("lshift", tos =  (U32)ss.pop() << tos),
+    CODE("max",    DU n=ss.pop(); tos = (tos>n)?tos:n),
+    CODE("min",    DU n=ss.pop(); tos = (tos<n)?tos:n),
+    CODE("2*",     tos *= 2),
+    CODE("2/",     tos /= 2),
+    CODE("1+",     tos += 1),
+    CODE("1-",     tos -= 1),
     /// @}
     /// @defgroup Logic ops
     /// @{
-    CODE("0=",     top = BOOL(top == DU0)),
-    CODE("0<",     top = BOOL(top <  DU0)),
-    CODE("0>",     top = BOOL(top >  DU0)),
-    CODE("=",      top = BOOL(ss.pop() == top)),
-    CODE(">",      top = BOOL(ss.pop() >  top)),
-    CODE("<",      top = BOOL(ss.pop() <  top)),
-    CODE("<>",     top = BOOL(ss.pop() != top)),
-    CODE(">=",     top = BOOL(ss.pop() >= top)),
-    CODE("<=",     top = BOOL(ss.pop() <= top)),
-    CODE("u<",     top = BOOL(abs(ss.pop()) < abs(top))),
-    CODE("u>",     top = BOOL(abs(ss.pop()) > abs(top))),
+    CODE("0=",     tos = BOOL(tos == DU0)),
+    CODE("0<",     tos = BOOL(tos <  DU0)),
+    CODE("0>",     tos = BOOL(tos >  DU0)),
+    CODE("=",      tos = BOOL(ss.pop() == tos)),
+    CODE(">",      tos = BOOL(ss.pop() >  tos)),
+    CODE("<",      tos = BOOL(ss.pop() <  tos)),
+    CODE("<>",     tos = BOOL(ss.pop() != tos)),
+    CODE(">=",     tos = BOOL(ss.pop() >= tos)),
+    CODE("<=",     tos = BOOL(ss.pop() <= tos)),
+    CODE("u<",     tos = BOOL(abs(ss.pop()) < abs(tos))),
+    CODE("u>",     tos = BOOL(abs(ss.pop()) > abs(tos))),
     /// @}
     /// @defgroup Data Stack ops
     /// @brief - opcode sequence can be changed below this line
     /// @{
-    CODE("dup",    PUSH(top)),
-    CODE("drop",   top=ss.pop()),  // note: ss.pop() != POP()
+    CODE("dup",    PUSH(tos)),
+    CODE("drop",   tos=ss.pop()),  // note: ss.pop() != POP()
     CODE("swap",   DU n = ss.pop(); PUSH(n)),
     CODE("over",   PUSH(ss[-2])),
     CODE("rot",    DU n = ss.pop(); DU m = ss.pop(); ss.push(n); PUSH(m)),
     CODE("-rot",   DU n = ss.pop(); DU m = ss.pop(); PUSH(m);  PUSH(n)),
-    CODE("pick",   top = ss[-top]),
+    CODE("pick",   tos = ss[-tos]),
     CODE("nip",    ss.pop()),
-    CODE("?dup",   if (top != DU0) PUSH(top)),
+    CODE("?dup",   if (tos != DU0) PUSH(tos)),
     /// @}
     /// @defgroup Data Stack ops - double
     /// @{
     CODE("2dup",   PUSH(ss[-2]); PUSH(ss[-2])),
-    CODE("2drop",  ss.pop(); top=ss.pop()),
+    CODE("2drop",  ss.pop(); tos=ss.pop()),
     CODE("2swap",  DU n = ss.pop(); DU m = ss.pop(); DU l = ss.pop();
                    ss.push(n); PUSH(l); PUSH(m)),
     CODE("2over",  PUSH(ss[-4]); PUSH(ss[-4])),
@@ -397,9 +397,9 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
         if (v < 0) buf[--i]='-';
         return &buf[i];
     };
-    ss.push(top);
+    ss.push(tos);
     for (DU v : ss) { fout << rdx(v, base) << ' '; }
-    top = ss.pop();
+    tos = ss.pop();
     fout << "-> ok" << ENDL;
 }
 void see(Code *c, int dp) {  ///> disassemble a colon word
