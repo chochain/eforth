@@ -1,6 +1,7 @@
 EM = em++
 CC = g++
-CC_FLAG = -std=c++17 -O2 -Wall 
+CC_FLAG = -std=c++17 -O2 -Wall \
+          -fomit-frame-pointer -fno-stack-check -fno-stack-protector
 
 FLST = \
 	tests/ceforth36b  \
