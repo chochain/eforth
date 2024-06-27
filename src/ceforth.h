@@ -74,13 +74,9 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    static int exec(Code *c) {            ///> inner interpreter
-        if (c->xt) { return c->xt(c); }   /// * run primitive word
-		for (Code &w : c->pf) {
-			try { Code::exec(&w); }
-			catch (...) {}
-		}
-		return 0;
+    static int dolist(Code *c) {
+        if (c->token==0) return 1;
+        return dolist(c + 1);             /// * tail recursion
     }
     Code(string s, XT fp, U32 a);         ///> primitive
     Code(string s, bool n=true);          ///> colon, n=new word
@@ -88,6 +84,10 @@ struct Code {
     ~Code() {}                            ///> do nothing now
     
     Code &append(Code &w) { pf.push(w); return *this; } ///> add token
+    int exec() {                          ///> inner interpreter
+        if (xt) { return xt(this); }      /// * run primitive word
+        return Code::dolist(pf.data());
+    }
 };
 ///
 ///> polymophic constructors
