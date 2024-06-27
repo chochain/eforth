@@ -28,7 +28,7 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 #define PUSH(v)      (ss.push(top), top=(v))
 #define BOOL(f)      ((f) ? -1 : 0)    /* Forth use -1 as true     */
-#define IS_NA(w)     (w)               /* signify a word not found */
+#define IS_NA(w)     (!(w))            /* signify a word not found */
 #define VAR(i)       (*dict[(int)(i)].pf[0].q.data())
 #define DICT_PUSH(c) (dict.push((Code &)c), last=&dict[-1])
 #define DICT_POP()   (dict.pop(), last=&dict[-1])
@@ -46,12 +46,11 @@ inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  { s, [](Code *c)-> int { g; }, __COUNTER__ }
-#define IMMD(s, g)  { s, [](Code *c)-> int { g; }, __COUNTER__ | Code::IMMD_FLAG }
+#define CODE(s, g)  { s, [](Code *c)-> int { g; return 0; }, __COUNTER__ }
+#define IMMD(s, g)  { s, [](Code *c)-> int { g; return 0; }, __COUNTER__ | Code::IMMD_FLAG }
 
 FV<Code> dict = {
     CODE("bye",    exit(0)),       // exit to OS
-#if 0    
     ///
     /// @defgroup ALU ops
     /// @{
@@ -263,7 +262,7 @@ FV<Code> dict = {
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   dict[POP()].exec()),           // w --
+    CODE("exec",   Code::exec(&dict[POP()])),     // w --
     CODE("create",
          Code w(word()); Var v(DU0);
          DICT_PUSH(w);
@@ -275,8 +274,8 @@ FV<Code> dict = {
          last->append(b);
          last->pf[-1].token = last->token),       // keep WP
     CODE("to",                                    // n --
-         Code *w=find(word()); if (IS_NA(w)) return;
-         VAR(w.token) = POP()),                   // update value
+         Code *w=find(word()); if (IS_NA(w)) return 0;
+         VAR(w->token) = POP()),                  // update value
     CODE("is",                                    // w --
          Code w(word(), false);
          DICT_PUSH(w);                            // create word
@@ -300,11 +299,11 @@ FV<Code> dict = {
     /// @{
     CODE("here",    PUSH(last->token)),
     CODE("'",       Code *w = find(word());
-                    if (!IS_NA(w)) PUSH(w.token)),
+                    if (!IS_NA(w)) PUSH(w->token)),
     CODE(".s",      ss_dump(BASE)),    // dump parameter stack
     CODE("words",   words()),          // display word lists
     CODE("see",     Code *w = find(word());
-                    if (!IS_NA(w)) see(w, 0); fout << ENDL),
+                    if (!IS_NA(w)) see(*w, 0); fout << ENDL),
     CODE("depth",   PUSH(ss.size())),  // data stack depth
     /// @}
     /// @defgroup OS ops
@@ -314,13 +313,12 @@ FV<Code> dict = {
     CODE("delay",   delay(POP())),     // n -- delay n msec
     CODE("included", load(pad.c_str())),
     CODE("forget",
-         Code *w = find(word()); if (IS_NA(w)) return;
-         int  t  = max((int)w.token, find("boot").token + 1);
+         Code *w = find(word()); if (IS_NA(w)) return 0;
+         int  t  = max((int)w->token, find("boot")->token + 1);
          for (int i=dict.size(); i>t; i--) DICT_POP()),
     CODE("boot",
-         int t = find("boot").token + 1;
+         int t = find("boot")->token + 1;
          for (int i=dict.size(); i>t; i--) DICT_POP()),
-#endif    
 };
 ///====================================================================
 ///
