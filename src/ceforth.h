@@ -33,18 +33,18 @@ struct FV : public vector<T> {         ///< our super-vector class
 ///> Primitve object and function forward declarations
 ///
 struct Code;                 ///< Code class forward declaration
-typedef void (*XT)(Code&);   ///< function pointer
+typedef int (*XT)(Code*);    ///< function pointer
 
-void   _str(Code &c);        ///< dotstr, dostr
-void   _lit(Code &c);        ///< numeric liternal
-void   _var(Code &c);        ///< variable and constant
-void   _tor(Code &c);        ///< >r (for..next)
-void   _dor(Code &c);        ///< swap >r >r (do..loop)
-void   _bran(Code &c);       ///< if..then, if..else..then
-void   _cycle(Code &c);      ///< begin..repeat, begin..while..repeat
-void   _for(Code &c);        ///< for..next
-void   _doloop(Code &c);     ///< do..loop
-void   _does(Code &c);       ///< create..does>..
+int   _str(Code *c);         ///< dotstr, dostr
+int   _lit(Code *c);         ///< numeric liternal
+int   _var(Code *c);         ///< variable and constant
+int   _tor(Code *c);         ///< >r (for..next)
+int   _dor(Code *c);         ///< swap >r >r (do..loop)
+int   _bran(Code *c);        ///< if..then, if..else..then
+int   _cycle(Code *c);       ///< begin..repeat, begin..while..repeat
+int   _for(Code *c);         ///< for..next
+int   _doloop(Code *c);      ///< do..loop
+int   _does(Code *c);        ///< create..does>..
 ///
 ///> IO function declarations
 ///
@@ -53,7 +53,7 @@ void   ss_dump(DU base);     ///< display data stack contents
 void   see(Code &c, int dp); ///< disassemble word
 void   words();              ///< list words in dictionary
 void   load(const char *fn); ///< include script from stream
-Code   &find(string s);      ///< dictionary scanner forward declare
+Code   *find(string s);      ///< dictionary scanner forward declare
 ///
 ///> data structure for dictionary entry
 ///
@@ -74,20 +74,16 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-
+    static int exec(Code *c) {            ///> inner interpreter
+        if (c->xt) { return c->xt(c); }   /// * run primitive word
+        return exec(c + 1);
+    }
     Code(string s, XT fp, U32 a);         ///> primitive
     Code(string s, bool n=true);          ///> colon, n=new word
     Code(XT fp) : xt(fp) { attr=0; }      ///> sub-classes
     ~Code() {}                            ///> do nothing now
     
     Code &append(Code &w) { pf.push(w); return *this; } ///> add token
-    void exec() {                         ///> inner interpreter
-        if (xt) { xt(*this); return; }    /// * run primitive word
-        for (Code &w : pf) {              /// * run colon word
-            try { w.exec(); }             /// * execute recursively
-            catch (...) { break; }        /// * break loop with throw 0
-        }
-    }
 };
 ///
 ///> polymophic constructors
