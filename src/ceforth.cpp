@@ -47,10 +47,11 @@ inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 ///    3. a degenerated lambda becomes a function pointer
 ///
 #define CODE(s, g)  { s, [](Code *c)-> int { g; return 0; }, __COUNTER__ }
+#define DONE(s, g)  { s, [](Code *c)-> int { g; return 1; }, __COUNTER__ }
 #define IMMD(s, g)  { s, [](Code *c)-> int { g; return 0; }, __COUNTER__ | Code::IMMD_FLAG }
 
 FV<Code> dict = {
-    CODE("bye",    exit(0)),       // exit to OS
+    DONE("bye",    exit(0)),       // exit to OS
     ///
     /// @defgroup ALU ops
     /// @{
@@ -230,8 +231,8 @@ FV<Code> dict = {
          last->append(b);
          DICT_PUSH(t)),
     CODE("i",      PUSH(rs[-1])),
-    CODE("leave",
-         rs.pop(); rs.pop(); throw 0), /// * exit loop
+    DONE("leave",
+         rs.pop(); rs.pop()),          /// * exit loop
     IMMD("loop",
          Code &b = BRAN_TGT();
          b.pf.merge(last->pf);         /// * do.{pf}.loop
@@ -239,7 +240,7 @@ FV<Code> dict = {
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE("exit",   throw 0),           // -- (exit from word)
+    DONE("exit",   {}),                // -- (exit from word)
     CODE("[",      compile = false),
     CODE("]",      compile = true),
     CODE(":",
@@ -262,7 +263,7 @@ FV<Code> dict = {
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   Code::exec(&dict[POP()])),     // w --
+    CODE("exec",   dict[POP()].exec()),     // w --
     CODE("create",
          Code w(word()); Var v(DU0);
          DICT_PUSH(w);
@@ -348,44 +349,38 @@ int _var(Code *c)  { PUSH(c->token); return 0; }
 int _tor(Code *c)  { rs.push(POP()); return 0; }
 int _dor(Code *c)  { rs.push(ss.pop()); rs.push(POP()); return 0; }
 int _bran(Code *c) {
-    Code *w = POP() ? &c->pf[0] : &c->p1[0];
-    return Code::exec(w);
+    Code *w = POP() ? c->pf.data() : c->p1.data();
+    return Code::dolist(w);
 }
 int _cycle(Code *c) {            ///> begin.while.repeat, begin.until
     int b = c->stage;            ///< branching state
     while (true) {
-        Code::exec(c->pf.data());       /// * begin..
+        Code::dolist(c->pf.data());     /// * begin..
         if (b==0 && POP()!=0) break;    /// * ..until
         if (b==1)             continue; /// * ..again
         if (b==2 && POP()==0) break;    /// * ..while..repeat
-        Code::exec(c->p1.data());
+        Code::dolist(c->p1.data());
     }
     return 0;
 }
 int _for(Code *c) {             ///> for..next
     int b = c->stage;                        /// * kept in register
-    try {
-        do {
-            Code::exec(c->pf.data());
-        } while (b==0 && (rs[-1]-=1) >=0);   /// * for...next only
-        while (b) {                          /// * aft
-            Code::exec(c->p2.data());        /// * then...next
-            if ((rs[-1]-=1) < 0) break;      /// * decrement counter
-            Code::exec(c->p1.data());        /// * aft...then
-        }
-        rs.pop();
+    do {
+        Code::dolist(c->pf.data());
+    } while (b==0 && (rs[-1]-=1) >=0);   /// * for...next only
+    while (b) {                          /// * aft
+        Code::dolist(c->p2.data());      /// * then...next
+        if ((rs[-1]-=1) < 0) break;      /// * decrement counter
+        Code::dolist(c->p1.data());      /// * aft...then
     }
-    catch (...) { rs.pop(); }                // handle EXIT
+    rs.pop();
     return 0;
 }
 int _doloop(Code *c) {      ///> do..loop
-    try { 
-        do {
-            Code::exec(c->pf.data());
-        } while ((rs[-1]+=1) < rs[-2]);      // increment counter
-        rs.pop(); rs.pop();
-    }
-    catch (...) {}                           // handle LEAVE
+    do {
+        if (Code::dolist(c->pf.data())) break;
+    } while ((rs[-1]+=1) < rs[-2]);      // increment counter
+    rs.pop(); rs.pop();
     return 0;
 }
 int _does(Code *c) {
@@ -501,7 +496,7 @@ void forth_core(string idiom) {
     if (!IS_NA(w)) {                  /// * word found?
         if (compile && !w->immd)      /// * are we compiling new word?
             last->append(*w);         /// * append word ptr to it
-        else Code::exec(w);           /// * execute forth word
+        else w->exec();               /// * execute forth word
         return;
     }
     DU  n = parse_number(idiom);      ///< try as a number
