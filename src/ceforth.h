@@ -59,12 +59,12 @@ Code   *find(string s);      ///< dictionary scanner forward declare
 ///
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
-    string    name;          ///< name of word
-    XT        xt = NULL;     ///< execution token
-    FV<Code>  pf;            ///< parameter field
-    FV<Code>  p1;            ///< parameter field - if..else, aft..then
-    FV<Code>  p2;            ///< parameter field - then..next
-    FV<DU>    q;             ///< parameter field - literal
+    const char *name;        ///< name of word
+    XT         xt = NULL;    ///< execution token
+    FV<Code>   pf;           ///< parameter field
+    FV<Code>   p1;           ///< parameter field - if..else, aft..then
+    FV<Code>   p2;           ///< parameter field - then..next
+    FV<DU>     q;            ///< parameter field - literal
     union {                  ///< union to reduce struct size
         U32 attr = 0;        /// * zero all sub-fields
         struct {
@@ -74,19 +74,19 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    static int dolist(Code *c) {
-        if (c->token==0) return 1;
-        return dolist(c + 1);             /// * tail recursion
+    static int dolist(Code *w) {
+        if (w->exec()) return 0;          /// * walk the tree
+        return dolist(w + 1);             /// * tail recursion => jmp
     }
-    Code(string s, XT fp, U32 a);         ///> primitive
-    Code(string s, bool n=true);          ///> colon, n=new word
+    Code(const char *s, XT fp, U32 a);    ///> primitive
+    Code(const string s, bool n=true);    ///> colon, n=new word
     Code(XT fp) : xt(fp) { attr=0; }      ///> sub-classes
     ~Code() {}                            ///> do nothing now
     
     Code &append(Code &w) { pf.push(w); return *this; } ///> add token
     int exec() {                          ///> inner interpreter
         if (xt) { return xt(this); }      /// * run primitive word
-        return Code::dolist(pf.data());
+        return Code::dolist(pf.data());   /// * tail call => jmp
     }
 };
 ///
@@ -96,7 +96,11 @@ struct Tmp : Code { Tmp() : Code(NULL) {} };
 struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
 struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
-    Str(string s, int t=0) : Code(_str) { name=s; token=t; is_str=1; }
+    Str(string s, int t=0) : Code(_str) {
+        name  = (new string(s))->c_str();
+        token = t;
+        is_str= 1;
+    }
 };
 struct Bran: Code {
     Bran(XT fp) : Code(fp) {
