@@ -76,7 +76,11 @@ struct Code {
     };
     static int exec(Code *c) {            ///> inner interpreter
         if (c->xt) { return c->xt(c); }   /// * run primitive word
-        return exec(c + 1);
+		for (Code &w : c->pf) {
+			try { Code::exec(&w); }
+			catch (...) {}
+		}
+		return 0;
     }
     Code(string s, XT fp, U32 a);         ///> primitive
     Code(string s, bool n=true);          ///> colon, n=new word
