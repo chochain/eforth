@@ -28,12 +28,12 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 #define PUSH(v)      (ss.push(top), top=(v))
 #define BOOL(f)      ((f) ? -1 : 0)    /* Forth use -1 as true     */
-#define IS_NA(w)     (w.xt==(XT)-1)    /* signify a word not found */
+#define IS_NA(w)     (w)               /* signify a word not found */
 #define VAR(i)       (*dict[(int)(i)].pf[0].q.data())
 #define DICT_PUSH(c) (dict.push((Code &)c), last=&dict[-1])
 #define DICT_POP()   (dict.pop(), last=&dict[-1])
 #define BRAN_TGT()   (dict[-2].pf[-1]) /* branching target */
-#define BASE         (VAR(0))         /* borrow dict[0] to store base (numeric radix) */
+#define BASE         (VAR(0))          /* borrow dict[0] to store base (numeric radix) */
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -46,11 +46,12 @@ inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  { s, [](Code &c){ g; }, __COUNTER__ }
-#define IMMD(s, g)  { s, [](Code &c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
+#define CODE(s, g)  { s, [](Code *c)-> int { g; }, __COUNTER__ }
+#define IMMD(s, g)  { s, [](Code *c)-> int { g; }, __COUNTER__ | Code::IMMD_FLAG }
 
 FV<Code> dict = {
     CODE("bye",    exit(0)),       // exit to OS
+#if 0    
     ///
     /// @defgroup ALU ops
     /// @{
@@ -274,7 +275,7 @@ FV<Code> dict = {
          last->append(b);
          last->pf[-1].token = last->token),       // keep WP
     CODE("to",                                    // n --
-         Code &w=find(word()); if (IS_NA(w)) return;
+         Code *w=find(word()); if (IS_NA(w)) return;
          VAR(w.token) = POP()),                   // update value
     CODE("is",                                    // w --
          Code w(word(), false);
@@ -298,11 +299,11 @@ FV<Code> dict = {
     /// @defgroup Debug ops
     /// @{
     CODE("here",    PUSH(last->token)),
-    CODE("'",       Code &w = find(word());
+    CODE("'",       Code *w = find(word());
                     if (!IS_NA(w)) PUSH(w.token)),
     CODE(".s",      ss_dump(BASE)),    // dump parameter stack
     CODE("words",   words()),          // display word lists
-    CODE("see",     Code &w = find(word());
+    CODE("see",     Code *w = find(word());
                     if (!IS_NA(w)) see(w, 0); fout << ENDL),
     CODE("depth",   PUSH(ss.size())),  // data stack depth
     /// @}
@@ -313,12 +314,13 @@ FV<Code> dict = {
     CODE("delay",   delay(POP())),     // n -- delay n msec
     CODE("included", load(pad.c_str())),
     CODE("forget",
-         Code &w = find(word()); if (IS_NA(w)) return;
+         Code *w = find(word()); if (IS_NA(w)) return;
          int  t  = max((int)w.token, find("boot").token + 1);
          for (int i=dict.size(); i>t; i--) DICT_POP()),
     CODE("boot",
          int t = find("boot").token + 1;
          for (int i=dict.size(); i>t; i--) DICT_POP()),
+#endif    
 };
 ///====================================================================
 ///
@@ -329,8 +331,8 @@ Code::Code(const string n, XT fp, U32 a)  ///< primitives word
 
 Code::Code(const string n, bool t)        ///< new colon word
 : name(n) {
-    Code &w = find(n);                    /// * scan the dictionary
-    xt    = IS_NA(w) ? NULL : w.xt;
+    Code *w = find(n);                    /// * scan the dictionary
+    xt    = IS_NA(w) ? NULL : w->xt;
     token = t ? dict.size() : 0;
     if (t && xt) fout << "reDef?";        /// * warn word redefined
 }
@@ -338,58 +340,63 @@ Code::Code(const string n, bool t)        ///< new colon word
 ///
 ///> Primitive Functions
 ///
-void _str(Code &c)  {
-    if (c.token) { PUSH(c.token); PUSH(c.name.size()); }
-    else fout << c.name;
+int _str(Code *c)  {
+    if (c->token) { PUSH(c->token); PUSH(c->name.size()); }
+    else fout << c->name;
+    return 0;
 }
-void _lit(Code &c)  { PUSH(c.q[0]);  }
-void _var(Code &c)  { PUSH(c.token); }
-void _tor(Code &c)  { rs.push(POP()); }
-void _dor(Code &c)  { rs.push(ss.pop()); rs.push(POP()); }
-void _bran(Code &c) {
-    for (Code &w : (POP() ? c.pf : c.p1)) w.exec();
+int _lit(Code *c)  { PUSH(c->q[0]); return 0; }
+int _var(Code *c)  { PUSH(c->token); return 0; }
+int _tor(Code *c)  { rs.push(POP()); return 0; }
+int _dor(Code *c)  { rs.push(ss.pop()); rs.push(POP()); return 0; }
+int _bran(Code *c) {
+    Code *w = POP() ? &c->pf[0] : &c->p1[0];
+    return Code::exec(w);
 }
-void _cycle(Code &c) {           ///> begin.while.repeat, begin.until
-    int b = c.stage;             ///< branching state
+int _cycle(Code *c) {            ///> begin.while.repeat, begin.until
+    int b = c->stage;            ///< branching state
     while (true) {
-        for (Code &w : c.pf) w.exec();       /// * begin..
-        if (b==0 && POP()!=0) break;         /// * ..until
-        if (b==1)             continue;      /// * ..again
-        if (b==2 && POP()==0) break;         /// * ..while..repeat
-        for (Code &w : c.p1) w.exec();
+        Code::exec(c->pf.data());       /// * begin..
+        if (b==0 && POP()!=0) break;    /// * ..until
+        if (b==1)             continue; /// * ..again
+        if (b==2 && POP()==0) break;    /// * ..while..repeat
+        Code::exec(c->p1.data());
     }
+    return 0;
 }
-void _for(Code &c) {             ///> for..next
-    int b = c.stage;                         /// * kept in register
+int _for(Code *c) {             ///> for..next
+    int b = c->stage;                        /// * kept in register
     try {
         do {
-            for (Code &w : c.pf) w.exec();
+            Code::exec(c->pf.data());
         } while (b==0 && (rs[-1]-=1) >=0);   /// * for...next only
         while (b) {                          /// * aft
-            for (Code &w : c.p2) w.exec();   /// * then...next
+            Code::exec(c->p2.data());        /// * then...next
             if ((rs[-1]-=1) < 0) break;      /// * decrement counter
-            for (Code &w : c.p1) w.exec();   /// * aft...then
+            Code::exec(c->p1.data());        /// * aft...then
         }
         rs.pop();
     }
     catch (...) { rs.pop(); }                // handle EXIT
+    return 0;
 }
-void _doloop(Code &c) {      ///> do..loop
+int _doloop(Code *c) {      ///> do..loop
     try { 
         do {
-            for (Code &w : c.pf) w.exec();
+            Code::exec(c->pf.data());
         } while ((rs[-1]+=1) < rs[-2]);      // increment counter
         rs.pop(); rs.pop();
     }
     catch (...) {}                           // handle LEAVE
+    return 0;
 }
-void _does(Code &c) {
+int _does(Code *c) {
     bool hit = false;
-    for (Code &w : dict[c.token].pf) {
+    for (Code &w : dict[c->token].pf) {
         if (hit) last->append(w);           // copy rest of pf
         if (w.name=="_does") hit = true;
     }
-    throw 0;                                // exit caller
+    return 1;                               // exit caller
 }
 ///====================================================================
 ///
@@ -462,12 +469,11 @@ void load(const char *fn) {            ///> include script from stream
 ///
 ///> Forth outer interpreter
 ///
-Code &find(string s) {                ///> scan dictionary, last to first
-    static Code NA((XT)-1);           ///< NA.xt==(XT)-1
+Code *find(string s) {         ///> scan dictionary, last to first
     for (int i = dict.size() - 1; i >= 0; --i) {
-        if (s == dict[i].name) return dict[i];
+        if (s == dict[i].name) return &dict[i];
     }
-    return NA;              /// * word not found, use IS_NA(w) to check
+    return NULL;              /// * word not found, use IS_NA(w) to check
 }
 
 DU parse_number(string idiom) {
@@ -493,17 +499,17 @@ DU parse_number(string idiom) {
 }
 
 void forth_core(string idiom) {
-    Code &w = find(idiom);            /// * search through dictionary
+    Code *w = find(idiom);            /// * search through dictionary
     if (!IS_NA(w)) {                  /// * word found?
-        if (compile && !w.immd)       /// * are we compiling new word?
-            last->append(w);          /// * append word ptr to it
-        else w.exec();                /// * execute forth word
+        if (compile && !w->immd)      /// * are we compiling new word?
+            last->append(*w);         /// * append word ptr to it
+        else Code::exec(w);           /// * execute forth word
         return;
     }
     DU  n = parse_number(idiom);      ///< try as a number
     if (compile) {                    /// * are we compiling new word?
         Lit v(n);
-        last->append(v);              /// * append numeric literal to it
+        last->append(v);             /// * append numeric literal to it
     }
     else PUSH(n);                     /// * add value to data stack
 }
