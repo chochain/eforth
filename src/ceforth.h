@@ -50,6 +50,7 @@ int   _does(Code *c);        ///< create..does>..
 ///
 string word(char delim=0);   ///< read next idiom from input stream
 void   ss_dump(DU base);     ///< display data stack contents
+string to_s(Code &c);        ///< display a Code node
 void   see(Code &c, int dp); ///< disassemble word
 void   words();              ///< list words in dictionary
 void   load(const char *fn); ///< include script from stream
@@ -68,25 +69,29 @@ struct Code {
     union {                  ///< union to reduce struct size
         U32 attr = 0;        /// * zero all sub-fields
         struct {
-            U32 token : 28;  ///< dict index, 0=param word
+            U32 token : 27;  ///< dict index, 0=param word
+            U32 eop   :  1;  ///< stop bit (end of parameter array)
             U32 stage :  2;  ///< branching state
             U32 is_str:  1;  ///< string flag
             U32 immd  :  1;  ///< immediate flag
         };
     };
     static int dolist(Code *w) {
+        printf("%p> %s xt=%p t=%x\n", w, w->name, w->xt, w->attr);
         if (w->exec()) return 0;          /// * walk the tree
         return dolist(w + 1);             /// * tail recursion => jmp
     }
     Code(const char *s, XT fp, U32 a);    ///> primitive
     Code(const string s, bool n=true);    ///> colon, n=new word
-    Code(XT fp) : xt(fp) { attr=0; }      ///> sub-classes
+    Code(XT fp)                           ///> sub-classes
+        : name(""), xt(fp), attr(0) {}
     ~Code() {}                            ///> do nothing now
     
-    Code &append(Code &w) { pf.push(w); return *this; } ///> add token
-    int exec() {                          ///> inner interpreter
-        if (xt) { return xt(this); }      /// * run primitive word
-        return Code::dolist(pf.data());   /// * tail call => jmp
+    Code &append(Code &w) { pf.push(w);     return *this; } ///> add token
+    Code &stop()          { pf[-1].eop = 1; return *this; } ///> mark end of parameter array
+    int exec() {                               ///> inner interpreter
+        if (xt) { return xt(this) || eop ; }   /// * run primitive word
+        return Code::dolist(pf.data());        /// * tail call => jmp
     }
 };
 ///
