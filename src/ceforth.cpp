@@ -363,25 +363,27 @@ int _bran(Code *c) {
 int _cycle(Code *c) {            ///> begin.while.repeat, begin.until
     int b = c->stage;            ///< branching state
     while (true) {
-        Code::dolist(c->pf.data());     /// * begin..
-        if (b==0 && POP()!=0) break;    /// * ..until
-        if (b==1)             continue; /// * ..again
-        if (b==2 && POP()==0) break;    /// * ..while..repeat
-        Code::dolist(c->p1.data());
+        if (Code::dolist(c->pf.data())) break;  /// * begin..
+        if (b==0 && POP()!=0) break;            /// * ..until
+        if (b==1)             continue;         /// * ..again
+        if (b==2 && POP()==0) break;            /// * ..while..repeat
+        if (Code::dolist(c->p1.data())) break;
     }
     return 0;
 }
 int _for(Code *c) {             ///> for..next
     int b = c->stage;                    /// * kept in register
     do {
+        printf("_for %d\n", rs[-1]);
         if (Code::dolist(c->pf.data())) break;
-    } while (b==0 && (rs[-1]-=1) >=0);        /// * for...next only
-    while (b) {                               /// * aft
+    } while (b==0 && (rs[-1]-=1) >=0);          /// * for...next only
+    while (b) {                                 /// * aft
         if (Code::dolist(c->p2.data())) break;  /// * then...next
-        if ((rs[-1]-=1) < 0) break;           /// * decrement counter
+        if ((rs[-1]-=1) < 0) break;             /// * decrement counter
         if (Code::dolist(c->p1.data())) break;  /// * aft...then
     }
     rs.pop();
+    printf("_for done t=%x\n", c->attr);
     return 0;
 }
 int _doloop(Code *c) {      ///> do..loop
