@@ -76,23 +76,19 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    static int dolist(Code *w) {
-        printf("%p> %s xt=%p t=%x\n", w, w->name, w->xt, w->attr);
-        if (w->exec()) return 0;          /// * walk the tree
-        return dolist(w + 1);             /// * tail recursion => jmp
+    static int exec(Code *w) {           ///> inner interpreter
+        printf("%p> %s t=%x\n", w, w->name, w->attr);
+        if (w->xt) { return w->xt(w) | w->eop; }    /// * run primitive word
+        return exec(w->pf.data()) | exec(w + 1);    /// * tail call => jmp
     }
     Code(const char *s, XT fp, U32 a);    ///> primitive
     Code(const string s, bool n=true);    ///> colon, n=new word
     Code(XT fp)                           ///> sub-classes
-        : name(""), xt(fp), attr(0) {}
+        : name("#"), xt(fp), attr(0) {}
     ~Code() {}                            ///> do nothing now
     
     Code &append(Code &w) { pf.push(w);     return *this; } ///> add token
     Code &stop()          { pf[-1].eop = 1; return *this; } ///> mark end of parameter array
-    int exec() {                               ///> inner interpreter
-        if (xt) { return xt(this) || eop ; }   /// * run primitive word
-        return Code::dolist(pf.data());        /// * tail call => jmp
-    }
 };
 ///
 ///> polymophic constructors

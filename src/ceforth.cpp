@@ -47,7 +47,6 @@ inline  DU POP()     { DU n=top; top=ss.pop(); return n; }
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-#define NEXT()      { return Code::dolist(c + 1); }
 #define CODE(s, g)  { s, [](Code *c)-> int { g; return 0; }, __COUNTER__ }
 #define EXIT(s, g)  { s, [](Code *c)-> int { g; return 1; }, __COUNTER__ }
 #define IMMD(s, g)  { s, [](Code *c)-> int { g; return 0; }, __COUNTER__ | Code::IMMD_FLAG }
@@ -276,7 +275,7 @@ FV<Code> dict = {
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   dict[POP()].exec()),           // w --
+    CODE("exec",   Code::exec(&dict[POP()])),     // w --
     CODE("create",
          Code w(word()); Var v(DU0);
          DICT_PUSH(w);
@@ -362,35 +361,35 @@ int _var(Code *c)  { PUSH(c->token); return 0; }
 int _tor(Code *c)  { rs.push(POP()); return 0; }
 int _dor(Code *c)  { rs.push(ss.pop()); rs.push(POP()); return 0; }
 int _bran(Code *c) {
-    return Code::dolist(POP() ? c->pf.data() : c->p1.data());
+    return Code::exec(POP() ? c->pf.data() : c->p1.data());
 }
 int _cycle(Code *c) {            ///> begin.while.repeat, begin.until
     int b = c->stage;            ///< branching state
     while (true) {
-        Code::dolist(c->pf.data());     /// * begin..
+        Code::exec(c->pf.data());       /// * begin..
         if (b==0 && POP()!=0) break;    /// * ..until
         if (b==1)             continue; /// * ..again
         if (b==2 && POP()==0) break;    /// * ..while..repeat
-        Code::dolist(c->p1.data());
+        Code::exec(c->p1.data());
     }
     return 0;
 }
 int _for(Code *c) {             ///> for..next
     int b = c->stage;                    /// * kept in register
     do {
-        if (Code::dolist(c->pf.data())) break;
-    } while (b==0 && (rs[-1]-=1) >=0);          /// * for...next only
-    while (b) {                                 /// * aft
-        if (Code::dolist(c->p2.data())) break;  /// * then...next
-        if ((rs[-1]-=1) < 0) break;             /// * decrement counter
-        if (Code::dolist(c->p1.data())) break;  /// * aft...then
+        if (Code::exec(c->pf.data())) break;
+    } while (b==0 && (rs[-1]-=1) >=0);        /// * for...next only
+    while (b) {                               /// * aft
+        if (Code::exec(c->p2.data())) break;  /// * then...next
+        if ((rs[-1]-=1) < 0) break;           /// * decrement counter
+        if (Code::exec(c->p1.data())) break;  /// * aft...then
     }
     rs.pop();
     return 0;
 }
 int _doloop(Code *c) {      ///> do..loop
     do {
-        if (Code::dolist(c->pf.data())) break;
+        if (Code::exec(c->pf.data())) break;
     } while ((rs[-1]+=1) < rs[-2]);      // increment counter
     rs.pop(); rs.pop();
     return 0;
@@ -427,19 +426,17 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
     top = ss.pop();
     fout << "-> ok" << ENDL;
 }
-string to_s(Code &c) {
-    string sn(c.name);
-    if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
-    return sn;
-}
 void see(Code &c, int dp) {  ///> disassemble a colon word
     auto pp = [](int dp, string s, FV<Code> &v) {     ///> recursive dump with indent
         int i = dp; fout << ENDL; while (i--) fout << "  "; fout << s;
         for (Code &w : v) if (dp < 3) see(w, dp + 1); /// * depth controlled
     };
     string bn = c.stage==2 ? "_whie" : (c.stage==3 ? "_aft" : "_else");
+    string sn(c.name);
+    if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
+    if (c.eop)    sn += " ~";
 
-    pp(dp, to_s(c), c.pf);
+    pp(dp, sn, c.pf);
     if (c.p1.size() > 0) pp(dp, bn, c.p1);
     if (c.p2.size() > 0) pp(dp, "_then", c.p2);
     if (c.q.size()  > 0) for (DU i : c.q) fout << i << " ";
@@ -511,7 +508,7 @@ void forth_core(string idiom) {
     if (!IS_NA(w)) {                  /// * word found?
         if (compile && !w->immd)      /// * are we compiling new word?
             last->append(*w);         /// * append word ptr to it
-        else w->exec();               /// * execute forth word
+        else Code::exec(w);           /// * execute forth word
         return;
     }
     DU  n = parse_number(idiom);      ///< try as a number
