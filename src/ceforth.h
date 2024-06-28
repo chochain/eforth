@@ -77,7 +77,7 @@ struct Code {
         };
     };
     static int dolist(Code *w) {
-        if (w->exec()) return 0;          /// * walk the tree
+        if (w->exec()) return 0;          /// * break or eop
         return dolist(w + 1);             /// * tail recursion => jmp
     }
     
@@ -91,8 +91,8 @@ struct Code {
     Code &stop()          { pf[-1].eop = 1; return *this; } ///> mark end of parameter array
     int exec() {                               ///> inner interpreter
         printf("%p> %s t=%x\n", this, name, attr);
-        if (xt) { return xt(this) || eop ; }   /// * run primitive word
-        return Code::dolist(pf.data());        /// * tail call => jmp
+        if (xt) { return xt(this) | eop ; }    /// * run primitive word
+        return Code::dolist(pf.data()) | eop;  /// * tail call => jmp
     }
 };
 ///
