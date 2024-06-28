@@ -275,7 +275,7 @@ FV<Code> dict = {
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   Code::exec(&dict[POP()])),     // w --
+    CODE("exec",   dict[POP()].exec()),     // w --
     CODE("create",
          Code w(word()); Var v(DU0);
          DICT_PUSH(w);
@@ -337,9 +337,6 @@ FV<Code> dict = {
 ///
 ///> Code Class constructors
 ///
-Code::Code(const char *s, XT fp, U32 a)   ///< primitives word
-: name(s), xt(fp), attr(a) {}             /// * attr use __COUNTER__ as index
-
 Code::Code(const string s, bool t) {      ///< new colon word
     Code *w = find(s);                    /// * scan the dictionary
     name  = (new string(s))->c_str();
@@ -361,35 +358,35 @@ int _var(Code *c)  { PUSH(c->token); return 0; }
 int _tor(Code *c)  { rs.push(POP()); return 0; }
 int _dor(Code *c)  { rs.push(ss.pop()); rs.push(POP()); return 0; }
 int _bran(Code *c) {
-    return Code::exec(POP() ? c->pf.data() : c->p1.data());
+    return Code::dolist(POP() ? c->pf.data() : c->p1.data());
 }
 int _cycle(Code *c) {            ///> begin.while.repeat, begin.until
     int b = c->stage;            ///< branching state
     while (true) {
-        Code::exec(c->pf.data());       /// * begin..
+        Code::dolist(c->pf.data());     /// * begin..
         if (b==0 && POP()!=0) break;    /// * ..until
         if (b==1)             continue; /// * ..again
         if (b==2 && POP()==0) break;    /// * ..while..repeat
-        Code::exec(c->p1.data());
+        Code::dolist(c->p1.data());
     }
     return 0;
 }
 int _for(Code *c) {             ///> for..next
     int b = c->stage;                    /// * kept in register
     do {
-        if (Code::exec(c->pf.data())) break;
+        if (Code::dolist(c->pf.data())) break;
     } while (b==0 && (rs[-1]-=1) >=0);        /// * for...next only
     while (b) {                               /// * aft
-        if (Code::exec(c->p2.data())) break;  /// * then...next
+        if (Code::dolist(c->p2.data())) break;  /// * then...next
         if ((rs[-1]-=1) < 0) break;           /// * decrement counter
-        if (Code::exec(c->p1.data())) break;  /// * aft...then
+        if (Code::dolist(c->p1.data())) break;  /// * aft...then
     }
     rs.pop();
     return 0;
 }
 int _doloop(Code *c) {      ///> do..loop
     do {
-        if (Code::exec(c->pf.data())) break;
+        if (Code::dolist(c->pf.data())) break;
     } while ((rs[-1]+=1) < rs[-2]);      // increment counter
     rs.pop(); rs.pop();
     return 0;
@@ -508,7 +505,7 @@ void forth_core(string idiom) {
     if (!IS_NA(w)) {                  /// * word found?
         if (compile && !w->immd)      /// * are we compiling new word?
             last->append(*w);         /// * append word ptr to it
-        else Code::exec(w);           /// * execute forth word
+        else w->exec();               /// * execute forth word
         return;
     }
     DU  n = parse_number(idiom);      ///< try as a number
