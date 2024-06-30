@@ -70,30 +70,25 @@ struct Code {
         U32 attr = 0;        /// * zero all sub-fields
         struct {
             U32 token : 27;  ///< dict index, 0=param word
-            U32 eop   :  1;  ///< stop bit (end of parameter array)
+            U32 next  :  1;  ///< stop bit (end of parameter array)
             U32 stage :  2;  ///< branching state
             U32 is_str:  1;  ///< string flag
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    static int dolist(Code *w) {
-        if (w->exec()) return 0;          /// * break or eop
-        return dolist(w + 1);             /// * tail recursion => jmp
+    static int exec(Code *w) {            ///> inner interpreter
+        printf("%p> %s t=%x\n", w, w->name, w->attr);
+        if (!(w->xt ? w->xt(w) : exec(w->pf.data()))) return 0;
+        return exec(w + 1);
     }
-    
     Code(const string s, bool n=true);    ///> colon, n=new word
     Code(const char *s, XT fp, U32 a)     ///> primitive
         : name(s), xt(fp), attr(a) {}
     Code(XT fp) : Code("#", fp, 0) {}     ///> sub-classes
     ~Code() {}                            ///> do nothing now
     
-    Code &append(Code &w) { pf.push(w);     return *this; } ///> add token
-    Code &stop()          { pf[-1].eop = 1; return *this; } ///> mark end of parameter array
-    int exec() {                               ///> inner interpreter
-        printf("%p> %s t=%x\n", this, name, attr);
-        if (xt) { return xt(this) | eop ; }    /// * run primitive word
-        return Code::dolist(pf.data()) | eop;  /// * tail call => jmp
-    }
+    Code &append(Code &w) { w.next = 1; pf.push(w); return *this; } ///> add token
+    Code &stop()          { pf[-1].next = 0; return *this; } ///> mark end of parameter array
 };
 ///
 ///> polymophic constructors
