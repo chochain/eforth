@@ -342,7 +342,7 @@ Code::Code(const string s, bool t) {      ///< new colon word
     Code *w = find(s);                    /// * scan the dictionary
     name  = (new string(s))->c_str();
     xt    = IS_NA(w) ? NULL : w->xt;
-    token = t ? dict.size() : 0;
+    attr  = t ? dict.size() : 0;
     if (t && xt) fout << "reDef?";        /// * warn word redefined
 }
 ///====================================================================
@@ -435,7 +435,7 @@ void see(Code &c, int dp) {  ///> disassemble a colon word
     string bn = c.stage==2 ? "_whie" : (c.stage==3 ? "_aft" : "_else");
     string sn(c.name);
     if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
-    if (c.next)   sn += " ~";
+    if (!c.next)  sn += " ~";
 
     pp(dp, sn, c.pf);
     if (c.p1.size() > 0) pp(dp, bn, c.p1);
