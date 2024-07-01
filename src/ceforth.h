@@ -61,13 +61,13 @@ Code   *find(string s);      ///< dictionary scanner forward declare
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
     const char *name;        ///< name of word
-    XT         xt = NULL;    ///< execution token
+    XT         xt;           ///< execution token
     FV<Code>   pf;           ///< parameter field
     FV<Code>   p1;           ///< parameter field - if..else, aft..then
     FV<Code>   p2;           ///< parameter field - then..next
     FV<DU>     q;            ///< parameter field - literal
     union {                  ///< union to reduce struct size
-        U32 attr = 0;        /// * zero all sub-fields
+        U32 attr;            /// * zero all sub-fields
         struct {
             U32 token : 27;  ///< dict index, 0=param word
             U32 next  :  1;  ///< stop bit (end of parameter array)
@@ -78,8 +78,8 @@ struct Code {
     };
     static int exec(Code *w) {            ///> inner interpreter
         printf("%p> %s t=%x\n", w, w->name, w->attr);
-        if (!(w->xt ? w->xt(w) : exec(w->pf.data()))) return 0;
-        return exec(w + 1);
+        return (w->xt ? w->xt(w) : exec(w->pf.data()))
+            ? exec(w + 1) : 0;
     }
     Code(const string s, bool n=true);    ///> colon, n=new word
     Code(const char *s, XT fp, U32 a)     ///> primitive
@@ -110,7 +110,7 @@ struct Bran: Code {
         };
         XT vt[] = { _bran, _cycle, _tor, _for, _dor, _doloop, _does };
 
-        for (int i=0; i < (int)(sizeof(nm)/sizeof(const char*)); i++) {
+        for (int i=0; i < (int)(sizeof(nm)/sizeof(nm[0])); i++) {
             if ((uintptr_t)vt[i]==(uintptr_t)fp) name = nm[i];
         }
         is_str = 0;
