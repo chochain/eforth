@@ -292,7 +292,6 @@ const Code rom[] = {               ///< Forth dictionary
     CODE(".s",      ss_dump(BASE)),    // dump parameter stack
     CODE("words",   words()),          // display word lists
     CODE("see",     Code *w = find(word()); if (w) see(w); fout << ENDL),
-    CODE("dump",    DU n = POP();  dump(POP(), n)),
     CODE("depth",   PUSH(ss.size())),  // data stack depth
     /// @}
     /// @defgroup OS ops
@@ -405,28 +404,30 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
     fout << "-> ok" << ENDL;
 }
 void _see(Code *c, int dp) {  ///> disassemble a colon word
-    auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
-#if CC_DEBUG
-        int i = dp; fout << ENDL; while (i--) fout << "  ";
-#endif // CC_DEBUG
-        fout << s << " ";
-        for (Code *w : v) _see(w, dp + 1);         /// * depth controlled
+    auto pp = [](string s, FV<Code*> v, int dp) {       ///> recursive dump with indent
+        int i = dp;
+        if (s!="\t") fout << ENDL; while (i--) fout << "  "; fout << s;
+        if (dp < 2) for (Code *w : v) _see(w, dp + 1);  /// 1-deep controlled
     };
     auto pq = [](FV<DU> q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
     };
+    const FV<Code*> zz = {};
     string sn(c->name);
     if (c->is_str) sn = (c->token ? "s\" " : ".\" ") + sn + "\"";
     pp(sn, c->pf, dp);
     if (sn=="if")    {
         if (c->stage==1) pp("else", c->p1, dp);
-        fout << "then";
+        pp("then", zz, dp);
     }
     else if (sn=="begin") {
         switch (c->stage) {
-        case 0: fout << "until"; break;
-        case 1: fout << "again"; break;
-        case 2: pp("while", c->p1, dp); fout << "repeat"; break;
+        case 0: pp("until", zz, dp); break;
+        case 1: pp("again", zz, dp); break;
+        case 2:
+            pp("while",  c->p1, dp);
+            pp("repeat", zz,    dp);
+            break;
         }
     }
     else if (sn=="for") {
@@ -434,26 +435,17 @@ void _see(Code *c, int dp) {  ///> disassemble a colon word
             pp("aft",  c->p1, dp);
             pp("then", c->p2, dp);
         }
-        fout << "next";
+        pp("next", zz, dp);
     }
     else if (sn=="do") {
-        fout << "loop";
+        pp("loop", zz, dp);
     }
     else pq(c->q);
 }
 void see(Code *c) {
-    fout << ": "; _see(c, 0); fout << " ;";
-}
-void dump(int m, int n) {
-    for (int i=m; i < min(m+n, (int)dict.size()); i++) {
-        Code *c = dict[i];
-        fout << "[" << setw(3) << i << "]"
-             << setw(10) << c->name << " ->";
-        if (c->xt) {
-            fout << "{ " << c->desc << "; }";
-        }
-        else see(c);
-        fout << ENDL;
+    if (c->xt) fout << "  ->{ " << c->desc << "; }";
+    else {
+        fout << ": "; _see(c, 0); fout << " ;";
     }
 }
 void words() {              ///> display word list
