@@ -162,7 +162,7 @@ const Code rom[] = {               ///< Forth dictionary
     ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
     IMMD("if",
-	     last->append(new Bran(_bran));
+	     last->append(new Bran(_if));
          DICT_PUSH(new Tmp())),
     IMMD("else",
          Code *b = BRAN_TGT();
@@ -222,7 +222,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @brief  - do...loop, do..leave..loop
     /// @{
     IMMD("do",
-         last->append(new Bran(_dor));  ///< ( limit first -- )
+         last->append(new Bran(_tor2)); ///< ( limit first -- )
          last->append(new Bran(_loop));
          DICT_PUSH(new Tmp())),
     CODE("i",      PUSH(rs[-1])),
@@ -283,7 +283,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("array!",  DU i=POP(); int w=POP(); *(&VAR(w)+i)=POP()),  // n w i --
     CODE(",",       last->pf[0]->q.push(POP())),
     CODE("allot",   int n = POP();                                 // n --
-                    for (int i=0; i<n; i++) last->pf[0]->q.push(0)),
+                    for (int i=0; i<n; i++) last->pf[0]->q.push(DU0)),
     /// @}
     /// @defgroup Debug ops
     /// @{
@@ -333,8 +333,8 @@ void _str(Code *c)  {
 void _lit(Code *c)  { PUSH(c->q[0]);  }
 void _var(Code *c)  { PUSH(c->token); }
 void _tor(Code *c)  { rs.push(POP()); }
-void _dor(Code *c)  { rs.push(ss.pop()); rs.push(POP()); }
-void _bran(Code *c) {
+void _tor2(Code *c) { rs.push(ss.pop()); rs.push(POP()); }
+void _if(Code *c)   {
     for (Code *w : (POP() ? c->pf : c->p1)) w->exec();
 }
 void _begin(Code *c) {           ///> begin.while.repeat, begin.until
@@ -352,11 +352,11 @@ void _for(Code *c) {             ///> for..next, for..aft..then..next
     try {
         do {
             for (Code *w : c->pf) w->exec();
-        } while (b==0 && (rs[-1]-=1) >=0);   /// * for...next only
+        } while (b==0 && (rs[-1]-=1) >=0);   /// * for..next only
         while (b) {                          /// * aft
-            for (Code *w : c->p2) w->exec(); /// * then...next
+            for (Code *w : c->p2) w->exec(); /// * then..next
             if ((rs[-1]-=1) < 0) break;      /// * decrement counter
-            for (Code *w : c->p1) w->exec(); /// * aft...then
+            for (Code *w : c->p1) w->exec(); /// * aft..then
         }
         rs.pop();
     }
@@ -403,11 +403,12 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
     tos = ss.pop();
     fout << "-> ok" << ENDL;
 }
-void _see(Code *c, int dp) {  ///> disassemble a colon word
-    auto pp = [](string s, FV<Code*> v, int dp) {       ///> recursive dump with indent
+void _see(Code *c, int dp) {         ///> disassemble a colon word
+    auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
         int i = dp;
-        if (s!="\t") fout << ENDL; while (i--) fout << "  "; fout << s;
-        if (dp < 2) for (Code *w : v) _see(w, dp + 1);  /// 1-deep controlled
+        if (dp && s!="\t") fout << ENDL;           ///> newline control
+        while (i--) { fout << "  "; } fout << s;   ///> indentation control
+        if (dp < 2) for (Code *w : v) _see(w, dp + 1);
     };
     auto pq = [](FV<DU> q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
