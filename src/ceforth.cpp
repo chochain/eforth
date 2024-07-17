@@ -46,8 +46,8 @@ inline  DU POP()     { DU n=tos; tos=ss.pop(); return n; }
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  { s, [](Code *c){ g; }, __COUNTER__ }
-#define IMMD(s, g)  { s, [](Code *c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
+#define CODE(s, g)  { s, #g, [](Code *c){ g; }, __COUNTER__ }
+#define IMMD(s, g)  { s, #g, [](Code *c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
 
 void _if();
 const Code rom[] = {               ///< Forth dictionary
@@ -73,8 +73,8 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("invert", tos =  ~tos),
     CODE("rshift", tos =  (U32)ss.pop() >> tos),
     CODE("lshift", tos =  (U32)ss.pop() << tos),
-    CODE("max",    DU n=ss.pop(); tos = (tos>n)?tos:n),
-    CODE("min",    DU n=ss.pop(); tos = (tos<n)?tos:n),
+    CODE("max",    DU n=ss.pop(); tos = max(tos, n)),
+    CODE("min",    DU n=ss.pop(); tos = min(tos, n)),
     CODE("2*",     tos *= 2),
     CODE("2/",     tos /= 2),
     CODE("1+",     tos += 1),
@@ -184,7 +184,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
     IMMD("begin",
-         last->append(new Bran(_cycle));
+         last->append(new Bran(_begin));
          DICT_PUSH(new Tmp())),                /// as branch target
     IMMD("while",
          Code *b = BRAN_TGT();
@@ -223,7 +223,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @{
     IMMD("do",
          last->append(new Bran(_dor));  ///< ( limit first -- )
-         last->append(new Bran(_doloop));
+         last->append(new Bran(_loop));
          DICT_PUSH(new Tmp())),
     CODE("i",      PUSH(rs[-1])),
     CODE("leave",
@@ -291,7 +291,8 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("'",       Code *w = find(word()); if (w) PUSH(w->token)),
     CODE(".s",      ss_dump(BASE)),    // dump parameter stack
     CODE("words",   words()),          // display word lists
-    CODE("see",     Code *w = find(word()); if (w) see(w, 0); fout << ENDL),
+    CODE("see",     Code *w = find(word()); if (w) see(w); fout << ENDL),
+    CODE("dump",    DU n = POP();  dump(POP(), n)),
     CODE("depth",   PUSH(ss.size())),  // data stack depth
     /// @}
     /// @defgroup OS ops
@@ -312,11 +313,12 @@ const Code rom[] = {               ///< Forth dictionary
 ///
 ///> Code Class constructors
 ///
-Code::Code(const char *s, XT fp, U32 a)  ///> primitive word
-    : name(s), xt(fp), attr(a) {}
+Code::Code(const char *s, const char *d, XT fp, U32 a)  ///> primitive word
+    : name(s), desc(d), xt(fp), attr(a) {}
 Code::Code(string s, bool n) {           ///< new colon word
     Code *w = find(s);                   /// * scan the dictionary
     name  = (new string(s))->c_str();
+    desc  = "";
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
     if (n && w) fout << "reDef?";        /// * warn word redefined
@@ -336,7 +338,7 @@ void _dor(Code *c)  { rs.push(ss.pop()); rs.push(POP()); }
 void _bran(Code *c) {
     for (Code *w : (POP() ? c->pf : c->p1)) w->exec();
 }
-void _cycle(Code *c) {           ///> begin.while.repeat, begin.until
+void _begin(Code *c) {           ///> begin.while.repeat, begin.until
     int b = c->stage;            ///< branching state
     while (true) {
         for (Code *w : c->pf) w->exec();     /// * begin..
@@ -346,7 +348,7 @@ void _cycle(Code *c) {           ///> begin.while.repeat, begin.until
         for (Code *w : c->p1) w->exec();
     }
 }
-void _for(Code *c) {             ///> for..next
+void _for(Code *c) {             ///> for..next, for..aft..then..next
     int b = c->stage;                        /// * kept in register
     try {
         do {
@@ -361,7 +363,7 @@ void _for(Code *c) {             ///> for..next
     }
     catch (...) { rs.pop(); }                // handle EXIT
 }
-void _doloop(Code *c) {      ///> do..loop
+void _loop(Code *c) {           ///> do..loop
     try { 
         do {
             for (Code *w : c->pf) w->exec();
@@ -374,7 +376,7 @@ void _does(Code *c) {
     bool hit = false;
     for (Code *w : dict[c->token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
-        if (strcmp(w->name, "_does")==0) hit = true;
+        if (strcmp(w->name, "does>")==0) hit = true;
     }
     throw 0;                                // exit caller
 }
@@ -402,18 +404,57 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
     tos = ss.pop();
     fout << "-> ok" << ENDL;
 }
-void see(Code *c, int dp) {  ///> disassemble a colon word
-    auto pp = [](int dp, string s, FV<Code*> v) {     ///> recursive dump with indent
-        int i = dp; fout << ENDL; while (i--) fout << "  "; fout << s;
-        for (Code *w : v) if (dp < 3) see(w, dp + 1); /// * depth controlled
+void _see(Code *c, int dp) {  ///> disassemble a colon word
+    auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
+#if CC_DEBUG
+        int i = dp; fout << ENDL; while (i--) fout << "  ";
+#endif // CC_DEBUG
+        fout << s << " ";
+        for (Code *w : v) _see(w, dp + 1);         /// * depth controlled
+    };
+    auto pq = [](FV<DU> q) {
+        for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
     };
     string sn(c->name);
     if (c->is_str) sn = (c->token ? "s\" " : ".\" ") + sn + "\"";
-    string bn = c->stage==2 ? "_while" : (c->stage==3 ? "_aft" : "_else");
-    pp(dp, sn, c->pf);
-    if (c->p1.size() > 0) pp(dp, bn, c->p1);
-    if (c->p2.size() > 0) pp(dp, "_then", c->p2);
-    if (c->q.size()  > 0) for (DU i : c->q) fout << i << " ";
+    pp(sn, c->pf, dp);
+    if (sn=="if")    {
+        if (c->stage==1) pp("else", c->p1, dp);
+        fout << "then";
+    }
+    else if (sn=="begin") {
+        switch (c->stage) {
+        case 0: fout << "until"; break;
+        case 1: fout << "again"; break;
+        case 2: pp("while", c->p1, dp); fout << "repeat"; break;
+        }
+    }
+    else if (sn=="for") {
+        if (c->stage==3) {
+            pp("aft",  c->p1, dp);
+            pp("then", c->p2, dp);
+        }
+        fout << "next";
+    }
+    else if (sn=="do") {
+        fout << "loop";
+    }
+    else pq(c->q);
+}
+void see(Code *c) {
+    fout << ": "; _see(c, 0); fout << " ;";
+}
+void dump(int m, int n) {
+    for (int i=m; i < min(m+n, (int)dict.size()); i++) {
+        Code *c = dict[i];
+        fout << "[" << setw(3) << i << "]"
+             << setw(10) << c->name << " ->";
+        if (c->xt) {
+            fout << "{ " << c->desc << "; }";
+        }
+        else see(c);
+        fout << ENDL;
+    }
 }
 void words() {              ///> display word list
     const int WIDTH = 60;
