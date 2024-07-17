@@ -14,8 +14,6 @@ using namespace std;
 
 template<typename T>
 struct FV : public vector<T> {         ///< our super-vector class
-//    FV()                        : vector<T>()    {}
-//    FV(initializer_list<T> lst) : vector<T>(lst) {}
     FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
@@ -39,8 +37,8 @@ void   _str(Code *c);        ///< dotstr, dostr
 void   _lit(Code *c);        ///< numeric liternal
 void   _var(Code *c);        ///< variable and constant
 void   _tor(Code *c);        ///< >r (for..next)
-void   _dor(Code *c);        ///< swap >r >r (do..loop)
-void   _bran(Code *c);       ///< if
+void   _tor2(Code *c);       ///< swap >r >r (do..loop)
+void   _if(Code *c);         ///< if..then, if..else..then
 void   _begin(Code *c);      ///< ..until, ..again, ..while..repeat
 void   _for(Code *c);        ///< for..next, for..aft..then..next
 void   _loop(Code *c);       ///< do..loop
@@ -107,7 +105,7 @@ struct Bran: Code {
         const char *nm[] = {
             "if", "begin", "\t", "for", "\t", "do", "does>"
         };
-        XT xt[] = { _bran, _begin, _tor, _for, _dor, _loop, _does };
+        XT xt[] = { _if, _begin, _tor, _for, _tor2, _loop, _does };
     
         for (int i=0; i < (int)(sizeof(nm)/sizeof(const char*)); i++) {
             if ((uintptr_t)xt[i]==(uintptr_t)fp) name = nm[i];
