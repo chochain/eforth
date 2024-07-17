@@ -51,7 +51,6 @@ void   _does(Code *c);       ///< does>
 string word(char delim=0);   ///< read next idiom from input stream
 void   ss_dump(DU base);     ///< display data stack contents
 void   see(Code *c);         ///< disassemble word
-void   dump(int m, int n);   ///< tally dictionary
 void   words();              ///< list words in dictionary
 void   load(const char *fn); ///< include script from stream
 Code   *find(string s);      ///< dictionary scanner forward declare
@@ -106,7 +105,7 @@ struct Str : Code {
 struct Bran: Code {
     Bran(XT fp) : Code(fp) {
         const char *nm[] = {
-            "if", "begin", "", "for", "", "do", "does>"
+            "if", "begin", "\t", "for", "\t", "do", "does>"
         };
         XT xt[] = { _bran, _begin, _tor, _for, _dor, _loop, _does };
     
