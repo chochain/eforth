@@ -70,7 +70,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///@{
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
-#define MEM(ip)   (MEM0 + (IU)(ip))        /**< pointer to IP address fetched from pmem */
+#define MEM(ip)   (MEM0 + (IU)UINT(ip))    /**< pointer to IP address fetched from pmem */
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
 ///@}
@@ -87,12 +87,13 @@ typedef enum {
 ///
 ///> VM states (single task)
 ///
-DU   top     = -1;      ///< top of stack (cached)
+DU   top     = -DU1;    ///< top of stack (cached)
 IU   IP      = 0;       ///< current instruction pointer
 bool run     = true;    ///< VM nest() control
 bool compile = false;   ///< compiler flag
 bool ucase   = false;   ///< case sensitivity control
-DU   *base;             ///< numeric radix (a pointer)
+IU   *base;             ///< numeric radix (a pointer)
+IU   *dflt;             ///< numeric radix (a pointer)
 ///
 ///====================================================================
 ///
@@ -179,8 +180,8 @@ void nest() {
                 dp++;                  ///> go one level deeper
             }
             else if (ix == _NXT) {     ///> cached NEXT, LIT handlers,
-                if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP); ///> 10% faster on AMD, 5% on ESP32
-                else { IP += sizeof(IU); rs.pop(); }        ///> perhaps due to shallow pipeline
+                if (GT(rs[-1] -= DU1, -DU1)) IP = *(IU*)MEM(IP); ///> 10% faster on AMD, 5% on ESP32
+                else { IP += sizeof(IU); rs.pop(); }             ///> perhaps due to shallow pipeline
             }
             else if (ix == _LIT) {
                 ss.push(top);
@@ -261,16 +262,14 @@ void s_quote(IU op) {
 ///
 void to_s(IU w, U8 *ip) {
 #if CC_DEBUG
-    auto d_addr = [](IU w, U8 *ip) {
-        fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
-        if (w==EXIT) fout << "EOW";
-        else         fout << setfill(' ') << setw(3) << w;
-        fout << "] ) ";
-    };
+    fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
+    if (w==EXIT) fout << "EOW";
+    else         fout << setfill(' ') << setw(3) << w;
+    fout << "] ) ";
+    
     auto d_jmp = [](U8 *ip) {
         fout << " ( " << setfill('0') << setw(4) << *(IU*)ip << " )";
     };
-    d_addr(w, ip);                     ///> display address
 #else  // !CC_DEBUG
     auto d_jmp  = [](U8 *ip) {}
 #endif // CC_DEBUG
@@ -352,16 +351,21 @@ void words() {
     fout << setbase(*base) << ENDL;
 }
 void ss_dump() {
-    char buf[34];
-    auto rdx = [&buf](DU v, int b) {      ///> display v by radix
+    static char buf[34];
+    auto rdx = [](DU v, int b) {          ///> display v by radix
+#if USE_FLOAT
+        sprintf(buf, "%0.6g", v);
+        return buf;
+#else // !USE_FLOAT        
         int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
-        DU  n = v < 0 ? -v : v;           ///< handle negative
+        DU  n = ABS(v);                   ///< handle negative
         while (n && i) {                  ///> digit-by-digit
-            U8 d = (U8)(n % b);  n /= b;
+            U8 d = (U8)MOD(n,b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
         }
-        if (v < 0) buf[--i]='-';
+        if (v < DU0) buf[--i]='-';
         return &buf[i];
+#endif // USE_FLOAT
     };
     ss.push(top);
     for (int i=0; i<ss.idx; i++) {
@@ -376,7 +380,7 @@ void mem_dump(IU p0, DU sz) {
         fout << setw(4) << i << ": ";
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
-            fout << setw(2) << (int)c << (j%4==3 ? " " : "");
+            fout << setw(2) << (int)c << (MOD(j,4)==3 ? " " : "");
         }
         for (int j=0; j<16; j++) {   // print and advance to next byte
             U8 c = pmem[i+j] & 0x7f;
@@ -419,7 +423,9 @@ void call_js() {                           ///> ( n addr u -- )
     auto t2s = [&n](char c) {              ///< template to string
         n.str("");                         /// * clear stream
         switch (c) {
-        case 'd': n << POP();                    break;
+        case 'd':
+        case 'p': n << UINT(POP());              break;
+        case 'f': n << (DU)POP();                break;
         case 'x': n << "0x" << hex << POP();     break;
         case 's': POP(); n << (char*)MEM(POP()); break;
         default : n << c << '?';                 break;
@@ -448,8 +454,6 @@ void call_js() {                           ///> ( n addr u -- )
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 
 void dict_compile() {  ///< compile primitive words into dictionary
-    base = (DU*)MEM(pmem.idx);                          ///< set pointer to base
-    add_du(10);                                         ///< default radix=10
     ///
     /// @defgroup Execution flow ops
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
@@ -457,13 +461,13 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("exit ",   {});                                // dict[0] also the storage for base
     CODE("next ",                                       // handled in nest()
-         if ((rs[-1] -= 1) >= 0) IP = *(IU*)MEM(IP);    // rs[-1]-=1 saved 200ms/1M cycles
+         if (GT(rs[-1] -= 1, -DU1)) IP = *(IU*)MEM(IP); // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); });
     CODE("loop ",                                       // handled in nest()
-         if ((rs[-1] += 1) < rs[-2]) IP = *(IU*)MEM(IP);
+         if (GT(rs[-2], rs[-1] += DU1)) IP = *(IU*)MEM(IP);
          else { IP += sizeof(IU); rs.pop(); rs.pop(); });
     CODE("lit ",    PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
-    CODE("var ",    PUSH(IP);            IP += sizeof(DU));
+    CODE("var ",    PUSH(IP);            IP += sizeof(DU));   // get var addr (skip over EXIT)
     CODE("str ",    const char *s = (const char*)MEM(IP);     // get string pointer
                     IU    len = STRLEN(s);
                     PUSH(IP); PUSH(len); IP += len);
@@ -503,21 +507,25 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("*",       top *= ss.pop());
     CODE("-",       top =  ss.pop() - top);
     CODE("/",       top =  ss.pop() / top);
-    CODE("mod",     top =  ss.pop() % top);
+    CODE("mod",     top =  MOD(ss.pop(), top));
     CODE("*/",      top =  (DU2)ss.pop() * ss.pop() / top);
-    CODE("/mod",    DU n = ss.pop(); DU t = top;
-                    ss.push(n % t); top = (n / t));
+    CODE("/mod",    DU n = ss.pop();
+                    DU t = top;
+                    DU m = MOD(n, t);
+                    ss.push(m);
+                    top = UINT(n / t));
     CODE("*/mod",   DU2 n = (DU2)ss.pop() * ss.pop();
                     DU2 t = top;
-                    ss.push((DU)(n % t)); top = (DU)(n / t));
-    CODE("and",     top &= ss.pop());
-    CODE("or",      top |= ss.pop());
-    CODE("xor",     top ^= ss.pop());
-    CODE("abs",     top = abs(top));
+                    DU  m = MOD(n, t);
+                    ss.push(m); top = UINT(n / t));
+    CODE("and",     top = UINT(top) & UINT(ss.pop()));
+    CODE("or",      top = UINT(top) | UINT(ss.pop()));
+    CODE("xor",     top = UINT(top) ^ UINT(ss.pop()));
+    CODE("abs",     top = ABS(top));
     CODE("negate",  top = -top);
-    CODE("invert",  top = ~top);
-    CODE("rshift",  top = (U32)ss.pop() >> top);
-    CODE("lshift",  top = (U32)ss.pop() << top);
+    CODE("invert",  top = ~UINT(top));
+    CODE("rshift",  top = UINT(ss.pop()) >> UINT(top));
+    CODE("lshift",  top = UINT(ss.pop()) << UINT(top));
     CODE("max",     DU n=ss.pop(); top = (top>n)?top:n);
     CODE("min",     DU n=ss.pop(); top = (top<n)?top:n);
     CODE("2*",      top *= 2);
@@ -527,15 +535,15 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @}
     /// @defgroup Logic ops
     /// @{
-    CODE("0=",      top = BOOL(top == DU0));
-    CODE("0<",      top = BOOL(top <  DU0));
-    CODE("0>",      top = BOOL(top >  DU0));
-    CODE("=",       top = BOOL(ss.pop() == top));
-    CODE(">",       top = BOOL(ss.pop() >  top));
-    CODE("<",       top = BOOL(ss.pop() <  top));
-    CODE("<>",      top = BOOL(ss.pop() != top));
-    CODE(">=",      top = BOOL(ss.pop() >= top));
-    CODE("<=",      top = BOOL(ss.pop() <= top));
+    CODE("0=",      top = BOOL(ZEQ(top)));
+    CODE("0<",      top = BOOL(LT(top, DU0)));
+    CODE("0>",      top = BOOL(GT(top, DU0)));
+    CODE("=",       top = BOOL(EQ(ss.pop(), top)));
+    CODE(">",       top = BOOL(GT(ss.pop(), top)));
+    CODE("<",       top = BOOL(LT(ss.pop(), top)));
+    CODE("<>",      top = BOOL(!EQ(ss.pop(), top)));
+    CODE(">=",      top = BOOL(!LT(ss.pop(), top)));
+    CODE("<=",      top = BOOL(!GT(ss.pop(), top)));
     CODE("u<",      top = BOOL(UINT(ss.pop()) < UINT(top)));
     CODE("u>",      top = BOOL(UINT(ss.pop()) > UINT(top)));
     /// @}
@@ -641,16 +649,19 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
     ///
-    CODE("@",     IU w = POP(); PUSH(CELL(w)));                 // w -- n
-    CODE("!",     IU w = POP(); CELL(w) = POP(););              // n w --
+    CODE("@",     IU w = UINT(POP()); PUSH(CELL(w)));           // w -- n
+    CODE("!",     IU w = UINT(POP()); CELL(w) = POP(););        // n w --
     CODE(",",     DU n = POP(); add_du(n));
-    CODE("allot", for (IU n = POP(), i = 0; i < n; i++) add_du(DU0)); // n --
-    CODE("+!",    IU w = POP(); CELL(w) += POP());              // n w --
-    CODE("?",     IU w = POP(); fout << CELL(w) << " ");        // w --
+    CODE("cells", IU i = UINT(POP()); PUSH(i * sizeof(DU)));    // n -- n'
+    CODE("allot",                                               // n --
+         IU n = UINT(POP());
+         for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0));
+    CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
+    CODE("?",     IU w = UINT(POP()); fout << CELL(w) << " ");  // w --
     /// @}
     /// @defgroup Debug ops
     /// @{
-    CODE("abort", top = -1; ss.clear(); rs.clear());     // clear ss, rs
+    CODE("abort", top = -DU1; ss.clear(); rs.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump());
@@ -663,7 +674,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
          if (IS_UDF(w)) see(dict[w].pfa);
          else           fout << " ( primitive ) ;";
          fout << ENDL);
-    CODE("dump",  DU n = POP(); IU a = POP(); mem_dump(a, n));
+    CODE("dump",  U32 n = UINT(POP()); IU a = POP(); mem_dump(a, n));
     CODE("dict",  dict_dump());
     CODE("forget",
          IU w = find(word()); if (!w) return;
@@ -679,7 +690,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
-    CODE("delay", delay(POP()));
+    CODE("delay", delay(UINT(POP())));
     CODE("included",                        // include external file
          POP();                             // string length, not used
          U8 *fn = MEM(POP());               // file name
@@ -696,7 +707,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
 ///> ForthVM - Outer interpreter
 ///
 DU parse_number(const char *idiom, int *err) {
-    int b = *base;
+    int b = static_cast<int>(*base);
     switch (*idiom) {                        ///> base override
     case '%': b = 2;  idiom++; break;
     case '&':
@@ -705,13 +716,13 @@ DU parse_number(const char *idiom, int *err) {
     }
     char *p;
     *err = errno = 0;
-#if DU==float
+#if USE_FLOAT
     DU n = (b==10)
         ? static_cast<DU>(strtof(idiom, &p))
         : static_cast<DU>(strtol(idiom, &p, b));
-#else
+#else  // !USE_FLOAT
     DU n = static_cast<DU>(strtol(idiom, &p, b));
-#endif
+#endif // USE_FLOAT
     if (errno || *p != '\0') *err = 1;
     return n;
 }
@@ -748,6 +759,11 @@ int forth_core(const char *idiom) {
 void forth_init() {
     static bool init = false;
     if (init) return;            ///> check dictionary initilized
+    
+    base = (IU*)MEM(HERE);       ///< set pointer to base
+    add_iu(10);                  ///< allocate space for base
+    dflt = (IU*)MEM(HERE);       ///< set pointer to dfmt
+    add_iu(USE_FLOAT);
     
     dict_compile();              ///> compile dictionary
 }
