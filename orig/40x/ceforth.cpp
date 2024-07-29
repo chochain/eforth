@@ -374,7 +374,7 @@ void ss_dump() {
     top = ss.pop();
     fout << "-> ok" << ENDL;
 }
-void mem_dump(IU p0, DU sz) {
+void mem_dump(IU p0, int sz) {
     fout << setbase(16) << setfill('0');
     for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
         fout << setw(4) << i << ": ";
