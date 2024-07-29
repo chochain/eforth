@@ -278,7 +278,7 @@ void to_s(IU w, U8 *ip) {
     switch (w) {
     case EXIT: fout << ";";                         break;
     case LIT:  fout << *(DU*)ip << "  ( lit )";     break;
-    case VAR:  fout << *(DU*)ip << "  ( var )";     break;
+    case VAR:  fout << *(DU*)(ip + sizeof(IU)) << "  ( var )"; break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     default:   fout << dict[w].name;                break;
@@ -314,7 +314,7 @@ void see(IU pfa, int dp=1) {
 
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
-        case LIT:   case VAR:   ip += sizeof(DU);        break;
+        case LIT:   ip += sizeof(DU); break;
         case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
         case BRAN:  case ZBRAN:
         case NEXT:  case LOOP:  ip += sizeof(IU);        break;
@@ -467,7 +467,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
          if (GT(rs[-2], rs[-1] += DU1)) IP = *(IU*)MEM(IP);
          else { IP += sizeof(IU); rs.pop(); rs.pop(); });
     CODE("lit ",    PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
-    CODE("var ",    PUSH(IP);            IP += sizeof(DU));   // get var addr (skip over EXIT)
+    CODE("var ",    PUSH(IP + sizeof(IU)));                   // get var addr (skip over EXIT)
     CODE("str ",    const char *s = (const char*)MEM(IP);     // get string pointer
                     IU    len = STRLEN(s);
                     PUSH(IP); PUSH(len); IP += len);
@@ -625,8 +625,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("exit",    run = false);                               // early exit the colon word
     CODE("variable",                                            // create a variable
          def_word(word());                                      // create a new word on dictionary
-         add_w(VAR); add_du(DU0);                               // dovar (+parameter field, default 0)
-         add_w(EXIT));
+         add_w(VAR); add_w(EXIT); add_du(DU0));                 // dovar (+parameter field, default 0)
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
          add_w(LIT); add_du(POP());                             // dovar (+parameter field)
@@ -637,7 +636,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",  IU w = POP(); CALL(w));                       // execute word
-    CODE("create", def_word(word()); add_w(VAR));               // dovar (+ parameter field)
+    CODE("create", def_word(word()); add_w(VAR); add_w(EXIT));  // dovar (+ parameter field)
     IMMD("does>", add_w(DOES));
     CODE("to",              // 3 to x                           // alter the value of a constant
          IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
@@ -665,6 +664,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump());
+    CODE("dump",  IU n = UINT(POP()); mem_dump(UINT(POP()), n));
     CODE("depth", PUSH(ss.idx));
     CODE("r",     PUSH(rs.idx));
     CODE("words", words());
