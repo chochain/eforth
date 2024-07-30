@@ -431,11 +431,11 @@ void call_js() {                           ///> ( n addr u -- )
         n.str("");                         /// * clear stream
         switch (c) {
         case 'd':
-        case 'p': n << UINT(POP());              break;
-        case 'f': n << (DU)POP();                break;
-        case 'x': n << "0x" << hex << POP();     break;
-        case 's': POP(); n << (char*)MEM(POP()); break;
-        default : n << c << '?';                 break;
+        case 'p': n << UINT(POP());                break;
+        case 'f': n << (DU)POP();                  break;
+        case 'x': n << "0x" << hex << UINT(POP()); break;
+        case 's': POP(); n << (char*)MEM(POP());   break;
+        default : n << c << '?';                   break;
         }
         return n.str();
     };
@@ -466,11 +466,11 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @brief - DO NOT change the sequence here (see forth_opcode enum)
     ///        - the build-in control words have extra last blank char
     /// @{
-    CODE("exit ",   {});                                // dict[0] also the storage for base
-    CODE("next ",                                       // handled in nest()
-         if (GT(rs[-1] -= 1, -DU1)) IP = *(IU*)MEM(IP); // rs[-1]-=1 saved 200ms/1M cycles
+    CODE("exit ",   {});                                      // dict[0] also the storage for base
+    CODE("next ",                                             // handled in nest()
+         if (GT(rs[-1] -= DU1, -DU1)) IP = *(IU*)MEM(IP);     // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); });
-    CODE("loop ",                                       // handled in nest()
+    CODE("loop ",                                             // handled in nest()
          if (GT(rs[-2], rs[-1] += DU1)) IP = *(IU*)MEM(IP);
          else { IP += sizeof(IU); rs.pop(); rs.pop(); });
     CODE("lit ",    PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
@@ -520,8 +520,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("/mod",    DU n = ss.pop();
                     DU t = top;
                     DU m = MOD(n, t);
-                    ss.push(m);
-                    top = UINT(n / t));
+                    ss.push(m); top = UINT(n / t));
     CODE("*/mod",   DU2 n = (DU2)ss.pop() * ss.pop();
                     DU2 t = top;
                     DU  m = MOD(n, t);
@@ -534,8 +533,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("invert",  top = ~UINT(top));
     CODE("rshift",  top = UINT(ss.pop()) >> UINT(top));
     CODE("lshift",  top = UINT(ss.pop()) << UINT(top));
-    CODE("max",     DU n=ss.pop(); top = (top>n)?top:n);
-    CODE("min",     DU n=ss.pop(); top = (top<n)?top:n);
+    CODE("max",     DU n=ss.pop(); top = (top>n) ? top : n);
+    CODE("min",     DU n=ss.pop(); top = (top<n) ? top : n);
     CODE("2*",      top *= 2);
     CODE("2/",      top /= 2);
     CODE("1+",      top += 1);
