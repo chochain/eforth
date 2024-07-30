@@ -277,8 +277,14 @@ void to_s(IU w, U8 *ip) {
     ip += sizeof(IU);                  ///> calculate next ip
     switch (w) {
     case EXIT: fout << ";";                         break;
-    case LIT:  fout << *(DU*)ip << "  ( lit )";     break;
-    case VAR:  fout << *(DU*)(ip + sizeof(IU)) << "  ( var )"; break;
+    case LIT:  fout << *(DU*)ip << " ( lit )";      break;
+    case VAR: {
+        int  n = *(IU*)ip;  ip += sizeof(IU);       ///> number of elements
+        for (int i = 0; i < n; i+=sizeof(DU)) {
+            fout << *(DU*)ip << ' '; ip += sizeof(DU);
+        }
+        fout << " ( var )";
+    } break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     default:   fout << dict[w].name;                break;
@@ -314,7 +320,8 @@ void see(IU pfa, int dp=1) {
 
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
-        case LIT:   ip += sizeof(DU); break;
+        case LIT:   ip += sizeof(DU);                    break;
+        case VAR:   ip += sizeof(IU) + *(IU*)ip;         break;
         case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
         case BRAN:  case ZBRAN:
         case NEXT:  case LOOP:  ip += sizeof(IU);        break;
@@ -467,7 +474,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
          if (GT(rs[-2], rs[-1] += DU1)) IP = *(IU*)MEM(IP);
          else { IP += sizeof(IU); rs.pop(); rs.pop(); });
     CODE("lit ",    PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
-    CODE("var ",    PUSH(IP + sizeof(IU)));                   // get var addr (skip over EXIT)
+    CODE("var ",    PUSH(IP + sizeof(IU));                    // get var addr (skip over EXIT)
+                    IP += sizeof(IU) + *(IU*)MEM(IP));        // len + data
     CODE("str ",    const char *s = (const char*)MEM(IP);     // get string pointer
                     IU    len = STRLEN(s);
                     PUSH(IP); PUSH(len); IP += len);
@@ -625,7 +633,8 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("exit",    run = false);                               // early exit the colon word
     CODE("variable",                                            // create a variable
          def_word(word());                                      // create a new word on dictionary
-         add_w(VAR); add_w(EXIT); add_du(DU0));                 // dovar (+parameter field, default 0)
+         add_w(VAR); add_iu(sizeof(DU)); add_du(DU0);           // dovar (len=4, default 0)
+         add_w(EXIT));
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
          add_w(LIT); add_du(POP());                             // dovar (+parameter field)
@@ -636,7 +645,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",  IU w = POP(); CALL(w));                       // execute word
-    CODE("create", def_word(word()); add_w(VAR); add_w(EXIT));  // dovar (+ parameter field)
+    CODE("create", def_word(word()); add_w(VAR));               // dovar (no parameter field)
     IMMD("does>", add_w(DOES));
     CODE("to",              // 3 to x                           // alter the value of a constant
          IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
@@ -653,8 +662,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE(",",     DU n = POP(); add_du(n));
     CODE("cells", IU i = UINT(POP()); PUSH(i * sizeof(DU)));    // n -- n'
     CODE("allot",                                               // n --
-         IU n = UINT(POP());
-         for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0));
+         IU n = UINT(POP());                                    // number of elements
+         add_iu(n);                                             // encode length, default 0
+         for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0));     // Note: need EXIT manually added
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
     CODE("?",     IU w = UINT(POP()); fout << CELL(w) << " ");  // w --
     /// @}
