@@ -59,22 +59,24 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("-",      tos =  ss.pop() - tos),
     CODE("*",      tos *= ss.pop()),
     CODE("/",      tos =  ss.pop() / tos),
-    CODE("mod",    tos =  ss.pop() % tos),
+    CODE("mod",    tos =  MOD(ss.pop(), tos)),
     CODE("*/",     tos =  ss.pop() * ss.pop() / tos),
     CODE("/mod",   DU n = ss.pop(); DU t = tos;
-                   ss.push(n % t); tos = (n / t)),
+                   DU m = MOD(n, t);
+                   ss.push(m); tos = UINT(n / t)),
     CODE("*/mod",  DU2 n = (DU2)ss.pop() * ss.pop(); DU2 t=tos;
-                   ss.push((DU)(n % t)); tos = (DU)(n / t)),
-    CODE("and",    tos &= ss.pop()),
-    CODE("or",     tos |= ss.pop()),
-    CODE("xor",    tos ^= ss.pop()),
-    CODE("abs",    tos =  abs(tos)),
+                   DU2 m = MOD(n, t);
+                   ss.push((DU)m); tos = UINT(n / t)),
+    CODE("and",    tos = UINT(tos) & UINT(ss.pop())),
+    CODE("or",     tos = UINT(tos) | UINT(ss.pop())),
+    CODE("xor",    tos = UINT(tos) ^ UINT(ss.pop())),
+    CODE("abs",    tos =  ABS(tos)),
     CODE("negate", tos =  -tos),
-    CODE("invert", tos =  ~tos),
-    CODE("rshift", tos =  (U32)ss.pop() >> tos),
-    CODE("lshift", tos =  (U32)ss.pop() << tos),
-    CODE("max",    DU n=ss.pop(); tos = max(tos, n)),
-    CODE("min",    DU n=ss.pop(); tos = min(tos, n)),
+    CODE("invert", tos =  ~UINT(tos)),
+    CODE("rshift", tos =  UINT(ss.pop()) >> UINT(tos)),
+    CODE("lshift", tos =  UINT(ss.pop()) << UINT(tos)),
+    CODE("max",    DU n=ss.pop(); tos = (tos>n) ? tos : n),
+    CODE("min",    DU n=ss.pop(); tos = (tos<n) ? tos : n),
     CODE("2*",     tos *= 2),
     CODE("2/",     tos /= 2),
     CODE("1+",     tos += 1),
@@ -82,17 +84,17 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgroup Logic ops
     /// @{
-    CODE("0=",     tos = BOOL(tos == DU0)),
-    CODE("0<",     tos = BOOL(tos <  DU0)),
-    CODE("0>",     tos = BOOL(tos >  DU0)),
-    CODE("=",      tos = BOOL(ss.pop() == tos)),
-    CODE(">",      tos = BOOL(ss.pop() >  tos)),
-    CODE("<",      tos = BOOL(ss.pop() <  tos)),
-    CODE("<>",     tos = BOOL(ss.pop() != tos)),
-    CODE(">=",     tos = BOOL(ss.pop() >= tos)),
-    CODE("<=",     tos = BOOL(ss.pop() <= tos)),
-    CODE("u<",     tos = BOOL(abs(ss.pop()) < abs(tos))),
-    CODE("u>",     tos = BOOL(abs(ss.pop()) > abs(tos))),
+    CODE("0=",     tos = BOOL(ZEQ(tos))),
+    CODE("0<",     tos = BOOL(LT(tos, DU0))),
+    CODE("0>",     tos = BOOL(GT(tos, DU0))),
+    CODE("=",      tos = BOOL(EQ(ss.pop(), tos))),
+    CODE(">",      tos = BOOL(GT(ss.pop(), tos))),
+    CODE("<",      tos = BOOL(LT(ss.pop(), tos))),
+    CODE("<>",     tos = BOOL(!EQ(ss.pop(), tos))),
+    CODE(">=",     tos = BOOL(!LT(ss.pop(), tos))),
+    CODE("<=",     tos = BOOL(!GT(ss.pop(), tos))),
+    CODE("u<",     tos = BOOL(UINT(ss.pop()) < UINT(tos))),
+    CODE("u>",     tos = BOOL(UINT(ss.pop()) > UINT(tos))),
     /// @}
     /// @defgroup Data Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -135,7 +137,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
-    CODE("type",   POP(); DU i_w = POP();            // decode pf and word indices
+    CODE("type",   POP(); U32 i_w = UINT(POP());           // decode pf and word indices
                    fout << dict[i_w & 0xffff]->pf[i_w >> 16]->name),
     /// @}
     /// @defgroup Literal ops
@@ -275,31 +277,33 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgroup Memory Access ops
     /// @{
-    CODE("@",       DU w=POP(); PUSH(VAR(w))),                     // w -- n
-    CODE("!",       DU w=POP(); VAR(w) = POP()),                   // n w --
-    CODE("+!",      DU w=POP(); VAR(w) += POP()),                  // n w --
-    CODE("?",       DU w=POP(); fout << VAR(w) << " "),            // w --
-    CODE("array@",  DU i=POP(); int w=POP(); PUSH(*(&VAR(w)+i))),  // w i -- n
-    CODE("array!",  DU i=POP(); int w=POP(); *(&VAR(w)+i)=POP()),  // n w i --
+    CODE("@",       IU w=UINT(POP()); PUSH(VAR(w))),               // w -- n
+    CODE("!",       IU w=UINT(POP()); VAR(w) = POP()),             // n w --
+    CODE("+!",      IU w=UINT(POP()); VAR(w) += POP()),            // n w --
+    CODE("?",       IU w=UINT(POP()); fout << VAR(w) << " "),      // w --
+    CODE("array@",  IU i=UINT(POP()); IU w=UINT(POP());            // w i -- n
+                    PUSH(*(&VAR(w)+i))),
+    CODE("array!",  IU i=UINT(POP()); IU w=UINT(POP());            // n w i --
+                    *(&VAR(w)+i)=POP()),  
     CODE(",",       last->pf[0]->q.push(POP())),
-    CODE("allot",   int n = POP();                                 // n --
+    CODE("allot",   IU n = UINT(POP());                            // n --
                     for (int i=0; i<n; i++) last->pf[0]->q.push(DU0)),
     /// @}
     /// @defgroup Debug ops
     /// @{
     CODE("here",    PUSH(last->token)),
     CODE("'",       Code *w = find(word()); if (w) PUSH(w->token)),
-    CODE(".s",      ss_dump(BASE)),    // dump parameter stack
-    CODE("words",   words()),          // display word lists
+    CODE(".s",      ss_dump(BASE)),      // dump parameter stack
+    CODE("words",   words()),            // display word lists
     CODE("see",     Code *w = find(word()); if (w) see(w); fout << ENDL),
-    CODE("depth",   PUSH(ss.size())),  // data stack depth
+    CODE("depth",   PUSH(ss.size())),    // data stack depth
     /// @}
     /// @defgroup OS ops
     /// @{
-    CODE("mstat",   mem_stat()),       // display memory stat
-    CODE("ms",      PUSH(millis())),   // get system clock in msec
-    CODE("rnd",     PUSH(RND())),      // get a random number
-    CODE("delay",   delay(POP())),     // n -- delay n msec
+    CODE("mstat",   mem_stat()),         // display memory stat
+    CODE("ms",      PUSH(millis())),     // get system clock in msec
+    CODE("rnd",     PUSH(RND())),        // get a random number
+    CODE("delay",   delay(UINT(POP()))), // n -- delay n msec
     CODE("included", load(pad.c_str())),
     CODE("forget",
          Code *w = find(word()); if (!w) return;
@@ -390,14 +394,19 @@ string word(char delim) {            ///> read next idiom form input stream
 void ss_dump(DU base) {              ///> display data stack and ok promt
     char buf[34];
     auto rdx = [&buf](DU v, int b) {      ///> display v by radix
+#if USE_FLOAT
+        sprintf(buf, "%0.6g", v);
+        return buf;
+#else // !USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
-        DU  n = v < 0 ? -v : v;           ///< handle negative
+        DU  n = ABS(v);                   ///< handle negative
         while (n && i) {                  ///> digit-by-digit
-            U8 d = (U8)(n % b);  n /= b;
+            U8 d = (U8)MOD(n, b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
         }
         if (v < 0) buf[--i]='-';
         return &buf[i];
+#endif // USE_FLOAT
     };
     ss.push(tos);
     for (DU v : ss) { fout << rdx(v, base) << ' '; }
