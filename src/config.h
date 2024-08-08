@@ -11,7 +11,7 @@
 ///@name Conditional compililation options
 ///@}
 #define CC_DEBUG        0               /**< debug level 0|1|2      */
-#define USE_FLOAT       0               /**< support floating point */
+#define USE_FLOAT       1               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
 ///
@@ -22,19 +22,37 @@ typedef int32_t         S32;   ///< signed 32-bit integer
 typedef uint16_t        U16;   ///< unsigned 16-bit integer
 typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
+typedef uint16_t        IU;    ///< instruction pointer unit
 
 #if USE_FLOAT
+#include <cmath>
 typedef double          DU2;
 typedef float           DU;
 #define DU0             0.0f
-#define UINT(v)         (fabs(v)))
+#define DU1             1.0f
+#define DU_EPS          0.00001f
+#define UINT(v)         (static_cast<U32>(v))
+#define MOD(m,n)        (fmodf(m,n))
+#define ABS(v)          (fabsf(v))
+#define ZEQ(v)          (ABS(v) < DU_EPS)
+#define EQ(a,b)         (ZEQ((a) - (b)))
+#define LT(a,b)         (((a) - (b)) < -DU_EPS)
+#define GT(a,b)         (((a) - (b)) > DU_EPS)
 #define RND()           (static_cast<float>(rand()) / static_cast<float>(RAND_MAX))
 
 #else // !USE_FLOAT
 typedef int64_t         DU2;
 typedef int32_t         DU;
 #define DU0             0
+#define DU1             1
+#define DU_EPS          0
 #define UINT(v)         (abs(v))
+#define MOD(m,n)        ((m) % (n))
+#define ABS(v)          (abs(v))
+#define ZEQ(v)          ((v)==DU0)
+#define EQ(a,b)         ((a)==(b))
+#define LT(a,b)         ((a) < (b))
+#define GT(a,b)         ((a) > (b))
 #define RND()           (rand())
 
 #endif // USE_FLOAT
