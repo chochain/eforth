@@ -699,6 +699,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
+    CODE("rnd",   PUSH(RND()));
     CODE("delay", delay(UINT(POP())));
     CODE("included",                        // include external file
          POP();                             // string length, not used

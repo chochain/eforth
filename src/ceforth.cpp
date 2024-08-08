@@ -298,6 +298,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @{
     CODE("mstat",   mem_stat()),       // display memory stat
     CODE("ms",      PUSH(millis())),   // get system clock in msec
+    CODE("rnd",     PUSH(RND())),      // get a random number
     CODE("delay",   delay(POP())),     // n -- delay n msec
     CODE("included", load(pad.c_str())),
     CODE("forget",

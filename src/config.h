@@ -28,12 +28,14 @@ typedef double          DU2;
 typedef float           DU;
 #define DU0             0.0f
 #define UINT(v)         (fabs(v)))
+#define RND()           (static_cast<float>(rand()) / static_cast<float>(RAND_MAX))
 
 #else // !USE_FLOAT
 typedef int64_t         DU2;
 typedef int32_t         DU;
 #define DU0             0
 #define UINT(v)         (abs(v))
+#define RND()           (rand())
 
 #endif // USE_FLOAT
 ///@}

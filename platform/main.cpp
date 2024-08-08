@@ -48,6 +48,7 @@ void forth_include(const char *fn) {
 int main(int ac, char* av[]) {
     forth_init();                       ///> initialize dictionary
 	mem_stat();                         ///> show memory status
+    srand(time(0));                     ///> seed random generator
     
     string cmd;
     while (getline(cin, cmd)) {         ///> fetch user input

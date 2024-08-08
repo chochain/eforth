@@ -46,6 +46,7 @@ typedef float           DU;
 #define EQ(a,b)         (ZEQ((a) - (b)))
 #define LT(a,b)         (((a) - (b)) < -DU_EPS)
 #define GT(a,b)         (((a) - (b)) > DU_EPS)
+#define RND()           (static_cast<float>(rand()) / static_cast<float>(RAND_MAX))
 
 #else // !USE_FLOAT
 typedef int64_t         DU2;
@@ -60,6 +61,7 @@ typedef int32_t         DU;
 #define EQ(a,b)         ((a)==(b))
 #define LT(a,b)         ((a) < (b))
 #define GT(a,b)         ((a) > (b))
+#define RND()           (rand())
 
 #endif // USE_FLOAT
 ///@}
