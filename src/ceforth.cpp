@@ -81,6 +81,9 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("2/",     tos /= 2),
     CODE("1+",     tos += 1),
     CODE("1-",     tos -= 1),
+#if USE_FLOAT
+    CODE("int",    tos = UINT(tos)),
+#endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
     /// @{
