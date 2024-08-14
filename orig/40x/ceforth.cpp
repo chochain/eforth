@@ -80,7 +80,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 /// but make sure the sequence is in-sync with word list in dict_compile
 ///
 typedef enum {
-    EXIT=0, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN, DOES, FOR, DO
+    EXIT=0, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN, DOES, FOR, DO
 } forth_opcode;
 ///
 ///====================================================================
@@ -148,6 +148,14 @@ void add_w(IU w) {                  ///< add a word index into pmem
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
     LOG_KX(":", c.xtoff()); LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
+}
+void add_var() {                    ///< add a varirable header
+#if DO_WASM                         /// * WASM float needs to be 4-byte aligned
+    if (sizeof(IU)==2 && (pmem.idx & 0x3)!=0) {
+        add_w(NOP);                 /// pad two bytes
+    }
+#endif // DO_WASM
+    add_w(VAR);
 }
 ///====================================================================
 ///
@@ -421,20 +429,50 @@ void dict_dump() {
 ///> Javascript/WASM interface
 ///
 #if DO_WASM
-/// function in worker thread
 EM_JS(void, js, (const char *ops), {
-    postMessage(['js', UTF8ToString(ops)])
+        const req = UTF8ToString(ops).split(/\\s+/);
+        const wa  = wasmExports;
+        const mem = wa.vm_mem();
+        let msg = [], tfr = [];
+        for (let i=0, n=req.length; i < n; i++) {
+            if (req[i]=='p') {
+                const a = new Float32Array(     ///< create a buffer ref
+                    wa.memory.buffer,           /// * WASM ArrayBuffer
+                    mem + (req[i+1]|0),         /// * pointer address
+                    req[i+2]|0                  /// * length
+                );
+                i += 2;                         /// *  skip over addr, len
+                const t = new Float64Array(a);  ///< create a transferable
+                msg.push(t);                    /// * which speeds postMessage
+                tfr.push(t.buffer);             /// * from 20ms => 5ms
+            }
+            else msg.push(req[i]);
+        }
+        msg.push(Date.now());                   /// * t0 anchor for performance check
+        postMessage(['js', msg], tfr);
 });
+///
+///> Javascript calling, before passing to js()
+///
+///  String substitude similar to printf
+///    %d - integer
+///    %f - float
+///    %x - hex
+///    %s - string
+///    %p - pointer (memory block)
+///
 void call_js() {                           ///> ( n addr u -- )
     stringstream n;
     auto t2s = [&n](char c) {              ///< template to string
         n.str("");                         /// * clear stream
         switch (c) {
-        case 'd':
-        case 'p': n << UINT(POP());                break;
+        case 'd': n << UINT(POP());                break;
         case 'f': n << (DU)POP();                  break;
         case 'x': n << "0x" << hex << UINT(POP()); break;
-        case 's': POP(); n << (char*)MEM(POP());   break;
+        case 's': POP(); n << (char*)MEM(POP());   break;  /// also handles raw stream
+        case 'p': 
+            n << "p " << UINT(POP());
+            n << ' '  << UINT(POP());              break;
         default : n << c << '?';                   break;
         }
         return n.str();
@@ -467,6 +505,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     ///        - the build-in control words have extra last blank char
     /// @{
     CODE("exit ",   {});                                      // dict[0] also the storage for base
+    CODE("nop ",    {});                                      // var alignment padding
     CODE("next ",                                             // handled in nest()
          if (GT(rs[-1] -= DU1, -DU1)) IP = *(IU*)MEM(IP);     // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); });
@@ -539,6 +578,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("2/",      top /= 2);
     CODE("1+",      top += 1);
     CODE("1-",      top -= 1);
+#if USE_FLOAT
+    CODE("int",     top = UINT(top));         // float => integer
+#endif // USE_FLOAT    
     /// @}
     /// @defgroup Logic ops
     /// @{
@@ -632,7 +674,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     CODE("exit",    run = false);                               // early exit the colon word
     CODE("variable",                                            // create a variable
          def_word(word());                                      // create a new word on dictionary
-         add_w(VAR); add_iu(sizeof(DU)); add_du(DU0);           // dovar (len=4, default 0)
+         add_var(); add_iu(sizeof(DU)); add_du(DU0);            // dovar (len=4, default 0)
          add_w(EXIT));
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
@@ -643,9 +685,9 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",  IU w = POP(); CALL(w));                       // execute word
-    CODE("create", def_word(word()); add_w(VAR));               // dovar (no parameter field)
-    IMMD("does>", add_w(DOES));
+    CODE("exec",   IU w = POP(); CALL(w));                      // execute word
+    CODE("create", def_word(word()); add_var());                // dovar (no parameter field)
+    IMMD("does>",  add_w(DOES));
     CODE("to",              // 3 to x                           // alter the value of a constant
          IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
          *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
@@ -658,12 +700,14 @@ void dict_compile() {  ///< compile primitive words into dictionary
     ///
     CODE("@",     IU w = UINT(POP()); PUSH(CELL(w)));           // w -- n
     CODE("!",     IU w = UINT(POP()); CELL(w) = POP(););        // n w --
-    CODE(",",     DU n = POP(); add_du(n));
+    CODE(",",     DU n = POP(); add_du(n));                     // n -- , compile a cell
+    CODE("n,",    IU i = UINT(POP()); add_iu(i));               // compile a 16-bit value
     CODE("cells", IU i = UINT(POP()); PUSH(i * sizeof(DU)));    // n -- n'
     CODE("allot",                                               // n --
-         IU n = UINT(POP());                                    // number of elements
+         IU n = UINT(POP());                                    // number of bytes
          add_iu(n);                                             // encode length, default 0
-         for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0));     // Note: need EXIT manually added
+         for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0);     // zero padding
+         add_w(EXIT));                                          // endof word
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
     CODE("?",     IU w = UINT(POP()); fout << CELL(w) << " ");  // w --
     /// @}
@@ -699,13 +743,13 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
-    CODE("rnd",   PUSH(RND()));
+    CODE("rnd",   PUSH(RND()));             // generate random number
     CODE("delay", delay(UINT(POP())));
     CODE("included",                        // include external file
          POP();                             // string length, not used
          U8 *fn = MEM(POP());               // file name
          forth_include((const char*)fn));   // include file
-#if DO_WASM    
+#if DO_WASM
     CODE("JS",    call_js());               // Javascript interface
 #endif // DO_WASM    
     CODE("bye",   exit(0));
