@@ -427,9 +427,27 @@ void dict_dump() {
 ///> Javascript/WASM interface
 ///
 #if DO_WASM
-/// function in worker thread
 EM_JS(void, js, (const char *ops), {
-    postMessage(['js', UTF8ToString(ops)])
+        const req = UTF8ToString(ops).split(/\\s+/);
+        const wa  = wasmExports;
+        const mem = wa.vm_mem();
+        let msg = [], tfr = [];
+        for (let i=0, n=req.length; i < n; i++) {
+            if (req[i]=='p') {
+                const a = new Float32Array(     ///< create a buffer ref
+                    wa.memory.buffer,           /// * WASM ArrayBuffer
+                    mem + (req[i+1]|0),         /// * pointer address
+                    req[i+2]|0                  /// * length
+                );
+                i += 2;                         /// *  skip over addr, len
+                const t = new Float64Array(a);  ///< create a transferable
+                msg.push(t);                    /// * which speeds postMessage
+                tfr.push(t.buffer);             /// * from 20ms => 5ms
+            }
+            else msg.push(req[i]);
+        }
+        msg.push(Date.now());                   /// * t0 anchor for performance check
+        postMessage(['js', msg], tfr);
 });
 ///
 ///> Javascript calling, before passing to js()
@@ -680,7 +698,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     ///
     CODE("@",     IU w = UINT(POP()); PUSH(CELL(w)));           // w -- n
     CODE("!",     IU w = UINT(POP()); CELL(w) = POP(););        // n w --
-    CODE(",",     DU n = POP(); add_du(n));
+    CODE(",",     DU n = POP(); add_du(n));                     // n -- , compile a cell
     CODE("n,",    IU i = UINT(POP()); add_iu(i));               // compile a 16-bit value
     CODE("cells", IU i = UINT(POP()); PUSH(i * sizeof(DU)));    // n -- n'
     CODE("allot",                                               // n --
@@ -722,13 +740,13 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
-    CODE("rnd",   PUSH(RND()));
+    CODE("rnd",   PUSH(RND()));             // generate random number
     CODE("delay", delay(UINT(POP())));
     CODE("included",                        // include external file
          POP();                             // string length, not used
          U8 *fn = MEM(POP());               // file name
          forth_include((const char*)fn));   // include file
-#if DO_WASM    
+#if DO_WASM
     CODE("JS",    call_js());               // Javascript interface
 #endif // DO_WASM    
     CODE("bye",   exit(0));
