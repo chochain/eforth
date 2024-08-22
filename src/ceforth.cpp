@@ -35,6 +35,11 @@ inline  DU POP()     { DU n=tos; tos=ss.pop(); return n; }
 #define DICT_POP()   (dict.pop(), last=dict[-1])
 #define BRAN_TGT()   (dict[-2]->pf[-1]) /* branching target */
 #define BASE         (VAR(0))           /* borrow dict[0] to store base (numeric radix) */
+#define STR(i_w)     (                              \
+        EQ(i_w, UINT(-DU1))                         \
+        ? pad.c_str()                               \
+        : dict[i_w & 0xffff]->pf[i_w >> 16]->name   \
+        )
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -140,8 +145,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("emit",   fout << (char)POP()),
     CODE("space",  fout << " "),
     CODE("spaces", fout << setw(POP()) << ""),
-    CODE("type",   POP(); U32 i_w = UINT(POP());           // decode pf and word indices
-                   fout << dict[i_w & 0xffff]->pf[i_w >> 16]->name),
+    CODE("type",   POP(); U32 i_w=UINT(POP()); fout << STR(i_w)),
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -157,7 +161,10 @@ const Code rom[] = {               ///< Forth dictionary
              DU i_w = (last->pf.size() << 16) | last->token; // encode pf and word indices
              last->append(new Str(s, i_w));
          }
-         else pad = s),
+         else {
+             pad = s;                                // keep string on pad
+             PUSH(-DU1); PUSH(s.length());           // -1 = pad, len
+         }),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -167,7 +174,7 @@ const Code rom[] = {               ///< Forth dictionary
     ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
     IMMD("if",
-	     last->append(new Bran(_if));
+         last->append(new Bran(_if));
          DICT_PUSH(new Tmp())),
     IMMD("else",
          Code *b = BRAN_TGT();
@@ -176,7 +183,7 @@ const Code rom[] = {               ///< Forth dictionary
     IMMD("then",
          Code *b = BRAN_TGT();
          int  s  = b->stage;                   ///< branching state
-         if (s==0) {                           
+         if (s==0) {
              b->pf.merge(last->pf);            /// * if.{pf}.then
              DICT_POP();
          }
@@ -307,7 +314,8 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("ms",      PUSH(millis())),     // get system clock in msec
     CODE("rnd",     PUSH(RND())),        // get a random number
     CODE("delay",   delay(UINT(POP()))), // n -- delay n msec
-    CODE("included", load(pad.c_str())),
+    CODE("included",
+         POP(); U32 i_w = UINT(POP()); load(STR(i_w))),
     CODE("forget",
          Code *w = find(word()); if (!w) return;
          int   t = max((int)w->token, find("boot")->token + 1);
@@ -403,10 +411,10 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
 #else // !USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
         DU  n = ABS(v);                   ///< handle negative
-        while (n && i) {                  ///> digit-by-digit
+        do {
             U8 d = (U8)MOD(n, b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
-        }
+        } while (n && i);
         if (v < 0) buf[--i]='-';
         return &buf[i];
 #endif // USE_FLOAT
@@ -530,6 +538,7 @@ void forth_core(string idiom) {
         if (compile && !w->immd)      /// * are we compiling new word?
             last->append(w);          /// * append word ptr to it
         else w->exec();               /// * execute forth word
+        
         return;
     }
     DU  n = parse_number(idiom);      ///< try as a number
