@@ -110,6 +110,9 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > type> 1 2 +⏎               \ see Forth in action
     > type> bye⏎  or Ctrl-C      \ to exit eForth
 
+    Once you get pass the above, try the lessons by Dr. Ting
+    > ./tests/eforth < ./tests/lessons420.txt
+
 ### WASM
 
     > ensure you have Emscripten (WASM compiler) installed and configured
