@@ -18,4 +18,6 @@ variable t3
 : bigg  triad4 sides post right triad1 sides triad4 ;
 : fig  f bigi bigg ;
 
-( type 'fig' and a return on you keyboard to execute)
+.( type 'fig' and a return on you keyboard to execute)
+fig
+

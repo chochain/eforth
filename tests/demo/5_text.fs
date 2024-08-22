@@ -56,4 +56,4 @@ decimal
                 cr ." and demolished " the theory rest
         ;
         
-( type 'THEORY' and return )
+THEORY

@@ -64,5 +64,5 @@ decimal
         question
         ;
 
-( type 'help' to start )
+help
 

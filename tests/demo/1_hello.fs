@@ -2,4 +2,5 @@
 
 : hello cr ." hello, world!" ;
 
-( type 'hello' and a return on you keyboard to execute)
+.( type 'hello' and a return on you keyboard to execute)
+hello

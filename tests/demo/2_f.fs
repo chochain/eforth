@@ -5,4 +5,5 @@ variable t2
 : post  cr ." *    " ;
 : f     bar post bar post post post ;
 
-( type 'f' and a return on you keyboard to execute)
+.( type 'f' and a return on you keyboard to execute)
+f

@@ -15,15 +15,16 @@ decimal
 : ounce   ( n -- n, a word to improve syntax )  ;
 : dollars ( n -- )      . ;
 
-( with this set of money exchange words, we can do some tests: )
-\        5 ounce gold . cr
-\        10 ounce silver . cr
-\        100 $nt . cr
-\        20 $rmb . cr
+.( with this set of money exchange words, we can do some tests: )
+." 5   ounce gold "   5 ounce gold . cr
+." 10  ounce silver " 10 ounce silver . cr
+." 100 $nt "          100 $nt . cr
+." 20  $rmb "         20 $rmb . cr
 
-( you can add many different currency bills then all up in dollars: )
-\        1000 nt 500 hk + .s
-\        320 rmb + .s
-( print out total worth in dollars )
-\        dollars cr
+.( you can add many different currency bills then all up in dollars: )
+1000 nt 500 hk + .s
+320 rmb + .s
+
+.( print out total worth in dollars )
+dollars cr
 
