@@ -1,4 +1,4 @@
-.( example 15.      ascii character table )
+cr .( example 15. ascii character table )
 
 variable t15
 : character ( n -- )
@@ -22,4 +22,7 @@ variable t15
         next
         drop ;
 
-table
+cr .( type 'table' to display ASCII char table )
+table cr
+
+

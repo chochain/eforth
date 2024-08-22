@@ -1,4 +1,4 @@
-.( example 5.      the theory that jack built )
+.( example 5. text display - the theory that jack built )
 
 variable t5
 decimal
@@ -55,5 +55,6 @@ decimal
                 cr ." wrecked " the summary based hiding
                 cr ." and demolished " the theory rest
         ;
-        
+
+cr .( type 'THERY' to execute =>)
 THEORY

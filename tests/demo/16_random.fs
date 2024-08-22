@@ -1,13 +1,13 @@
-.( example 16.      random numbers )
+.( example 16. random numbers and number guessing game)
 
-variable t16_17
-variable rnd                            ( seed )
-here rnd !                              ( initialize seed )
+variable t16
+variable seed                            ( seed )
+here seed !                              ( initialize seed )
 
 : random ( -- n, a random number within 0 to 65536 )
-        rnd @ 31421 *                   ( rnd*31421 )
+        seed @ 31421 *                  ( seed*31421 )
         6927 + 65535 and                ( rnd*31421+6926, mod 65536)
-        dup rnd !                       ( refresh he seed )
+        dup seed !                      ( refresh he seed )
         ;
 
 : choose ( n1 -- n2, a random number within 0 to n1 )
@@ -15,13 +15,10 @@ here rnd !                              ( initialize seed )
         65536 /                         ( discard lower part )
         ;                               ( in fact divide by 65536 )
 
-( to test the routine, type )
-\        100 choose . cr
-\        100 choose . cr
-\        100 choose . cr
-
-.( example 17.      guess a number )
-( example 16 must be loaded.)
+cr .( to test the routine, type )
+cr .( 100 choose . => ) 100 choose .
+cr .( 100 choose . => ) 100 choose .
+cr .( 100 choose . => ) 100 choose . cr
 
 variable myNumber
 variable yourNumber
@@ -40,9 +37,9 @@ variable yourNumber
                 cr ." correct!!!"
                 exit
         then
-        > if    cr ." too high!"
-        else    cr ." too low."
-        then    cr ." guess again?"
+        > if    cr ." too high! "
+        else    cr ." too low. "
+        then    cr ." guess again? "
         ;
 
 : greet ( -- )
@@ -55,6 +52,15 @@ variable yourNumber
     cr ." Set up the limit by typing:"
     cr ." xxxx limit "
     cr ." where xxxx is a number smaller than 32000."
-        ;
+    cr ;
 
-( greet )
+: n-guess
+  3 for
+    32000 choose dup . ." guess " cr
+    guess
+  next ;
+
+cr .( type 'greet' for a number guessing game )
+greet
+cr .( 3 limit ) 3 limit
+n-guess

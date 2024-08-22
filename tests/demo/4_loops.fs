@@ -1,4 +1,4 @@
-.( example 4.      repeated patterns )
+.( example 4. repeated patterns )
 
 variable t4
 variable width                  ( number of asterisks to print )

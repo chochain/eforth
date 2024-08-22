@@ -1,4 +1,4 @@
-.( example 6.      help )
+.( example 6. help system)
 
 variable t6
 decimal
@@ -64,5 +64,11 @@ decimal
         question
         ;
 
+.( type 'help' to execute the help system =>)
 help
+cr .( money  =>) money  1000 delay
+cr .( sex    =>) sex    1000 delay
+cr .( job    =>) job    1000 delay
+cr .( health =>) health 1000 delay
+
 

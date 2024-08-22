@@ -1,4 +1,4 @@
-.( example 12.      sines and cosines )
+.( example 12. sines and cosines )
 
 variable t12
 31416 constant pi
@@ -38,12 +38,12 @@ variable xs                      ( square of scaled angle )
     360 - sin_ then then then then ;
 : cos     90 + sin ;
 
-( to test the routines, type: )
-\        90 sin . cr
-\        45 sin . cr
-\        30 sin . cr
-\         0 sin . cr
-\        90 cos . cr
-\        45 cos . cr
-\         0 cos . cr
+cr .( to test the routines, type: )
+cr .( 90 sin . => ) 90 sin .
+cr .( 45 sin . => ) 45 sin .
+cr .( 30 sin . => ) 30 sin .
+cr .( 0  sin . => ) 0 sin .
+cr .( 90 cos . => ) 90 cos .
+cr .( 45 cos . => ) 45 cos .
+cr .( 0  cos . => ) 0 cos . cr
 

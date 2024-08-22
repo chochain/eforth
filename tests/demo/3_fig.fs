@@ -1,9 +1,6 @@
-.( example 3.      fig, forth interest group )
+.( example 3. fig, forth interest group )
 
 variable t3
-: bar   cr ." *****" ;
-: post  cr ." *    " ;
-: f     bar post bar post post post ;
 : center cr ."   *  " ;
 : sides  cr ." *   *" ;
 : triad1 cr ." * * *" ;
@@ -18,6 +15,6 @@ variable t3
 : bigg  triad4 sides post right triad1 sides triad4 ;
 : fig  f bigi bigg ;
 
-.( type 'fig' and a return on you keyboard to execute)
+cr .( type 'fig' and a return on you keyboard to execute =>)
 fig
 

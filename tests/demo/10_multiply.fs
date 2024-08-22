@@ -21,4 +21,5 @@ variable t10
         next drop cr
         ;
         
-( type 'multiply' to print the multiplication table )
+cr .( type 'multiply' to print the multiplication table =>)
+multiply

@@ -11,7 +11,6 @@ variable t8
         32 +
         ;
 
-( try these commands )
-\ 90 f>c . cr
-\ 0  c>f . cr
+cr .( 90 f>c . => ) 90 f>c .
+cr .( 0  c>f . => ) 0  c>f . cr
 
