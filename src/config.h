@@ -11,7 +11,7 @@
 ///@name Conditional compililation options
 ///@}
 #define CC_DEBUG        0               /**< debug level 0|1|2      */
-#define USE_FLOAT       1               /**< support floating point */
+#define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
 ///
