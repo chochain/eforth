@@ -34,7 +34,8 @@ cr .( example 3.      fig, forth interest group )
 cr .( example 4.      repeated patterns )
 (
 for     [ index -- ]            set up loop given the index.
-next    [ -- ]                  decrement index by 1.  if index<0, exit.                          if index=limit, exit loop; otherwise
+next    [ -- ]                  decrement index by 1.  if index<0, exit.
+if index=limit, exit loop; otherwise
                                 otherwise repeat after for.
 r@      [ -- index ]            return the current loop index. )
 

@@ -1,0 +1,30 @@
+create stable 32 allot                  \ create an array to hold 16 strings
+variable si                             \ array index (default to 0)
+: inc ( -- i ) si dup @ 1 rot +! ;      \ increment array idx
+: s, ( adr len -- ) inc 2* >r           \ store a string (addr, len) into the table
+  stable r@ 1+ array!                      \ string len
+  stable r> array! ;                       \ string addr
+: s@ ( i -- ) 2* >r
+  stable r@ array@
+  stable r> 1+ array@ ;
+: st_setup
+  s" demo/1_hello.fs"       s,
+  s" demo/2_f.fs"           s,
+  s" demo/3_fig.fs"         s,
+  s" demo/4_loops.fs"       s,
+  s" demo/5_text.fs"        s,
+  s" demo/6_help.fs"        s,
+  s" demo/7_money.fs"       s,
+  s" demo/8_temperature.fs" s,
+  s" demo/9_weather.fs"     s,
+  s" demo/10_multiply.fs"   s,
+  s" demo/11_calendar.fs"   s,
+  s" demo/12_trig.fs"       s,
+  s" demo/13_sqrt.fs"       s,
+  s" demo/14_ascii.fs"      s,
+  s" demo/15_radix.fs"      s,
+  s" demo/16_random.fs"     s, ;
+: st_lst
+  16 0 do i s@ type cr loop ;
+st_setup
+st_lst
