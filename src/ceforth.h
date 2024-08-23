@@ -94,9 +94,9 @@ struct Tmp : Code { Tmp() : Code(NULL) {} };
 struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
 struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
-    Str(string s, int t=0) : Code(_str) {
+    Str(string s, int tok=0, int len=0) : Code(_str) {
         name  = (new string(s))->c_str();
-        token = t;
+        token = (len << 16) | tok;        /// * encode word index and string length
         is_str= 1;
     }
 };
