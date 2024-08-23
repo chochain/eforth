@@ -504,13 +504,14 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE("exit ",   {});                                      // dict[0] also the storage for base
     CODE("nop ",    {});                                      // nop VAR padding
-    CODE("next ",                                             // handled in nest()
+    CODE("next ",                                             // handle for..next, cached in nest()
          if (GT(rs[-1] -= DU1, -DU1)) IP = *(IU*)MEM(IP);     // rs[-1]-=1 saved 200ms/1M cycles
          else { IP += sizeof(IU); rs.pop(); });
-    CODE("loop ",                                             // handled in nest()
+    CODE("loop ",
          if (GT(rs[-2], rs[-1] += DU1)) IP = *(IU*)MEM(IP);
          else { IP += sizeof(IU); rs.pop(); rs.pop(); });
-    CODE("lit ",    PUSH(*(DU*)MEM(IP)); IP += sizeof(DU));
+    CODE("lit ",                                              // literal, cached in nest()
+         ss.push(top); top = *(DU*)MEM(IP); IP += sizeof(DU));
     CODE("var ",    PUSH(IP + sizeof(IU));                    // get var addr (skip over EXIT)
                     IP += sizeof(IU) + *(IU*)MEM(IP));        // len + data
     CODE("str ",    const char *s = (const char*)MEM(IP);     // get string pointer
