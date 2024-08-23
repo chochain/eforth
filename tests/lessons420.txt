@@ -6,11 +6,11 @@ create stable TSZ 2* allot              \ create an array to hold strings for de
 variable si                             \ array index (default to 0)
 : inc ( -- i ) si dup @ 1 rot +! ;      \ increment array idx
 : s, ( adr len -- ) inc 2* >r           \ store a string (addr, len) into the table
-  stable r@ 1+ array!                      \ string len
-  stable r> array! ;                       \ string addr
+  stable r@ 1+ th !                     \ string len
+  stable r> th ! ;                      \ string addr
 : s@ ( i -- ) 2* >r                     \ fetch a string (addr, len) from the table
-  stable r@ array@
-  stable r> 1+ array@ ;
+  stable r@ th @
+  stable r> 1+ th @ ;
 : st_setup                              \ fill stable with strings
   s" tests/demo/1_hello.fs"       s,
   s" tests/demo/2_f.fs"           s,
