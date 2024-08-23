@@ -113,7 +113,7 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     Once you get pass the above, try the lessons by Dr. Ting.
     > ./tests/eforth < ./tests/lessons420.txt
 
-    Pretty amazing stuffs! To grasp how there were done, study the
+    Pretty amazing stuffs! To grasp how they were done, study the
     individual files under ~/tests/demo.
 
 ### WASM
