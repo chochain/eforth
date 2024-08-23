@@ -1,7 +1,7 @@
 \
 \ eForth v4.2 - autoexec demos 
 \
-16 constant TSZ                         \ 16 demos avaiable
+18 constant TSZ                         \ 18 demos avaiable
 create stable TSZ 2* allot              \ create an array to hold strings for demo files
 variable si                             \ array index (default to 0)
 : inc ( -- i ) si dup @ 1 rot +! ;      \ increment array idx
@@ -27,7 +27,9 @@ variable si                             \ array index (default to 0)
   s" tests/demo/13_sqrt.fs"       s,
   s" tests/demo/14_radix.fs"      s,
   s" tests/demo/15_ascii.fs"      s,
-  s" tests/demo/16_random.fs"     s, ;
+  s" tests/demo/16_random.fs"     s,
+  s" tests/demo/17_array.fs"      s,
+  s" tests/demo/18_does.fs"       s, ;
 : st_lst
   ." ***list all eForth demos scripts***" cr
   TSZ 0 do
