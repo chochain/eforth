@@ -224,23 +224,18 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 void nest() {
     int dp = 0;                        ///> iterator implementation (instead of recursive)
     while (dp >= 0) {                  ///> depth control
-        run = true;                    ///> re-enable loop control
-        IU ix = *(IU*)MEM(IP);         ///> fetch opcode, hopefully cached
-        while (run && ix!=EXIT) {      ///> loop till 0 (EXIT) hit
-            IP += sizeof(IU);          /// * advance inst. ptr
-            if ((ix & EXT_FLAG)==0) {  /// * colon or primitives?
-                Code::exec(ix);        ///> execute built-in word
-                ix = *(IU*)MEM(IP);    ///> fetch next opcode
-                continue;
-            }
-            switch (ix) {
-            case EXIT:
+        run = true;                                     ///> re-enable looping control
+        while (run) {
+            IU ix = *(IU*)MEM(IP);                      ///> fetched opcode, hopefully in register
+            IP += sizeof(IU);                           /// * advance inst. ptr
+            switch (ix) {                               /// * opcode dispatcher
+            case EXIT: run = false;    break;           /// * CC: computed goto
             case NOP: /* do nothing */ break;
             case NEXT:
                 if (GT(rs[-1] -= DU1, -DU1)) {          ///> loop done?
                     IP = *(IU*)MEM(IP);                 
-                }                                       ///> 10% faster on AMD, 5% on ESP32
-                else { IP += sizeof(IU); rs.pop(); }    ///> perhaps due to shallow pipeline
+                }
+                else { IP += sizeof(IU); rs.pop(); }    ///> pop off call frame
                 break;
             case LOOP:
                 if (GT(rs[-2], rs[-1] += DU1)) {        ///> continue loop
@@ -264,28 +259,30 @@ void nest() {
                 IU    len = STRLEN(s);
                 PUSH(IP); PUSH(len); IP += len;
             } break;
-            case DOTQ: {
-                const char *s = (const char*)MEM(IP);   // get string pointer
-                fout << s;  IP += STRLEN(s);            // send to output console
+            case DOTQ: {                                /// ." ..."
+                const char *s = (const char*)MEM(IP);   /// * get string pointer
+                fout << s;  IP += STRLEN(s);            /// * send to output console
             } break;
-            case BRAN:  IP = *(IU*)MEM(IP); break;      // unconditional branch
-            case ZBRAN:                                 // conditional branch
+            case BRAN:  IP = *(IU*)MEM(IP); break;      /// * unconditional branch
+            case ZBRAN:                                 /// * conditional branch
                 IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP);
                 break;
-            case DOES:                                  // encode current IP, and bail
+            case DOES:                                  /// * encode current IP, and bail
                 add_w(BRAN); add_iu(IP);
                 run = false;
                 break;
-            case FOR:  rs.push(POP()); break;
-            case DO:
+            case FOR:  rs.push(POP()); break;           /// * setup FOR..NEXT call frame
+            case DO:                                    /// * setup DO..LOOP call frame
                 rs.push(ss.pop()); rs.push(POP());
                 break;
             default:
-                rs.push(IP);           ///> build call frame
-                IP = ix & ~EXT_FLAG;   ///> word pfa (def masked)
-                dp++;                  ///> go one level deeper
+                if (ix & EXT_FLAG) {                    /// * colon or primitives?
+                    rs.push(IP);                        ///> build call frame
+                    IP = ix & ~EXT_FLAG;                ///> word pfa (def masked)
+                    dp++;                               ///> go one level deeper
+                }
+                else Code::exec(ix);                    ///> execute built-in word
             }
-            ix = *(IU*)MEM(IP);        ///> fetch next opcode
         }
         if (dp-- > 0) IP = rs.pop();   ///> pop off a level
 
