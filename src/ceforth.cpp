@@ -30,15 +30,15 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 inline  DU POP()     { DU n=tos; tos=ss.pop(); return n; }
 #define PUSH(v)      (ss.push(tos), tos=(v))
 #define BOOL(f)      ((f) ? -1 : 0)
-#define VAR(i)       (*dict[(int)(i)]->pf[0]->q.data())
+#define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
 #define DICT_PUSH(c) (dict.push(last=(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
 #define BRAN_TGT()   (dict[-2]->pf[-1]) /* branching target */
 #define BASE         (VAR(0))           /* borrow dict[0] to store base (numeric radix) */
-#define STR(i_w)     (                              \
-        EQ(i_w, UINT(-DU1))                         \
-        ? pad.c_str()                               \
-        : dict[i_w & 0xffff]->pf[i_w >> 16]->name   \
+#define STR(i_w)     (                                  \
+        EQ(i_w, UINT(-DU1))                             \
+        ? pad.c_str()                                   \
+        : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
 ///
 ///> Forth Dictionary Assembler
@@ -158,8 +158,7 @@ const Code rom[] = {               ///< Forth dictionary
     IMMD("s\"",
          string s = word('"').substr(1);
          if (compile) {
-             DU i_w = (last->pf.size() << 16) | last->token; // encode pf and word indices
-             last->append(new Str(s, i_w));
+             last->append(new Str(s, last->token, last->pf.size()));
          }
          else {
              pad = s;                                // keep string on pad
@@ -287,17 +286,21 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgroup Memory Access ops
     /// @{
-    CODE("@",       IU w=UINT(POP()); PUSH(VAR(w))),               // w -- n
-    CODE("!",       IU w=UINT(POP()); VAR(w) = POP()),             // n w --
-    CODE("+!",      IU w=UINT(POP()); VAR(w) += POP()),            // n w --
-    CODE("?",       IU w=UINT(POP()); fout << VAR(w) << " "),      // w --
-    CODE("array@",  IU i=UINT(POP()); IU w=UINT(POP());            // w i -- n
-                    PUSH(*(&VAR(w)+i))),
-    CODE("array!",  IU i=UINT(POP()); IU w=UINT(POP());            // n w i --
-                    *(&VAR(w)+i)=POP()),  
+    CODE("@",       U32 i_w = UINT(POP()); PUSH(VAR(i_w))),           // a -- n
+    CODE("!",       U32 i_w = UINT(POP()); VAR(i_w) = POP()),         // n a -- 
+    CODE("+!",      U32 i_w = UINT(POP()); VAR(i_w) += POP()),
+    CODE("?",       U32 i_w = UINT(POP()); fout << VAR(i_w) << " "),
     CODE(",",       last->pf[0]->q.push(POP())),
-    CODE("allot",   IU n = UINT(POP());                            // n --
-                    for (int i=0; i<n; i++) last->pf[0]->q.push(DU0)),
+    CODE("allot",   U32 n = UINT(POP());                              // n --
+                    for (U32 i=0; i<n; i++) last->pf[0]->q.push(DU0)),
+    ///> Note:
+    ///>   allot allocate elements in a word's q[] array
+    ///>   to access, both indices to word itself and to q array are needed
+    ///>   'th' a word that compose i_w, a 32-bit value, the 16 high bits
+    ///>   serves as the q index and lower 16 lower bit as word index
+    ///>   so a variable (array with 1 element) can be access as usual
+    ///>
+    CODE("th",      U32 i = UINT(POP()) << 16; tos = UINT(tos) | i),  // w i -- i_w
     /// @}
     /// @defgroup Debug ops
     /// @{
@@ -570,13 +573,13 @@ void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
         string idiom;
         while (fin >> idiom) {
             try { forth_core(idiom); }     ///> single command to Forth core
-#if CC_DEBUG            
+#if CC_DEBUG
             catch(exception &e) {          /// * 6% slower?
                 fout << idiom << "? " << e.what() << ENDL;
 #else // !CC_DEBUG
             catch(...) {
                 fout << idiom << "? " << ENDL;
-#endif // CC_DEBUG                
+#endif // CC_DEBUG
                 compile = false;
                 getline(fin, idiom, '\n'); /// * flush to end-of-line
             }
