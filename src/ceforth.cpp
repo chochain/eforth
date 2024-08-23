@@ -475,7 +475,7 @@ void words() {              ///> display word list
     int x = 0;
     fout << setbase(16) << setfill('0');
     for (Code *w : dict) {
-#if CC_DEBUG
+#if CC_DEBUG > 1
         fout << setw(4) << w->token << "> "
              << (UFP)w << ' '
              << setw(8) << static_cast<U32>((UFP)w->xt)
