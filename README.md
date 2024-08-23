@@ -110,8 +110,11 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > type> 1 2 +⏎               \ see Forth in action
     > type> bye⏎  or Ctrl-C      \ to exit eForth
 
-    Once you get pass the above, try the lessons by Dr. Ting. Pretty amazing! Study the individual files under ~/tests/demo to grasp how they were done in eForth.
+    Once you get pass the above, try the lessons by Dr. Ting.
     > ./tests/eforth < ./tests/lessons420.txt
+
+    Pretty amazing stuffs! To grasp how there were done, study the
+    individual files under ~/tests/demo.
 
 ### WASM
 
