@@ -131,7 +131,7 @@ struct Code {
 #define IMMD(n, g) ADD_CODE(n, g, true)
 
 extern void forth_init();
-extern void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
+extern int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 extern int  forth_include(const char *fn);
 ;
 
