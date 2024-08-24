@@ -96,9 +96,11 @@ Code op_prim[] = {
 ///
 ///> VM states (single task)
 ///
+typedef enum { STOP=0, HOLD, RUN } vm_state;
+
+vm_state run = RUN;     ///< VM nest() control
 DU   top     = -DU1;    ///< top of stack (cached)
 IU   IP      = 0;       ///< current instruction pointer
-bool run     = true;    ///< VM nest() control
 bool compile = false;   ///< compiler flag
 bool ucase   = false;   ///< case sensitivity control
 IU   *base;             ///< numeric radix (a pointer)
@@ -221,80 +223,78 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 ///    1. Just-in-time cache(ip, dp)
 ///    2. Co-routine
 ///
-void nest() {
-    int dp = 0;                        ///> iterator implementation (instead of recursive)
-    while (dp >= 0) {                  ///> depth control
-        run = true;                                     ///> re-enable looping control
-        while (run) {
-            IU ix = *(IU*)MEM(IP);                      ///> fetched opcode, hopefully in register
-            IP += sizeof(IU);                           /// * advance inst. ptr
-            switch (ix) {                               /// * opcode dispatcher
-            case EXIT: run = false;    break;           /// * CC: computed goto
-            case NOP: /* do nothing */ break;
-            case NEXT:
-                if (GT(rs[-1] -= DU1, -DU1)) {          ///> loop done?
-                    IP = *(IU*)MEM(IP);                 
-                }
-                else { IP += sizeof(IU); rs.pop(); }    ///> pop off call frame
-                break;
-            case LOOP:
-                if (GT(rs[-2], rs[-1] += DU1)) {        ///> continue loop
-                    IP = *(IU*)MEM(IP);
-                }
-                else {                                  ///> done, restore call frame
-                    IP += sizeof(IU); rs.pop(); rs.pop();
-                }
-                break;
-            case LIT:
-                ss.push(top);
-                top = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
-                IP += sizeof(DU);
-                break;
-            case VAR:
-                PUSH(IP + sizeof(IU));                  // get var addr (skip over EXIT)
-                IP += sizeof(IU) + *(IU*)MEM(IP);       // len + data
-                break;
-            case STR: {
-                const char *s = (const char*)MEM(IP);   // get string pointer
-                IU    len = STRLEN(s);
-                PUSH(IP); PUSH(len); IP += len;
-            } break;
-            case DOTQ: {                                /// ." ..."
-                const char *s = (const char*)MEM(IP);   /// * get string pointer
-                fout << s;  IP += STRLEN(s);            /// * send to output console
-            } break;
-            case BRAN:  IP = *(IU*)MEM(IP); break;      /// * unconditional branch
-            case ZBRAN:                                 /// * conditional branch
-                IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP);
-                break;
-            case DOES:                                  /// * encode current IP, and bail
-                add_w(BRAN); add_iu(IP);
-                run = false;
-                break;
-            case FOR:  rs.push(POP()); break;           /// * setup FOR..NEXT call frame
-            case DO:                                    /// * setup DO..LOOP call frame
-                rs.push(ss.pop()); rs.push(POP());
-                break;
-            default:
-                if (ix & EXT_FLAG) {                    /// * colon or primitives?
-                    rs.push(IP);                        ///> build call frame
-                    IP = ix & ~EXT_FLAG;                ///> word pfa (def masked)
-                    dp++;                               ///> go one level deeper
-                }
-                else Code::exec(ix);                    ///> execute built-in word
-            }
-        }
-        if (dp-- > 0) IP = rs.pop();   ///> pop off a level
+#define DISPATCH(op) switch(op)
+#define CASE(op, g)  case op : { g; } break
+#define OTHER(g)     default : { g; } break
+#define RETURN()         \
+    if (dp-- > 0) {      \
+        IP  = rs.pop();  \
+        run = HOLD;      \
+    }                    \
+    else run = STOP
 
-        yield();                       ///> give other tasks some time
+void nest(IU IP) {
+    static int dp = 0;           ///> iterator implementation (instead of recursive)
+    while (run==RUN) {
+        IU ix = *(IU*)MEM(IP);                       ///> fetched opcode, hopefully in register
+        IP += sizeof(IU);                            /// * advance inst. ptr
+        DISPATCH(ix) {                               /// * opcode dispatcher
+        CASE(EXIT, RETURN());
+        CASE(NOP,  { /* do nothing */});
+        CASE(NEXT,
+             if (GT(rs[-1] -= DU1, -DU1)) {          ///> loop done?
+                 IP = *(IU*)MEM(IP);                 
+             }
+             else { IP += sizeof(IU); rs.pop(); });  ///> pop off call frame
+        CASE(LOOP,
+             if (GT(rs[-2], rs[-1] += DU1)) {        ///> continue loop
+                 IP = *(IU*)MEM(IP);
+             }
+             else {                                  ///> done, restore call frame
+                 IP += sizeof(IU); rs.pop(); rs.pop();
+             });
+        CASE(LIT,
+             ss.push(top);
+             top = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
+             IP += sizeof(DU));
+        CASE(VAR,
+             PUSH(IP + sizeof(IU));                  // get var addr (skip over EXIT)
+             IP += sizeof(IU) + *(IU*)MEM(IP));      // len + data
+        CASE(STR, 
+             const char *s = (const char*)MEM(IP);   // get string pointer
+             IU    len = STRLEN(s);
+             PUSH(IP); PUSH(len); IP += len);
+        CASE(DOTQ,                                   /// ." ..."
+             const char *s = (const char*)MEM(IP);   /// * get string pointer
+             fout << s;  IP += STRLEN(s));           /// * send to output console
+        CASE(BRAN, IP = *(IU*)MEM(IP));              /// * unconditional branch
+        CASE(ZBRAN,                                  /// * conditional branch
+             IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP));
+        CASE(DOES,                                   /// * encode current IP, and bail
+             add_w(BRAN); add_iu(IP);
+             RETURN());
+        CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
+        CASE(DO,                                     /// * setup DO..LOOP call frame
+             rs.push(ss.pop()); rs.push(POP()));
+        OTHER(
+            if (ix & EXT_FLAG) {                     /// * colon word?
+                rs.push(IP);                         /// * setup call frame
+                dp++;
+                IP = ix & ~EXT_FLAG;                 /// * IP = word.pfa
+            }
+            else {
+                Code::exec(ix);                      ///> execute built-in word
+                if (run==STOP) { RETURN(); }
+            });
+        }
     }
 }
 ///
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
-    if (IS_UDF(w)) { IP = dict[w].pfa; nest(); }
-    else dict[w].call();
+    if (IS_UDF(w)) nest(dict[w].pfa);
+    else           dict[w].call();
 }
 ///====================================================================
 ///
@@ -544,7 +544,7 @@ void call_js() {                           ///> ( n addr u -- )
 ///
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 
-void dict_compile() {  ///< compile primitive words into dictionary
+void dict_compile() {  ///< compile built-in words into dictionary
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -677,7 +677,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
-    CODE("leave",   rs.pop(); rs.pop(); run = false);           // quit DO..LOOP
+    CODE("leave",   rs.pop(); rs.pop(); run = STOP);            // quit DO..LOOP
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
@@ -690,7 +690,7 @@ void dict_compile() {  ///< compile primitive words into dictionary
     /// @{
     CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EXIT); compile = false);
-    CODE("exit",    run = false);                               // early exit the colon word
+    CODE("exit",    run = STOP);                                // early exit the colon word
     CODE("variable",                                            // create a variable
          def_word(word());                                      // create a new word on dictionary
          add_var(); add_iu(sizeof(DU)); add_du(DU0);            // dovar (len=4, default 0)
@@ -802,14 +802,13 @@ DU parse_number(const char *idiom, int *err) {
     return n;
 }
 
-int forth_core(const char *idiom) {
+void forth_core(const char *idiom) {
     IU w = find(idiom);                  ///> * get token by searching through dict
     if (w) {                             ///> * word found?
         if (compile && !IS_IMM(w)) {     /// * in compile mode?
             add_w(w);                    /// * add to colon word
         }
         else CALL(w);                    /// * execute forth word
-        return 0;
     }
     // try as a number
     int err = 0;
@@ -817,7 +816,7 @@ int forth_core(const char *idiom) {
     if (err) {                           /// * not number
         fout << idiom << "? " << ENDL;   ///> display error prompt
         compile = false;                 ///> reset to interpreter mode
-        return 1;                        ///> skip the entire input buffer
+        run     = STOP;                  ///> skip the entire input buffer
     }
     // is a number
     if (compile) {                       /// * a number in compile mode?
@@ -825,7 +824,6 @@ int forth_core(const char *idiom) {
         add_du(n);
     }
     else PUSH(n);                        ///> or, add value onto data stack
-    return 0;
 }
 ///====================================================================
 ///
@@ -845,27 +843,32 @@ void forth_init() {
     }
     dict_compile();              ///> compile dictionary
 }
-void forth_vm(const char *cmd, void(*hook)(int, const char*)) {
-    auto outer = []() {          ///< Forth outer interpreter
-        string idiom;
-        while (fin >> idiom) {          ///> fetch a word
-            forth_core(idiom.c_str());  ///> send to Forth core
-        }
-    };
+int forth_vm(const char *cmd, void(*hook)(int, const char*)) {
+    static istringstream stm;    ///< input stream
+    static string        line;   ///< command line
+    
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;
-
-    istringstream stm(cmd);      ///< input stream
-    string        line;          ///< command line
     fout.str("");                /// * clean output buffer
-    while (getline(stm, line)) {
+
+    bool resume = run==HOLD;     ///< check VM resume status
+    if (!resume) {               /// * refresh buffer if not resuming
+        stm.str(cmd);            /// * set command to be parsed
+        getline(stm, line);      /// * fetch a line
         fin.clear();             ///> clear input stream error bit if any
-        fin.str(line);           ///> feed user command into input stream
-        outer();                 /// * invoke Forth outer interpreter
+        fin.str(line);           ///> reload user command into input stream
     }
+    string idiom;
+    while (resume || fin >> idiom) {            ///> fetch a word
+        if (resume) nest(IP);                   ///> resume to last IP
+        else        forth_core(idiom.c_str());  ///> send to Forth core
+        if (run != RUN) break;
+    }
+    bool pause = run==HOLD;
 #if DO_WASM    
-    if (!compile) fout << "ok" << ENDL;
+    if (!pause && !compile) fout << "ok" << ENDL;
 #else
-    if (!compile) ss_dump();     /// * dump stack and display ok prompt
+    if (!pause && !compile) ss_dump();   /// * dump stack and display ok prompt
 #endif  // DO_WASM
+    return pause;
 }
