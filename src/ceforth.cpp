@@ -568,7 +568,7 @@ void forth_init() {
 #endif
 }
 
-void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
+int forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
     auto outer = []() {               ///< outer interpreter
         string idiom;
         while (fin >> idiom) {
@@ -597,4 +597,6 @@ void forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL) {
         outer();                      /// * call Forth outer interpreter
     }
     if (!compile) ss_dump(BASE);
+    
+    return 0;
 }
