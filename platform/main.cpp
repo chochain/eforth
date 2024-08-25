@@ -53,7 +53,7 @@ int main(int ac, char* av[]) {
     string cmd;
     while (getline(cin, cmd)) {         ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
-        forth_vm(cmd.c_str());          ///> execute outer interpreter
+        while(forth_vm(cmd.c_str()));   ///> run outer interpreter (single task)
     }
     cout << "Done!" << endl;
     return 0;
