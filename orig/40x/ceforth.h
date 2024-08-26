@@ -101,7 +101,7 @@ struct Code {
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)ix); }
     static void exec(IU ix) INLINE { (*XT(ix))(); }
 
-    Code(const char *n, IU w) : name(n), xt((FPTR)w) {   ///< primitives
+    Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {   ///< primitives
 #if CC_DEBUG > 1
 		LOG_KX("prim xt=", (UFP)xt); 
 		LOG_KX(", nm=", (UFP)n); LOGS(" "); LOGS(n); LOGS("\n");
