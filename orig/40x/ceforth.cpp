@@ -23,10 +23,10 @@
 ///   * If needed, it can be readjusted.
 ///
 ///> Dictionary structure (N=E4_DICT_SZ in config.h)
-///     dict[0].xt ---------> pointer to primitive word lambda[0]
-///     dict[1].xt ---------> pointer to primitive word lambda[1]
+///     dict[0].xt ---------> pointer to build-in word lambda[0]
+///     dict[1].xt ---------> pointer to built-in word lambda[1]
 ///     ...
-///     dict[N-1].xt -------> pointer to last primitive word lambda[N-1]
+///     dict[N-1].xt -------> pointer to last built-in word lambda[N-1]
 ///
 ///> Parameter memory structure (memory block=E4_PMEM_SZ in config.h)
 ///     dict[N].xt ----+ user defined colon word)    dict[N+1].xt------+
@@ -91,6 +91,7 @@ Code op_prim[] = {
     Code("do",   DO)
 };
 #define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
+#define IS_PRIM(w) ((w & EXT_FLAG) && (w < MAX_OP))
 ///
 ///====================================================================
 ///
@@ -150,12 +151,11 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    bool ex = w & EXT_FLAG;         ///< user defined or primitive word
-    Code &c = (ex && (w < MAX_OP))
+    Code &c = IS_PRIM(w)
         ? op_prim[w & ~EXT_FLAG]
         : dict[w];                  ///< ref to dictionary entry
-    IU ip = ex
-        ? (UFP)c.xt                 ///< get primitive token
+    IU ip = (w & EXT_FLAG)
+        ? (UFP)c.xt                 ///< get primitive/built-in token
         : (c.attr & UDF_ATTR        /// * colon word?
            ? (c.pfa | EXT_FLAG)     ///< pfa with colon word flag
            : c.xtoff());            ///< XT offset
@@ -327,7 +327,7 @@ void to_s(IU w, U8 *ip) {
 #if CC_DEBUG
     fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
     if (w==EXIT) fout << "EOW";
-    else         fout << setfill(' ') << setw(3) << w;
+    else         fout << setfill(' ') << setw(4) << w;
     fout << "] ) ";
 #endif // CC_DEBUG
     
@@ -340,18 +340,18 @@ void to_s(IU w, U8 *ip) {
         for (int i = 0; i < n; i+=sizeof(DU)) {
             fout << *(DU*)(ip + i) << ' ';
         }
-        fout << " ( var )";
+        fout << " ( var ) ;";
     } break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     default:
-        Code &c = w < MAX_OP ? op_prim[w & ~EXT_FLAG] : dict[w];
+        Code &c = IS_PRIM(w) ? op_prim[w & ~EXT_FLAG] : dict[w];
         fout << c.name; break;
     }
     switch (w) {
     case NEXT: case LOOP:
     case BRAN: case ZBRAN:                         ///> display jmp target
-        fout << "( " << setfill('0') << setw(4) << *(IU*)ip << " )";
+        fout << ' ' << setfill('0') << setw(4) << *(IU*)ip;
         break;
     default: /* do nothing */         break;
     }
@@ -359,26 +359,27 @@ void to_s(IU w, U8 *ip) {
 }
 void see(IU pfa, int dp=1) {
     auto pfa2opcode = [](IU ix) {                  ///> reverse lookup
-        if (ix==EXIT || ix==VAR) return (int)ix;   ///> end of word handler
+        if (IS_PRIM(ix)) return (int)ix;           ///> primitives
         IU   pfa = ix & ~EXT_FLAG;                 ///> pfa (mask colon word)
         FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
         for (int i = dict.idx - 1; i > 0; --i) {
-            if (ix & EXT_FLAG) {
+            if (ix & EXT_FLAG) {                   /// colon word?
                 if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
             }
             else if (dict[i].xt == xt) return i;   ///> compare xt
         }
-        return -1;                                 /// * not found
+        return 0;                                  /// * not found
     };
     U8 *ip = MEM(pfa);
     while (1) {
         IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
-        if (w==(IU)-1) break;           ///> loop guard
+        printf("ip=%p, ix=%x => w=%x\n", ip, *(IU*)ip, w);
+        if (!w) break;                  ///> loop guard
         
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";    ///> indent
         to_s(w, ip);                    ///> display opcode
-        if (w==EXIT || w==VAR) break;   ///> done with the colon word
-
+        if (w==EXIT || w==VAR) break;
+        
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
         case LIT:   ip += sizeof(DU);                    break; /// alignment?
@@ -746,7 +747,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = find(word()); if (!w) return;
          fout << ": " << dict[w].name;
          if (IS_UDF(w)) see(dict[w].pfa);
-         else           fout << " ( primitive ) ;";
+         else           fout << " ( built-ins ) ;";
          fout << ENDL);
     CODE("dump",  U32 n = UINT(POP()); mem_dump(UINT(POP()), n));
     CODE("dict",  dict_dump());
