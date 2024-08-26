@@ -167,7 +167,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
 }
 void add_var() {                    ///< add a varirable header
 #if DO_WASM                         /// * WASM float needs to be 4-byte aligned
-    if (sizeof(IU)==2 && (pmem.idx & 0x3)!=0) {
+    if (sizeof(IU)==2 && (pmem.idx & 0x3)==0) {
         add_w(NOP);                 /// pad two bytes
     }
 #endif // DO_WASM
@@ -263,9 +263,7 @@ void nest() {
              ss.push(top);
              top = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
              IP += sizeof(DU));                      /// * hop over the stored value
-        CASE(VAR,
-             PUSH(IP + sizeof(IU));                  ///> get var addr (skip over EXIT)
-             IP += sizeof(IU) + *(IU*)MEM(IP));      /// * hop over len + data
+        CASE(VAR, PUSH(IP); run = STOP);             ///> get var addr, alignment?
         CASE(STR, 
              const char *s = (const char*)MEM(IP);   // get string pointer
              IU    len = STRLEN(s);
@@ -278,7 +276,7 @@ void nest() {
              IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP));
         CASE(DOES,                              
              add_w(BRAN); add_iu(IP);                /// * encode current IP, and bail
-             RETURN());
+             run = STOP);
         CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
              rs.push(ss.pop()); rs.push(POP()));
@@ -338,15 +336,17 @@ void to_s(IU w, U8 *ip) {
     case EXIT: fout << ";";                         break;
     case LIT:  fout << *(DU*)ip << " ( lit )";      break;
     case VAR: {
-        int  n = *(IU*)ip;  ip += sizeof(IU);       ///> number of elements
+        int  n = 1;                                 ///> alignement?
         for (int i = 0; i < n; i+=sizeof(DU)) {
-            fout << *(DU*)ip << ' '; ip += sizeof(DU);
+            fout << *(DU*)(ip + i) << ' ';
         }
         fout << " ( var )";
     } break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
-    default:   fout << dict[w].name;                break;
+    default:
+        Code &c = w < MAX_OP ? op_prim[w & ~EXT_FLAG] : dict[w];
+        fout << c.name; break;
     }
     switch (w) {
     case NEXT: case LOOP:
@@ -359,7 +359,7 @@ void to_s(IU w, U8 *ip) {
 }
 void see(IU pfa, int dp=1) {
     auto pfa2opcode = [](IU ix) {                  ///> reverse lookup
-        if (ix==EXIT) return (int)EXIT;            ///> end of word handler
+        if (ix==EXIT || ix==VAR) return (int)ix;   ///> end of word handler
         IU   pfa = ix & ~EXT_FLAG;                 ///> pfa (mask colon word)
         FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
         for (int i = dict.idx - 1; i > 0; --i) {
@@ -377,14 +377,13 @@ void see(IU pfa, int dp=1) {
         
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";    ///> indent
         to_s(w, ip);                    ///> display opcode
-        if (w==EXIT) break;             ///> done with the colon word
+        if (w==EXIT || w==VAR) break;   ///> done with the colon word
 
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
-        case LIT:   ip += sizeof(DU);                    break;
-        case VAR:   ip += sizeof(IU) + *(IU*)ip;         break; /// * skip (n) and n cells
+        case LIT:   ip += sizeof(DU);                    break; /// alignment?
         case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
-        case BRAN:  case ZBRAN:
+        case BRAN:  case ZBRAN: case DOES:
         case NEXT:  case LOOP:  ip += sizeof(IU);        break;
         }
 #if CC_DEBUG > 1
@@ -700,8 +699,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("exit",    run = STOP);                                // early exit the colon word
     CODE("variable",                                            // create a variable
          def_word(word());                                      // create a new word on dictionary
-         add_var(); add_iu(sizeof(DU)); add_du(DU0);            // dovar (len=4, default 0)
-         add_w(EXIT));
+         add_var(); add_du(DU0));                               // dovar (len=4, default 0)
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
          add_w(LIT); add_du(POP());                             // dovar (+parameter field)
@@ -731,9 +729,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("cells", IU i = UINT(POP()); PUSH(i * sizeof(DU)));    // n -- n'
     CODE("allot",                                               // n --
          IU n = UINT(POP());                                    // number of bytes
-         add_iu(n);                                             // encode length, default 0
-         for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0);     // zero padding
-         add_w(EXIT));                                          // endof word
+         for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0));    // zero padding
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
     CODE("?",     IU w = UINT(POP()); fout << CELL(w) << " ");  // w --
     /// @}
@@ -864,11 +860,11 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         fin.clear();             /// * clear input stream error bit if any
         fin.str(line);           /// * reload user command into input stream
     }
-    printf("    => resume=%d, line=%s, fin.str=%s\n", resume, line, fin.str().c_str());
+    printf("    => resume=%d, tellg=%d, fin.str=%s\n", resume, (int)fin.tellg(), fin.str().c_str());
     string idiom;
     while (resume || (fin >> idiom)) {       ///> fetch a word
         forth_core(resume, idiom.c_str());   ///> send to Forth core
-        if (run != RUN) break;
+        if (run == HOLD) break;  ///> yield needed?
     }
     bool pause = run==HOLD;
     printf("    => pause=%d\n", pause);
