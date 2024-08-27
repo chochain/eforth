@@ -85,7 +85,7 @@ typedef enum {
 } forth_opcode;
 
 Code op_prim[] = {
-    Code("exit", EXIT), Code("nop",  NOP),   Code("next",  NEXT),  Code("loop",  LOOP),
+    Code(";",    EXIT), Code("nop",  NOP),   Code("next",  NEXT),  Code("loop",  LOOP),
     Code("lit",  LIT),  Code("var",  VAR),   Code("str",   STR),   Code("dotq",  DOTQ),
     Code("bran", BRAN), Code("0bran",ZBRAN), Code("vbran", VBRAN), Code("does>", DOES),
     Code("for",  FOR),  Code("do",   DO)
@@ -341,14 +341,10 @@ void to_s(IU w, U8 *ip) {
     
     ip += sizeof(IU);                  ///> calculate next ip
     switch (w) {
-    case EXIT: fout << ";";                         break;
     case LIT:  fout << *(DU*)ip << " ( lit )";      break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
-    case VAR:
-    case VBRAN:fout << *(DU*)(w==VAR ? ip : ip+sizeof(IU)) << ' '; // no break
 #if 0
-    {
     	int n = 1;
         IU  i1 = w < dict.idx ? TONAME(w+1) : HERE;
         IU  i0 = dict[w].pfa + sizeof(IU) * (w==VBRAN ? 2 : 1);
@@ -356,14 +352,15 @@ void to_s(IU w, U8 *ip) {
         for (int i = 0; i < n; i+=sizeof(DU)) {
             fout << *(DU*)(ip + (w==VAR ? i : sizeof(IU)+i)) << ' ';
         }
-    }
 #endif    /// * no break, fall through
+    case VAR:
+    case VBRAN:
+        fout << *(DU*)(w==VAR ? ip : ip+sizeof(IU)) << ' '; /// no break
     default:
         Code &c = IS_PRIM(w) ? op_prim[w & ~EXT_FLAG] : dict[w];
         fout << c.name; break;
     }
     switch (w) {
-    case VAR:  fout << ";"; break;
     case NEXT: case LOOP:
     case BRAN: case ZBRAN: case VBRAN:             ///> display jmp target
         fout << ' ' << setfill('0') << setw(4) << *(IU*)ip;
@@ -392,7 +389,7 @@ void see(IU pfa, int dp=1) {
         
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";    ///> indent
         to_s(w, ip);                    ///> display opcode
-        if (w==EXIT || w==VAR) break;
+        if (w==EXIT || w==VAR) break;   ///> end of word
         
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
