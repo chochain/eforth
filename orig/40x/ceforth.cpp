@@ -226,14 +226,17 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
-#define RETURN()                   \
-    if (dp-- > 0) IP  = rs.pop();  \
-    run = dp >= 0 ? HOLD : STOP
+#define RETURN()                                \
+    if (--dp > 0) { IP=rs.pop(); run=HOLD; }    \
+    else run = STOP
 
-void nest() {
-    static int dp = 0;           ///> iterator implementation (instead of recursive)
+void nest(IU pfa) {
+    static int dp;            ///> iterator implementation (instead of recursive)
 
-    if (run != HOLD) dp = 0;                         /// * reset depth counter
+    if (run != HOLD) {
+        IP = pfa;                                    /// * reset IP & depth counter
+        dp = 1;
+    }
     run = RUN;                                       /// * activate VM
     
     while (run==RUN) {
@@ -249,7 +252,7 @@ void nest() {
              }
              else {                                  /// * yes, loop done!
                  rs.pop();                           /// * pop off loop counter
-                 IP += sizeof(IU);                   /// * step over to next instr.
+                 IP += sizeof(IU);                   /// * next instr.
              });
         CASE(LOOP,
              if (GT(rs[-2], rs[-1] += DU1)) {        ///> loop done?
@@ -257,13 +260,13 @@ void nest() {
              }
              else {                                  /// * yes, done
                  rs.pop(); rs.pop();                 /// * pop off counters
-                 IP += sizeof(IU);                   /// * step over to next instr.
+                 IP += sizeof(IU);                   /// * next instr.
              });
         CASE(LIT,
              ss.push(top);
              top = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
              IP += sizeof(DU));                      /// * hop over the stored value
-        CASE(VAR, PUSH(IP); run = STOP);             ///> get var addr, alignment?
+        CASE(VAR, PUSH(IP); RETURN());               ///> get var addr, alignment?
         CASE(STR, 
              const char *s = (const char*)MEM(IP);   // get string pointer
              IU    len = STRLEN(s);
@@ -276,7 +279,7 @@ void nest() {
              IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP));
         CASE(DOES,                              
              add_w(BRAN); add_iu(IP);                /// * encode current IP, and bail
-             run = STOP);
+             RETURN());
         CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
              rs.push(ss.pop()); rs.push(POP()));
@@ -291,15 +294,15 @@ void nest() {
                 if (run==STOP) { RETURN(); }
             });
         }
-        printf("   =>dp=%d, IP=%x, run=%d\n", dp, IP, run);
+        printf("   =>dp=%d, IP=%x, rs.idx=%d, run=%d\n", dp, IP, rs.idx, run);
     }
 }
 ///
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
-    if (IS_UDF(w)) { IP = dict[w].pfa; nest(); }
-    else dict[w].call();
+    if (IS_UDF(w)) nest(dict[w].pfa);
+    else           dict[w].call();
 }
 ///====================================================================
 ///
@@ -427,10 +430,10 @@ void ss_dump() {
 #else // !USE_FLOAT        
         int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
         DU  n = ABS(v);                   ///< handle negative
-        while (n && i) {                  ///> digit-by-digit
+        do {                              ///> digit-by-digit
             U8 d = (U8)MOD(n,b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
-        }
+        } while (n && i);
         if (v < DU0) buf[--i]='-';
         return &buf[i];
 #endif // USE_FLOAT
@@ -807,9 +810,8 @@ DU parse_number(const char *idiom, int *err) {
 }
 
 void forth_core(bool resume, const char *idiom) {
-    if (resume) { nest(); return; }      /// * continue without parsing
+    if (resume) { nest(0); return; }     /// * continue without parsing
     
-    run = RUN;
     IU w = find(idiom);                  ///> * get token by searching through dict
     if (w) {                             ///> * word found?
         if (compile && !IS_IMM(w)) {     /// * in compile mode?
@@ -865,7 +867,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     string idiom;
     while (resume || (fin >> idiom)) {       ///> fetch a word
         forth_core(resume, idiom.c_str());   ///> send to Forth core
-        if (run == HOLD) break;  ///> yield needed?
+        if (run != RUN) break;
     }
     bool pause = run==HOLD;
     printf("    => pause=%d\n", pause);
