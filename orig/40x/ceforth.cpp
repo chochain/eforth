@@ -335,8 +335,7 @@ void s_quote(forth_opcode op) {
 void to_s(IU w, U8 *ip) {
 #if CC_DEBUG
     fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
-    if (w==EXIT) fout << "EOW";
-    else         fout << setfill(' ') << setw(4) << w;
+    fout << setfill(' ') << setw(4) << w;
     fout << "] ) ";
 #endif // CC_DEBUG
     
@@ -388,14 +387,12 @@ void see(IU pfa, int dp=1) {
     };
     U8 *ip = MEM(pfa);
     while (1) {
-        printf("ip=%p, ix=%x", ip, *(IU*)ip);
         IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
-        printf(" => w=%x\n", w);
         if (!w) break;                  ///> loop guard
         
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";    ///> indent
         to_s(w, ip);                    ///> display opcode
-        if (w==EXIT || w==VAR || w==VBRAN) break;
+        if (w==EXIT || w==VAR) break;
         
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
@@ -403,6 +400,7 @@ void see(IU pfa, int dp=1) {
         case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
         case BRAN:  case ZBRAN:
         case NEXT:  case LOOP:  ip += sizeof(IU);        break;
+        case VBRAN: ip = MEM(*(IU*)ip);                  break;
         }
 #if CC_DEBUG > 1
         ///> walk recursively
