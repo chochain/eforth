@@ -86,6 +86,7 @@ typedef int32_t         DU;
 
 #if (ARDUINO || ESP32)
     #include <Arduino.h>
+    #define DALIGN(sz)      (sz)
     #define to_string(i)    string(String(i).c_str())
     #if    ESP32
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
@@ -93,6 +94,7 @@ typedef int32_t         DU;
 
 #elif  DO_WASM
     #include <emscripten.h>
+    #define DALIGN(sz)      ALIGN4(sz)
     #define millis()        EM_ASM_INT({ return Date.now(); })
     #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
     #define yield()         /* JS is async */
@@ -100,6 +102,7 @@ typedef int32_t         DU;
 #else  // !(ARDUINO || ESP32) && !DO_WASM
     #include <chrono>
     #include <thread>
+    #define DALIGN(sz)      (sz)
     #define millis()        chrono::duration_cast<chrono::milliseconds>( \
                             chrono::steady_clock::now().time_since_epoch()).count()
     #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
