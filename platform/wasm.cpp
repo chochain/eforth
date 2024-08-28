@@ -19,6 +19,7 @@ void forth_include(const char *fn) {
     /// Sync fetch in main thread is not supported
     /// Solution:
     ///    check https://github.com/chochain/weForth worker thread
+    printf("N/A - 'included' not supported yet!\n");
 }
 
 ///====================================================================
