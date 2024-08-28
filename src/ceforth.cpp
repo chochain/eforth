@@ -291,6 +291,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("+!",      U32 i_w = UINT(POP()); VAR(i_w) += POP()),
     CODE("?",       U32 i_w = UINT(POP()); fout << VAR(i_w) << " "),
     CODE(",",       last->pf[0]->q.push(POP())),
+    CODE("cells",   { /* for backward compatible */ }),               // array index, inc by 1
     CODE("allot",   U32 n = UINT(POP());                              // n --
                     for (U32 i=0; i<n; i++) last->pf[0]->q.push(DU0)),
     ///> Note:
