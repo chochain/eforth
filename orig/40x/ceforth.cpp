@@ -242,7 +242,7 @@ void nest(IU pfa) {
     
     while (run==RUN) {
         IU ix = *(IU*)MEM(IP);                       ///> fetched opcode, hopefully in register
-        printf("dp=%d, [%x]:%x", dp, IP, ix);
+//        printf("dp=%d, [%x]:%x", dp, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, RETURN());
@@ -299,7 +299,7 @@ void nest(IU pfa) {
                 if (run==STOP) { RETURN(); }
             });
         }
-        printf("   =>dp=%d, IP=%x, rs.idx=%d, run=%d\n", dp, IP, rs.idx, run);
+//        printf("   =>dp=%d, IP=%x, rs.idx=%d, run=%d\n", dp, IP, rs.idx, run);
     }
 }
 ///
@@ -338,7 +338,7 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     IU   pfa = ix & ~EXT_FLAG;                 ///> pfa (mask colon word)
     FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
     for (int i = dict.idx - 1; i > 0; --i) {
-        printf("dict[%d].pfa=%x == %x\n", i, dict[i].pfa, pfa);
+//        printf("dict[%d].pfa=%x == %x\n", i, dict[i].pfa, pfa);
         if (ix & EXT_FLAG) {                   /// colon word?
             if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
         }
@@ -348,15 +348,15 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
 }
 int  pfa2nvar(IU pfa) {
     IU  w  = *(IU*)MEM(pfa);
-    printf("pfa=%x, w=%x", pfa, w);
+//    printf("pfa=%x, w=%x", pfa, w);
     if (w != VAR && w != VBRAN) return 0;
     
     IU  i0 = pfa2didx(pfa | EXT_FLAG);
-    printf(" => i0=%d", i0);
+//    printf(" => i0=%d", i0);
     if (!i0) return 0;
     IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : HERE;
     int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
-    printf(", p1=%x, n=%d\n", p1, n);
+//    printf(", p1=%x, n=%d\n", p1, n);
     return n;
 }
 void to_s(IU w, U8 *ip) {
@@ -374,9 +374,9 @@ void to_s(IU w, U8 *ip) {
     case VAR:
     case VBRAN: {
         int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
-        IU  ix = (IU)(ip - MEM0 + w==VAR ? 0 : sizeof(IU));
-        for (int i = 0; i < n; i+=sizeof(DU)) {
-            fout << *(DU*)MEM(DALIGN(ix) + i) << ' ';
+        IU  ix = (IU)(ip - MEM0 + (w==VAR ? 0 : sizeof(IU)));
+        for (int i = 0, a=DALIGN(ix); i < n; i+=sizeof(DU)) {
+            fout << *(DU*)MEM(a + i) << ' ';
         }
     }                                               /// no break, fall through
     default:
@@ -752,6 +752,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("allot",                                               // n --
          IU n = UINT(POP());                                    // number of bytes
          for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0));    // zero padding
+    CODE("th",    IU n = POP(); top += n * sizeof(DU));         // w i -- w'
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
     CODE("?",     IU w = UINT(POP()); fout << CELL(w) << " ");  // w --
     /// @}
@@ -882,7 +883,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         fin.clear();             /// * clear input stream error bit if any
         fin.str(line);           /// * reload user command into input stream
     }
-    printf("    hold=%d, tellg=%d, fin.str=%s\n", hold, (int)fin.tellg(), fin.str().c_str());
+//    printf("    hold=%d, tellg=%d, fin.str=%s\n", hold, (int)fin.tellg(), fin.str().c_str());
     string idiom;
     while (hold || (fin >> idiom)) {          ///> fetch a word
         if (hold) nest(0);                    /// * continue without parsing
@@ -890,7 +891,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         hold = run==HOLD;                     /// * update return status
         if (hold) break;                      /// * pause, yield to front-end task
     }
-    printf("    => hold=%d\n", hold);
+//    printf("    => hold=%d\n", hold);
 #if DO_WASM    
     if (!hold && !compile) fout << "ok" << ENDL;
 #else
