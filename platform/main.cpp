@@ -32,14 +32,21 @@ void mem_stat() {
 ///
 ///> include external Forth script
 ///
-#include <sstream>                   /// stringstream
+void outer(istream &in) {
+    string cmd;
+    while (getline(in, cmd)) {          ///> fetch user input
+        // printf("cmd=<%s>\n", cmd.c_str());
+        while (forth_vm(cmd.c_str()));  ///> run outer interpreter (single task)
+    }
+}
 void forth_include(const char *fn) {
-    stringstream cmd;                ///< command stream buffer
-    ifstream     ifile(fn);          ///< open input stream
-    cmd << ifile.rdbuf();
-    ifile.close();
+    ifstream ifile(fn);                 ///< open input stream
+    if (ifile.is_open()) {
+        outer(ifile);
+    }
+    else cout << "file " << fn << " open failed!";
 
-    forth_vm(cmd.str().c_str());
+    ifile.close();
 }
 ///====================================================================
 ///
@@ -49,12 +56,8 @@ int main(int ac, char* av[]) {
     forth_init();                       ///> initialize dictionary
 	mem_stat();                         ///> show memory status
     srand(time(0));                     ///> seed random generator
-    
-    string cmd;
-    while (getline(cin, cmd)) {         ///> fetch user input
-        // printf("cmd=<%s>\n", cmd.c_str());
-        while(forth_vm(cmd.c_str()));   ///> run outer interpreter (single task)
-    }
+
+    outer(cin);
     cout << "Done!" << endl;
     return 0;
 }
