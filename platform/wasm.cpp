@@ -6,7 +6,7 @@
 #include <emscripten.h>
 
 extern void forth_init();
-extern void forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
+extern int  forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
 extern "C" void forth(int n, char *cmd) { forth_vm(cmd); }
 
 const char* APP_VERSION = "eForth v4.2";
