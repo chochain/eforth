@@ -100,10 +100,13 @@ Code op_prim[] = {
 ///
 typedef enum { STOP=0, HOLD, RUN } vm_state;
 
-vm_state run = RUN;     ///< VM nest() control
+IU   IP      = 0;       ///< instruction pointer
+IU   DP      = 0;       ///< call frame depth (iterator design)
+int  VM      = RUN;     ///< VM state
+///
+/// the following user variable can be changed during included
+///
 DU   top     = -DU1;    ///< top of stack (cached)
-int  DP      = 0;       ///< nest callframe depth (iterator)
-IU   IP      = 0;       ///< current instruction pointer
 bool compile = false;   ///< compiler flag
 bool ucase   = false;   ///< case sensitivity control
 IU   *base;             ///< numeric radix (a pointer)
@@ -228,18 +231,18 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
-#define RETURN()                                \
-    if (--DP > 0) { IP=rs.pop(); run=HOLD; }    \
-    else run = STOP
+#define RETURN()                              \
+    if (--DP > 0) { IP=rs.pop(); VM=HOLD; }   \
+    else VM = STOP
 
 void nest(IU pfa) {
-    if (run != HOLD) {
+    if (VM != HOLD) {
         IP = pfa;                                    /// * reset IP & depth counter
         DP = 1;
     }
-    run = RUN;                                       /// * activate VM
+    VM = RUN;                                        /// * activate VM
     
-    while (run==RUN) {
+    while (VM==RUN) {
         IU ix = *(IU*)MEM(IP);                       ///> fetched opcode, hopefully in register
 //        printf("DP=%d, [%4x]:%4x", DP, IP, ix);
         IP += sizeof(IU);
@@ -295,7 +298,7 @@ void nest(IU pfa) {
             }
             else {
                 Code::exec(ix);                      ///> execute built-in word
-                if (run==STOP) { RETURN(); }
+                if (VM==STOP) { RETURN(); }
             });
         }
 //        printf("   =>dp=%d, IP=%4x, rs.idx=%d, run=%d\n", dp, IP, rs.idx, run);
@@ -305,7 +308,7 @@ void nest(IU pfa) {
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
-    run = RUN;
+    VM = RUN;
     if (IS_UDF(w)) nest(dict[w].pfa);   /// colon word
     else           dict[w].call();      /// built-in word
 }
@@ -482,15 +485,11 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
-//	printf("load save run=%d, IP=%04x, DP=%d, rs.idx=%d\n", run, IP, DP, rs.idx);
-    rs.push(DP);
-    rs.push(IP);
-    rs.push(run);
+	printf("load save VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
+    rs.push(VM); rs.push(DP); rs.push(IP);
     forth_include(fn);               // include file
-    run = (vm_state)UINT(rs.pop());
-    IP  = UINT(rs.pop());
-    DP  = (int)rs.pop();
-//	printf("load restore run=%d, IP=%04x, DP=%d, rs.idx=%d\n", run, IP, DP, rs.idx);
+    IP = UINT(rs.pop()); DP = UINT(rs.pop()); VM = UINT(rs.pop());
+	printf("load restore VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
 }
 ///====================================================================
 ///
@@ -718,20 +717,20 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
-    CODE("leave",   rs.pop(); rs.pop(); run = STOP);            // quit DO..LOOP
+    CODE("leave",   rs.pop(); rs.pop(); VM = STOP);             // quit DO..LOOP
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
     /// @{
     CODE(">r",      rs.push(POP()));
     CODE("r>",      PUSH(rs.pop()));
-    CODE("r@",      PUSH(rs[-1]));                      // same as I (the loop counter)
+    CODE("r@",      PUSH(rs[-1]));                              // same as I (the loop counter)
     /// @}
     /// @defgrouop Compiler ops
     /// @{
     CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EXIT); compile = false);
-    CODE("exit",    run = STOP);                                // early exit the colon word
+    CODE("exit",    VM = STOP);                                 // early exit the colon word
     CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
@@ -852,7 +851,7 @@ void forth_core(const char *idiom) {
     if (err) {                           /// * not number
         fout << idiom << "? " << ENDL;   ///> display error prompt
         compile = false;                 ///> reset to interpreter mode
-        run     = STOP;                  ///> skip the entire input buffer
+        VM      = STOP;                  ///> skip the entire input buffer
     }
     // is a number
     if (compile) {                       /// * a number in compile mode?
@@ -884,9 +883,9 @@ void forth_init() {
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
-    fout_cb = hook ? hook : cb;
+    fout_cb = hook ? hook : cb;  ///< serial output hook up
 
-    bool hold = run==HOLD;       ///< check VM resume status
+    bool hold = VM==HOLD;        ///< check VM resume status
     if (!hold) {                 ///> refresh buffer if not resuming
         fout.str("");            /// * clean output buffer
         fin.clear();             /// * clear input stream error bit if any
@@ -897,7 +896,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     while (hold || (fin >> idiom)) {          ///> fetch a word
         if (hold) nest(0);                    /// * continue without parsing
         else      forth_core(idiom.c_str());  ///> send to Forth core
-        hold = run==HOLD;                     /// * update return status
+        hold = VM==HOLD;                      /// * update return status
         if (hold) break;                      /// * pause, yield to front-end task
     }
 //    printf("    => hold=%d\n", hold);
