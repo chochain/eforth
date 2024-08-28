@@ -72,6 +72,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///@{
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
+#define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
 #define MEM(ip)   (MEM0 + (IU)UINT(ip))    /**< pointer to IP address fetched from pmem */
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
@@ -279,9 +280,9 @@ void nest(IU pfa) {
              IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP));
         CASE(VBRAN,
              PUSH(IP + sizeof(IU));                  /// * skip target address
-             IP = *(IU*)MEM(IP));
+             IP = *(IU*)MEM(IP));                    /// * create..
         CASE(DOES,
-             IU *p = (IU*)MEM(dict[dict.idx-1].pfa); ///> memory pointer to pfa 
+             IU *p = (IU*)MEM(LAST.pfa);             ///> memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              RETURN());
         CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
@@ -332,6 +333,32 @@ void s_quote(forth_opcode op) {
 /// recursively disassemble colon word
 ///
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
+int pfa2didx(IU ix) {                          ///> reverse lookup
+    if (IS_PRIM(ix)) return (int)ix;           ///> primitives
+    IU   pfa = ix & ~EXT_FLAG;                 ///> pfa (mask colon word)
+    FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
+    for (int i = dict.idx - 1; i > 0; --i) {
+        printf("dict[%d].pfa=%x == %x\n", i, dict[i].pfa, pfa);
+        if (ix & EXT_FLAG) {                   /// colon word?
+            if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
+        }
+        else if (dict[i].xt == xt) return i;   ///> compare xt (built-in words)
+    }
+    return 0;                                  /// * not found
+}
+int  pfa2nvar(IU pfa) {
+    IU  w  = *(IU*)MEM(pfa);
+    printf("pfa=%x, w=%x", pfa, w);
+    if (w != VAR && w != VBRAN) return 0;
+    
+    IU  i0 = pfa2didx(pfa | EXT_FLAG);
+    printf(" => i0=%d", i0);
+    if (!i0) return 0;
+    IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : HERE;
+    int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
+    printf(", p1=%x, n=%d\n", p1, n);
+    return n;
+}
 void to_s(IU w, U8 *ip) {
 #if CC_DEBUG
     fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
@@ -344,18 +371,13 @@ void to_s(IU w, U8 *ip) {
     case LIT:  fout << *(DU*)ip << " ( lit )";      break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
-#if 0
-    	int n = 1;
-        IU  i1 = w < dict.idx ? TONAME(w+1) : HERE;
-        IU  i0 = dict[w].pfa + sizeof(IU) * (w==VBRAN ? 2 : 1);
-        int n  = i1 - i0;                                 ///> CC: calc # of elements
+    case VAR:
+    case VBRAN: {
+        int n = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
         for (int i = 0; i < n; i+=sizeof(DU)) {
             fout << *(DU*)(ip + (w==VAR ? i : sizeof(IU)+i)) << ' ';
         }
-#endif    /// * no break, fall through
-    case VAR:
-    case VBRAN:
-        fout << *(DU*)(w==VAR ? ip : ip+sizeof(IU)) << ' '; /// no break
+    }                                               /// no break, fall through
     default:
         Code &c = IS_PRIM(w) ? op_prim[w & ~EXT_FLAG] : dict[w];
         fout << c.name; break;
@@ -370,26 +392,14 @@ void to_s(IU w, U8 *ip) {
     fout << setfill(' ') << setw(-1); ///> restore output format settings
 }
 void see(IU pfa, int dp=1) {
-    auto pfa2opcode = [](IU ix) {                  ///> reverse lookup
-        if (IS_PRIM(ix)) return (int)ix;           ///> primitives
-        IU   pfa = ix & ~EXT_FLAG;                 ///> pfa (mask colon word)
-        FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
-        for (int i = dict.idx - 1; i > 0; --i) {
-            if (ix & EXT_FLAG) {                   /// colon word?
-                if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
-            }
-            else if (dict[i].xt == xt) return i;   ///> compare xt
-        }
-        return 0;                                  /// * not found
-    };
     U8 *ip = MEM(pfa);
     while (1) {
-        IU w = pfa2opcode(*(IU*)ip);    ///> fetch word index by pfa
+        IU w = pfa2didx(*(IU*)ip);      ///> fetch word index by pfa
         if (!w) break;                  ///> loop guard
         
         fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";    ///> indent
         to_s(w, ip);                    ///> display opcode
-        if (w==EXIT || w==VAR) break;   ///> end of word
+        if (w==EXIT || w==VAR) return;  ///> end of word
         
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
@@ -724,7 +734,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",   IU w = POP(); CALL(w));                      // execute word
-    CODE("create", def_word(word()); add_w(VBRAN); add_var());  // dovar (+ offset field)
+    CODE("create", def_word(word()); add_w(VBRAN); add_iu(0));  // dovar (+ offset field)
     IMMD("does>",  add_w(DOES));
     CODE("to",              // 3 to x                           // alter the value of a constant
          IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
@@ -849,7 +859,10 @@ void forth_core(const char *idiom) {
 void forth_init() {
     static bool init = false;
     if (init) return;            ///> check dictionary initilized
-    
+
+    add_w(EXIT);                 /// * COLD
+    if (sizeof(IU)==2) add_iu(0);/// * 4-byte aligned
+
     base = (IU*)MEM(HERE);       ///< set pointer to base
     add_iu(10);                  ///< allocate space for base
     dflt = (IU*)MEM(HERE);       ///< set pointer to dfmt
