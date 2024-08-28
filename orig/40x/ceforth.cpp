@@ -102,6 +102,7 @@ typedef enum { STOP=0, HOLD, RUN } vm_state;
 
 vm_state run = RUN;     ///< VM nest() control
 DU   top     = -DU1;    ///< top of stack (cached)
+int  DP      = 0;       ///< nest callframe depth (iterator)
 IU   IP      = 0;       ///< current instruction pointer
 bool compile = false;   ///< compiler flag
 bool ucase   = false;   ///< case sensitivity control
@@ -228,20 +229,19 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
 #define RETURN()                                \
-    if (--dp > 0) { IP=rs.pop(); run=HOLD; }    \
+    if (--DP > 0) { IP=rs.pop(); run=HOLD; }    \
     else run = STOP
 
-int dp;            ///> iterator implementation (instead of recursive)
 void nest(IU pfa) {
     if (run != HOLD) {
         IP = pfa;                                    /// * reset IP & depth counter
-        dp = 1;
+        DP = 1;
     }
     run = RUN;                                       /// * activate VM
     
     while (run==RUN) {
         IU ix = *(IU*)MEM(IP);                       ///> fetched opcode, hopefully in register
-//        printf("dp=%d, [%4x]:%4x", dp, IP, ix);
+//        printf("DP=%d, [%4x]:%4x", DP, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, RETURN());
@@ -290,7 +290,7 @@ void nest(IU pfa) {
         OTHER(
             if (ix & EXT_FLAG) {                     /// * colon word?
                 rs.push(IP);                         /// * setup call frame
-                dp++;
+                DP++;
                 IP = ix & ~EXT_FLAG;                 /// * IP = word.pfa
             }
             else {
@@ -397,7 +397,7 @@ void see(IU pfa, int dp=1) {
         IU w = pfa2didx(*(IU*)ip);      ///> fetch word index by pfa
         if (!w) break;                  ///> loop guard
         
-        fout << ENDL; for (int i=dp; i>0; i--) fout << "  ";    ///> indent
+        fout << ENDL; for (int i=DP; i>0; i--) fout << "  ";    ///> indent
         to_s(w, ip);                    ///> display opcode
         if (w==EXIT || w==VAR) return;  ///> end of word
         
@@ -411,8 +411,8 @@ void see(IU pfa, int dp=1) {
         }
 #if CC_DEBUG > 1
         ///> walk recursively
-        if (!IS_PRIM(w) && IS_UDF(w) && dp < 2) {      ///> is a colon word
-            see(dict[w].pfa, dp+1);                    ///> recursive into child
+        if (!IS_PRIM(w) && IS_UDF(w) && DP < 2) {      ///> is a colon word
+            see(dict[w].pfa, DP+1);                    ///> recursive into child
         }
 #endif // CC_DEBUG > 1
     }
@@ -482,16 +482,15 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
-	printf("load save run=%d, IP=%04x, dp=%d, rs.idx=%d\n", run, IP, dp, rs.idx);
-    rs.push(IP);                     // save current context
+//	printf("load save run=%d, IP=%04x, DP=%d, rs.idx=%d\n", run, IP, DP, rs.idx);
+    rs.push(DP);
+    rs.push(IP);
     rs.push(run);
-    rs.push(dp);
-    run = RUN;
     forth_include(fn);               // include file
-    dp  = UINT(rs.pop());
-    run = (vm_state)UINT(rs.pop());  // restore context
+    run = (vm_state)UINT(rs.pop());
     IP  = UINT(rs.pop());
-	printf("load restore run=%d, IP=%04x, dp=%d, rs.idx=%d\n", run, IP, dp, rs.idx);
+    DP  = (int)rs.pop();
+//	printf("load restore run=%d, IP=%04x, DP=%d, rs.idx=%d\n", run, IP, DP, rs.idx);
 }
 ///====================================================================
 ///
