@@ -166,13 +166,13 @@ void add_w(IU w) {                  ///< add a word index into pmem
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-void add_var() {                    ///< add a varirable header
-#if DO_WASM                         /// * WASM float needs to be 4-byte aligned
-    if (sizeof(IU)==2 && (pmem.idx & 0x3)==0) {
-        add_w(NOP);                 /// pad two bytes
-    }
+void add_var(IU op) {               ///< add a varirable header
+    add_w(op);                      /// VAR or VBRAN
+    if (op==VBRAN) add_iu(0);       /// * pad offset field
+#if DO_WASM
+    pmem.idx = DALIGN(pmem.idx);    /// * data alignment (WASM 4, other 2)
 #endif // DO_WASM
-    add_w(VAR);
+    if (op==VAR)   add_du(DU0);     /// * default variable = 0
 }
 ///====================================================================
 ///
@@ -182,13 +182,13 @@ void add_var() {                    ///< add a varirable header
 ///   * if it takes too much memory for target MCU,
 ///   * these functions can be replaced with our own implementation
 ///
-#include <iomanip>                   /// setbase, setw, setfill
-#include <sstream>                   /// iostream, stringstream
-using namespace std;                 /// default to C++ standard template library
-istringstream   fin;                 ///< forth_in
-ostringstream   fout;                ///< forth_out
-string          pad;                 ///< input string buffer
-void (*fout_cb)(int, const char*);   ///< forth output callback function (see ENDL macro)
+#include <iomanip>                  /// setbase, setw, setfill
+#include <sstream>                  /// iostream, stringstream
+using namespace std;                /// default to C++ standard template library
+istringstream   fin;                ///< forth_in
+ostringstream   fout;               ///< forth_out
+string          pad;                ///< input string buffer
+void (*fout_cb)(int, const char*);  ///< forth output callback function (see ENDL macro)
 ///====================================================================
 ///
 /// macros to reduce verbosity
@@ -267,7 +267,7 @@ void nest(IU pfa) {
              ss.push(top);
              top = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
              IP += sizeof(DU));                      /// * hop over the stored value
-        CASE(VAR, PUSH(IP); RETURN());               ///> get var addr, alignment?
+        CASE(VAR, PUSH(DALIGN(IP)); RETURN());       ///> get var addr, alignment?
         CASE(STR, 
              const char *s = (const char*)MEM(IP);   // get string pointer
              IU    len = STRLEN(s);
@@ -279,7 +279,7 @@ void nest(IU pfa) {
         CASE(ZBRAN,                                  /// * conditional branch
              IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP));
         CASE(VBRAN,
-             PUSH(IP + sizeof(IU));                  /// * skip target address
+             PUSH(DALIGN(IP + sizeof(IU)));          /// * skip target address
              IP = *(IU*)MEM(IP));                    /// * create..
         CASE(DOES,
              IU *p = (IU*)MEM(LAST.pfa);             ///> memory pointer to pfa 
@@ -373,9 +373,10 @@ void to_s(IU w, U8 *ip) {
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     case VAR:
     case VBRAN: {
-        int n = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
+        int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
+        IU  ix = (IU)(ip - MEM0 + w==VAR ? 0 : sizeof(IU));
         for (int i = 0; i < n; i+=sizeof(DU)) {
-            fout << *(DU*)(ip + (w==VAR ? i : sizeof(IU)+i)) << ' ';
+            fout << *(DU*)MEM(DALIGN(ix) + i) << ' ';
         }
     }                                               /// no break, fall through
     default:
@@ -721,9 +722,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EXIT); compile = false);
     CODE("exit",    run = STOP);                                // early exit the colon word
-    CODE("variable",                                            // create a variable
-         def_word(word());                                      // create a new word on dictionary
-         add_var(); add_du(DU0));                               // dovar (len=4, default 0)
+    CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
          add_w(LIT); add_du(POP());                             // dovar (+parameter field)
@@ -734,7 +733,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",   IU w = POP(); CALL(w));                      // execute word
-    CODE("create", def_word(word()); add_w(VBRAN); add_iu(0));  // dovar (+ offset field)
+    CODE("create", def_word(word()); add_var(VBRAN));           // bran + offset field
     IMMD("does>",  add_w(DOES));
     CODE("to",              // 3 to x                           // alter the value of a constant
          IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
