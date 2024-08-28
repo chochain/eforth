@@ -12,15 +12,15 @@ cr .( see x => ) cr see x
 cr .( x => ) cr x .
 
 cr .( create...does> can also be used for data structure )
-cr .( : vec3 create , , , does> >r r@ 2 th @ r@ 1 th @ r> @ ;)
+cr .( : vec3 create , , , does> dup >r @ r@ 1 th @ r> 2 th @ ;)
 : vec3
   create
-    , , ,
+    rot , swap , ,
   does>
-    >r
-    r@ 2 th @
+    dup >r @
     r@ 1 th @
-    r> @ ;
+    r> 2 th @ ;
 : 3. ( x y z -- ) rot . swap . . ;
 cr .( 111 222 333 vec3 xyz ) 111 222 333 vec3 xyz
+cr .( see xyz => ) cr see xyz
 cr .( xyz => ) xyz 3. cr
