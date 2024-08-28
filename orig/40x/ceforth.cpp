@@ -231,9 +231,8 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
     if (--dp > 0) { IP=rs.pop(); run=HOLD; }    \
     else run = STOP
 
+int dp;            ///> iterator implementation (instead of recursive)
 void nest(IU pfa) {
-    static int dp;            ///> iterator implementation (instead of recursive)
-
     if (run != HOLD) {
         IP = pfa;                                    /// * reset IP & depth counter
         dp = 1;
@@ -242,7 +241,7 @@ void nest(IU pfa) {
     
     while (run==RUN) {
         IU ix = *(IU*)MEM(IP);                       ///> fetched opcode, hopefully in register
-//        printf("dp=%d, [%x]:%x", dp, IP, ix);
+//        printf("dp=%d, [%4x]:%4x", dp, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, RETURN());
@@ -299,7 +298,7 @@ void nest(IU pfa) {
                 if (run==STOP) { RETURN(); }
             });
         }
-//        printf("   =>dp=%d, IP=%x, rs.idx=%d, run=%d\n", dp, IP, rs.idx, run);
+//        printf("   =>dp=%d, IP=%4x, rs.idx=%d, run=%d\n", dp, IP, rs.idx, run);
     }
 }
 ///
@@ -481,6 +480,18 @@ void mem_dump(U32 p0, IU sz) {
         yield();
     }
     fout << setbase(*base) << setfill(' ');
+}
+void load(const char* fn) {
+	printf("load save run=%d, IP=%04x, dp=%d, rs.idx=%d\n", run, IP, dp, rs.idx);
+    rs.push(IP);                     // save current context
+    rs.push(run);
+    rs.push(dp);
+    run = RUN;
+    forth_include(fn);               // include file
+    dp  = UINT(rs.pop());
+    run = (vm_state)UINT(rs.pop());  // restore context
+    IP  = UINT(rs.pop());
+	printf("load restore run=%d, IP=%04x, dp=%d, rs.idx=%d\n", run, IP, dp, rs.idx);
 }
 ///====================================================================
 ///
@@ -792,10 +803,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("ms",    PUSH(millis()));
     CODE("rnd",   PUSH(RND()));             // generate random number
     CODE("delay", delay(UINT(POP())));
-    CODE("included",                        // include external file
+    CODE("included",
          POP();                             // string length, not used
-         U8 *fn = MEM(POP());               // file name
-         forth_include((const char*)fn));   // include file
+         load((const char*)MEM(POP())));    // include external file
 #if DO_WASM
     CODE("JS",    call_js());               // Javascript interface
 #endif // DO_WASM    
@@ -883,7 +893,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         fin.clear();             /// * clear input stream error bit if any
         fin.str(line);           /// * reload user command into input stream
     }
-//    printf("    hold=%d, tellg=%d, fin.str=%s\n", hold, (int)fin.tellg(), fin.str().c_str());
+//    printf("    hold=%d, [%d]%s\n", hold, (int)fin.tellg(), fin.str().c_str());
     string idiom;
     while (hold || (fin >> idiom)) {          ///> fetch a word
         if (hold) nest(0);                    /// * continue without parsing
