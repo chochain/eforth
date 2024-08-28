@@ -56,7 +56,7 @@
 ///     16-bit xt offset with MSB set to 0 (1 less mem lookup for xt)
 ///     +-+--------------+
 ///     |0| dict.xtoff() |   call (XT0 + *IP)() to execute
-///     +-+--------------+   
+///     +-+--------------+
 ///
 List<DU,   E4_RS_SZ>   rs;         ///< return stack
 List<DU,   E4_SS_SZ>   ss;         ///< parameter stack
@@ -73,7 +73,8 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
-#define MEM(ip)   (MEM0 + (IU)UINT(ip))    /**< pointer to IP address fetched from pmem */
+#define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
+#define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
 ///@}
@@ -104,7 +105,7 @@ IU   IP      = 0;       ///< instruction pointer
 IU   DP      = 0;       ///< call frame depth (iterator design)
 int  VM      = RUN;     ///< VM state
 ///
-/// the following user variable can be changed during included
+///> user variables
 ///
 DU   top     = -DU1;    ///< top of stack (cached)
 bool compile = false;   ///< compiler flag
@@ -231,8 +232,8 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
-#define RETURN()                              \
-    if (--DP > 0) { IP=rs.pop(); VM=HOLD; }   \
+#define RETURN()                                    \
+    if (--DP > 0) { IP=UINT(rs.pop()); VM=HOLD; }   \
     else VM = STOP
 
 void nest(IU pfa) {
@@ -241,9 +242,9 @@ void nest(IU pfa) {
         DP = 1;
     }
     VM = RUN;                                        /// * activate VM
-    
+
     while (VM==RUN) {
-        IU ix = *(IU*)MEM(IP);                       ///> fetched opcode, hopefully in register
+        IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
 //        printf("DP=%d, [%4x]:%4x", DP, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
@@ -251,7 +252,7 @@ void nest(IU pfa) {
         CASE(NOP,  { /* do nothing */});
         CASE(NEXT,
              if (GT(rs[-1] -= DU1, -DU1)) {          ///> loop done?
-                 IP = *(IU*)MEM(IP);                 /// * no, loop back
+                 IP = IGET(IP);                      /// * no, loop back
              }
              else {                                  /// * yes, loop done!
                  rs.pop();                           /// * pop off loop counter
@@ -259,7 +260,7 @@ void nest(IU pfa) {
              });
         CASE(LOOP,
              if (GT(rs[-2], rs[-1] += DU1)) {        ///> loop done?
-                 IP = *(IU*)MEM(IP);                 /// * no, loop back
+                 IP = IGET(IP);                      /// * no, loop back
              }
              else {                                  /// * yes, done
                  rs.pop(); rs.pop();                 /// * pop off counters
@@ -270,19 +271,19 @@ void nest(IU pfa) {
              top = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
              IP += sizeof(DU));                      /// * hop over the stored value
         CASE(VAR, PUSH(DALIGN(IP)); RETURN());       ///> get var addr, alignment?
-        CASE(STR, 
+        CASE(STR,
              const char *s = (const char*)MEM(IP);   // get string pointer
              IU    len = STRLEN(s);
              PUSH(IP); PUSH(len); IP += len);
         CASE(DOTQ,                                   /// ." ..."
              const char *s = (const char*)MEM(IP);   /// * get string pointer
              fout << s;  IP += STRLEN(s));           /// * send to output console
-        CASE(BRAN, IP = *(IU*)MEM(IP));              /// * unconditional branch
+        CASE(BRAN, IP = IGET(IP));                   /// * unconditional branch
         CASE(ZBRAN,                                  /// * conditional branch
-             IP = POP() ? IP+sizeof(IU) : *(IU*)MEM(IP));
+             IP = POP() ? IP+sizeof(IU) : IGET(IP));
         CASE(VBRAN,
              PUSH(DALIGN(IP + sizeof(IU)));          /// * skip target address
-             IP = *(IU*)MEM(IP));                    /// * create..
+             IP = IGET(IP));                         /// * create..
         CASE(DOES,
              IU *p = (IU*)MEM(LAST.pfa);             ///> memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
@@ -349,7 +350,7 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     return 0;                                  /// * not found
 }
 int  pfa2nvar(IU pfa) {
-    IU  w  = *(IU*)MEM(pfa);
+    IU  w  = IGET(pfa);
 //    printf("pfa=%x, w=%x", pfa, w);
     if (w != VAR && w != VBRAN) return 0;
     
@@ -431,7 +432,7 @@ void words() {
         if (nm[0]) {
 #else  //  CC_DEBUG > 1
         if (nm[len-1] != ' ') {
-#endif // CC_DEBUG > 1           
+#endif // CC_DEBUG > 1
             sz += len + 2;
             fout << "  " << nm;
         }
@@ -449,7 +450,7 @@ void ss_dump() {
 #if USE_FLOAT
         sprintf(buf, "%0.6g", v);
         return buf;
-#else // !USE_FLOAT        
+#else // !USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only base=8,10,16
         DU  n = ABS(v);                   ///< handle negative
         do {                              ///> digit-by-digit
@@ -485,11 +486,11 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
-	printf("load save VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
-    rs.push(VM); rs.push(DP); rs.push(IP);
-    forth_include(fn);               // include file
-    IP = UINT(rs.pop()); DP = UINT(rs.pop()); VM = UINT(rs.pop());
-	printf("load restore VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
+//	printf("load save VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
+    rs.push(VM); rs.push(DP); rs.push(IP);                         // save context
+    forth_include(fn);                                             // include file
+    IP = UINT(rs.pop()); DP = UINT(rs.pop()); VM = UINT(rs.pop()); // restore
+//	printf("load restore VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
 }
 ///====================================================================
 ///
@@ -555,7 +556,7 @@ void call_js() {                           ///> ( n addr u -- )
         case 'f': n << (DU)POP();                  break;
         case 'x': n << "0x" << hex << UINT(POP()); break;
         case 's': POP(); n << (char*)MEM(POP());   break;  /// also handles raw stream
-        case 'p': 
+        case 'p':
             n << "p " << UINT(POP());
             n << ' '  << UINT(POP());              break;
         default : n << c << '?';                   break;
@@ -637,9 +638,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("2/",      top /= 2);
     CODE("1+",      top += 1);
     CODE("1-",      top -= 1);
-#if USE_FLOAT    
+#if USE_FLOAT
     CODE("int",     top = UINT(top));         // float => integer
-#endif // USE_FLOAT    
+#endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
     /// @{
@@ -806,7 +807,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          load((const char*)MEM(POP())));    // include external file
 #if DO_WASM
     CODE("JS",    call_js());               // Javascript interface
-#endif // DO_WASM    
+#endif // DO_WASM
     CODE("bye",   exit(0));
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
@@ -871,9 +872,9 @@ void forth_init() {
     add_w(EXIT);                 /// * COLD
     if (sizeof(IU)==2) add_iu(0);/// * 4-byte aligned
 
-    base = (IU*)MEM(HERE);       ///< set pointer to base
+    base = &IGET(HERE);          ///< set pointer to base
     add_iu(10);                  ///< allocate space for base
-    dflt = (IU*)MEM(HERE);       ///< set pointer to dfmt
+    dflt = &IGET(HERE);          ///< set pointer to dfmt
     add_iu(USE_FLOAT);
     
     for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
@@ -900,9 +901,9 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         if (hold) break;                      /// * pause, yield to front-end task
     }
 //    printf("    => hold=%d\n", hold);
-#if DO_WASM    
+#if DO_WASM
     if (!hold && !compile) fout << "ok" << ENDL;
-#else
+#else // !DO_WASM
     if (!hold && !compile) ss_dump();         /// * dump stack and display ok prompt
 #endif  // DO_WASM
     return hold;
