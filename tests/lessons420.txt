@@ -2,15 +2,15 @@
 \ eForth v4.2 - autoexec demos 
 \
 18 constant TSZ                         \ 18 demos avaiable
-create stable TSZ 2* allot              \ create an array to hold strings for demo files
+create stb TSZ 2* cells allot           \ create an array to hold strings for demo files
 variable si                             \ array index (default to 0)
 : inc ( -- i ) si dup @ 1 rot +! ;      \ increment array idx
 : s, ( adr len -- ) inc 2* >r           \ store a string (addr, len) into the table
-  stable r@ 1+ th !                     \ string len
-  stable r> th ! ;                      \ string addr
+  stb r@ 1+ th !                        \ string len
+  stb r> th ! ;                         \ string addr
 : s@ ( i -- ) 2* >r                     \ fetch a string (addr, len) from the table
-  stable r@ th @
-  stable r> 1+ th @ ;
+  stb r@ th @
+  stb r> 1+ th @ ;
 : st_setup                              \ fill stable with strings
   s" tests/demo/1_hello.fs"       s,
   s" tests/demo/2_f.fs"           s,
