@@ -899,7 +899,6 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             }
         }
     }
-    printf("    => hold=%d\n", hold);
 #if DO_WASM
     if (!hold && !compile) fout << "ok" << ENDL;
 #else // !DO_WASM
