@@ -237,10 +237,7 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
     else VM = STOP
 
 void nest(IU pfa) {
-    if (VM != HOLD) {
-        IP = pfa;                                    /// * reset IP & depth counter
-        DP = 1;
-    }
+    if (VM != HOLD) { IP = pfa; DP = 1; }            /// * reset IP & depth counter
     VM = RUN;                                        /// * activate VM
 
     while (VM==RUN) {
@@ -302,7 +299,7 @@ void nest(IU pfa) {
                 if (VM==STOP) { RETURN(); }
             });
         }
-//        printf("   =>dp=%d, IP=%4x, rs.idx=%d, run=%d\n", dp, IP, rs.idx, run);
+//        printf("   =>DP=%d, IP=%4x, rs.idx=%d, VM=%d\n", DP, IP, rs.idx, VM);
     }
 }
 ///
@@ -341,7 +338,6 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     IU   pfa = ix & ~EXT_FLAG;                 ///> pfa (mask colon word)
     FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
     for (int i = dict.idx - 1; i > 0; --i) {
-//        printf("dict[%d].pfa=%x == %x\n", i, dict[i].pfa, pfa);
         if (ix & EXT_FLAG) {                   /// colon word?
             if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
         }
@@ -351,15 +347,12 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
 }
 int  pfa2nvar(IU pfa) {
     IU  w  = IGET(pfa);
-//    printf("pfa=%x, w=%x", pfa, w);
     if (w != VAR && w != VBRAN) return 0;
     
     IU  i0 = pfa2didx(pfa | EXT_FLAG);
-//    printf(" => i0=%d", i0);
     if (!i0) return 0;
     IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : HERE;
     int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
-//    printf(", p1=%x, n=%d\n", p1, n);
     return n;
 }
 void to_s(IU w, U8 *ip) {
@@ -486,11 +479,11 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
-//	printf("load save VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
     rs.push(VM); rs.push(DP); rs.push(IP);                         // save context
+    
     forth_include(fn);                                             // include file
+    
     IP = UINT(rs.pop()); DP = UINT(rs.pop()); VM = UINT(rs.pop()); // restore
-//	printf("load restore VM=%d, IP=%04x, DP=%d, rs.idx=%d\n", VM, IP, DP, rs.idx);
 }
 ///====================================================================
 ///
@@ -883,6 +876,7 @@ void forth_init() {
     dict_compile();              ///> compile dictionary
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
+    static long t0 = 0;
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;  ///< serial output hook up
 
@@ -892,15 +886,20 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         fin.clear();             /// * clear input stream error bit if any
         fin.str(line);           /// * reload user command into input stream
     }
-//    printf("    hold=%d, [%d]%s\n", hold, (int)fin.tellg(), fin.str().c_str());
     string idiom;
     while (hold || (fin >> idiom)) {          ///> fetch a word
         if (hold) nest(0);                    /// * continue without parsing
         else      forth_core(idiom.c_str());  ///> send to Forth core
-        hold = VM==HOLD;                      /// * update return status
-        if (hold) break;                      /// * pause, yield to front-end task
+        hold = VM==HOLD;
+        if (hold) {                           ///> multi-threading support
+            long t1 = millis();               ///> check timing
+            if (t1 >= t0) {                   /// * time slice up
+                t0 = t1 + 10;                 /// * real-time support, 10ms = 100Hz
+                break;                        /// * pause, yield to front-end task
+            }
+        }
     }
-//    printf("    => hold=%d\n", hold);
+    printf("    => hold=%d\n", hold);
 #if DO_WASM
     if (!hold && !compile) fout << "ok" << ENDL;
 #else // !DO_WASM
