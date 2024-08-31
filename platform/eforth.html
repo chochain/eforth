@@ -11,7 +11,7 @@
     <div class='dsp'>
       <pre id='txt' class='txt'></pre>
       <input id='tib' type='text' style='width:100%; font-size:1.0em'
-             onkeydown='if (13===event.keyCode) forth_eval()'/>
+             onkeyup='if ("Enter"==event.key) forth_eval()'/>
     </div>
     <script>
       const tib = document.getElementById('tib')
