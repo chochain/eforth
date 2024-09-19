@@ -113,8 +113,23 @@ bool ucase   = false;   ///< case sensitivity control
 IU   *base;             ///< numeric radix (a pointer)
 IU   *dflt;             ///< use float data unit flag
 ///
-inline void PUSH(DU v) { ss.push(top); top = v; }
-inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
+///====================================================================
+///
+///> Dictionary search functions - can be adapted for ROM+RAM
+///
+int streq(const char *s1, const char *s2) {
+    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+}
+IU find(const char *s) {
+    IU v = 0;
+    for (IU i = dict.idx - 1; !v && i > 0; --i) {
+        if (streq(s, dict[i].name)) v = i;
+    }
+#if CC_DEBUG > 1
+    LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
+#endif // CC_DEBUG > 1
+    return v;
+}
 ///====================================================================
 ///
 ///> Colon word compiler
@@ -166,23 +181,6 @@ void add_var(IU op) {               ///< add a varirable header
 }
 ///====================================================================
 ///
-///> Dictionary search functions - can be adapted for ROM+RAM
-///
-int streq(const char *s1, const char *s2) {
-    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
-}
-IU find(const char *s) {
-    IU v = 0;
-    for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (streq(s, dict[i].name)) v = i;
-    }
-#if CC_DEBUG > 1
-        LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
-#endif // CC_DEBUG > 1
-    return v;
-}
-///====================================================================
-///
 /// utilize C++ standard template libraries for core IO functions only
 /// Note:
 ///   * we use STL for its convinence, but
@@ -213,6 +211,8 @@ char *word() {                                  ///< get next idiom
     return (char*)pad.c_str();
 }
 inline char *scan(char c) { getline(fin, pad, c); return (char*)pad.c_str(); }
+inline void PUSH(DU v) { ss.push(top); top = v; }
+inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 ///====================================================================
 ///
 ///> Forth inner interpreter (handles a colon word)
