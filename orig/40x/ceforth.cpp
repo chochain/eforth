@@ -99,11 +99,11 @@ Code op_prim[] = {
 ///
 ///> VM states (single task)
 ///
-typedef enum { STOP=0, HOLD, RUN } vm_state;
+typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
 
 IU   IP      = 0;       ///< instruction pointer
 IU   DP      = 0;       ///< call frame depth (iterator design)
-int  VM      = RUN;     ///< VM state
+int  VM      = QUERY;   ///< VM state
 ///
 ///> user variables
 ///
@@ -113,23 +113,8 @@ bool ucase   = false;   ///< case sensitivity control
 IU   *base;             ///< numeric radix (a pointer)
 IU   *dflt;             ///< use float data unit flag
 ///
-///====================================================================
-///
-///> Dictionary search functions - can be adapted for ROM+RAM
-///
-int streq(const char *s1, const char *s2) {
-    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
-}
-IU find(const char *s) {
-    IU v = 0;
-    for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (streq(s, dict[i].name)) v = i;
-    }
-#if CC_DEBUG > 1
-    LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
-#endif // CC_DEBUG > 1
-    return v;
-}
+inline void PUSH(DU v) { ss.push(top); top = v; }
+inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 ///====================================================================
 ///
 ///> Colon word compiler
@@ -181,6 +166,23 @@ void add_var(IU op) {               ///< add a varirable header
 }
 ///====================================================================
 ///
+///> Dictionary search functions - can be adapted for ROM+RAM
+///
+int streq(const char *s1, const char *s2) {
+    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+}
+IU find(const char *s) {
+    IU v = 0;
+    for (IU i = dict.idx - 1; !v && i > 0; --i) {
+        if (streq(s, dict[i].name)) v = i;
+    }
+#if CC_DEBUG > 1
+        LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
+#endif // CC_DEBUG > 1
+    return v;
+}
+///====================================================================
+///
 /// utilize C++ standard template libraries for core IO functions only
 /// Note:
 ///   * we use STL for its convinence, but
@@ -211,8 +213,6 @@ char *word() {                                  ///< get next idiom
     return (char*)pad.c_str();
 }
 inline char *scan(char c) { getline(fin, pad, c); return (char*)pad.c_str(); }
-inline void PUSH(DU v) { ss.push(top); top = v; }
-inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 ///====================================================================
 ///
 ///> Forth inner interpreter (handles a colon word)
@@ -238,9 +238,9 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 
 void nest(IU pfa) {
     if (VM != HOLD) { IP = pfa; DP = 1; }            /// * reset IP & depth counter
-    VM = RUN;                                        /// * activate VM
+    VM = NEST;                                       /// * activate VM
 
-    while (VM==RUN) {
+    while (VM==NEST) {
         IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
 //        printf("DP=%d, [%4x]:%4x", DP, IP, ix);
         IP += sizeof(IU);
@@ -306,9 +306,11 @@ void nest(IU pfa) {
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(IU w) {
-    VM = RUN;
-    if (IS_UDF(w)) nest(dict[w].pfa);   /// colon word
-    else           dict[w].call();      /// built-in word
+    if (IS_UDF(w)) {                   /// colon word
+        VM = NEST;
+        nest(dict[w].pfa);
+    }
+    else dict[w].call();               /// built-in word
 }
 ///====================================================================
 ///
@@ -738,12 +740,26 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("exec",   IU w = POP(); CALL(w));                      // execute word
     CODE("create", def_word(word()); add_var(VBRAN));           // bran + offset field
     IMMD("does>",  add_w(DOES));
-    CODE("to",              // 3 to x                           // alter the value of a constant
-         IU w = find(word()); if (!w) return;                   // to save the extra @ of a variable
-         *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP());
-    CODE("is",              // ' y is x                         // alias a word
-         IU w = find(word()); if (!w) return;                   // copy entire union struct
-         dict[POP()].xt = dict[w].xt);
+    IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
+         IU w = VM==NEST ? POP() : find(word());
+         if (!w) return;
+         if (compile) {
+             add_w(LIT); add_du((DU)w);                         // save addr on stack
+             add_w(find("to"));                                 // encode to opcode
+         }
+         else {
+             *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();
+         });
+    IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
+         IU w = VM==NEST ? POP() : find(word());
+         if (!w) return;
+         if (compile) {
+             add_w(LIT); add_du((DU)w);                         // save addr on stack
+             add_w(find("is"));
+         }
+         else {
+             dict[POP()].xt = dict[w].xt;
+         });
     ///
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
