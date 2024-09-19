@@ -116,7 +116,7 @@ struct Code {
 #endif // CC_DEBUG > 1
     }
     Code() {}               ///< create a blank struct (for initilization)
-    IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
+    IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
     void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
 };
 ///
