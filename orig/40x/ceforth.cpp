@@ -242,7 +242,7 @@ void nest(IU pfa) {
 
     while (VM==NEST) {
         IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
-//        printf("DP=%d, [%4x]:%4x", DP, IP, ix);
+        printf("DP=%d, [%4x]:%4x", DP, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, RETURN());
@@ -299,7 +299,7 @@ void nest(IU pfa) {
                 if (VM==STOP) { RETURN(); }
             });
         }
-//        printf("   =>DP=%d, IP=%4x, rs.idx=%d, VM=%d\n", DP, IP, rs.idx, VM);
+        printf("   =>DP=%d, IP=%4x, rs.idx=%d, VM=%d\n", DP, IP, rs.idx, VM);
     }
 }
 ///
@@ -337,13 +337,12 @@ void s_quote(forth_opcode op) {
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
 int pfa2didx(IU ix) {                          ///> reverse lookup
     if (IS_PRIM(ix)) return (int)ix;           ///> primitives
-    IU   pfa = ix & ~EXT_FLAG;                 ///> pfa (mask colon word)
-    FPTR xt  = Code::XT(pfa);                  ///> lambda pointer
+    IU pfa = ix & ~EXT_FLAG;                   ///> pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
         if (ix & EXT_FLAG) {                   /// colon word?
             if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
         }
-        else if (dict[i].xt == xt) return i;   ///> compare xt (built-in words)
+        else if (dict[i].xtoff() == pfa) return i;   ///> compare xt (built-in words)
     }
     return 0;                                  /// * not found
 }

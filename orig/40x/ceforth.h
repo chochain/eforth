@@ -98,7 +98,7 @@ struct Code {
         };
     };
 #endif // DO_WASM
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)ix); }
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
     static void exec(IU ix) INLINE { (*XT(ix))(); }
 
     Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {   ///< primitives
