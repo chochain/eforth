@@ -117,10 +117,10 @@ IU   *dflt;             ///< use float data unit flag
 ///
 ///> Dictionary search functions - can be adapted for ROM+RAM
 ///
-int streq(const char *s1, const char *s2) {
-    return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
-}
 IU find(const char *s) {
+    auto streq = [](const char *s1, const char *s2) {
+        return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+    };
     IU v = 0;
     for (IU i = dict.idx - 1; !v && i > 0; --i) {
         if (streq(s, dict[i].name)) v = i;
@@ -157,14 +157,14 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code &c = IS_PRIM(w)
-        ? op_prim[w & ~EXT_FLAG]
-        : dict[w];                  ///< ref to dictionary entry
-    IU ip = (w & EXT_FLAG)
-        ? (UFP)c.xt                 ///< get primitive/built-in token
+    Code &c = IS_PRIM(w)            /// * is primitive?
+        ? op_prim[w & ~EXT_FLAG]    /// * ref to primitive word entry
+        : dict[w];                  /// * ref to dictionary entry
+    IU ip = (w & EXT_FLAG)          /// * is primitive?
+        ? (UFP)c.xt                 /// * get primitive/built-in token
         : (c.attr & UDF_ATTR        /// * colon word?
-           ? (c.pfa | EXT_FLAG)     ///< pfa with colon word flag
-           : c.xtoff());            ///< XT offset
+           ? (c.pfa | EXT_FLAG)     /// * pfa with colon word flag
+           : c.xtoff());            /// * XT offset of built-in
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
@@ -740,7 +740,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("create", def_word(word()); add_var(VBRAN));           // bran + offset field
     IMMD("does>",  add_w(DOES));
     IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
-         IU w = VM==NEST ? POP() : find(word());
+         IU w = VM==NEST ? POP() : find(word());                // constant addr
          if (!w) return;
          if (compile) {
              add_w(LIT); add_du((DU)w);                         // save addr on stack
@@ -750,7 +750,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
              *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
-         IU w = VM==NEST ? POP() : find(word());
+         IU w = VM==NEST ? POP() : find(word());                // word addr
          if (!w) return;
          if (compile) {
              add_w(LIT); add_du((DU)w);                         // save addr on stack
