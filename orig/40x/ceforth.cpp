@@ -763,7 +763,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
     ///
-    CODE("@",     IU w = UINT(POP()); PUSH(CELL(w)));           // w -- n
+    CODE("@",                                                   // w -- n
+         IU w = UINT(POP());
+         PUSH(w < USER_AREA ? (DU)IGET(w) : CELL(w)));          // check user area
     CODE("!",     IU w = UINT(POP()); CELL(w) = POP(););        // n w --
     CODE(",",     DU n = POP(); add_du(n));                     // n -- , compile a cell
     CODE("cells", IU i = UINT(POP()); PUSH(i * sizeof(DU)));    // n -- n'
