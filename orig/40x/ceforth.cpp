@@ -903,7 +903,6 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     }
     string idiom;
     while (resume || fin >> idiom) {           /// * parse a word
-//        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, VM);
         if (resume) nest();                    /// * resume task
         else        forth_core(idiom.c_str()); /// * send to Forth core
         resume = VM==HOLD;
@@ -911,7 +910,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     }
     bool yield = VM==HOLD || VM==IO;     /// * yield to other tasks
     
-    if (yield) rs.push(IP);              /// * save context
+    if (yield)         rs.push(IP);      /// * save context
     else if (!compile) ss_dump();        /// * optionally display stack contents
     
     return yield;
