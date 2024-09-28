@@ -83,14 +83,14 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 ///
 typedef enum {
     EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
-    VBRAN, DOES, FOR, DO, MAX_OP
+    VBRAN, DOES, FOR, DO, KEY, MAX_OP
 } forth_opcode;
 
 Code op_prim[] = {
     Code(";",    EXIT), Code("nop",  NOP),   Code("next",  NEXT),  Code("loop",  LOOP),
     Code("lit",  LIT),  Code("var",  VAR),   Code("str",   STR),   Code("dotq",  DOTQ),
     Code("bran", BRAN), Code("0bran",ZBRAN), Code("vbran", VBRAN), Code("does>", DOES),
-    Code("for",  FOR),  Code("do",   DO)
+    Code("for",  FOR),  Code("do",   DO),    Code("key",   KEY)
 };
 #define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
 #define IS_PRIM(w) ((w & EXT_FLAG) && (w < MAX_OP))
@@ -99,11 +99,10 @@ Code op_prim[] = {
 ///
 ///> VM states (single task)
 ///
-typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
+typedef enum { STOP=0, HOLD, QUERY, NEST, IO } vm_state;
 
-IU   IP      = 0;       ///< instruction pointer
-IU   DP      = 0;       ///< call frame depth (iterator design)
-int  VM      = QUERY;   ///< VM state
+IU       IP = 0;        ///< instruction pointer
+vm_state VM = QUERY;    ///< VM state
 ///
 ///> user variables
 ///
@@ -172,7 +171,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
 #endif // CC_DEBUG > 1
 }
 void add_var(IU op) {               ///< add a varirable header
-    add_w(op);                      /// VAR or VBRAN
+    add_w(op);                      /// * VAR or VBRAN
     if (op==VBRAN) add_iu(0);       /// * pad offset field
 #if DO_WASM
     pmem.idx = DALIGN(pmem.idx);    /// * data alignment (WASM 4, other 2)
@@ -213,6 +212,7 @@ char *word() {                                  ///< get next idiom
 inline char *scan(char c) { getline(fin, pad, c); return (char*)pad.c_str(); }
 inline void PUSH(DU v) { ss.push(top); top = v; }
 inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
+inline void key()      { PUSH(word()[0]); }
 ///====================================================================
 ///
 ///> Forth inner interpreter (handles a colon word)
@@ -232,17 +232,13 @@ inline DU   POP()      { DU n=top; top=ss.pop(); return n; }
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
-#define RETURN()                                    \
-    if (--DP > 0) { IP=UINT(rs.pop()); VM=HOLD; }   \
-    else VM = STOP
+#define RETURN()     (VM = (IP=UINT(rs.pop())) ? HOLD : STOP)
 
-void nest(IU pfa) {
-    if (VM != HOLD) { IP = pfa; DP = 1; }            /// * reset IP & depth counter
+void nest() {
     VM = NEST;                                       /// * activate VM
-
-    while (VM==NEST) {
+    while (VM==NEST && IP) {
         IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
-        printf("DP=%d, [%4x]:%4x", DP, IP, ix);
+        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, RETURN());
@@ -254,6 +250,7 @@ void nest(IU pfa) {
              else {                                  /// * yes, loop done!
                  rs.pop();                           /// * pop off loop counter
                  IP += sizeof(IU);                   /// * next instr.
+                 RETURN();
              });
         CASE(LOOP,
              if (GT(rs[-2], rs[-1] += DU1)) {        ///> loop done?
@@ -262,6 +259,7 @@ void nest(IU pfa) {
              else {                                  /// * yes, done
                  rs.pop(); rs.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
+                 RETURN();
              });
         CASE(LIT,
              ss.push(top);
@@ -288,18 +286,15 @@ void nest(IU pfa) {
         CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
              rs.push(ss.pop()); rs.push(POP()));
+        CASE(KEY,  key(); VM = IO);                  /// * fetch single keypress
         OTHER(
             if (ix & EXT_FLAG) {                     /// * colon word?
                 rs.push(IP);                         /// * setup call frame
-                DP++;
                 IP = ix & ~EXT_FLAG;                 /// * IP = word.pfa
             }
-            else {
-                Code::exec(ix);                      ///> execute built-in word
-                if (VM==STOP) { RETURN(); }
-            });
+            else Code::exec(ix));                    ///> execute built-in word
         }
-        printf("   =>DP=%d, IP=%4x, rs.idx=%d, VM=%d\n", DP, IP, rs.idx, VM);
+        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, VM);
     }
 }
 ///
@@ -307,8 +302,9 @@ void nest(IU pfa) {
 ///
 void CALL(IU w) {
     if (IS_UDF(w)) {                   /// colon word
-        VM = NEST;
-        nest(dict[w].pfa);
+        rs.push(DU0);
+        IP = dict[w].pfa;              /// setup task context
+        nest();
     }
     else dict[w].call();               /// built-in word
 }
@@ -358,9 +354,10 @@ int  pfa2nvar(IU pfa) {
 }
 void to_s(IU w, U8 *ip) {
 #if CC_DEBUG
-    fout << "( " << setfill('0') << setw(4) << (ip - MEM0) << "["; ///> addr
-    fout << setfill(' ') << setw(4) << w;
-    fout << "] ) ";
+    fout << setbase(16) << "( ";
+    fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
+    fout << '[' << setfill(' ') << setw(4) << w << ']';   ///> word ref
+    fout << " ) " << setbase(*base);
 #endif // CC_DEBUG
     
     ip += sizeof(IU);                  ///> calculate next ip
@@ -387,17 +384,17 @@ void to_s(IU w, U8 *ip) {
         break;
     default: /* do nothing */ break;
     }
-    fout << setfill(' ') << setw(-1); ///> restore output format settings
+    fout << setfill(' ') << setw(-1);   ///> restore output format settings
 }
-void see(IU pfa, int dp=1) {
+void see(IU pfa) {
     U8 *ip = MEM(pfa);
     while (1) {
         IU w = pfa2didx(*(IU*)ip);      ///> fetch word index by pfa
         if (!w) break;                  ///> loop guard
         
-        fout << ENDL; for (int i=DP; i>0; i--) fout << "  ";    ///> indent
-        to_s(w, ip);                    ///> display opcode
-        if (w==EXIT || w==VAR) return;  ///> end of word
+        fout << ENDL; fout << "  ";     /// * indent
+        to_s(w, ip);                    /// * display opcode
+        if (w==EXIT || w==VAR) return;  /// * end of word
         
         ip += sizeof(IU);               ///> advance ip (next opcode)
         switch (w) {                    ///> extra bytes to skip
@@ -407,12 +404,6 @@ void see(IU pfa, int dp=1) {
         case NEXT:  case LOOP:  ip += sizeof(IU);        break;
         case VBRAN: ip = MEM(*(IU*)ip);                  break;
         }
-#if CC_DEBUG > 1
-        ///> walk recursively
-        if (!IS_PRIM(w) && IS_UDF(w) && DP < 2) {      ///> is a colon word
-            see(dict[w].pfa, DP+1);                    ///> recursive into child
-        }
-#endif // CC_DEBUG > 1
     }
 }
 void words() {
@@ -438,7 +429,8 @@ void words() {
     }
     fout << setbase(*base) << ENDL;
 }
-void ss_dump() {
+void ss_dump(bool forced=false) {
+    if (!forced && (compile || VM==HOLD)) return;
     static char buf[34];
     auto rdx = [](DU v, int b) {          ///> display v by radix
 #if USE_FLOAT
@@ -480,11 +472,14 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
-    rs.push(VM); rs.push(DP); rs.push(IP);                         // save context
+    rs.push(VM);                                 /// * save context
+    rs.push(IP);
     
-    forth_include(fn);                                             // include file
+    VM = NEST;
+    forth_include(fn);                           /// * include file
     
-    IP = UINT(rs.pop()); DP = UINT(rs.pop()); VM = UINT(rs.pop()); // restore
+    IP = UINT(rs.pop());                         /// * restore context
+    VM = static_cast<vm_state>(UINT(rs.pop()));
 }
 ///====================================================================
 ///
@@ -664,7 +659,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("u.r",     fout << setbase(*base) << setw(POP()) << UINT(POP()));
     CODE("type",    POP();                    // string length (not used)
          fout << (const char*)MEM(POP()));    // get string pointer
-    CODE("key",     PUSH(word()[0]));
+    IMMD("key",     if (compile) add_w(KEY); else key());
     CODE("emit",    char b = (char)POP(); fout << b);
     CODE("space",   spaces(1));
     CODE("spaces",  spaces(POP()));
@@ -712,7 +707,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
-    CODE("leave",   rs.pop(); rs.pop(); VM = STOP);             // quit DO..LOOP
+    CODE("leave",   rs.pop(); rs.pop(); RETURN());              // quit DO..LOOP
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
@@ -725,7 +720,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EXIT); compile = false);
-    CODE("exit",    VM = STOP);                                 // early exit the colon word
+    CODE("exit",    RETURN());                                  // early exit the colon word
     CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
@@ -740,7 +735,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("create", def_word(word()); add_var(VBRAN));           // bran + offset field
     IMMD("does>",  add_w(DOES));
     IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
-         IU w = VM==NEST ? POP() : find(word());                // constant addr
+         IU w = VM==QUERY ? find(word()) : POP();               // constant addr
          if (!w) return;
          if (compile) {
              add_w(LIT); add_du((DU)w);                         // save addr on stack
@@ -750,7 +745,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
              *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
-         IU w = VM==NEST ? POP() : find(word());                // word addr
+         IU w = VM==QUERY ? find(word()) : POP();               // word addr
          if (!w) return;
          if (compile) {
              add_w(LIT); add_du((DU)w);                         // save addr on stack
@@ -781,7 +776,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("abort", top = -DU1; ss.clear(); rs.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
-    CODE(".s",    ss_dump());
+    CODE(".s",    ss_dump(true));
     CODE("depth", PUSH(ss.idx));
     CODE("r",     PUSH(rs.idx));
     CODE("words", words());
@@ -812,7 +807,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("ms",    PUSH(millis()));
     CODE("rnd",   PUSH(RND()));             // generate random number
     CODE("delay", delay(UINT(POP())));
-    CODE("included",
+    CODE("included",                        // include external file
          POP();                             // string length, not used
          load((const char*)MEM(POP())));    // include external file
 #if DO_WASM
@@ -893,33 +888,27 @@ void forth_init() {
     dict_compile();              ///> compile dictionary
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
-    static long t0 = 0;
+    auto time_up = []() {                    /// * time slice up
+        static long t0 = 0;                  /// * real-time support, 10ms = 100Hz
+        long t1 = millis();                  ///> check timing
+        return (t1 >= t0) ? (t0 = t1 + t0, 1) : 0;
+    };
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;  ///< serial output hook up
 
-    bool hold = VM==HOLD;        ///< check VM resume status
+    bool hold = (VM==HOLD || VM==IO);        ///< check VM resume status
     if (!hold) {                 ///> refresh buffer if not resuming
         fout.str("");            /// * clean output buffer
         fin.clear();             /// * clear input stream error bit if any
         fin.str(line);           /// * reload user command into input stream
     }
     string idiom;
-    while (hold || (fin >> idiom)) {          ///> fetch a word
-        if (hold) nest(0);                    /// * continue without parsing
-        else      forth_core(idiom.c_str());  ///> send to Forth core
+    while (hold || (fin >> idiom)) {         ///> fetch a word
+        if (hold) nest();                    /// * resume task
+        else      forth_core(idiom.c_str()); ///> send to Forth core
         hold = VM==HOLD;
-        if (hold) {                           ///> multi-threading support
-            long t1 = millis();               ///> check timing
-            if (t1 >= t0) {                   /// * time slice up
-                t0 = t1 + 10;                 /// * real-time support, 10ms = 100Hz
-                break;                        /// * pause, yield to front-end task
-            }
-        }
+        if (hold && time_up()) break;        ///> multi-threading support
     }
-#if DO_WASM
-    if (!hold && !compile) fout << "ok" << ENDL;
-#else // !DO_WASM
-    if (!hold && !compile) ss_dump();         /// * dump stack and display ok prompt
-#endif  // DO_WASM
+    ss_dump();                   /// * optionally display stack contents
     return hold;
 }
