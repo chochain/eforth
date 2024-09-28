@@ -238,7 +238,7 @@ void nest() {
     VM = NEST;                                       /// * activate VM
     while (VM==NEST && IP) {
         IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
-//        printf("[%4x]:%4x", IP, ix);
+        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -265,11 +265,11 @@ void nest() {
              IP += sizeof(DU));                      /// * hop over the stored value
         CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr, alignment?
         CASE(STR,
-             const char *s = (const char*)MEM(IP);   // get string pointer
+             const char *s = (const char*)MEM(IP);   ///< get string pointer
              IU    len = STRLEN(s);
              PUSH(IP); PUSH(len); IP += len);
         CASE(DOTQ,                                   /// ." ..."
-             const char *s = (const char*)MEM(IP);   /// * get string pointer
+             const char *s = (const char*)MEM(IP);   ///< get string pointer
              fout << s;  IP += STRLEN(s));           /// * send to output console
         CASE(BRAN, IP = IGET(IP));                   /// * unconditional branch
         CASE(ZBRAN,                                  /// * conditional branch
@@ -278,7 +278,7 @@ void nest() {
              PUSH(DALIGN(IP + sizeof(IU)));          /// * skip target address
              IP = IGET(IP));                         /// * create..
         CASE(DOES,
-             IU *p = (IU*)MEM(LAST.pfa);             ///> memory pointer to pfa 
+             IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
         CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
@@ -292,7 +292,7 @@ void nest() {
             }
             else Code::exec(ix));                    ///> execute built-in word
         }
-//        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, VM);
+        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, VM);
     }
 }
 ///
@@ -469,14 +469,10 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
-    rs.push(VM);                                 /// * save context
-    rs.push(IP);
-    
-    VM = NEST;
-    forth_include(fn);                           /// * include file
-    
-    IP = UINT(rs.pop());                         /// * restore context
-    VM = static_cast<vm_state>(UINT(rs.pop()));
+    rs.push(IP);                          /// * save context
+    VM = NEST;                            /// * +recursive
+    forth_include(fn);                    /// * include file
+    IP = UINT(rs.pop());                  /// * restore context
 }
 ///====================================================================
 ///
@@ -739,7 +735,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
              add_w(find("to"));                                 // encode to opcode
          }
          else {
-             *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();
+             *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();     // update constant
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
          IU w = VM==QUERY ? find(word()) : POP();               // word addr
@@ -902,7 +898,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         fin.str(line);                   /// * reload user command into input stream
     }
     string idiom;
-    while (resume || fin >> idiom) {           /// * parse a word
+    while (resume || fin >> idiom) {     /// * parse a word
         if (resume) nest();                    /// * resume task
         else        forth_core(idiom.c_str()); /// * send to Forth core
         resume = VM==HOLD;
