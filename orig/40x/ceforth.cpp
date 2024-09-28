@@ -232,16 +232,16 @@ inline void key()      { PUSH(word()[0]); }
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
-#define RETURN()     (VM = (IP=UINT(rs.pop())) ? HOLD : STOP)
+#define UNNEST()     (VM = (IP=UINT(rs.pop())) ? HOLD : STOP)
 
 void nest() {
     VM = NEST;                                       /// * activate VM
     while (VM==NEST && IP) {
         IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
-        printf("[%4x]:%4x", IP, ix);
+//        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
-        CASE(EXIT, RETURN());
+        CASE(EXIT, UNNEST());
         CASE(NOP,  { /* do nothing */});
         CASE(NEXT,
              if (GT(rs[-1] -= DU1, -DU1)) {          ///> loop done?
@@ -250,7 +250,6 @@ void nest() {
              else {                                  /// * yes, loop done!
                  rs.pop();                           /// * pop off loop counter
                  IP += sizeof(IU);                   /// * next instr.
-                 RETURN();
              });
         CASE(LOOP,
              if (GT(rs[-2], rs[-1] += DU1)) {        ///> loop done?
@@ -259,13 +258,12 @@ void nest() {
              else {                                  /// * yes, done
                  rs.pop(); rs.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
-                 RETURN();
              });
         CASE(LIT,
              ss.push(top);
              top = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
              IP += sizeof(DU));                      /// * hop over the stored value
-        CASE(VAR, PUSH(DALIGN(IP)); RETURN());       ///> get var addr, alignment?
+        CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr, alignment?
         CASE(STR,
              const char *s = (const char*)MEM(IP);   // get string pointer
              IU    len = STRLEN(s);
@@ -282,7 +280,7 @@ void nest() {
         CASE(DOES,
              IU *p = (IU*)MEM(LAST.pfa);             ///> memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
-             RETURN());
+             UNNEST());
         CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
              rs.push(ss.pop()); rs.push(POP()));
@@ -294,7 +292,7 @@ void nest() {
             }
             else Code::exec(ix));                    ///> execute built-in word
         }
-        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, VM);
+//        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, VM);
     }
 }
 ///
@@ -429,8 +427,7 @@ void words() {
     }
     fout << setbase(*base) << ENDL;
 }
-void ss_dump(bool forced=false) {
-    if (!forced && (compile || VM==HOLD)) return;
+void ss_dump() {
     static char buf[34];
     auto rdx = [](DU v, int b) {          ///> display v by radix
 #if USE_FLOAT
@@ -707,7 +704,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(rs[-1]));
-    CODE("leave",   rs.pop(); rs.pop(); RETURN());              // quit DO..LOOP
+    CODE("leave",   rs.pop(); rs.pop(); UNNEST());              // quit DO..LOOP
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
@@ -720,7 +717,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE(":",       compile = def_word(word()));
     IMMD(";",       add_w(EXIT); compile = false);
-    CODE("exit",    RETURN());                                  // early exit the colon word
+    CODE("exit",    UNNEST());                                  // early exit the colon word
     CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
@@ -776,7 +773,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("abort", top = -DU1; ss.clear(); rs.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
-    CODE(".s",    ss_dump(true));
+    CODE(".s",    ss_dump());
     CODE("depth", PUSH(ss.idx));
     CODE("r",     PUSH(rs.idx));
     CODE("words", words());
@@ -842,7 +839,8 @@ DU parse_number(const char *idiom, int *err) {
     return n;
 }
 
-void forth_core(const char *idiom) {
+void forth_core(const char *idiom) {     ///> aka QUERY
+    VM = QUERY;
     IU w = find(idiom);                  ///> * get token by searching through dict
     if (w) {                             ///> * word found?
         if (compile && !IS_IMM(w)) {     /// * in compile mode?
@@ -872,43 +870,49 @@ void forth_core(const char *idiom) {
 ///
 void forth_init() {
     static bool init = false;
-    if (init) return;            ///> check dictionary initilized
+    if (init) return;                    ///> check dictionary initilized
 
-    add_w(EXIT);                 /// * COLD
-    if (sizeof(IU)==2) add_iu(0);/// * 4-byte aligned
+    add_w(EXIT);                         /// * COLD
+    if (sizeof(IU)==2) add_iu(0);        /// * 4-byte aligned
 
-    base = &IGET(HERE);          ///< set pointer to base
-    add_iu(10);                  ///< allocate space for base
-    dflt = &IGET(HERE);          ///< set pointer to dfmt
+    base = &IGET(HERE);                  ///< set pointer to base
+    add_iu(10);                          ///< allocate space for base
+    dflt = &IGET(HERE);                  ///< set pointer to dfmt
     add_iu(USE_FLOAT);
     
     for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
-        add_iu(EXIT);            /// * padding user area
+        add_iu(EXIT);                    /// * padding user area
     }
-    dict_compile();              ///> compile dictionary
+    dict_compile();                      ///> compile dictionary
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
-    auto time_up = []() {                    /// * time slice up
-        static long t0 = 0;                  /// * real-time support, 10ms = 100Hz
-        long t1 = millis();                  ///> check timing
+    auto time_up = []() {                /// * time slice up
+        static long t0 = 0;              /// * real-time support, 10ms = 100Hz
+        long t1 = millis();              ///> check timing
         return (t1 >= t0) ? (t0 = t1 + t0, 1) : 0;
     };
     auto cb = [](int, const char *rst) { printf("%s", rst); };
-    fout_cb = hook ? hook : cb;  ///< serial output hook up
+    fout_cb = hook ? hook : cb;          ///< serial output hook up
 
-    bool hold = (VM==HOLD || VM==IO);        ///< check VM resume status
-    if (!hold) {                 ///> refresh buffer if not resuming
-        fout.str("");            /// * clean output buffer
-        fin.clear();             /// * clear input stream error bit if any
-        fin.str(line);           /// * reload user command into input stream
+    bool resume = (VM==HOLD || VM==IO);  ///< check VM resume status
+    if (resume) IP = UINT(rs.pop());     /// * restore context
+    else {                               ///> refresh buffer if not resuming
+        fout.str("");                    /// * clean output buffer
+        fin.clear();                     /// * clear input stream error bit if any
+        fin.str(line);                   /// * reload user command into input stream
     }
     string idiom;
-    while (hold || (fin >> idiom)) {         ///> fetch a word
-        if (hold) nest();                    /// * resume task
-        else      forth_core(idiom.c_str()); ///> send to Forth core
-        hold = VM==HOLD;
-        if (hold && time_up()) break;        ///> multi-threading support
+    while (resume || fin >> idiom) {           /// * parse a word
+//        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, VM);
+        if (resume) nest();                    /// * resume task
+        else        forth_core(idiom.c_str()); /// * send to Forth core
+        resume = VM==HOLD;
+        if (resume && time_up()) break;  ///> multi-threading support
     }
-    ss_dump();                   /// * optionally display stack contents
-    return hold;
+    bool yield = VM==HOLD || VM==IO;     /// * yield to other tasks
+    
+    if (yield) rs.push(IP);              /// * save context
+    else if (!compile) ss_dump();        /// * optionally display stack contents
+    
+    return yield;
 }
