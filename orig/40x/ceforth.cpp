@@ -276,7 +276,7 @@ void nest() {
              IP = POP() ? IP+sizeof(IU) : IGET(IP));
         CASE(VBRAN,
              PUSH(DALIGN(IP + sizeof(IU)));          /// * skip target address
-             IP = IGET(IP));                         /// * create..
+             if ((IP = IGET(IP))==0) UNNEST());      /// * jump target of does> if given
         CASE(DOES,
              IU *p = (IU*)MEM(LAST.pfa);             ///> memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
@@ -428,6 +428,9 @@ void words() {
     fout << setbase(*base) << ENDL;
 }
 void ss_dump() {
+#if DO_WASM 
+    if (!forced) { fout << "ok" << ENDL; return; }
+#endif // DO_WASM
     static char buf[34];
     auto rdx = [](DU v, int b) {          ///> display v by radix
 #if USE_FLOAT
@@ -469,14 +472,10 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
-    rs.push(VM);                                 /// * save context
-    rs.push(IP);
-    
-    VM = NEST;
-    forth_include(fn);                           /// * include file
-    
-    IP = UINT(rs.pop());                         /// * restore context
-    VM = static_cast<vm_state>(UINT(rs.pop()));
+    rs.push(IP);                          /// * save context
+    VM = NEST;                            /// * +recursive
+    forth_include(fn);                    /// * include file
+    IP = UINT(rs.pop());                  /// * restore context
 }
 ///====================================================================
 ///
@@ -739,7 +738,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
              add_w(find("to"));                                 // encode to opcode
          }
          else {
-             *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();
+             *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();     // update constant
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
          IU w = VM==QUERY ? find(word()) : POP();               // word addr
@@ -872,16 +871,13 @@ void forth_init() {
     static bool init = false;
     if (init) return;                    ///> check dictionary initilized
 
-    add_w(EXIT);                         /// * COLD
-    if (sizeof(IU)==2) add_iu(0);        /// * 4-byte aligned
-
     base = &IGET(HERE);                  ///< set pointer to base
     add_iu(10);                          ///< allocate space for base
     dflt = &IGET(HERE);                  ///< set pointer to dfmt
     add_iu(USE_FLOAT);
     
     for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
-        add_iu(EXIT);                    /// * padding user area
+        add_iu(0xffff);                  /// * padding user area
     }
     dict_compile();                      ///> compile dictionary
 }
