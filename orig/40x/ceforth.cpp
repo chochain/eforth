@@ -276,7 +276,7 @@ void nest() {
              IP = POP() ? IP+sizeof(IU) : IGET(IP));
         CASE(VBRAN,
              PUSH(DALIGN(IP + sizeof(IU)));          /// * skip target address
-             IP = IGET(IP));                         /// * create..
+             if ((IP = IGET(IP))==0) UNNEST());      /// * jump target of does> if given
         CASE(DOES,
              IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
@@ -428,6 +428,9 @@ void words() {
     fout << setbase(*base) << ENDL;
 }
 void ss_dump() {
+#if DO_WASM 
+    if (!forced) { fout << "ok" << ENDL; return; }
+#endif // DO_WASM
     static char buf[34];
     auto rdx = [](DU v, int b) {          ///> display v by radix
 #if USE_FLOAT
@@ -868,16 +871,13 @@ void forth_init() {
     static bool init = false;
     if (init) return;                    ///> check dictionary initilized
 
-    add_w(EXIT);                         /// * COLD
-    if (sizeof(IU)==2) add_iu(0);        /// * 4-byte aligned
-
     base = &IGET(HERE);                  ///< set pointer to base
     add_iu(10);                          ///< allocate space for base
     dflt = &IGET(HERE);                  ///< set pointer to dfmt
     add_iu(USE_FLOAT);
     
     for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
-        add_iu(EXIT);                    /// * padding user area
+        add_iu(0xffff);                  /// * padding user area
     }
     dict_compile();                      ///> compile dictionary
 }
