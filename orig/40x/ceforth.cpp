@@ -101,14 +101,15 @@ Code op_prim[] = {
 ///
 typedef enum { STOP=0, HOLD, QUERY, NEST, IO } vm_state;
 
-IU       IP = 0;        ///< instruction pointer
-vm_state VM = QUERY;    ///< VM state
+IU       IP  = 0;       ///< instruction pointer
+vm_state VM  = QUERY;   ///< VM state
 ///
 ///> user variables
 ///
 DU   top     = -DU1;    ///< top of stack (cached)
 bool compile = false;   ///< compiler flag
-bool ucase   = false;   ///< case sensitivity control
+bool upper   = false;   ///< case sensitivity control
+IU   load_dp = 0;       ///< depth of recursive include
 IU   *base;             ///< numeric radix (a pointer)
 IU   *dflt;             ///< use float data unit flag
 ///
@@ -118,7 +119,7 @@ IU   *dflt;             ///< use float data unit flag
 ///
 IU find(const char *s) {
     auto streq = [](const char *s1, const char *s2) {
-        return ucase ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+        return upper ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
     };
     IU v = 0;
     for (IU i = dict.idx - 1; !v && i > 0; --i) {
@@ -265,11 +266,11 @@ void nest() {
              IP += sizeof(DU));                      /// * hop over the stored value
         CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr, alignment?
         CASE(STR,
-             const char *s = (const char*)MEM(IP);   // get string pointer
+             const char *s = (const char*)MEM(IP);   ///< get string pointer
              IU    len = STRLEN(s);
              PUSH(IP); PUSH(len); IP += len);
         CASE(DOTQ,                                   /// ." ..."
-             const char *s = (const char*)MEM(IP);   /// * get string pointer
+             const char *s = (const char*)MEM(IP);   ///< get string pointer
              fout << s;  IP += STRLEN(s));           /// * send to output console
         CASE(BRAN, IP = IGET(IP));                   /// * unconditional branch
         CASE(ZBRAN,                                  /// * conditional branch
@@ -278,7 +279,7 @@ void nest() {
              PUSH(DALIGN(IP + sizeof(IU)));          /// * skip target address
              if ((IP = IGET(IP))==0) UNNEST());      /// * jump target of does> if given
         CASE(DOES,
-             IU *p = (IU*)MEM(LAST.pfa);             ///> memory pointer to pfa 
+             IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
         CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
@@ -427,12 +428,13 @@ void words() {
     }
     fout << setbase(*base) << ENDL;
 }
-void ss_dump() {
+void ss_dump(bool forced=false) {
+    if (load_dp) return;                  /// * skip when including file
 #if DO_WASM 
     if (!forced) { fout << "ok" << ENDL; return; }
 #endif // DO_WASM
-    static char buf[34];
-    auto rdx = [](DU v, int b) {          ///> display v by radix
+    static char buf[34];                  ///< static buffer
+    auto rdx = [](DU v, int b) {          ///< display v by radix
 #if USE_FLOAT
         sprintf(buf, "%0.6g", v);
         return buf;
@@ -472,10 +474,12 @@ void mem_dump(U32 p0, IU sz) {
     fout << setbase(*base) << setfill(' ');
 }
 void load(const char* fn) {
+    load_dp++;                            /// * increment depth counter
     rs.push(IP);                          /// * save context
     VM = NEST;                            /// * +recursive
     forth_include(fn);                    /// * include file
     IP = UINT(rs.pop());                  /// * restore context
+    --load_dp;                            /// * decrement depth counter
 }
 ///====================================================================
 ///
@@ -643,7 +647,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("case!",   ucase = POP() == DU0);    // case insensitive
+    CODE("case!",   upper = POP() == DU0);    // case insensitive
     CODE("base",    PUSH(((U8*)base - MEM0)));
     CODE("decimal", fout << setbase(*base = 10));
     CODE("hex",     fout << setbase(*base = 16));
@@ -772,7 +776,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("abort", top = -DU1; ss.clear(); rs.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
-    CODE(".s",    ss_dump());
+    CODE(".s",    ss_dump(true));
     CODE("depth", PUSH(ss.idx));
     CODE("r",     PUSH(rs.idx));
     CODE("words", words());
