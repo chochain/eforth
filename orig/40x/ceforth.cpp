@@ -174,9 +174,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
 void add_var(IU op) {               ///< add a varirable header
     add_w(op);                      /// * VAR or VBRAN
     if (op==VBRAN) add_iu(0);       /// * pad offset field
-#if DO_WASM
     pmem.idx = DALIGN(pmem.idx);    /// * data alignment (WASM 4, other 2)
-#endif // DO_WASM
     if (op==VAR)   add_du(DU0);     /// * default variable = 0
 }
 ///====================================================================
