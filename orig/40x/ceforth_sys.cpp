@@ -27,9 +27,7 @@ extern VM         vm;                      ///< eForth context
 
 #define TOS       (vm._top)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
-#define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
-#define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
 #define DICT(w)   (IS_PRIM(w) ? op_prim[w & ~EXT_FLAG] : dict[w])
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
 
@@ -83,12 +81,12 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     return 0;                                  /// * not found
 }
 int  pfa2nvar(IU pfa) {
-    IU  w  = IGET(pfa);
+    IU  w  = *(IU*)MEM(pfa);
     if (w != VAR && w != VBRAN) return 0;
     
     IU  i0 = pfa2didx(pfa | EXT_FLAG);
     if (!i0) return 0;
-    IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : HERE;
+    IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : pmem.idx;
     int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
     return n;
 }
