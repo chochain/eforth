@@ -14,16 +14,16 @@
 #include <sstream>                         /// iostream, stringstream
 #include "ceforth.h"
 
-istringstream   fin;                       ///< forth_in
-ostringstream   fout;                      ///< forth_out
-string          pad;                       ///< input string buffer
+istringstream     fin;                     ///< forth_in
+ostringstream     fout;                    ///< forth_out
+string            pad;                     ///< input string buffer
 void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
 
-extern Code op_prim[];                     ///< primitives
-extern List<Code, E4_DICT_SZ> dict;        ///< dictionary
-extern List<U8,   E4_PMEM_SZ> pmem;        ///< parameter memory (for colon definitions)
-extern U8   *MEM0;                         ///< base of parameter memory block
-extern VM   vm;
+extern Code       op_prim[];               ///< primitives
+extern List<Code> dict;                    ///< dictionary
+extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
+extern U8         *MEM0;                   ///< base of parameter memory block
+extern VM         vm;                      ///< eForth context
 
 #define TOS       (vm._top)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
@@ -38,9 +38,9 @@ extern VM   vm;
 ///> IO functions
 ///
 void fin_setup(const char *line) {
-    fout.str("");                    /// * clean output buffer
-    fin.clear();                     /// * clear input stream error bit if any
-    fin.str(line);                   /// * reload user command into input stream
+    fout.str("");                        /// * clean output buffer
+    fin.clear();                         /// * clear input stream error bit if any
+    fin.str(line);                       /// * reload user command into input stream
 }
 void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
@@ -73,7 +73,7 @@ void pstr(const char *str, io_op op) {
 ///
 int pfa2didx(IU ix) {                          ///> reverse lookup
     if (IS_PRIM(ix)) return (int)ix;           ///> primitives
-    IU pfa = ix & ~EXT_FLAG;                   ///> pfa (mask colon word)
+    IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
         if (ix & EXT_FLAG) {                   /// colon word?
             if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
@@ -100,7 +100,7 @@ void to_s(IU w, U8 *ip) {
     fout << " ) " << setbase(*vm.base);
 #endif // CC_DEBUG
     
-    ip += sizeof(IU);                  ///> calculate next ip
+    ip += sizeof(IU);                   ///> calculate next ip
     switch (w) {
     case LIT:  fout << *(DU*)ip << " ( lit )";      break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
@@ -112,14 +112,14 @@ void to_s(IU w, U8 *ip) {
         for (int i = 0, a=DALIGN(ix); i < n; i+=sizeof(DU)) {
             fout << *(DU*)MEM(a + i) << ' ';
         }
-    }                                               /// no break, fall through
+    }                                   /// no break, fall through
     default:
         Code &c = DICT(w);
         fout << c.name; break;
     }
     switch (w) {
     case NEXT: case LOOP:
-    case BRAN: case ZBRAN: case VBRAN:             ///> display jmp target
+    case BRAN: case ZBRAN: case VBRAN:  ///> display jmp target
         fout << ' ' << setfill('0') << setw(4) << *(IU*)ip;
         break;
     default: /* do nothing */ break;
@@ -127,9 +127,9 @@ void to_s(IU w, U8 *ip) {
     fout << setfill(' ') << setw(-1);   ///> restore output format settings
 }
 void see(IU pfa) {
-    U8 *ip = MEM(pfa);
+    U8 *ip = MEM(pfa);                  ///< memory pointer
     while (1) {
-        IU w = pfa2didx(*(IU*)ip);      ///> fetch word index by pfa
+        IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
         if (!w) break;                  ///> loop guard
         
         fout << ENDL; fout << "  ";     /// * indent

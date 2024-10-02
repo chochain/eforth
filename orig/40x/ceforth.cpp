@@ -299,7 +299,7 @@ void CALL(IU w) {
 UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
 
 void dict_compile() {  ///< compile built-in words into dictionary
-    CODE("nul ",    {});                  /// dict[0], not used, simplify find()
+    CODE("nul ",    {});               /// dict[0], not used, simplify find()
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -372,7 +372,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("case!",   vm.upper = POP() == DU0);                  // case insensitive
+    CODE("case!",   vm.upper = POP() == DU0);  // case insensitive
     CODE("base",    PUSH(((U8*)vm.base - MEM0)));
     CODE("decimal", put(BASE, 10));
     CODE("hex",     put(BASE, 16));
