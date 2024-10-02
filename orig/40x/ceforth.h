@@ -45,6 +45,22 @@ struct List {
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
     void clear(int i=0)    INLINE { idx=i; }
 };
+///====================================================================
+///
+///> VM context (single task)
+///
+typedef enum { STOP=0, HOLD, QUERY, NEST, IO } vm_state;
+typedef struct _VM {
+    vm_state state   = QUERY;
+    IU       _ip     = 0;
+    DU       _top    = -DU1;    ///< top of stack (cached)
+    bool     compile = false;   ///< compiler flag
+    bool     upper   = false;   ///< case sensitivity control
+    IU       load_dp = 0;       ///< depth of recursive include
+    IU       *base;             ///< numeric radix (a pointer)
+    IU       *dflt;             ///< use float data unit flag
+    List<DU, E4_SS_SZ> _ss;     ///< parameter stack
+} VM;
 ///
 ///@name Code flag masking options
 ///@{
@@ -59,6 +75,16 @@ struct List {
 
 #define IS_UDF(w) (dict[w].attr & UDF_ATTR)
 #define IS_IMM(w) (dict[w].attr & IMM_ATTR)
+///}
+///@name Opcode - primitive
+///{
+typedef enum {
+    EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
+    VBRAN, DOES, FOR, DO, KEY, MAX_OP
+} prim_op;
+
+#define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
+#define IS_PRIM(w) ((w & EXT_FLAG) && (w < MAX_OP))
 ///@}
 ///
 ///> Universal functor (no STL) and Code class
@@ -129,10 +155,36 @@ struct Code {
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
+///
+///> System interface
+///
+void forth_init();
+int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
+int  forth_include(const char *fn);
+///
+///> IO functions
+///
+typedef enum { BASE=0, BL, CR, DOT, DOTR, EMIT, SPCS } io_op;
 
-extern void forth_init();
-extern int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
-extern int  forth_include(const char *fn);
-;
+void fin_setup(const char *line);
+void fout_setup(void (*hook)(int, const char*));
+char *scan(char c);
+int  fetch(string &idiom);
+void spaces(int n);
+void put(io_op op, DU v=DU0, DU v2=DU0);
+void pstr(const char *str, io_op op=BL);
+///
+///> Debug functions
+///
+void see(IU pfa);
+void words();
+void ss_dump(bool forced=false);
+void mem_dump(U32 addr, IU sz);
+void mem_stat();
+void dict_dump();
+///
+#if DO_WASM
+void call_js();
+#endif // DO_WASM
 
 #endif // __EFORTH_SRC_CEFORTH_H
