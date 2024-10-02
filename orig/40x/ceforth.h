@@ -11,7 +11,7 @@ using namespace std;
 ///   * using decorator pattern
 ///   * this is similar to vector class but much simplified
 ///
-template<class T, int N>
+template<class T, int N=0>
 struct List {
     T   *v;             ///< fixed-size array storage
     int idx = 0;        ///< current index of array
