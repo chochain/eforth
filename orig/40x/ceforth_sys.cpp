@@ -25,7 +25,7 @@ extern List<U8>   pmem;                    ///< parameter memory (for colon defi
 extern U8         *MEM0;                   ///< base of parameter memory block
 extern VM         vm;                      ///< eForth context
 
-#define TOS       (vm._top)                /**< Top of stack                            */
+#define TOS       (vm._tos)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define DICT(w)   (IS_PRIM(w) ? op_prim[w & ~EXT_FLAG] : dict[w])

@@ -53,7 +53,7 @@ typedef enum { STOP=0, HOLD, QUERY, NEST, IO } vm_state;
 typedef struct _VM {
     vm_state state   = QUERY;
     IU       _ip     = 0;
-    DU       _top    = -DU1;    ///< top of stack (cached)
+    DU       _tos    = -DU1;    ///< top of stack (cached)
     bool     compile = false;   ///< compiler flag
     bool     upper   = false;   ///< case sensitivity control
     IU       load_dp = 0;       ///< depth of recursive include

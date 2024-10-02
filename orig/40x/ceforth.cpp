@@ -69,7 +69,7 @@ VM  vm;
 ///
 ///@name Dictionary and data stack access macros
 ///@{
-#define TOS       (vm._top)                /**< Top of stack                            */
+#define TOS       (vm._tos)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
 #define IP        (vm._ip)                 /**< instruction pointer (per task)          */
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
