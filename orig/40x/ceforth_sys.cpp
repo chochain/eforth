@@ -19,8 +19,9 @@ ostringstream     fout;                    ///< forth_out
 string            pad;                     ///< input string buffer
 void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
 
-extern Code       op_prim[];               ///< primitives
+extern Code       prim[];                  ///< primitives
 extern List<Code> dict;                    ///< dictionary
+extern List<DU>   rs;                      ///< return stack
 extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
 extern U8         *MEM0;                   ///< base of parameter memory block
 extern VM         vm;                      ///< eForth context
@@ -28,7 +29,7 @@ extern VM         vm;                      ///< eForth context
 #define TOS       (vm._tos)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
-#define DICT(w)   (IS_PRIM(w) ? op_prim[w & ~EXT_FLAG] : dict[w])
+#define DICT(w)   (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
 
 ///====================================================================

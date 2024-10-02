@@ -61,7 +61,7 @@ List<DU,   E4_RS_SZ>   rs;         ///< return stack
 List<Code, E4_DICT_SZ> dict;       ///< dictionary
 List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
-VM  vm;
+VM  vm;                            ///< eForth context (single task)
 ///
 ///> Macros to abstract dict and pmem physical implementation
 ///  Note:
@@ -83,13 +83,13 @@ VM  vm;
 ///
 ///> Primitive words (to simplify compiler), see nest() for details
 ///
-Code op_prim[] = {
+Code prim[] = {
     Code(";",   EXIT), Code("nop",  NOP),   Code("next", NEXT),  Code("loop", LOOP),
     Code("lit", LIT),  Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),
     Code("bran",BRAN), Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),
     Code("for", FOR),  Code("do",   DO),    Code("key",  KEY)
 };
-#define DICT(w)    (IS_PRIM(w) ? op_prim[w & ~EXT_FLAG] : dict[w])
+#define DICT(w) (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
 ///
 ///====================================================================
 ///
@@ -155,7 +155,7 @@ void add_var(IU op) {               ///< add a varirable header
 }
 ///====================================================================
 ///
-/// macros to reduce verbosity
+///> functions to reduce verbosity
 ///
 inline void PUSH(DU v) { SS.push(TOS); TOS = v; }
 inline DU   POP()      { DU n=TOS; TOS=SS.pop(); return n; }
@@ -222,7 +222,7 @@ void load(const char* fn) {
 void nest() {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
-        IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
+        IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
 //        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
@@ -617,8 +617,8 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     };
     fout_setup(hook);
 
-    bool resume =
-        (vm.state==HOLD || vm.state==IO);///< check VM resume status
+    bool resume =                        ///< check VM resume status
+        (vm.state==HOLD || vm.state==IO);
     if (resume) IP = UINT(rs.pop());     /// * restore context
     else        fin_setup(line);         /// * refresh buffer if not resuming
     
