@@ -740,7 +740,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
              add_w(find("to"));                                 // encode to opcode
          }
          else {
-             *(DU*)(MEM(dict[w].pfa) + sizeof(IU)) = POP();     // update constant
+             w = DALIGN(dict[w].pfa + 2*sizeof(IU));            // calculate address to memory
+             *(DU*)MEM(w) = POP();                              // update constant
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
          IU w = VM==QUERY ? find(word()) : POP();               // word addr
