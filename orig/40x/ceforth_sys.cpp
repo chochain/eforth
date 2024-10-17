@@ -74,10 +74,8 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     if (IS_PRIM(ix)) return (int)ix;           ///> primitives
     IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
-        if (ix & EXT_FLAG) {                   /// colon word?
-            if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
-        }
-        else if (dict[i].xtoff() == pfa) return i;   ///> compare xt (built-in words)
+        Code &c = dict[i];
+        if (pfa == (IS_UDF(i) ? c.pfa : c.xtoff())) return i;
     }
     return 0;                                  /// * not found
 }
@@ -223,10 +221,10 @@ void dict_dump() {
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         fout << setfill('0') << setw(3) << i
-             << "> attr=" << (c.attr & 0x3)
-             << ", xt="   << setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
-             << ":"       << setw(8) << (UFP)c.xt
-             << ", name=" << setw(8) << (UFP)c.name
+             << "> name=" << setw(8) << (UFP)c.name
+             << ", xt="   << setw(8) << (UFP)c.xt
+             << ", attr=" << (c.attr & 0x3)
+             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
              << " "       << c.name << ENDL;
     }
     fout << setbase(*vm.base) << setfill(' ') << setw(-1);
