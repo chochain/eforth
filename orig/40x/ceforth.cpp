@@ -710,10 +710,8 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     if (IS_PRIM(ix)) return (int)ix;           ///> primitives
     IU pfa = ix & ~EXT_FLAG;                   ///> pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
-        if (ix & EXT_FLAG) {                   /// colon word?
-            if (dict[i].pfa == pfa) return i;  ///> compare pfa in PMEM
-        }
-        else if (dict[i].xtoff() == pfa) return i;   ///> compare xt (built-in words)
+        Code &c = dict[i];
+        if (pfa == (IS_UDF(i) ? c.pfa : c.xtoff())) return i;
     }
     return 0;                                  /// * not found
 }
