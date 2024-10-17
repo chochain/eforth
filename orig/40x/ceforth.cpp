@@ -142,7 +142,7 @@ void colon(const char *name) {
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
 
-    Code c(nfa, (FPTR)~0, false);   ///> create a local blank word
+    Code c(nfa, (FPTR)0, false);    ///> create a local blank word
     c.attr = UDF_ATTR;              ///> specify a colon (user defined) word
     c.pfa  = HERE;                  ///> capture code field index
 
@@ -884,10 +884,10 @@ void dict_dump() {
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         fout << setfill('0') << setw(3) << i
-             << "> attr=" << (c.attr & 0x3)
-             << ", xt="   << setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
-             << ":"       << setw(8) << (UFP)c.xt
-             << ", name=" << setw(8) << (UFP)c.name
+             << "> name=" << setw(8) << (UFP)c.name
+             << ", xt="   << setw(8) << (UFP)c.xt
+             << ", attr=" << (c.attr & 0x3)
+             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
              << " "       << c.name << ENDL;
     }
     fout << setbase(*base) << setfill(' ') << setw(-1);
