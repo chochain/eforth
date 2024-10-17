@@ -121,7 +121,7 @@ void colon(const char *name) {
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
 
-    Code c(nfa, (FPTR)~0, false);   ///> create a local blank word
+    Code c(nfa, (FPTR)0, false);    ///> create a local blank word
     c.attr = UDF_ATTR;              ///> specify a colon (user defined) word
     c.pfa  = HERE;                  ///> capture code field index
 
