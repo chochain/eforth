@@ -1,8 +1,8 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
-#include <stdio.h>
-#include <stdint.h>     // uintxx_t
-#include <exception>    // try...catch, throw
+#include <cstdio>
+#include <cstdint>      // uintxx_t
+#include <string.h>     // string, strlen
 #include "config.h"     // configuation and cross-platform support
 using namespace std;
 ///
@@ -60,6 +60,16 @@ struct List {
 #define IS_UDF(w) (dict[w].attr & UDF_ATTR)
 #define IS_IMM(w) (dict[w].attr & IMM_ATTR)
 ///@}
+///@name primitive opcode
+///@{
+typedef enum {
+    EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
+    VBRAN, DOES, FOR, DO, KEY, MAX_OP
+} prim_op;
+
+#define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
+#define IS_PRIM(w) ((w & EXT_FLAG) && (w < MAX_OP))
+///@}
 ///
 ///> Universal functor (no STL) and Code class
 ///  Code class on 64-bit systems (expand pfa possible)
@@ -108,7 +118,7 @@ struct Code {
 #endif // CC_DEBUG > 1
     }
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
-        if ((UFP)xt < XT0) XT0 = (UFP)xt;                ///> collect xt base
+        if ((UFP)xt < XT0) XT0 = (UFP)xt;                       ///> collect xt base
         if (im) attr |= IMM_ATTR;
 #if CC_DEBUG > 1
 		LOG_KX("XT0=", XT0);  LOG_KX(" xt=", (UFP)xt); 
@@ -129,10 +139,38 @@ struct Code {
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
+///
+///> System interface
+///
+void forth_init();
+int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
+int  forth_include(const char *fn);       /// load external Forth script
+void outer(istream &in);                  ///< Forth outer loop
+///
+///> IO functions
+///
+typedef enum { BASE=0, BL, CR, DOT, DOTR, EMIT, SPCS } io_op;
+void key();                               ///< read key from console
+void fin_setup(const char *line);
+void fout_setup(void (*hook)(int, const char*)=NULL);
 
-extern void forth_init();
-extern int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
-extern int  forth_include(const char *fn);
-;
-
+char *scan(char c);                       ///< scan input stream for a given char
+int  fetch(string &idiom);                ///< read input stream into string
+void spaces(int n);                       ///< show spaces
+void put(io_op op, DU v=DU0, DU v2=DU0);  ///< print literals
+void pstr(const char *str, io_op op=BL);  ///< print string
+///
+///> Debug functions
+///
+void see(IU pfa);                         ///< disassemble user defined word
+void words();                             ///< list dictionary words
+void ss_dump(bool forced=false);          ///< show data stack content
+void dict_dump();                         ///< dump dictionary
+void mem_dump(U32 addr, IU sz);           ///< dump memory frm addr...addr+sz
+void mem_stat();                          ///< display memory statistics
+///
+///> Javascript interface
+///
+void native_api();
+///
 #endif // __EFORTH_SRC_CEFORTH_H
