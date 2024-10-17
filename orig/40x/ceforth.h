@@ -140,6 +140,11 @@ struct Code {
 		LOG_KX("XT0=", XT0);  LOG_KX(" xt=", (UFP)xt); 
 		LOG_KX(", nm=", (UFP)n); LOGS(" "); LOGS(n); LOGS("\n");
 #endif // CC_DEBUG > 1
+        int off = (UFP)xt - XT0;
+        if (off & EXT_FLAG) {
+            LOG_KX("xtoff overflow ", off);
+            LOGS(" "); LOGS(n); LOGS("\n");
+        }
     }
     Code() {}               ///< create a blank struct (for initilization)
     IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
