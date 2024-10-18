@@ -558,6 +558,19 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
 }
+
+int dict_validate() {
+    /// collect Code::XT0 i.e. xt base pointer
+    UFP max = (UFP)0;
+    for (int i=0; i < dict.idx; i++) {
+        Code &c = dict[i];
+        if ((UFP)c.xt < Code::XT0) Code::XT0 = (UFP)c.xt;
+        if ((UFP)c.xt > max)       max       = (UFP)c.xt;
+    }
+    /// check xtoff range
+    max -= Code::XT0;
+    return (max & EXT_FLAG) ? max : 0;      // range check
+}
 ///====================================================================
 ///
 ///> ForthVM - Outer interpreter
@@ -623,7 +636,14 @@ void forth_init() {
     for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
         add_iu(0xffff);                  /// * padding user area
     }
-    dict_compile();                      ///> compile dictionary
+    
+    dict_compile();                      ///< compile dictionary
+    int max = dict_validate();           ///< collect XT0, and check xtoff range
+    if (max) {                           
+        LOG_KX("eForth init ERROR\n\t> xtoff overflow max = ", max);
+        LOGS("\nPlease contact author!\n");
+        exit(-1);
+    }
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     auto time_up = []() {                /// * time slice up
