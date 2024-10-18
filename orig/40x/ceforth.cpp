@@ -87,7 +87,6 @@ Code prim[] = {
 };
 #define DICT(w) (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
 ///@}
-///
 ///====================================================================
 ///
 ///@name VM states and state variables
@@ -116,7 +115,6 @@ inline DU   POP()      { DU n=tos; tos=ss.pop(); return n; }
 ///
 ///@name Dictionary search functions - can be adapted for ROM+RAM
 ///@{
-///
 IU find(const char *s) {
     auto streq = [](const char *s1, const char *s2) {
         return upper ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
@@ -136,7 +134,7 @@ IU find(const char *s) {
 ///    * we separate dict and pmem space to make word uniform in size
 ///    * if they are combined then can behaves similar to classic Forth
 ///    * with an addition link field added.
-///
+///@{
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE]; ///> current pmem pointer
     int sz = STRLEN(name);          ///> string length, aligned
@@ -156,10 +154,10 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code &c = DICT(w);              /// * is primitive?
+    Code &c = DICT(w);              /// * ref to primitive or dictionary
     IU   ip = (w & EXT_FLAG)        /// * is primitive?
         ? (UFP)c.xt                 /// * get primitive/built-in token
-        : (c.attr & UDF_ATTR        /// * colon word?
+        : (IS_UDF(w)                /// * colon word?
            ? (c.pfa | EXT_FLAG)     /// * pfa with colon word flag
            : c.xtoff());            /// * XT offset of built-in
     add_iu(ip);
@@ -226,7 +224,7 @@ void s_quote(prim_op op) {
 void nest() {
     VM = NEST;                                       /// * activate VM
     while (VM==NEST && IP) {
-        IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
+        IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
 //        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
@@ -300,22 +298,20 @@ void CALL(IU w) {
 ///> Forth script loader
 ///
 void load(const char* fn) {
-    load_dp++;                            /// * increment depth counter
-    rs.push(IP);                          /// * save context
-    VM = NEST;                            /// * +recursive
-    forth_include(fn);                    /// * include file
-    IP = UINT(rs.pop());                  /// * restore context
-    --load_dp;                            /// * decrement depth counter
+    load_dp++;                         /// * increment depth counter
+    rs.push(IP);                       /// * save context
+    VM = NEST;                         /// * +recursive
+    forth_include(fn);                 /// * include file
+    IP = UINT(rs.pop());               /// * restore context
+    --load_dp;                         /// * decrement depth counter
 }
 ///====================================================================
 ///
 ///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
-UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
-
 void dict_compile() {  ///< compile built-in words into dictionary
-    CODE("nul ",    {});                  /// dict[0], not used, simplify find()
+    CODE("nul ",    {});               /// dict[0], not used, simplify find()
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -559,6 +555,16 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
 }
 
+///
+///> init base of xt pointer and xtoff range check
+///
+#if DO_WASM
+UFP Code::XT0 = 0;       ///< WASM xt is vtable index (0 is min)
+void dict_validate() {}  ///> no need to adjust xt offset base
+
+#else // !DO_WASM
+UFP Code::XT0 = ~0;      ///< init to max value
+
 void dict_validate() {
     /// collect Code::XT0 i.e. xt base pointer
     UFP max = (UFP)0;
@@ -574,6 +580,7 @@ void dict_validate() {
         LOGS("\nEnter 'dict' to verify, and please contact author!\n");
     }
 }
+#endif // DO_WASM
 ///====================================================================
 ///
 ///> ForthVM - Outer interpreter
@@ -900,11 +907,13 @@ void dict_dump() {
     fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
+        bool ud = IS_UDF(i);
         fout << setfill('0') << setw(3) << i
              << "> name=" << setw(8) << (UFP)c.name
              << ", xt="   << setw(8) << (UFP)c.xt
              << ", attr=" << (c.attr & 0x3)
-             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
+             << (ud ? ",   pfa=" : ", xtoff=")
+             << setw(4)   << (ud ? c.pfa : c.xtoff())
              << " "       << c.name << ENDL;
     }
     fout << setbase(*base) << setfill(' ') << setw(-1);
