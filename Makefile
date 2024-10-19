@@ -31,7 +31,7 @@ tests/ceforth36b: orig/ting/ceforth_36b.cpp
 	$(CC) $(CC_FLAG) -o $@ $<
 
 tests/ceforth40x: platform/main.o orig/40x/ceforth.cpp
-	$(CC) $(CC_FLAG) -Iorig/40x/src -o $@ $^
+	$(CC) $(CC_FLAG) -Iorig/40x -o $@ $^
 
 tests/eforth.html: platform/wasm.cpp src/ceforth.cpp
 	$(EM) -Isrc -o $@ $^ \

@@ -87,7 +87,6 @@ Code prim[] = {
 };
 #define DICT(w) (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
 ///@}
-///
 ///====================================================================
 ///
 ///@name VM states and state variables
@@ -116,7 +115,6 @@ inline DU   POP()      { DU n=tos; tos=ss.pop(); return n; }
 ///
 ///@name Dictionary search functions - can be adapted for ROM+RAM
 ///@{
-///
 IU find(const char *s) {
     auto streq = [](const char *s1, const char *s2) {
         return upper ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
@@ -136,7 +134,7 @@ IU find(const char *s) {
 ///    * we separate dict and pmem space to make word uniform in size
 ///    * if they are combined then can behaves similar to classic Forth
 ///    * with an addition link field added.
-///
+///@{
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE]; ///> current pmem pointer
     int sz = STRLEN(name);          ///> string length, aligned
@@ -313,7 +311,7 @@ void load(const char* fn) {
 ///  Note: sequenced by enum forth_opcode as following
 ///
 void dict_compile() {  ///< compile built-in words into dictionary
-    CODE("nul ",    {});                  /// dict[0], not used, simplify find()
+    CODE("nul ",    {});               /// dict[0], not used, simplify find()
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -562,7 +560,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
 #if DO_WASM
 UFP Code::XT0 = 0;       ///< WASM xt is vtable index (0 is min)
 void dict_validate() {}  ///> no need to adjust xt offset base
- 
+
 #else // !DO_WASM
 UFP Code::XT0 = ~0;      ///< init to max value
 
@@ -647,7 +645,6 @@ void forth_init() {
     for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
         add_iu(0xffff);                  /// * padding user area
     }
-    
     dict_compile();                      ///< compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
 }
