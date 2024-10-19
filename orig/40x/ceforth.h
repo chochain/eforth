@@ -72,7 +72,7 @@ typedef enum {
 ///@}
 ///
 ///> Universal functor (no STL) and Code class
-///  Code class on 64-bit systems (expand pfa possible)
+///  Code class on 64-bit systems (expand pfa to 32-bit possible)
 ///  +-------------------+-------------------+
 ///  |    *name          |       xt          |
 ///  +-------------------+----+----+---------+
@@ -86,19 +86,23 @@ typedef enum {
 ///            |attr|pfa |
 ///            +----+----+
 ///
-///  Code class on WASM/32-bit (a bit wasteful)
-///  +---------+---------+----+----+
-///  |  *name  |   xt    |attr|pfa |
-///  +---------+---------+----+----+
+///  Code class on WASM systems (a bit wasteful)
+///  +---------+---------+----+
+///  |  *name  |   xt    |attr|
+///  +---------+----+----+----+
+///            |pfa |xxxx|
+///            +----+----+
 ///
 typedef void (*FPTR)();     ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
 #if DO_WASM
-    FPTR xt   = 0;          ///< WASM fptr is just index to vtable
-    IU   attr = 0;          ///< So, attributes need to be separated
-    IU   pfa  = 0;          ///< i.e. no LSBs available
+    union {                 ///< either a primitive or colon word
+        FPTR xt = 0;        ///< vtable index
+        IU   pfa;           ///< offset to pmem space (16-bit for 64K range)
+    };
+    IU attr;                ///< xt is vtable index so attrs need to be separated
 #else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
@@ -111,20 +115,11 @@ struct Code {
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
     static void exec(IU ix) INLINE { (*XT(ix))(); }
 
-    Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {   ///< primitives
-#if CC_DEBUG > 1
-		LOG_KX("prim xt=", (UFP)xt); 
-		LOG_KX(", nm=", (UFP)n); LOGS(" "); LOGS(n); LOGS("\n");
-#endif // CC_DEBUG > 1
-    }
-    Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {
+    Code() {}               ///< blank struct (for initilization)
+    Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
+    Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
         attr |= im ? IMM_ATTR : 0;
-#if CC_DEBUG > 1
-		LOG_KX("XT0=", XT0);  LOG_KX(" xt=", (UFP)xt); 
-		LOG_KX(", nm=", (UFP)n); LOGS(" "); LOGS(n); LOGS("\n");
-#endif // CC_DEBUG > 1
     }
-    Code() {}               ///< create a blank struct (for initilization)
     IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
     void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
 };
