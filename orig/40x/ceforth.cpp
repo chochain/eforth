@@ -156,10 +156,10 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code &c = DICT(w);              /// * is primitive?
+    Code &c = DICT(w);              /// * ref to primitive or dictionary
     IU   ip = (w & EXT_FLAG)        /// * is primitive?
         ? (UFP)c.xt                 /// * get primitive/built-in token
-        : (c.attr & UDF_ATTR        /// * colon word?
+        : (IS_UDF(w)                /// * colon word?
            ? (c.pfa | EXT_FLAG)     /// * pfa with colon word flag
            : c.xtoff());            /// * XT offset of built-in
     add_iu(ip);
@@ -226,7 +226,7 @@ void s_quote(prim_op op) {
 void nest() {
     VM = NEST;                                       /// * activate VM
     while (VM==NEST && IP) {
-        IU ix = IGET(IP);                            ///> fetched opcode, hopefully in register
+        IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
 //        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
@@ -300,20 +300,18 @@ void CALL(IU w) {
 ///> Forth script loader
 ///
 void load(const char* fn) {
-    load_dp++;                            /// * increment depth counter
-    rs.push(IP);                          /// * save context
-    VM = NEST;                            /// * +recursive
-    forth_include(fn);                    /// * include file
-    IP = UINT(rs.pop());                  /// * restore context
-    --load_dp;                            /// * decrement depth counter
+    load_dp++;                         /// * increment depth counter
+    rs.push(IP);                       /// * save context
+    VM = NEST;                         /// * +recursive
+    forth_include(fn);                 /// * include file
+    IP = UINT(rs.pop());               /// * restore context
+    --load_dp;                         /// * decrement depth counter
 }
 ///====================================================================
 ///
 ///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
-UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
-
 void dict_compile() {  ///< compile built-in words into dictionary
     CODE("nul ",    {});                  /// dict[0], not used, simplify find()
     ///
@@ -558,8 +556,17 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
 }
+///
+///> init base of xt pointer and xtoff range check
+///
+#if DO_WASM
+UFP Code::XT0 = 0;       ///< WASM xt is vtable index (0 is min)
+void dict_validate() {}  ///> no need to adjust xt offset base
+ 
+#else // !DO_WASM
+UFP Code::XT0 = ~0;      ///< init to max value
 
-int dict_validate() {
+void dict_validate() {
     /// collect Code::XT0 i.e. xt base pointer
     UFP max = (UFP)0;
     for (int i=0; i < dict.idx; i++) {
@@ -569,8 +576,12 @@ int dict_validate() {
     }
     /// check xtoff range
     max -= Code::XT0;
-    return (max & EXT_FLAG) ? max : 0;      // range check
+    if (max & EXT_FLAG) {                   // range check
+        LOG_KX("*** Init ERROR *** xtoff overflow max = 0x", max);
+        LOGS("\nEnter 'dict' to verify, and please contact author!\n");
+    }
 }
+#endif // DO_WASM
 ///====================================================================
 ///
 ///> ForthVM - Outer interpreter
@@ -638,12 +649,7 @@ void forth_init() {
     }
     
     dict_compile();                      ///< compile dictionary
-    int max = dict_validate();           ///< collect XT0, and check xtoff range
-    if (max) {                           
-        LOG_KX("eForth init ERROR\n\t> xtoff overflow max = ", max);
-        LOGS("\nPlease contact author!\n");
-        exit(-1);
-    }
+    dict_validate();                     ///< collect XT0, and check xtoff range
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     auto time_up = []() {                /// * time slice up
@@ -903,11 +909,13 @@ void dict_dump() {
     fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
+        bool ud = IS_UDF(i);
         fout << setfill('0') << setw(3) << i
              << "> name=" << setw(8) << (UFP)c.name
-             << ", xt="   << setw(8) << (UFP)c.xt
+             << ", xt="   << setw(8) << ((UFP)c.xt & MSK_ATTR)
              << ", attr=" << (c.attr & 0x3)
-             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
+             << (ud ? ", pfa=" : ", off=")
+             << setw(4)   << (ud ? c.pfa : c.xtoff())
              << " "       << c.name << ENDL;
     }
     fout << setbase(*base) << setfill(' ') << setw(-1);
