@@ -234,7 +234,7 @@ void dict_dump() {
 ///> Javascript/WASM interface
 ///
 #if DO_WASM
-EM_JS(void, js, (const char *ops), {
+EM_JS(void, js_call, (const char *ops), {
         const req = UTF8ToString(ops).split(/\\s+/);
         const wa  = wasmExports;
         const mem = wa.vm_mem();
@@ -257,7 +257,7 @@ EM_JS(void, js, (const char *ops), {
         postMessage(['js', msg], tfr);
 });
 ///
-///> Javascript calling, before passing to js()
+///> Javascript calling, before passing to js_call()
 ///
 ///  String substitude similar to printf
 ///    %d - integer
@@ -266,7 +266,7 @@ EM_JS(void, js, (const char *ops), {
 ///    %s - string
 ///    %p - pointer (memory block)
 ///
-void call_js() {                           ///> ( n addr u -- )
+void native_api() {                           ///> ( n addr u -- )
     stringstream n;
     auto t2s = [&n](char c) {              ///< template to string
         n.str("");                         /// * clear stream
@@ -293,6 +293,6 @@ void call_js() {                           ///> ( n addr u -- )
         }
         else pad.replace(i, 2, t2s(pad[i+1]));
     }
-    js(pad.c_str());    /// * call Emscripten js function
+    js_call(pad.c_str());    /// * call Emscripten js function
 }
 #endif // DO_WASM
