@@ -223,7 +223,7 @@ void nest() {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        printf("[%4x]:%4x", IP, ix);
+//        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -278,7 +278,7 @@ void nest() {
             }
             else Code::exec(ix));                    ///> execute built-in word
         }
-        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, vm.state);
+//        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, vm.state);
     }
 }
 ///
@@ -297,8 +297,6 @@ void CALL(IU w) {
 ///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
-UFP Code::XT0 = ~0;    ///< init base of xt pointers (before calling CODE macros)
-
 void dict_compile() {  ///< compile built-in words into dictionary
     CODE("nul ",    {});               /// dict[0], not used, simplify find()
     ///
@@ -543,6 +541,32 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
 }
+///
+///> init base of xt pointer and xtoff range check
+///
+#if DO_WASM
+UFP Code::XT0 = 0;       ///< WASM xt is vtable index (0 is min)
+void dict_validate() {}  ///> no need to adjust xt offset base
+
+#else // !DO_WASM
+UFP Code::XT0 = ~0;      ///< init to max value
+
+void dict_validate() {
+    /// collect Code::XT0 i.e. xt base pointer
+    UFP max = (UFP)0;
+    for (int i=0; i < dict.idx; i++) {
+        Code &c = dict[i];
+        if ((UFP)c.xt < Code::XT0) Code::XT0 = (UFP)c.xt;
+        if ((UFP)c.xt > max)       max       = (UFP)c.xt;
+    }
+    /// check xtoff range
+    max -= Code::XT0;
+    if (max & EXT_FLAG) {                   // range check
+        LOG_KX("*** Init ERROR *** xtoff overflow max = 0x", max);
+        LOGS("\nEnter 'dict' to verify, and please contact author!\n");
+    }
+}
+#endif // DO_WASM
 ///====================================================================
 ///
 ///> ForthVM - Outer interpreter
@@ -609,6 +633,7 @@ void forth_init() {
         add_iu(0xffff);                  /// * padding user area
     }
     dict_compile();                      ///> compile dictionary
+    dict_validate();                     ///< collect XT0, and check xtoff range
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     auto time_up = []() {                /// * time slice up
