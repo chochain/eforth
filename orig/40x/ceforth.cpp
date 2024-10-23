@@ -138,7 +138,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
     Code &c = DICT(w);              /// * code ref to primitive or dictionary entry
     IU   ip = (w & EXT_FLAG)        /// * is primitive?
         ? (UFP)c.xt                 /// * get primitive/built-in token
-        : (c.attr & UDF_ATTR        /// * colon word?
+        : (IS_UDF(w)                /// * colon word?
            ? (c.pfa | EXT_FLAG)     /// * pfa with colon word flag
            : c.xtoff());            /// * XT offset of built-in
     add_iu(ip);
@@ -147,11 +147,11 @@ void add_w(IU w) {                  ///< add a word index into pmem
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-void add_var(IU op) {               ///< add a varirable header
+void add_var(IU op, DU v=DU0) {     ///< add a varirable header
     add_w(op);                      /// * VAR or VBRAN
     if (op==VBRAN) add_iu(0);       /// * pad offset field
     pmem.idx = DALIGN(pmem.idx);    /// * data alignment (WASM 4, other 2)
-    if (op==VAR)   add_du(DU0);     /// * default variable = 0
+    if (op!=VBRAN) add_du(v);       /// * default variable = 0
 }
 ///====================================================================
 ///
@@ -223,7 +223,7 @@ void nest() {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-//        printf("[%4x]:%4x", IP, ix);
+        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -246,6 +246,7 @@ void nest() {
              });
         CASE(LIT,
              SS.push(TOS);
+             IP  = DALIGN(IP);
              TOS = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
              IP += sizeof(DU));                      /// * hop over the stored value
         CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr, alignment?
@@ -277,7 +278,7 @@ void nest() {
             }
             else Code::exec(ix));                    ///> execute built-in word
         }
-//        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, vm.state);
+        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, vm.state);
     }
 }
 ///
@@ -380,8 +381,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("cr",      put(CR));
     CODE(".",       put(DOT, POP()));
     CODE("u.",      put(DOT, UINT(POP())));
-    CODE(".r",      IU w = POP(); put(DOTR, w, POP()));
-    CODE("u.r",     IU w = POP(); put(DOTR, w, UINT(POP())));
+    CODE(".r",      IU w = UINT(POP()); put(DOTR, w, POP()));
+    CODE("u.r",     IU w = UINT(POP()); put(DOTR, w, UINT(POP())));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
     IMMD("key",     if (vm.compile) add_w(KEY); else key());
     CODE("emit",    put(EMIT, POP()));
@@ -448,7 +449,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
-         add_w(LIT); add_du(POP());                             // dovar (+parameter field)
+         add_var(LIT, POP());                                   // dovar (+parameter field)
          add_w(EXIT));
     IMMD("immediate", dict[-1].attr |= IMM_ATTR);
     /// @}
@@ -462,18 +463,18 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
          if (!w) return;
          if (vm.compile) {
-             add_w(LIT); add_du((DU)w);                         // save addr on stack
+             add_var(LIT, (DU)w);                               // save addr on stack
              add_w(find("to"));                                 // encode to opcode
          }
          else {
-             w = DALIGN(dict[w].pfa + 2*sizeof(IU));            // calculate address to memory
-             *(DU*)MEM(w) = POP();                              // update constant
+             w = dict[w].pfa + sizeof(IU);                      // calculate address to memory
+             *(DU*)MEM(DALIGN(w)) = POP();                      // update constant
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
          IU w = vm.state==QUERY ? find(word()) : POP();         // word addr
          if (!w) return;
          if (vm.compile) {
-             add_w(LIT); add_du((DU)w);                         // save addr on stack
+             add_var(LIT, (DU)w);                               // save addr on stack
              add_w(find("is"));
          }
          else {
@@ -492,7 +493,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("allot",                                               // n --
          IU n = UINT(POP());                                    // number of bytes
          for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0));    // zero padding
-    CODE("th",    IU n = POP(); TOS += n * sizeof(DU));         // w i -- w'
+    CODE("th",    IU i = UINT(POP()); TOS += i * sizeof(DU));   // w i -- w'
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
     CODE("?",     IU w = UINT(POP()); put(DOT, CELL(w)));       // w --
     /// @}
@@ -587,8 +588,7 @@ void forth_core(const char *idiom) {     ///> aka QUERY
     }
     // is a number
     if (vm.compile) {                    /// * a number in compile mode?
-        add_w(LIT);                      ///> add to current word
-        add_du(n);
+        add_var(LIT, n);                 ///> add to current word
     }
     else PUSH(n);                        ///> or, add value onto data stack
 }
