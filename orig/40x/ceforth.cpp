@@ -61,7 +61,6 @@ List<DU,   E4_RS_SZ>   rs;         ///< return stack
 List<Code, E4_DICT_SZ> dict;       ///< dictionary
 List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
 U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
-VM  vm;                            ///< eForth context (single task)
 ///
 ///> Macros to abstract dict and pmem physical implementation
 ///  Note:
@@ -96,12 +95,13 @@ Code prim[] = {
 ///> Dictionary search functions - can be adapted for ROM+RAM
 ///
 IU find(const char *s) {
-    auto streq = [](const char *s1, const char *s2) {
-        return vm.upper ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
+    auto streq = [](const char *s1, const char *s2, bool upper) {
+        return upper ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
     };
-    IU v = 0;
+    VM& vm = vm_instance();
+    IU  v  = 0;
     for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (streq(s, dict[i].name)) v = i;
+        if (streq(s, dict[i].name, vm.upper)) v = i;
     }
 #if CC_DEBUG > 1
     LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
@@ -157,8 +157,8 @@ void add_var(IU op, DU v=DU0) {     ///< add a varirable header
 ///
 ///> functions to reduce verbosity
 ///
-inline void PUSH(DU v) { SS.push(TOS); TOS = v; }
-inline DU   POP()      { DU n=TOS; TOS=SS.pop(); return n; }
+#define PUSH(v) (SS.push(TOS), TOS = v)
+#define POP()   ({ DU n=TOS; TOS=SS.pop(); n; })
 
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
@@ -175,9 +175,13 @@ char *word() {                      ///< get next idiom
     if (!fetch(tmp)) tmp.clear();   /// * input buffer exhausted?
     return (char*)tmp.c_str();
 }
-void key() { PUSH(word()[0]); }
+void key() {
+    VM& vm = vm_instance();
+    PUSH(word()[0]);
+}
 void s_quote(prim_op op) {
     const char *s = scan('"')+1;    ///> string skip first blank
+    VM& vm = vm_instance();
     if (vm.compile) {
         add_w(op);                  ///> dostr, (+parameter field)
         add_str(s);                 ///> byte0, byte1, byte2, ..., byteN
@@ -191,6 +195,7 @@ void s_quote(prim_op op) {
     }
 }
 void load(const char* fn) {
+    VM& vm = vm_instance();
     vm.load_dp++;                   /// * increment depth counter
     rs.push(IP);                    /// * save context
     vm.state = NEST;                /// * +recursive
@@ -219,7 +224,7 @@ void load(const char* fn) {
 #define OTHER(g)     default : { g; } break
 #define UNNEST()     (vm.state = (IP=UINT(rs.pop())) ? HOLD : STOP)
 
-void nest() {
+void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
@@ -276,7 +281,7 @@ void nest() {
                 rs.push(IP);                         /// * setup call frame
                 IP = ix & ~EXT_FLAG;                 /// * IP = word.pfa
             }
-            else Code::exec(ix));                    ///> execute built-in word
+            else Code::exec(vm, ix));               ///> execute built-in word
         }
 //        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, vm.state);
     }
@@ -284,13 +289,13 @@ void nest() {
 ///
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
-void CALL(IU w) {
+void CALL(VM& vm, IU w) {
     if (IS_UDF(w)) {                   /// colon word
         rs.push(DU0);                  /// * terminating IP
         IP = dict[w].pfa;              /// setup task context
-        nest();
+        nest(vm);
     }
-    else dict[w].call();               /// built-in word
+    else dict[w].call(vm);               /// built-in word
 }
 ///====================================================================
 ///
@@ -454,7 +459,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   IU w = POP(); CALL(w));                      // execute word
+    CODE("exec",   IU w = POP(); CALL(vm, w));                  // execute word
     CODE("create", def_word(word()); add_var(VBRAN));           // bran + offset field
     IMMD("does>",  add_w(DOES));
     IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
@@ -571,40 +576,40 @@ void dict_validate() {
 ///
 ///> ForthVM - Outer interpreter
 ///
-DU parse_number(const char *idiom, int *err) {
-    int b = static_cast<int>(*vm.base);
+DU parse_number(const char *idiom, int base, int *err) {
     switch (*idiom) {                        ///> base override
-    case '%': b = 2;  idiom++; break;
+    case '%': base = 2;  idiom++; break;
     case '&':
-    case '#': b = 10; idiom++; break;
-    case '$': b = 16; idiom++; break;
+    case '#': base = 10; idiom++; break;
+    case '$': base = 16; idiom++; break;
     }
     char *p;
     *err = errno = 0;
 #if USE_FLOAT
     DU n = (b==10)
         ? static_cast<DU>(strtof(idiom, &p))
-        : static_cast<DU>(strtol(idiom, &p, b));
+        : static_cast<DU>(strtol(idiom, &p, base));
 #else  // !USE_FLOAT
-    DU n = static_cast<DU>(strtol(idiom, &p, b));
+    DU n = static_cast<DU>(strtol(idiom, &p, base));
 #endif // USE_FLOAT
     if (errno || *p != '\0') *err = 1;
     return n;
 }
 
-void forth_core(const char *idiom) {     ///> aka QUERY
+void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     vm.state = QUERY;
     IU w = find(idiom);                  ///> * get token by searching through dict
     if (w) {                             ///> * word found?
         if (vm.compile && !IS_IMM(w)) {  /// * in compile mode?
             add_w(w);                    /// * add to colon word
         }
-        else CALL(w);                    /// * execute forth word
+        else CALL(vm, w);                    /// * execute forth word
         return;
     }
     // try as a number
-    int err = 0;
-    DU  n   = parse_number(idiom, &err);
+    int err  = 0;
+    int base = static_cast<int>(*vm.base);
+    DU  n    = parse_number(idiom, base, &err);
     if (err) {                           /// * not number
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
         vm.compile = false;              ///> reset to interpreter mode
@@ -620,9 +625,14 @@ void forth_core(const char *idiom) {     ///> aka QUERY
 ///
 /// Forth VM external command processor
 ///
+VM& vm_instance(int id) {
+    static VM vm;
+    return vm;
+}
 void forth_init() {
     static bool init = false;
     if (init) return;                    ///> check dictionary initilized
+    VM& vm = vm_instance();
 
     vm.base = &IGET(HERE);               ///< set pointer to base
     add_iu(10);                          ///< allocate space for base
@@ -641,6 +651,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         long t1 = millis();              ///> check timing
         return (t1 >= t0) ? (t0 = t1 + t0, 1) : 0;
     };
+    VM& vm = vm_instance();
     fout_setup(hook);
 
     bool resume =                        ///< check VM resume status
@@ -650,8 +661,8 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     
     string idiom;
     while (resume || fetch(idiom)) {     /// * parse a word
-        if (resume) nest();                      /// * resume task
-        else        forth_core(idiom.c_str());   /// * send to Forth core
+        if (resume) nest(vm);                      /// * resume task
+        else        forth_core(vm, idiom.c_str()); /// * send to Forth core
         resume = vm.state==HOLD;
         if (resume && time_up()) break;          ///> multi-threading support
     }
