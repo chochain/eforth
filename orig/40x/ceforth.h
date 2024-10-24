@@ -109,7 +109,7 @@ typedef enum {
 ///            |pfa |xxxx|
 ///            +----+----+
 ///
-typedef void (*FPTR)();     ///< function pointer
+typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
@@ -129,7 +129,7 @@ struct Code {
     };
 #endif // DO_WASM
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
-    static void exec(IU ix) INLINE { (*XT(ix))(); }
+    static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
 
     Code() {}               ///< blank struct (for initilization)
     Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
@@ -137,21 +137,22 @@ struct Code {
         attr |= im ? IMM_ATTR : 0;
     }
     IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
-    void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
+    void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
 };
 ///
 ///> Add a Word to dictionary
 /// Note:
 ///    a lambda without capture can degenerate into a function pointer
-#define ADD_CODE(n, g, im) {    \
-    Code c(n, []{ g; }, im);	\
-    dict.push(c);               \
+#define ADD_CODE(n, g, im) {         \
+    Code c(n, [](VM& vm){ g; }, im); \
+    dict.push(c);                    \
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
 ///
 ///> System interface
 ///
+VM&  vm_instance(int id=0);
 void forth_init();
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 int  forth_include(const char *fn);       /// load external Forth script
