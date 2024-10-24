@@ -187,14 +187,13 @@ void s_quote(prim_op op) {
 ///  * overhead here in C call/return vs NEXT threading (in assembly)
 ///  * use of dp (iterative depth control) instead of WP by Dr. Ting
 ///    speeds up 8% vs recursive calls but loose the flexibity of Forth
+///  * computed-goto entire dict runs 15% faster, but needs long macros (for enum) and extra memory
 ///  * use of cached _NXT address speeds up 10% on AMD but
 ///    5% slower on ESP32 probably due to shallow pipeline
-///  * computed label runs 15% faster, but needs long macros (for enum)
+///  * separate primitive opcodes into nest() with 'switch' speeds up 15%.
+///  * separate nest() with computed-goto slows 2% (lost the gain above).
 ///  * use local stack speeds up 10%, but allot 4*64 bytes extra
-///
-///  TODO: performance tuning
-///    1. Just-in-time cache(ip, dp)
-///    2. Co-routine
+///  * extra vm& passing performs about the same (via EAX on x86).
 ///
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
@@ -272,7 +271,7 @@ void CALL(VM& vm, IU w) {
         IP = dict[w].pfa;              /// setup task context
         nest(vm);
     }
-    else dict[w].call(vm);               /// built-in word
+    else dict[w].call(vm);             /// built-in word
 }
 ///====================================================================
 ///
@@ -579,7 +578,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         if (vm.compile && !IS_IMM(w)) {  /// * in compile mode?
             add_w(w);                    /// * add to colon word
         }
-        else CALL(vm, w);                    /// * execute forth word
+        else CALL(vm, w);                /// * execute forth word
         return;
     }
     // try as a number
