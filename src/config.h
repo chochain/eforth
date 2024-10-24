@@ -11,6 +11,7 @@
 ///@name Conditional compililation options
 ///@}
 #define CC_DEBUG        1               /**< debug level 0|1|2      */
+#define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
@@ -56,6 +57,15 @@ typedef int32_t         DU;
 #define RND()           (rand())
 
 #endif // USE_FLOAT
+///@}
+///@name String comparison
+///@{
+#if CASE_SENSITIVE
+#define STRCMP(a, b)    (strcmp(a, b))
+#else // !CASE_SENSITIVE
+#include <strings.h>     // strcasecmp
+#define STRCMP(a, b)    (strcasecmp(a, b))
+#endif // CASE_SENSITIVE
 ///@}
 ///@name Multi-platform support
 ///@{

@@ -27,7 +27,7 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
-inline  DU POP()     { DU n=tos; tos=ss.pop(); return n; }
+#define POP()        ({ DU n=tos; tos=ss.pop(); n; })
 #define PUSH(v)      (ss.push(tos), tos=(v))
 #define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
@@ -395,7 +395,7 @@ void _does(Code *c) {
     bool hit = false;
     for (Code *w : dict[c->token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
-        if (strcmp(w->name, "does>")==0) hit = true;
+        if (STRCMP(w->name, "does>")==0) hit = true;
     }
     throw 0;                                // exit caller
 }
@@ -509,7 +509,7 @@ void load(const char *fn) {          ///> include script from stream
 ///
 Code *find(string s) {      ///> scan dictionary, last to first
     for (int i = dict.size() - 1; i >= 0; --i) {
-        if (s == dict[i]->name) return dict[i];
+        if (STRCMP(s.c_str(), dict[i]->name)==0) return dict[i];
     }
     return NULL;            /// * word not found
 }
