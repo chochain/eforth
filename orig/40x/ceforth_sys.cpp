@@ -46,6 +46,21 @@ void fout_setup(void (*hook)(int, const char*)) {
 }
 char *scan(char c) { getline(fin, pad, c); return (char*)pad.c_str(); }
 int  fetch(string &idiom) { return !(fin >> idiom)==0; }
+char *word() {                           ///< get next idiom
+    static string tmp;                   ///< temp string holder
+    if (!fetch(tmp)) tmp.clear();        /// * input buffer exhausted?
+    return (char*)tmp.c_str();
+}
+char key() { return word()[0]; }
+void load(const char* fn) {
+    VM& vm = vm_instance();
+    vm.load_dp++;                   /// * increment depth counter
+    rs.push(vm._ip);                /// * save context
+    vm.state = NEST;                /// * +recursive
+    forth_include(fn);              /// * include file
+    vm._ip = UINT(rs.pop());        /// * restore context
+    --vm.load_dp;                   /// * decrement depth counter
+}
 
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void put(io_op op, DU v, DU v2) {

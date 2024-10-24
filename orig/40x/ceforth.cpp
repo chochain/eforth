@@ -165,15 +165,6 @@ int def_word(const char* name) {    ///< display if redefined
     colon(name);                    /// * create a colon word
     return 1;                       /// * created OK
 }
-char *word() {                      ///< get next idiom
-    static string tmp;              ///< temp string holder
-    if (!fetch(tmp)) tmp.clear();   /// * input buffer exhausted?
-    return (char*)tmp.c_str();
-}
-void key() {
-    VM& vm = vm_instance();
-    PUSH(word()[0]);
-}
 void s_quote(prim_op op) {
     const char *s = scan('"')+1;    ///> string skip first blank
     VM& vm = vm_instance();
@@ -188,15 +179,6 @@ void s_quote(prim_op op) {
         PUSH(len);                  ///> push string length
         HERE = h0;                  ///> restore memory addr
     }
-}
-void load(const char* fn) {
-    VM& vm = vm_instance();
-    vm.load_dp++;                   /// * increment depth counter
-    rs.push(IP);                    /// * save context
-    vm.state = NEST;                /// * +recursive
-    forth_include(fn);              /// * include file
-    IP = UINT(rs.pop());            /// * restore context
-    --vm.load_dp;                   /// * decrement depth counter
 }
 ///====================================================================
 ///
@@ -381,7 +363,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE(".r",      IU w = UINT(POP()); put(DOTR, w, POP()));
     CODE("u.r",     IU w = UINT(POP()); put(DOTR, w, UINT(POP())));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
-    IMMD("key",     if (vm.compile) add_w(KEY); else key());
+    IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key()));
     CODE("emit",    put(EMIT, POP()));
     CODE("space",   put(SPCS, DU1));
     CODE("spaces",  put(SPCS, POP()));
