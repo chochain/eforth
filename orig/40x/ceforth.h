@@ -161,12 +161,14 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 typedef enum { BASE=0, BL, CR, DOT, DOTR, EMIT, SPCS } io_op;
 
-void key();                               ///< read key from console
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
 
 char *scan(char c);                       ///< scan input stream for a given char
 int  fetch(string &idiom);                ///< read input stream into string
+char *word();                             ///< get next idiom
+char key();                               ///< read key from console
+void load(const char* fn);                ///< load external Forth script
 void spaces(int n);                       ///< show spaces
 void put(io_op op, DU v=DU0, DU v2=DU0);  ///< print literals
 void pstr(const char *str, io_op op=BL);  ///< print string
