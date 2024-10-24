@@ -50,6 +50,7 @@ int  fetch(string &idiom) { return !(fin >> idiom)==0; }
 
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void put(io_op op, DU v, DU v2) {
+    VM& vm = vm_instance();
     switch (op) {
     case BASE:  fout << setbase(*vm.base = UINT(v));    break;
     case BL:    fout << " ";                            break;
@@ -90,6 +91,7 @@ int  pfa2nvar(IU pfa) {
     return n;
 }
 void to_s(IU w, U8 *ip) {
+    VM& vm = vm_instance();
 #if CC_DEBUG
     fout << setbase(16) << "( ";
     fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
@@ -145,6 +147,7 @@ void see(IU pfa) {
     }
 }
 void words() {
+    VM& vm = vm_instance();
     const int WIDTH = 60;
     int sz = 0;
     fout << setbase(10);
@@ -168,6 +171,7 @@ void words() {
     fout << setbase(*vm.base) << ENDL;
 }
 void ss_dump(bool forced) {
+    VM& vm = vm_instance();
     if (vm.load_dp) return;               /// * skip when including file
 #if DO_WASM 
     if (!forced) { fout << "ok" << ENDL; return; }
@@ -196,6 +200,7 @@ void ss_dump(bool forced) {
     fout << "-> ok" << ENDL;
 }
 void mem_dump(U32 p0, IU sz) {
+    VM& vm = vm_instance();
     fout << setbase(16) << setfill('0');
     for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
         fout << setw(4) << i << ": ";
@@ -217,6 +222,7 @@ void mem_dump(U32 p0, IU sz) {
 ///> System statistics - for heap, stack, external memory debugging
 ///
 void dict_dump() {
+    VM &vm = vm_instance();
     fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
