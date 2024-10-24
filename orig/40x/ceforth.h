@@ -55,7 +55,6 @@ typedef struct _VM {
     IU       _ip     = 0;
     DU       _tos    = -DU1;    ///< top of stack (cached)
     bool     compile = false;   ///< compiler flag
-    bool     upper   = false;   ///< case sensitivity control
     IU       load_dp = 0;       ///< depth of recursive include
     IU       *base;             ///< numeric radix (a pointer)
     IU       *dflt;             ///< use float data unit flag

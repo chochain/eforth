@@ -371,7 +371,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("case!",   vm.upper = POP() == DU0);  // case insensitive
     CODE("base",    PUSH(((U8*)vm.base - MEM0)));
     CODE("decimal", put(BASE, 10));
     CODE("hex",     put(BASE, 16));

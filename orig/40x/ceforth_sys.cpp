@@ -24,7 +24,6 @@ extern List<Code> dict;                    ///< dictionary
 extern List<DU>   rs;                      ///< return stack
 extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
 extern U8         *MEM0;                   ///< base of parameter memory block
-extern VM         vm;                      ///< eForth context
 
 #define TOS       (vm._tos)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
