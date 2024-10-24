@@ -12,6 +12,7 @@
 ///@}
 #define CC_DEBUG        1               /**< debug level 0|1|2      */
 #define RANGE_CHECK     0               /**< vector range check     */
+#define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
@@ -65,9 +66,18 @@ typedef int32_t         DU;
 
 #endif // USE_FLOAT
 ///@}
+///@name String comparison
+///@{
+#if CASE_SENSITIVE
+#define STRCMP(a, b)    (strcmp(a, b))
+#else // !CASE_SENSITIVE
+#include <strings.h>     // strcasecmp
+#define STRCMP(a, b)    (strcasecmp(a, b))
+#endif // CASE_SENSITIVE
+///@}
 ///@name Inline & Alignment macros
 ///@{
-#include <string.h>                          // strlen, strcmp
+#include <cstring>
 #pragma GCC optimize("align-functions=4")    // we need fn alignment
 #define INLINE          __attribute__((always_inline))
 #define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))

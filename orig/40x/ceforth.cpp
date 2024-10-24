@@ -2,7 +2,6 @@
 /// @file
 /// @brief eForth implemented in 100% C/C++ for portability and education
 ///
-#include <strings.h>     // strcasecmp
 #include "ceforth.h"
 ///====================================================================
 ///
@@ -95,13 +94,9 @@ Code prim[] = {
 ///> Dictionary search functions - can be adapted for ROM+RAM
 ///
 IU find(const char *s) {
-    auto streq = [](const char *s1, const char *s2, bool upper) {
-        return upper ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
-    };
-    VM& vm = vm_instance();
-    IU  v  = 0;
+    IU v = 0;
     for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (streq(s, dict[i].name, vm.upper)) v = i;
+        if (STRCMP(s, dict[i].name)==0) v = i;
     }
 #if CC_DEBUG > 1
     LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
