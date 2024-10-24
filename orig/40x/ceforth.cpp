@@ -2,7 +2,6 @@
 /// @file
 /// @brief eForth implemented in 100% C/C++ for portability and education
 ///
-#include <strings.h>     // strcasecmp
 #include "ceforth.h"
 ///====================================================================
 ///
@@ -100,7 +99,6 @@ vm_state VM  = QUERY;   ///< VM state
 ///
 DU   tos     = -DU1;    ///< top of stack (cached)
 bool compile = false;   ///< compiler flag
-bool upper   = false;   ///< case sensitivity control
 IU   load_dp = 0;       ///< depth of recursive include
 IU   *base;             ///< numeric radix (a pointer)
 IU   *dflt;             ///< use float data unit flag
@@ -116,12 +114,9 @@ inline DU   POP()      { DU n=tos; tos=ss.pop(); return n; }
 ///@name Dictionary search functions - can be adapted for ROM+RAM
 ///@{
 IU find(const char *s) {
-    auto streq = [](const char *s1, const char *s2) {
-        return upper ? strcasecmp(s1, s2)==0 : strcmp(s1, s2)==0;
-    };
     IU v = 0;
     for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (streq(s, dict[i].name)) v = i;
+        if (STRCMP(s, dict[i].name)==0) v = i;
     }
 #if CC_DEBUG > 1
     LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
@@ -384,7 +379,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("case!",   upper = POP() == DU0);    // case insensitive
     CODE("base",    PUSH(((U8*)base - MEM0)));
     CODE("decimal", put(BASE, 10));
     CODE("hex",     put(BASE, 16));
