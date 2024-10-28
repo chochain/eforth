@@ -858,12 +858,13 @@ void ss_dump(bool forced) {
         }
 #endif // USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only base=8,10,16
-        U32 n = UINT(ABS(v));             ///< handle negative
+        int dec = *base==10;
+        U32 n   = dec ? UINT(ABS(v)) : UINT(v);  ///< handle negative
         do {                              ///> digit-by-digit
             U8 d = (U8)MOD(n,b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
         } while (n && i);
-        if (v < DU0) buf[--i]='-';
+        if (dec && v < DU0) buf[--i]='-';
         return &buf[i];
     };
     ss.push(tos);
