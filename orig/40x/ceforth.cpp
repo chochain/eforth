@@ -360,7 +360,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("1+",      tos += 1);
     CODE("1-",      tos -= 1);
 #if USE_FLOAT
-    CODE("int",     tos = tos<DU0 ? -UINT(-tos) : UINT(tos)); // float => integer
+    CODE("int",
+         tos = tos < DU0 ? -DU1 * UINT(-tos) : UINT(tos)); // float => integer
 #endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
