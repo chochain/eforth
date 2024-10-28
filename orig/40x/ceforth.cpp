@@ -360,7 +360,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("1+",      tos += 1);
     CODE("1-",      tos -= 1);
 #if USE_FLOAT
-    CODE("int",     tos = UINT(tos));         // float => integer
+    CODE("int",     tos = tos<DU0 ? -UINT(-tos) : UINT(tos)); // float => integer
 #endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
@@ -850,18 +850,20 @@ void ss_dump(bool forced) {
     static char buf[34];                  ///< static buffer
     auto rdx = [](DU v, int b) {          ///< display v by radix
 #if USE_FLOAT
-        sprintf(buf, "%0.6g", v);
-        return buf;
-#else // !USE_FLOAT
+        DU t, f = modf(v, &t);            ///< integral, fraction
+        if (ABS(f) > DU_EPS) {            /// * if != 0 
+            sprintf(buf, "%0.6g", v);
+            return buf;
+        }
+#endif // USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only base=8,10,16
-        DU  n = ABS(v);                   ///< handle negative
+        U32 n = UINT(ABS(v));             ///< handle negative
         do {                              ///> digit-by-digit
             U8 d = (U8)MOD(n,b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
         } while (n && i);
         if (v < DU0) buf[--i]='-';
         return &buf[i];
-#endif // USE_FLOAT
     };
     ss.push(tos);
     for (int i=0; i<ss.idx; i++) {
