@@ -579,7 +579,7 @@ void dict_validate() {
 ///
 ///> ForthVM - Outer interpreter
 ///
-DU parse_number(const char *idiom, int *err) {
+DU2 parse_number(const char *idiom, int *err) {
     int b = static_cast<int>(*base);
     switch (*idiom) {                        ///> base override
     case '%': b = 2;  idiom++; break;
@@ -590,11 +590,11 @@ DU parse_number(const char *idiom, int *err) {
     char *p;
     *err = errno = 0;
 #if USE_FLOAT
-    DU n = (b==10)
-        ? static_cast<DU>(strtof(idiom, &p))
-        : static_cast<DU>(strtol(idiom, &p, b));
+    DU2 n = (b==10)
+        ? static_cast<DU2>(strtof(idiom, &p))
+        : static_cast<DU2>(strtoll(idiom, &p, b));
 #else  // !USE_FLOAT
-    DU n = static_cast<DU>(strtol(idiom, &p, b));
+    DU2 n = static_cast<DU2>(strtoll(idiom, &p, b));
 #endif // USE_FLOAT
     if (errno || *p != '\0') *err = 1;
     return n;
