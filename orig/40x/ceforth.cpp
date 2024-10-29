@@ -591,12 +591,13 @@ DU2 parse_number(const char *idiom, int *err) {
     *err = errno = 0;
 #if USE_FLOAT
     DU2 n = (b==10)
-        ? static_cast<DU2>(strtof(idiom, &p))
+        ? static_cast<DU2>(strtod(idiom, &p))
         : static_cast<DU2>(strtoll(idiom, &p, b));
 #else  // !USE_FLOAT
     DU2 n = static_cast<DU2>(strtoll(idiom, &p, b));
 #endif // USE_FLOAT
     if (errno || *p != '\0') *err = 1;
+    
     return n;
 }
 
@@ -614,7 +615,8 @@ void forth_core(const char *idiom) {     ///> aka QUERY
     int err = 0;
     DU  n   = parse_number(idiom, &err);
     if (err) {                           /// * not number
-        pstr(idiom); pstr("? ", CR);     ///> display error prompt
+        pstr(idiom); pstr(" ?", CR);     ///> display error prompt
+        pstr(strerror(err), CR);         ///> and error description
         compile = false;                 ///> reset to interpreter mode
         VM      = STOP;                  ///> skip the entire input buffer
     }
@@ -729,7 +731,10 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     IU pfa = ix & ~EXT_FLAG;                   ///> pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
         Code &c = dict[i];
-        if (pfa == (IS_UDF(i) ? c.pfa : c.xtoff())) return i;
+        if (IS_UDF(i)) {                       /// * user defined words
+            if ((ix & EXT_FLAG) && pfa == c.pfa) return i;
+        }
+        else if (pfa == c.xtoff()) return i;   /// * built-in words
     }
     return 0;                                  /// * not found
 }
