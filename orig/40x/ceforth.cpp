@@ -333,7 +333,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("1+",      TOS += 1);
     CODE("1-",      TOS -= 1);
 #if USE_FLOAT
-    CODE("int",     TOS = UINT(TOS));         // float => integer
+    CODE("int",
+         TOS = TOS < DU0 ? -DU1 * UINT(-TOS) : UINT(TOS));  // float => integer
 #endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
@@ -486,7 +487,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("words", words());
     CODE("see",
          IU w = find(word()); if (!w) return;
-         pstr(dict[w].name);
+         pstr(": "); pstr(dict[w].name);
          if (IS_UDF(w)) see(dict[w].pfa);
          else           pstr(" ( built-ins ) ;");
          put(CR));
@@ -551,7 +552,7 @@ void dict_validate() {
 ///
 ///> ForthVM - Outer interpreter
 ///
-DU parse_number(const char *idiom, int base, int *err) {
+DU2 parse_number(const char *idiom, int base, int *err) {
     switch (*idiom) {                        ///> base override
     case '%': base = 2;  idiom++; break;
     case '&':
@@ -561,11 +562,11 @@ DU parse_number(const char *idiom, int base, int *err) {
     char *p;
     *err = errno = 0;
 #if USE_FLOAT
-    DU n = (b==10)
-        ? static_cast<DU>(strtof(idiom, &p))
-        : static_cast<DU>(strtol(idiom, &p, base));
+    DU2 n = (base==10)
+        ? static_cast<DU2>(strtod(idiom, &p))
+        : static_cast<DU2>(strtoll(idiom, &p, base));
 #else  // !USE_FLOAT
-    DU n = static_cast<DU>(strtol(idiom, &p, base));
+    DU2 n = static_cast<DU2>(strtoll(idiom, &p, base));
 #endif // USE_FLOAT
     if (errno || *p != '\0') *err = 1;
     return n;
@@ -587,6 +588,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     DU  n    = parse_number(idiom, base, &err);
     if (err) {                           /// * not number
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
+        pstr(strerror(err), CR);         ///> and error description
         vm.compile = false;              ///> reset to interpreter mode
         vm.state   = STOP;               ///> skip the entire input buffer
     }
