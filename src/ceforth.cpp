@@ -411,18 +411,21 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
     char buf[34];
     auto rdx = [&buf](DU v, int b) {      ///> display v by radix
 #if USE_FLOAT
-        sprintf(buf, "%0.6g", v);
-        return buf;
-#else // !USE_FLOAT
+        DU t, f = modf(v, &t);            ///< integral, fraction
+        if (ABS(f) > DU_EPS) {            /// * if != 0 
+            sprintf(buf, "%0.6g", v);
+            return buf;
+        }
+#endif  // USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
-        DU  n = ABS(v);                   ///< handle negative
+        int dec = b==10;
+        U32 n   = dec ? UINT(ABS(v)) : UINT(v);  ///< handle negative
         do {
             U8 d = (U8)MOD(n, b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
         } while (n && i);
-        if (v < 0) buf[--i]='-';
+        if (dec && v < DU0) buf[--i]='-';
         return &buf[i];
-#endif // USE_FLOAT
     };
     ss.push(tos);
     for (DU v : ss) { fout << rdx(v, base) << ' '; }
