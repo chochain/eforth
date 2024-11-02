@@ -19,7 +19,7 @@ struct List {
 
     List()  {
         v = N ? new T[N] : 0;                     ///< dynamically allocate array storage
-        if (!v) throw "ERR: List allot failed";
+        if (N && !v) throw "ERR: List allot failed";
     }
     ~List() { if (v) delete[] v;   }              ///< free memory
 
@@ -59,6 +59,7 @@ typedef struct _VM {
     IU       *base;             ///< numeric radix (a pointer)
     IU       *dflt;             ///< use float data unit flag
     List<DU, E4_SS_SZ> _ss;     ///< parameter stack
+    List<DU, E4_RS_SZ> _rs;     ///< parameter stack
 } VM;
 ///
 ///@name Code flag masking options
@@ -101,7 +102,7 @@ typedef enum {
 ///            |attr|pfa |
 ///            +----+----+
 ///
-///  Code class on WASM systems (a bit wasteful)
+///  Code class on WASM systems (a bit wasteful but faster)
 ///  +---------+---------+----+
 ///  |  *name  |   xt    |attr|
 ///  +---------+----+----+----+
