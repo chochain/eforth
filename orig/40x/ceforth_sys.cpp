@@ -21,12 +21,12 @@ void (*fout_cb)(int, const char*);         ///< forth output callback function (
 
 extern Code       prim[];                  ///< primitives
 extern List<Code> dict;                    ///< dictionary
-extern List<DU>   rs;                      ///< return stack
 extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
 extern U8         *MEM0;                   ///< base of parameter memory block
 
 #define TOS       (vm._tos)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
+#define RS        (vm._rs)                 /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define DICT(w)   (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
@@ -55,10 +55,10 @@ char key() { return word()[0]; }
 void load(const char* fn) {
     VM& vm = vm_instance();
     vm.load_dp++;                   /// * increment depth counter
-    rs.push(vm._ip);                /// * save context
+    RS.push(vm._ip);                /// * save context
     vm.state = NEST;                /// * +recursive
     forth_include(fn);              /// * include file
-    vm._ip = UINT(rs.pop());        /// * restore context
+    vm._ip = UINT(RS.pop());        /// * restore context
     --vm.load_dp;                   /// * decrement depth counter
 }
 
