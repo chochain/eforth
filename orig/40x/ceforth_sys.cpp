@@ -66,11 +66,11 @@ void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void put(io_op op, DU v, DU v2) {
     VM& vm = vm_instance();
     switch (op) {
-    case BASE:  fout << setbase(*vm.base = UINT(v));    break;
+    case BASE:  fout << setbase(vm.base = UINT(v));    break;
     case BL:    fout << " ";                            break;
     case CR:    fout << ENDL;                           break;
     case DOT:   fout << v << " ";                       break;
-    case DOTR:  fout << setbase(*vm.base)
+    case DOTR:  fout << setbase(vm.base)
                      << setw(UINT(v)) << setw(v2);      break;
     case EMIT:  { char b = (char)UINT(v); fout << b; }  break;
     case SPCS:  spaces(UINT(v));                        break;
@@ -110,7 +110,7 @@ void to_s(IU w, U8 *ip) {
     fout << setbase(16) << "( ";
     fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
     fout << '[' << setfill(' ') << setw(4) << w << ']';   ///> word ref
-    fout << " ) " << setbase(*vm.base);
+    fout << " ) " << setbase(vm.base);
 #endif // CC_DEBUG
     
     ip += sizeof(IU);                   ///> calculate next ip
@@ -182,33 +182,36 @@ void words() {
             yield();
         }
     }
-    fout << setbase(*vm.base) << ENDL;
+    fout << setbase(vm.base) << ENDL;
 }
 void ss_dump(bool forced) {
     VM& vm = vm_instance();
     if (vm.load_dp) return;               /// * skip when including file
-#if DO_WASM 
+#if DO_WASM    
     if (!forced) { fout << "ok" << ENDL; return; }
 #endif // DO_WASM
     static char buf[34];                  ///< static buffer
     auto rdx = [](DU v, int b) {          ///< display v by radix
 #if USE_FLOAT
-        sprintf(buf, "%0.6g", v);
-        return buf;
-#else // !USE_FLOAT
+        DU t, f = modf(v, &t);            ///< integral, fraction
+        if (ABS(f) > DU_EPS) {
+            sprintf(buf, "%0.6g", v);
+            return buf;
+        }
+#endif // USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only base=8,10,16
-        DU  n = ABS(v);                   ///< handle negative
+        int dec = b==10;
+        U32 n   = dec ? UINT(ABS(v)) : UINT(v);  ///< handle negative
         do {                              ///> digit-by-digit
             U8 d = (U8)MOD(n,b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
         } while (n && i);
-        if (v < DU0) buf[--i]='-';
+        if (dec && v < DU0) buf[--i]='-';
         return &buf[i];
-#endif // USE_FLOAT
     };
     SS.push(TOS);
     for (int i=0; i<SS.idx; i++) {
-        fout << rdx(SS[i], *vm.base) << ' ';
+        fout << rdx(SS[i], vm.base) << ' ';
     }
     TOS = SS.pop();
     fout << "-> ok" << ENDL;
@@ -229,7 +232,7 @@ void mem_dump(U32 p0, IU sz) {
         fout << ENDL;
         yield();
     }
-    fout << setbase(*vm.base) << setfill(' ');
+    fout << setbase(vm.base) << setfill(' ');
 }
 ///====================================================================
 ///
@@ -247,7 +250,7 @@ void dict_dump() {
              << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
              << " "       << c.name << ENDL;
     }
-    fout << setbase(*vm.base) << setfill(' ') << setw(-1);
+    fout << setbase(vm.base) << setfill(' ') << setw(-1);
 }
 ///====================================================================
 ///
