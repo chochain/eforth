@@ -353,7 +353,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base",    PUSH(((U8*)vm.base - MEM0)));
+    CODE("base@",   PUSH(vm.base));
+    CODE("base!",   put(BASE, POP()));
     CODE("decimal", put(BASE, 10));
     CODE("hex",     put(BASE, 16));
     CODE("bl",      put(BL));
@@ -584,7 +585,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     }
     // try as a number
     int err  = 0;
-    int base = static_cast<int>(*vm.base);
+    int base = static_cast<int>(vm.base);
     DU  n    = parse_number(idiom, base, &err);
     if (err) {                           /// * not number
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
@@ -602,23 +603,38 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
 ///
 /// Forth VM external command processor
 ///
+VM  _vm0;                               ///< default task (if no pool)
+int _pool_sz = 0;
+VM  *_pool;
+
 VM& vm_instance(int id) {
-    static VM vm;
-    return vm;
+    return id < _pool_sz ? _pool[id] : _vm0;
+}
+int vm_pool(int n) {
+    if (_pool_sz) return 0;             ///< already initailized
+    
+    _pool = n > 1 ? new VM[n] : &_vm0;  ///< reallocate array
+    if (!_pool) {
+        LOGS("VM pool allocation failed\n");
+        return 1;
+    }
+    _pool_sz = n;
+
+    return 0;
 }
 void forth_init() {
-    static bool init = false;
+    static bool init    = false;
     if (init) return;                    ///> check dictionary initilized
-    VM& vm = vm_instance();
 
-    dict = (Code*)malloc(sizeof(Code) * E4_DICT_SZ);
-    pmem = (U8*)  malloc(sizeof(U8)   * E4_PMEM_SZ);
-    MEM0 = &pmem[0];
-
-    vm.base = &IGET(HERE);               ///< set pointer to base
-    add_iu(10);                          ///< allocate space for base
-    vm.dflt = &IGET(HERE);               ///< set pointer to dfmt
-    add_iu(USE_FLOAT);
+    _pool = &_vm0;                       ///< default task
+    dict  = new Code[E4_DICT_SZ];        ///< allocate dictionary
+    pmem  = new U8[E4_PMEM_SZ];          ///< allocate parameter memory
+    
+    if (!dict.v || !pmem.v) {
+        LOGS("forth_init memory allocation failed, bail...\n");
+        exit(0);
+    }
+    MEM0  = &pmem[0];
     
     for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
         add_iu(0xffff);                  /// * padding user area
