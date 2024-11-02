@@ -51,15 +51,17 @@ struct List {
 ///
 typedef enum { STOP=0, HOLD, QUERY, NEST, IO } vm_state;
 typedef struct _VM {
-    vm_state state   = QUERY;
-    IU       _ip     = 0;
-    DU       _tos    = -DU1;    ///< top of stack (cached)
-    bool     compile = false;   ///< compiler flag
-    IU       load_dp = 0;       ///< depth of recursive include
-    IU       *base;             ///< numeric radix (a pointer)
-    IU       *dflt;             ///< use float data unit flag
-    List<DU, E4_SS_SZ> _ss;     ///< parameter stack
-    List<DU, E4_RS_SZ> _rs;     ///< parameter stack
+    List<DU, E4_SS_SZ> _ss;        ///< parameter stack
+    List<DU, E4_RS_SZ> _rs;        ///< parameter stack
+    
+    DU       _tos    = -DU1;       ///< top of stack (cached)
+    IU       _ip     = 0;          ///< instruction pointer
+    vm_state state   = QUERY;      ///< VM status
+    
+    U8       compile = false;      ///< compiler flag
+    U8       base    = 10;         ///< numeric radix (a pointer)
+    U8       dflt    = USE_FLOAT;  ///< use float data unit flag
+    U8       load_dp = 0;          ///< depth of recursive include
 } VM;
 ///
 ///@name Code flag masking options
@@ -152,8 +154,9 @@ struct Code {
 ///
 ///> System interface
 ///
-VM&  vm_instance(int id=0);
 void forth_init();
+int  vm_pool(int n=1);
+VM&  vm_instance(int id=0);
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 int  forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
