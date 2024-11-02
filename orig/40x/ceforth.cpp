@@ -56,10 +56,9 @@
 ///     |0| dict.xtoff() |   call (XT0 + *IP)() to execute
 ///     +-+--------------+
 ///
-List<DU,   E4_RS_SZ>   rs;         ///< return stack
-List<Code, E4_DICT_SZ> dict;       ///< dictionary
-List<U8,   E4_PMEM_SZ> pmem;       ///< parameter memory (for colon definitions)
-U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
+List<Code, 0> dict;                ///< dictionary
+List<U8,   0> pmem;                ///< parameter memory (for colon definitions)
+U8  *MEM0;                         ///< base of parameter memory block
 ///
 ///> Macros to abstract dict and pmem physical implementation
 ///  Note:
@@ -70,6 +69,7 @@ U8  *MEM0 = &pmem[0];              ///< base of parameter memory block
 #define TOS       (vm._tos)                /**< Top of stack                            */
 #define SS        (vm._ss)                 /**< parameter stack (per task)              */
 #define IP        (vm._ip)                 /**< instruction pointer (per task)          */
+#define RS        (vm._rs)                 /**< return stack (per task)                 */
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
@@ -198,7 +198,7 @@ void s_quote(prim_op op) {
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
-#define UNNEST()     (vm.state = (IP=UINT(rs.pop())) ? HOLD : STOP)
+#define UNNEST()     (vm.state = (IP=UINT(RS.pop())) ? HOLD : STOP)
 
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
@@ -210,19 +210,19 @@ void nest(VM& vm) {
         CASE(EXIT, UNNEST());
         CASE(NOP,  { /* do nothing */});
         CASE(NEXT,
-             if (GT(rs[-1] -= DU1, -DU1)) {          ///> loop done?
+             if (GT(RS[-1] -= DU1, -DU1)) {          ///> loop done?
                  IP = IGET(IP);                      /// * no, loop back
              }
              else {                                  /// * yes, loop done!
-                 rs.pop();                           /// * pop off loop counter
+                 RS.pop();                           /// * pop off loop counter
                  IP += sizeof(IU);                   /// * next instr.
              });
         CASE(LOOP,
-             if (GT(rs[-2], rs[-1] += DU1)) {        ///> loop done?
+             if (GT(RS[-2], RS[-1] += DU1)) {        ///> loop done?
                  IP = IGET(IP);                      /// * no, loop back
              }
              else {                                  /// * yes, done
-                 rs.pop(); rs.pop();                 /// * pop off counters
+                 RS.pop(); RS.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
              });
         CASE(LIT,
@@ -248,18 +248,18 @@ void nest(VM& vm) {
              IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
-        CASE(FOR,  rs.push(POP()));                  /// * setup FOR..NEXT call frame
+        CASE(FOR,  RS.push(POP()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
-             rs.push(SS.pop()); rs.push(POP()));
+             RS.push(SS.pop()); RS.push(POP()));
         CASE(KEY,  key(); vm.state = IO);            /// * fetch single keypress
         OTHER(
             if (ix & EXT_FLAG) {                     /// * colon word?
-                rs.push(IP);                         /// * setup call frame
+                RS.push(IP);                         /// * setup call frame
                 IP = ix & ~EXT_FLAG;                 /// * IP = word.pfa
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-//        printf("   => IP=%4x, rs.idx=%d, VM=%d\n", IP, rs.idx, vm.state);
+//        printf("   => IP=%4x, RS.idx=%d, VM=%d\n", IP, RS.idx, vm.state);
     }
 }
 ///
@@ -267,7 +267,7 @@ void nest(VM& vm) {
 ///
 void CALL(VM& vm, IU w) {
     if (IS_UDF(w)) {                   /// colon word
-        rs.push(DU0);                  /// * terminating IP
+        RS.push(DU0);                  /// * terminating IP
         IP = dict[w].pfa;              /// setup task context
         nest(vm);
     }
@@ -410,15 +410,15 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @defgrouop DO..LOOP loops
     /// @{
     IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
-    CODE("i",       PUSH(rs[-1]));
-    CODE("leave",   rs.pop(); rs.pop(); UNNEST());              // quit DO..LOOP
+    CODE("i",       PUSH(RS[-1]));
+    CODE("leave",   RS.pop(); RS.pop(); UNNEST());              // quit DO..LOOP
     IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
     /// @{
-    CODE(">r",      rs.push(POP()));
-    CODE("r>",      PUSH(rs.pop()));
-    CODE("r@",      PUSH(rs[-1]));                              // same as I (the loop counter)
+    CODE(">r",      RS.push(POP()));
+    CODE("r>",      PUSH(RS.pop()));
+    CODE("r@",      PUSH(RS[-1]));                              // same as I (the loop counter)
     /// @}
     /// @defgrouop Compiler ops
     /// @{
@@ -478,12 +478,12 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup Debug ops
     /// @{
-    CODE("abort", TOS = -DU1; SS.clear(); rs.clear());          // clear ss, rs
+    CODE("abort", TOS = -DU1; SS.clear(); RS.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump(true));
     CODE("depth", PUSH(SS.idx));
-    CODE("r",     PUSH(rs.idx));
+    CODE("r",     PUSH(RS.idx));
     CODE("words", words());
     CODE("see",
          IU w = find(word()); if (!w) return;
@@ -611,6 +611,10 @@ void forth_init() {
     if (init) return;                    ///> check dictionary initilized
     VM& vm = vm_instance();
 
+    dict = (Code*)malloc(sizeof(Code) * E4_DICT_SZ);
+    pmem = (U8*)  malloc(sizeof(U8)   * E4_PMEM_SZ);
+    MEM0 = &pmem[0];
+
     vm.base = &IGET(HERE);               ///< set pointer to base
     add_iu(10);                          ///< allocate space for base
     vm.dflt = &IGET(HERE);               ///< set pointer to dfmt
@@ -633,7 +637,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
 
     bool resume =                        ///< check VM resume status
         (vm.state==HOLD || vm.state==IO);
-    if (resume) IP = UINT(rs.pop());     /// * restore context
+    if (resume) IP = UINT(RS.pop());     /// * restore context
     else        fin_setup(line);         /// * refresh buffer if not resuming
     
     string idiom;
@@ -645,7 +649,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     }
     bool yield = vm.state==HOLD || vm.state==IO; /// * yield to other tasks
     
-    if (yield)            rs.push(IP);   /// * save context
+    if (yield)            RS.push(IP);   /// * save context
     else if (!vm.compile) ss_dump();     /// * optionally display stack contents
     
     return yield;
