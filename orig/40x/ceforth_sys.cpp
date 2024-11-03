@@ -16,7 +16,6 @@
 
 istringstream     fin;                     ///< forth_in
 ostringstream     fout;                    ///< forth_out
-string            pad;                     ///< input string buffer
 void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
 
 extern Code       prim[];                  ///< primitives
@@ -44,7 +43,11 @@ void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;          ///< serial output hook up
 }
-char *scan(char c) { getline(fin, pad, c); return (char*)pad.c_str(); }
+char *scan(char c) {
+    static string pad;                   ///< temp storage
+    getline(fin, pad, c);                ///< scan fin for char c
+    return (char*)pad.c_str();           ///< return found string
+}
 int  fetch(string &idiom) { return !(fin >> idiom)==0; }
 char *word() {                           ///< get next idiom
     static string tmp;                   ///< temp string holder
@@ -289,8 +292,9 @@ EM_JS(void, js_call, (const char *ops), {
 ///    %s - string
 ///    %p - pointer (memory block)
 ///
-void native_api() {                           ///> ( n addr u -- )
-    stringstream n;
+void native_api() {                        ///> ( n addr u -- )
+    static stringstream n;                 ///< string processor
+    static string       pad;               ///< tmp storage
     auto t2s = [&n](char c) {              ///< template to string
         n.str("");                         /// * clear stream
         switch (c) {
@@ -306,8 +310,8 @@ void native_api() {                           ///> ( n addr u -- )
         return n.str();
     };
     POP();                                 /// * strlen, not used
-    pad.clear();                           /// * borrow PAD for string op
-    pad.append((char*)MEM(POP()));         /// copy string on stack
+    pad.clear();                           /// * init pad
+    pad.append((char*)MEM(POP()));         /// * copy string on stack
     for (size_t i=pad.find_last_of('%');   ///> find % from back
          i!=string::npos;                  /// * until not found
          i=pad.find_last_of('%',i?i-1:0)) {
