@@ -170,7 +170,7 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
 ///
-typedef enum { BASE=0, BL, CR, DOT, DOTR, EMIT, SPCS } io_op;
+typedef enum { BASE=0, BL, CR, DOT, EMIT, SPCS } io_op;
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
@@ -181,13 +181,14 @@ char *word();                             ///< get next idiom
 char key();                               ///< read key from console
 void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
-void put(io_op op, DU v=DU0, DU v2=DU0);  ///< print literals
+void dot(io_op op, DU v=DU0);             ///< print literals
+void dotr(int base, int w, DU v);         ///< print fixed width literals
 void pstr(const char *str, io_op op=BL);  ///< print string
 ///
 ///> Debug functions
 ///
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
-void see(IU pfa);                         ///< disassemble user defined word
+void see(IU pfa, int base);               ///< disassemble user defined word
 void words(int base);                     ///< list dictionary words
 void dict_dump(int base);                 ///< dump dictionary
 void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
