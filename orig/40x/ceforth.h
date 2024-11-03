@@ -62,6 +62,10 @@ typedef struct _VM {
     U8       base    = 10;         ///< numeric radix (a pointer)
     U8       dflt    = USE_FLOAT;  ///< use float data unit flag
     U8       load_dp = 0;          ///< depth of recursive include
+    
+#if DO_MULTITASK
+    void     *thread;              ///< holder for pthread (if
+#endif // !DO_MULTITASK
 } VM;
 ///
 ///@name Code flag masking options
@@ -152,11 +156,14 @@ struct Code {
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
 ///
+///> VM pooling
+///
+int  vm_pool(int n=1);
+VM&  vm_instance(int id=0);
+///
 ///> System interface
 ///
 void forth_init();
-int  vm_pool(int n=1);
-VM&  vm_instance(int id=0);
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 int  forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
@@ -172,18 +179,18 @@ char *scan(char c);                       ///< scan input stream for a given cha
 int  fetch(string &idiom);                ///< read input stream into string
 char *word();                             ///< get next idiom
 char key();                               ///< read key from console
-void load(const char* fn);                ///< load external Forth script
+void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
 void put(io_op op, DU v=DU0, DU v2=DU0);  ///< print literals
 void pstr(const char *str, io_op op=BL);  ///< print string
 ///
 ///> Debug functions
 ///
+void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa);                         ///< disassemble user defined word
-void words();                             ///< list dictionary words
-void ss_dump(bool forced=false);          ///< show data stack content
-void dict_dump();                         ///< dump dictionary
-void mem_dump(U32 addr, IU sz);           ///< dump memory frm addr...addr+sz
+void words(int base);                     ///< list dictionary words
+void dict_dump(int base);                 ///< dump dictionary
+void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
 ///
 ///> Javascript interface
