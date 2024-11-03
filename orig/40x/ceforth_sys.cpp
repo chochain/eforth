@@ -65,19 +65,19 @@ void load(VM &vm, const char* fn) {
 }
 
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
-void put(io_op op, DU v, DU v2) {
-    VM& vm = vm_instance();
+void dot(io_op op, DU v) {
     switch (op) {
-    case BASE:  fout << setbase(vm.base = UINT(v));    break;
+    case BASE:  fout << setbase(UINT(v));               break;
     case BL:    fout << " ";                            break;
     case CR:    fout << ENDL;                           break;
     case DOT:   fout << v << " ";                       break;
-    case DOTR:  fout << setbase(vm.base)
-                     << setw(UINT(v)) << setw(v2);      break;
     case EMIT:  { char b = (char)UINT(v); fout << b; }  break;
     case SPCS:  spaces(UINT(v));                        break;
     default:    fout << "unknown io_op=" << op << ENDL; break;
     }
+}
+void dotr(int base, int w, DU v) {
+    fout << setbase(base) << setw(w) << v;
 }
 void pstr(const char *str, io_op op) {
     fout << str;
@@ -106,13 +106,12 @@ int  pfa2nvar(IU pfa) {
     int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
     return n;
 }
-void to_s(IU w, U8 *ip) {
-    VM& vm = vm_instance();
+void to_s(IU w, U8 *ip, int base) {
 #if CC_DEBUG
     fout << setbase(16) << "( ";
     fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
     fout << '[' << setfill(' ') << setw(4) << w << ']';   ///> word ref
-    fout << " ) " << setbase(vm.base);
+    fout << " ) " << setbase(base);
 #endif // CC_DEBUG
     
     ip += sizeof(IU);                   ///> calculate next ip
@@ -142,14 +141,14 @@ void to_s(IU w, U8 *ip) {
     }
     fout << setfill(' ') << setw(-1);   ///> restore output format settings
 }
-void see(IU pfa) {
+void see(IU pfa, int base) {
     U8 *ip = MEM(pfa);                  ///< memory pointer
     while (1) {
         IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
         if (!w) break;                  ///> loop guard
         
         fout << ENDL; fout << "  ";     /// * indent
-        to_s(w, ip);                    /// * display opcode
+        to_s(w, ip, base);              /// * display opcode
         if (w==EXIT || w==VAR) return;  /// * end of word
         
         ip += sizeof(IU);               ///> advance ip (next opcode)
