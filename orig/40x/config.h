@@ -14,6 +14,7 @@
 #define RANGE_CHECK     0               /**< vector range check     */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
+#define DO_MULTITASK    1               /**< multitasking/pthread   */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
 ///@name Memory block configuation
