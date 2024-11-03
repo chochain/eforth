@@ -165,9 +165,9 @@ int def_word(const char* name) {    ///< display if redefined
     colon(name);                    /// * create a colon word
     return 1;                       /// * created OK
 }
-void s_quote(prim_op op, int compile) {
+void s_quote(VM &vm, prim_op op) {
     const char *s = scan('"')+1;    ///> string skip first blank
-    if (compile) {
+    if (vm.compile) {
         add_w(op);                  ///> dostr, (+parameter field)
         add_str(s);                 ///> byte0, byte1, byte2, ..., byteN
     }
@@ -353,20 +353,20 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @defgroup IO ops
     /// @{
     CODE("base@",   PUSH(vm.base));
-    CODE("base!",   put(BASE, POP()));
-    CODE("decimal", put(BASE, 10));
-    CODE("hex",     put(BASE, 16));
-    CODE("bl",      put(BL));
-    CODE("cr",      put(CR));
-    CODE(".",       put(DOT, POP()));
-    CODE("u.",      put(DOT, UINT(POP())));
-    CODE(".r",      IU w = UINT(POP()); put(DOTR, w, POP()));
-    CODE("u.r",     IU w = UINT(POP()); put(DOTR, w, UINT(POP())));
+    CODE("base!",   dot(DOT,  vm.base=UINT(POP())));
+    CODE("decimal", dot(BASE, vm.base=10));
+    CODE("hex",     dot(BASE, vm.base=16));
+    CODE("bl",      dot(BL));
+    CODE("cr",      dot(CR));
+    CODE(".",       dot(DOT, POP()));
+    CODE("u.",      dot(DOT, UINT(POP())));
+    CODE(".r",      IU w = UINT(POP()); dotr(vm.base, w, POP()));
+    CODE("u.r",     IU w = UINT(POP()); dotr(vm.base, w, UINT(POP())));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
     IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key()));
-    CODE("emit",    put(EMIT, POP()));
-    CODE("space",   put(SPCS, DU1));
-    CODE("spaces",  put(SPCS, POP()));
+    CODE("emit",    dot(EMIT, POP()));
+    CODE("space",   dot(SPCS, DU1));
+    CODE("spaces",  dot(SPCS, POP()));
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -375,8 +375,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     IMMD("(",       scan(')'));
     IMMD(".(",      pstr(scan(')')));
     IMMD("\\",      scan('\n'));
-    IMMD("s\"",     s_quote(STR,  vm.compile));
-    IMMD(".\"",     s_quote(DOTQ, vm.compile));
+    IMMD("s\"",     s_quote(vm, STR));
+    IMMD(".\"",     s_quote(vm, DOTQ));
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -474,7 +474,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0));    // zero padding
     CODE("th",    IU i = UINT(POP()); TOS += i * sizeof(DU));   // w i -- w'
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
-    CODE("?",     IU w = UINT(POP()); put(DOT, CELL(w)));       // w --
+    CODE("?",     IU w = UINT(POP()); dot(DOT, CELL(w)));       // w --
     /// @}
     /// @defgroup Multitasking ops
     /// @}
@@ -495,9 +495,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("see",
          IU w = find(word()); if (!w) return;
          pstr(": "); pstr(dict[w].name);
-         if (IS_UDF(w)) see(dict[w].pfa);
+         if (IS_UDF(w)) see(dict[w].pfa, vm.base);
          else           pstr(" ( built-ins ) ;");
-         put(CR));
+         dot(CR));
     CODE("dump",
          U32 n = UINT(POP());
          mem_dump(UINT(POP()), n, vm.base));
@@ -638,7 +638,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         long t1 = millis();              ///> check timing
         return (t1 >= t0) ? (t0 = t1 + t0, 1) : 0;
     };
-    VM& vm = vm_instance();
+    VM &vm = vm_instance();
     fout_setup(hook);
 
     bool resume =                        ///< check VM resume status
