@@ -30,8 +30,8 @@ tests/eforth: platform/main.o src/ceforth.o
 tests/ceforth36b: orig/ting/ceforth_36b.cpp
 	$(CC) $(CC_FLAG) -o $@ $<
 
-tests/ceforth40x: platform/main.o orig/40x/ceforth.cpp orig/40x/ceforth_sys.cpp
-	$(CC) $(CC_FLAG) -Iorig/40x/src -o $@ $^
+tests/ceforth40x: platform/main.o orig/40x/ceforth.cpp orig/40x/ceforth_sys.cpp orig/40x/ceforth_task.cpp
+	$(CC) $(CC_FLAG) -pthread -Iorig/40x/src -o $@ $^
 
 tests/eforth.html: platform/wasm.cpp src/ceforth.cpp
 	$(EM) -Isrc -o $@ $^ \
