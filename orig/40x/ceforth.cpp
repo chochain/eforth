@@ -165,10 +165,9 @@ int def_word(const char* name) {    ///< display if redefined
     colon(name);                    /// * create a colon word
     return 1;                       /// * created OK
 }
-void s_quote(prim_op op) {
+void s_quote(prim_op op, int compile) {
     const char *s = scan('"')+1;    ///> string skip first blank
-    VM& vm = vm_instance();
-    if (vm.compile) {
+    if (compile) {
         add_w(op);                  ///> dostr, (+parameter field)
         add_str(s);                 ///> byte0, byte1, byte2, ..., byteN
     }
@@ -376,8 +375,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     IMMD("(",       scan(')'));
     IMMD(".(",      pstr(scan(')')));
     IMMD("\\",      scan('\n'));
-    IMMD("s\"",     s_quote(STR));
-    IMMD(".\"",     s_quote(DOTQ));
+    IMMD("s\"",     s_quote(STR,  vm.compile));
+    IMMD(".\"",     s_quote(DOTQ, vm.compile));
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -479,28 +478,30 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup Multitasking ops
     /// @}
-    CODE("task",     /* ( "name" -- addr ) */ {});
-    CODE("activate", /* ( addr -- ) */ {});
-    CODE("send",    {});
-    CODE("receive", {});
+    CODE("task",     /* ( xt -- tid ) pthread_create */ {});
+    CODE("activate", /* ( tid -- ) pthread_detach */ {});
+    CODE("send",     /* ( n tid -- ) */ {});
+    CODE("recv",     /* ( -- n ) */ {});
     /// @}
     /// @defgroup Debug ops
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
-    CODE(".s",    ss_dump(true));
+    CODE(".s",    ss_dump(vm, true));
     CODE("depth", PUSH(SS.idx));
     CODE("r",     PUSH(RS.idx));
-    CODE("words", words());
+    CODE("words", words(vm.base));
     CODE("see",
          IU w = find(word()); if (!w) return;
          pstr(": "); pstr(dict[w].name);
          if (IS_UDF(w)) see(dict[w].pfa);
          else           pstr(" ( built-ins ) ;");
          put(CR));
-    CODE("dump",  U32 n = UINT(POP()); mem_dump(UINT(POP()), n));
-    CODE("dict",  dict_dump());
+    CODE("dump",
+         U32 n = UINT(POP());
+         mem_dump(UINT(POP()), n, vm.base));
+    CODE("dict",  dict_dump(vm.base));
     CODE("forget",
          IU w = find(word()); if (!w) return;                  // bail, if not found
          IU b = find("boot")+1;
@@ -518,13 +519,13 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
-    CODE("rnd",   PUSH(RND()));             // generate random number
+    CODE("rnd",   PUSH(RND()));              // generate random number
     CODE("delay", delay(UINT(POP())));
-    CODE("included",                        // include external file
-         POP();                             // string length, not used
-         load((const char*)MEM(POP())));    // include external file
+    CODE("included",                         // include external file
+         POP();                              // string length, not used
+         load(vm, (const char*)MEM(POP()))); // include external file
 #if DO_WASM
-    CODE("JS",    call_js());               // Javascript interface
+    CODE("JS",    call_js());                // Javascript interface
 #endif // DO_WASM
     CODE("bye",   exit(0));
     /// @}
@@ -610,30 +611,12 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
 ///
 /// Forth VM external command processor
 ///
-VM  _vm0;                               ///< default task (if no pool)
-int _pool_sz = 0;
-VM  *_pool;
-
-VM& vm_instance(int id) {
-    return id < _pool_sz ? _pool[id] : _vm0;
-}
-int vm_pool(int n) {
-    if (_pool_sz) return 0;             ///< already initailized
-    
-    _pool = n > 1 ? new VM[n] : &_vm0;  ///< reallocate array
-    if (!_pool) {
-        LOGS("VM pool allocation failed\n");
-        return 1;
-    }
-    _pool_sz = n;
-
-    return 0;
-}
 void forth_init() {
     static bool init    = false;
     if (init) return;                    ///> check dictionary initilized
 
-    _pool = &_vm0;                       ///< default task
+    vm_pool();                           /// * initialize VM pool
+    
     dict  = new Code[E4_DICT_SZ];        ///< allocate dictionary
     pmem  = new U8[E4_PMEM_SZ];          ///< allocate parameter memory
     
@@ -668,12 +651,12 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         if (resume) nest(vm);                      /// * resume task
         else        forth_core(vm, idiom.c_str()); /// * send to Forth core
         resume = vm.state==HOLD;
-        if (resume && time_up()) break;          ///> multi-threading support
+        if (resume && time_up()) break;            ///> multi-threading support
     }
-    bool yield = vm.state==HOLD || vm.state==IO; /// * yield to other tasks
-    
+    bool yield = vm.state==HOLD || vm.state==IO;   /// * yield to other tasks
+
     if (yield)            RS.push(IP);   /// * save context
-    else if (!vm.compile) ss_dump();     /// * optionally display stack contents
+    else if (!vm.compile) ss_dump(vm);   /// * optionally display stack contents
     
     return yield;
 }

@@ -55,8 +55,7 @@ char *word() {                           ///< get next idiom
     return (char*)tmp.c_str();
 }
 char key() { return word()[0]; }
-void load(const char* fn) {
-    VM& vm = vm_instance();
+void load(VM &vm, const char* fn) {
     vm.load_dp++;                   /// * increment depth counter
     RS.push(vm._ip);                /// * save context
     vm.state = NEST;                /// * +recursive
@@ -163,8 +162,7 @@ void see(IU pfa) {
         }
     }
 }
-void words() {
-    VM& vm = vm_instance();
+void words(int base) {
     const int WIDTH = 60;
     int sz = 0;
     fout << setbase(10);
@@ -185,10 +183,9 @@ void words() {
             yield();
         }
     }
-    fout << setbase(vm.base) << ENDL;
+    fout << setbase(base) << ENDL;
 }
-void ss_dump(bool forced) {
-    VM& vm = vm_instance();
+void ss_dump(VM &vm, bool forced) {
     if (vm.load_dp) return;               /// * skip when including file
 #if DO_WASM    
     if (!forced) { fout << "ok" << ENDL; return; }
@@ -219,8 +216,7 @@ void ss_dump(bool forced) {
     TOS = SS.pop();
     fout << "-> ok" << ENDL;
 }
-void mem_dump(U32 p0, IU sz) {
-    VM& vm = vm_instance();
+void mem_dump(U32 p0, IU sz, int base) {
     fout << setbase(16) << setfill('0');
     for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
         fout << setw(4) << i << ": ";
@@ -235,14 +231,13 @@ void mem_dump(U32 p0, IU sz) {
         fout << ENDL;
         yield();
     }
-    fout << setbase(vm.base) << setfill(' ');
+    fout << setbase(base) << setfill(' ');
 }
 ///====================================================================
 ///
 ///> System statistics - for heap, stack, external memory debugging
 ///
-void dict_dump() {
-    VM &vm = vm_instance();
+void dict_dump(int base) {
     fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
@@ -253,7 +248,7 @@ void dict_dump() {
              << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
              << " "       << c.name << ENDL;
     }
-    fout << setbase(vm.base) << setfill(' ') << setw(-1);
+    fout << setbase(base) << setfill(' ') << setw(-1);
 }
 ///====================================================================
 ///
