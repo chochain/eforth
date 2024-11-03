@@ -477,6 +477,13 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
     CODE("?",     IU w = UINT(POP()); put(DOT, CELL(w)));       // w --
     /// @}
+    /// @defgroup Multitasking ops
+    /// @}
+    CODE("task",     /* ( "name" -- addr ) */ {});
+    CODE("activate", /* ( addr -- ) */ {});
+    CODE("send",    {});
+    CODE("receive", {});
+    /// @}
     /// @defgroup Debug ops
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());          // clear ss, rs
