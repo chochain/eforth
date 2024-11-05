@@ -4,7 +4,7 @@
 ///
 #include "ceforth.h"
 
-extern void CALL(VM &vm, IU w);
+extern void nest(VM &vm);
 
 List<VM, E4_VM_POOL_SZ> _vm;
 
@@ -13,26 +13,27 @@ VM& vm_get(int id) {
 }
 
 #if DO_MULTITASK
-int vm_create(VM& vm0, IU xt) {
+int vm_create(IU pfa) {
     int i = 1;
     while (i < E4_VM_POOL_SZ && _vm[i].state != STOP) i++;
     if (i >= E4_VM_POOL_SZ) return 0;
     
     VM &vm1 = _vm[i];
 //    memcpy(&vm[i], &vm0, sizeof(VM));   /// duplicate stacks?
-    vm1._ip = xt;
+    vm1.state = HOLD;                     /// STOP=>HOLD, fake resume, CC: lock?
+    vm1._ip   = pfa;                      /// at given pfa (of colon word)
 
     return i;
 }
 void vm_exec(int id) {
     VM &vm = vm_get(id);
-    IU w   = vm._ip;
+    IU pfa = vm._ip;
+    
     printf(">> vm[%d] started, vm.state=%d\n", id, vm.state);
-    vm.state = QUERY;
-    CALL(vm, w);
+    vm._rs.push(DU0);                    /// exit token
+    while (vm.state==HOLD) nest(vm);
     printf(">> vm[%d] done state=%d\n", id, vm.state);
-    vm.state = STOP;
-    vm._ip   = w;                        /// restore 
+    vm._ip   = pfa;                      /// keep w for restart
 }
 void vm_start(int id) {
     thread t(vm_exec, id);
