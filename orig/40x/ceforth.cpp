@@ -203,7 +203,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-//        printf("[%4x]:%4x", IP, ix);
+        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -258,7 +258,7 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-//        printf("   => IP=%4x, RS.idx=%d, VM=%d\n", IP, RS.idx, vm.state);
+        printf("   => IP=%4x, RS.idx=%d, VM=%d\n", IP, RS.idx, vm.state);
     }
 }
 ///
@@ -476,13 +476,18 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
     CODE("?",     IU w = UINT(POP()); dot(DOT, CELL(w)));       // w --
     /// @}
+#if DO_MULTITASK    
     /// @defgroup Multitasking ops
     /// @}
-    CODE("task",     /* ( xt -- tid ) pthread_create */ {});
-    CODE("activate", /* ( tid -- ) pthread_detach */ {});
+    CODE("task",  PUSH(vm_create(vm, UINT(POP()))));            // xt -- task_id
+    CODE("start",
+            vm_start(UINT(POP()));
+            printf("main thread continues...\n");
+    );                       // task_id --
     CODE("send",     /* ( n tid -- ) */ {});
     CODE("recv",     /* ( -- n ) */ {});
     /// @}
+#endif // DO_MULTITASK    
     /// @defgroup Debug ops
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());          // clear ss, rs
@@ -615,11 +620,8 @@ void forth_init() {
     static bool init    = false;
     if (init) return;                    ///> check dictionary initilized
 
-    vm_pool();                           /// * initialize VM pool
-    
     dict  = new Code[E4_DICT_SZ];        ///< allocate dictionary
     pmem  = new U8[E4_PMEM_SZ];          ///< allocate parameter memory
-    
     if (!dict.v || !pmem.v) {
         LOGS("forth_init memory allocation failed, bail...\n");
         exit(0);
@@ -631,6 +633,10 @@ void forth_init() {
     }
     dict_compile();                      ///> compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
+
+    vm_pool_init(2);                     /// * initialize VM pool
+    VM &vm0   = vm_get(0);
+    vm0.state = QUERY;
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     auto time_up = []() {                /// * time slice up
@@ -638,7 +644,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         long t1 = millis();              ///> check timing
         return (t1 >= t0) ? (t0 = t1 + t0, 1) : 0;
     };
-    VM &vm = vm_instance();
+    VM &vm = vm_get(0);                  ///< get main thread
     fout_setup(hook);
 
     bool resume =                        ///< check VM resume status
