@@ -203,7 +203,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        printf("[%4x]:%4x", IP, ix);
+//        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -258,7 +258,7 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-        printf("   => IP=%4x, RS.idx=%d, VM=%d\n", IP, RS.idx, vm.state);
+//        printf("   => IP=%4x, SS.idx=%d, RS.idx=%d, VM=%d\n", IP, SS.idx, RS.idx, vm.state);
     }
 }
 ///
@@ -479,8 +479,11 @@ void dict_compile() {  ///< compile built-in words into dictionary
 #if DO_MULTITASK    
     /// @defgroup Multitasking ops
     /// @}
-    CODE("task",  PUSH(vm_create(vm, UINT(POP()))));            // xt -- task_id
-    CODE("restart", vm_start(UINT(POP())));                     // task_id --
+    CODE("task",                                                // w -- task_id
+         IU w = UINT(POP());                                    ///< dictionary index
+         if (IS_UDF(w)) PUSH(vm_create(dict[w].pfa));           // create a VM starting on pfa
+         else pstr("  ?colon word only\n"));
+    CODE("start", vm_start(UINT(POP())));                       // task_id --
     CODE("send",  /* ( n tid -- ) */ {});
     CODE("recv",  /* ( -- n ) */ {});
     /// @}
