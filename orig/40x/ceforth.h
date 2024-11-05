@@ -154,7 +154,6 @@ struct Code {
 ///
 ///> Multitasking support
 ///
-int  vm_pool_init(int n=1);
 VM&  vm_get(int id=0);
 #if DO_MULTITASK
 int  vm_create(VM &vm0, IU xt);
