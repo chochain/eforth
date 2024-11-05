@@ -56,16 +56,12 @@ typedef struct _VM {
     
     DU       _tos    = -DU1;       ///< top of stack (cached)
     IU       _ip     = 0;          ///< instruction pointer
-    vm_state state   = QUERY;      ///< VM status
+    vm_state state   = STOP;       ///< VM status
     
     U8       compile = false;      ///< compiler flag
     U8       base    = 10;         ///< numeric radix (a pointer)
     U8       dflt    = USE_FLOAT;  ///< use float data unit flag
     U8       load_dp = 0;          ///< depth of recursive include
-    
-#if DO_MULTITASK
-    void     *thread;              ///< holder for pthread (if
-#endif // !DO_MULTITASK
 } VM;
 ///
 ///@name Code flag masking options
@@ -156,10 +152,14 @@ struct Code {
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
 ///
-///> VM pooling
+///> Multitasking support
 ///
-int  vm_pool(int n=1);
-VM&  vm_instance(int id=0);
+int  vm_pool_init(int n=1);
+VM&  vm_get(int id=0);
+#if DO_MULTITASK
+int  vm_create(VM &vm0, IU xt);
+void vm_start(int id);
+#endif // !DO_MULTITASK
 ///
 ///> System interface
 ///
