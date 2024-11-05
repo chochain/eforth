@@ -480,12 +480,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @defgroup Multitasking ops
     /// @}
     CODE("task",  PUSH(vm_create(vm, UINT(POP()))));            // xt -- task_id
-    CODE("start",
-            vm_start(UINT(POP()));
-            printf("main thread continues...\n");
-    );                       // task_id --
-    CODE("send",     /* ( n tid -- ) */ {});
-    CODE("recv",     /* ( -- n ) */ {});
+    CODE("restart", vm_start(UINT(POP())));                     // task_id --
+    CODE("send",  /* ( n tid -- ) */ {});
+    CODE("recv",  /* ( -- n ) */ {});
     /// @}
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
@@ -634,8 +631,7 @@ void forth_init() {
     dict_compile();                      ///> compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
 
-    vm_pool_init(2);                     /// * initialize VM pool
-    VM &vm0   = vm_get(0);
+    VM &vm0   = vm_get(0);               /// * initialize main vm
     vm0.state = QUERY;
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
