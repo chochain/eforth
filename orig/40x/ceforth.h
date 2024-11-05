@@ -154,10 +154,10 @@ struct Code {
 ///
 ///> Multitasking support
 ///
-VM&  vm_get(int id=0);
+VM&  vm_get(int id=0);                    ///< get a VM with given id
 #if DO_MULTITASK
-int  vm_create(VM &vm0, IU xt);
-void vm_start(int id);
+int  vm_create(IU pfa);                   ///< create a VM starting on pfa
+void vm_start(int id);                    ///< start a thread with given VM[id]
 #endif // !DO_MULTITASK
 ///
 ///> System interface
