@@ -709,7 +709,7 @@ void put(io_op op, DU v, DU v2) {
     case CR:    fout << ENDL;                           break;
     case DOT:   fout << v << " ";                       break;
     case DOTR:  fout << setbase(*base)
-                     << setw(UINT(v)) << setw(v2);      break;
+                     << setw(UINT(v)) << v2;            break;
     case EMIT:  { char b = (char)UINT(v); fout << b; }  break;
     case SPCS:  spaces(UINT(v));                        break;
     default:    fout << "unknown io_op=" << op << ENDL; break;
