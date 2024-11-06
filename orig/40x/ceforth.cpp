@@ -481,9 +481,11 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("task",                                                // w -- task_id
          IU w = UINT(POP());                                    ///< dictionary index
-         if (IS_UDF(w)) PUSH(vm_create(dict[w].pfa));           // create a VM starting on pfa
+         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         // create a task starting on pfa
          else pstr("  ?colon word only\n"));
-    CODE("start", vm_start(UINT(POP())));                       // task_id --
+    CODE("start", task_start(UINT(POP())));                     // task_id --
+    CODE("wait",  task_wait());                                 // wait for IO semaphore
+    CODE("signal",task_signal());                               // release IO semaphore
     CODE("send",  /* ( n tid -- ) */ {});
     CODE("recv",  /* ( -- n ) */ {});
     /// @}
@@ -532,7 +534,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
 #if DO_WASM
     CODE("JS",    call_js());                // Javascript interface
 #endif // DO_WASM
-    CODE("bye",   exit(0));
+    CODE("bye",   t_pool_stop(); exit(0));
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
 }
@@ -634,6 +636,8 @@ void forth_init() {
     dict_compile();                      ///> compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
 
+    t_pool_init();                       /// * initialize thread pool
+    
     VM &vm0   = vm_get(0);               /// * initialize main vm
     vm0.state = QUERY;
 }
