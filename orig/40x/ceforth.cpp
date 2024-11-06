@@ -285,18 +285,18 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE("dup",     PUSH(TOS));
     CODE("drop",    TOS = SS.pop());
-    CODE("over",    PUSH(SS[-1]));
+    CODE("over",    DU v = SS[-1]; PUSH(v));
     CODE("swap",    DU n = SS.pop(); PUSH(n));
     CODE("rot",     DU n = SS.pop(); DU m = SS.pop(); SS.push(n); PUSH(m));
     CODE("-rot",    DU n = SS.pop(); DU m = SS.pop(); PUSH(m); PUSH(n));
     CODE("nip",     SS.pop());
-    CODE("pick",    DU i = TOS; TOS = SS[-i]);
+    CODE("pick",    IU i = UINT(TOS); TOS = SS[-i]);
     /// @}
     /// @defgroup Stack ops - double
     /// @{
-    CODE("2dup",    PUSH(SS[-1]); PUSH(SS[-1]));
+    CODE("2dup",    DU v = SS[-1]; PUSH(v); v = SS[-1]; PUSH(v));
     CODE("2drop",   SS.pop(); TOS = SS.pop());
-    CODE("2over",   PUSH(SS[-3]); PUSH(SS[-3]));
+    CODE("2over",   DU v = SS[-3]; PUSH(v); v = SS[-3]; PUSH(v));
     CODE("2swap",   DU n = SS.pop(); DU m = SS.pop(); DU l = SS.pop();
                     SS.push(n); PUSH(l); PUSH(m));
     CODE("?dup",    if (TOS != DU0) PUSH(TOS));
@@ -496,7 +496,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("here",  PUSH(HERE));
     CODE("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump(vm, true));
-    CODE("depth", PUSH(SS.idx));
+    CODE("depth", IU i = UINT(SS.idx); PUSH(i));
     CODE("r",     PUSH(RS.idx));
     CODE("words", words(vm.base));
     CODE("see",
