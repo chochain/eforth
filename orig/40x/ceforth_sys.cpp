@@ -17,6 +17,7 @@
 istringstream     fin;                     ///< forth_in
 ostringstream     fout;                    ///< forth_out
 void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
+int    load_dp    = 0;
 
 extern Code       prim[];                  ///< primitives
 extern List<Code> dict;                    ///< dictionary
@@ -56,12 +57,12 @@ char *word() {                           ///< get next idiom
 }
 char key() { return word()[0]; }
 void load(VM &vm, const char* fn) {
-    vm.load_dp++;                   /// * increment depth counter
-    RS.push(vm._ip);                /// * save context
-    vm.state = NEST;                /// * +recursive
-    forth_include(fn);              /// * include file
-    vm._ip = UINT(RS.pop());        /// * restore context
-    --vm.load_dp;                   /// * decrement depth counter
+    load_dp++;                           /// * increment depth counter
+    RS.push(vm._ip);                     /// * save context
+    vm.state = NEST;                     /// * +recursive
+    forth_include(fn);                   /// * include file
+    vm._ip = UINT(RS.pop());             /// * restore context
+    --load_dp;                           /// * decrement depth counter
 }
 
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
@@ -185,7 +186,7 @@ void words(int base) {
     fout << setbase(base) << ENDL;
 }
 void ss_dump(VM &vm, bool forced) {
-    if (vm.load_dp) return;               /// * skip when including file
+    if (load_dp) return;                  /// * skip when including file
 #if DO_WASM    
     if (!forced) { fout << "ok" << ENDL; return; }
 #endif // DO_WASM
