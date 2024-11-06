@@ -143,7 +143,7 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
 ///
-typedef enum { BASE=0, BL, CR, DOT, DOTR, EMIT, SPCS } io_op;
+typedef enum { BASE=0, CR, DOT, UDOT, DOTR, UDOTR, EMIT, SPCS } io_op;
 void key();                               ///< read key from console
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*)=NULL);
@@ -152,7 +152,7 @@ char *scan(char c);                       ///< scan input stream for a given cha
 int  fetch(string &idiom);                ///< read input stream into string
 void spaces(int n);                       ///< show spaces
 void put(io_op op, DU v=DU0, DU v2=DU0);  ///< print literals
-void pstr(const char *str, io_op op=BL);  ///< print string
+void pstr(const char *str, io_op op=SPCS);///< print string
 ///
 ///> Debug functions
 ///

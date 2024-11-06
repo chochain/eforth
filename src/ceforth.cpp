@@ -137,7 +137,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("base",   PUSH(0)),   // dict[0]->pf[0]->q[0] used for base
     CODE("decimal",fout << setbase(BASE = 10)),
     CODE("hex",    fout << setbase(BASE = 16)),
-    CODE("bl",     fout << " "),
+    CODE("bl",     PUSH(0x20)),
     CODE("cr",     fout << ENDL),
     CODE(".",      fout << setbase(BASE) << POP() << " "),
     CODE(".r",     fout << setbase(BASE) << setw(POP()) << POP()),

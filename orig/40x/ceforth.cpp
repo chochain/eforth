@@ -383,12 +383,12 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("base",    PUSH(((U8*)base - MEM0)));
     CODE("decimal", put(BASE, 10));
     CODE("hex",     put(BASE, 16));
-    CODE("bl",      put(BL));
+    CODE("bl",      PUSH(0x20));
     CODE("cr",      put(CR));
-    CODE(".",       put(DOT, POP()));
-    CODE("u.",      put(DOT, UINT(POP())));
-    CODE(".r",      IU w = UINT(POP()); put(DOTR, w, POP()));
-    CODE("u.r",     IU w = UINT(POP()); put(DOTR, w, UINT(POP())));
+    CODE(".",       put(DOT,  POP()));
+    CODE("u.",      put(UDOT, POP()));
+    CODE(".r",      DU w = POP(); put(DOTR,  w, POP()));
+    CODE("u.r",     DU w = POP(); put(UDOTR, w, POP()));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));    // get string pointer
     IMMD("key",     if (compile) add_w(KEY); else key());
     CODE("emit",    put(EMIT, POP()));
@@ -705,11 +705,14 @@ void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void put(io_op op, DU v, DU v2) {
     switch (op) {
     case BASE:  fout << setbase(*base = UINT(v));       break;
-    case BL:    fout << " ";                            break;
     case CR:    fout << ENDL;                           break;
     case DOT:   fout << v << " ";                       break;
+    case UDOT:  fout << static_cast<U32>(v) << " ";     break;
     case DOTR:  fout << setbase(*base)
                      << setw(UINT(v)) << v2;            break;
+    case UDOTR: fout << setbase(*base)
+                     << setw(UINT(v))
+                     << static_cast<U32>(v2);           break;
     case EMIT:  { char b = (char)UINT(v); fout << b; }  break;
     case SPCS:  spaces(UINT(v));                        break;
     default:    fout << "unknown io_op=" << op << ENDL; break;
