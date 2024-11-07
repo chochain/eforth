@@ -3,24 +3,25 @@
 /// @brief eForth - multi-tasking support
 ///
 #include "ceforth.h"
+
+List<VM, E4_VM_POOL_SZ> _vm;                 ///< VM pool
 ///
 ///> VM pool
 ///
-List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
-    
 VM& vm_get(int id) {
-    return (id >= 0 && id < E4_VM_POOL_SZ) ? _vm[id] : _vm[0];
+    return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
 }
 
 #if DO_MULTITASK
+extern List<U8, 0> pmem;
+extern void add_du(DU v);
+extern void nest(VM &vm);
 ///
 ///> Thread pool
 ///
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
-
-extern void nest(VM &vm);
 
 int                _nthread = 0;   ///< max # of threads hardware supports
 List<thread, 0>    _pool;          ///< thread pool
@@ -34,20 +35,15 @@ void _event_loop(int id) {
     while (true) {
         {
             unique_lock<mutex> lck(_mtx);
-            _cv.wait(lck,
+            _cv.wait(lck,          ///< release lock and wait
                      []{ return _que.idx > 0 || _done; });
-            if (_done) return;
-        
+            if (_done) return;     ///< lock reaccquired
             vm = _que.pop();       ///< get next event
         }
-        IU pfa = vm->_ip;
-    
         printf(">> vm[%d] started, vm.state=%d\n", id, vm->state);
         vm->_rs.push(DU0);         /// exit token
         while (vm->state==HOLD) nest(*vm);
         printf(">> vm[%d] done state=%d\n", id, vm->state);
-        
-        vm->reset(pfa);            /// keep w for restart
     }
 }
 
@@ -60,6 +56,10 @@ void t_pool_init() {
     if (!_pool.v || !_que.v) {
         printf("thread_pool_init allocation failed\n");
         exit(-1);
+    }
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {
+        _vm[i].base = &pmem[pmem.idx];       /// * HERE
+        add_du(10);                          /// * default base=10
     }
     for (int i = 0; i < NT; i++) {
         _pool[i] = thread(_event_loop, i);
@@ -89,9 +89,7 @@ int task_create(IU pfa) {
     while (i < E4_VM_POOL_SZ && _vm[i].state != STOP) i++;
     if (i >= E4_VM_POOL_SZ) return 0;
     
-    VM &vm1 = _vm[i];
-    vm1.state = HOLD;              /// STOP=>HOLD, fake resume
-    vm1._ip   = pfa;               /// at given pfa (of colon word)
+    _vm[i].reset(pfa, HOLD);
 
     return i;
 }
