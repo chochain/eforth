@@ -293,12 +293,15 @@ void CALL(IU w) {
 ///> Forth script loader
 ///
 void load(const char* fn) {
+//    printf("\n%s IP=%4x, VM=%d, load_dp=%d", fn, IP, VM, load_dp);
     load_dp++;                         /// * increment depth counter
-    rs.push(IP);                       /// * save context
+    rs.push(IP); rs.push(VM);          /// * save context
     VM = NEST;                         /// * +recursive
     forth_include(fn);                 /// * include file
+    VM = static_cast<vm_state>(rs.pop());
     IP = UINT(rs.pop());               /// * restore context
     --load_dp;                         /// * decrement depth counter
+//    printf("   => IP=%4x, ss.idx=%d, rs.idx=%d, VM=%d, load_dp=%d\n", IP, ss.idx, rs.idx, VM, load_dp);
 }
 ///====================================================================
 ///
