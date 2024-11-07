@@ -177,7 +177,7 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
 ///
-typedef enum { BASE=0, BL, CR, DOT, EMIT, SPCS } io_op;
+typedef enum { BASE=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
@@ -189,8 +189,8 @@ char key();                               ///< read key from console
 void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
 void dot(io_op op, DU v=DU0);             ///< print literals
-void dotr(int base, int w, DU v);         ///< print fixed width literals
-void pstr(const char *str, io_op op=BL);  ///< print string
+void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
+void pstr(const char *str, io_op op=SPCS);///< print string
 ///
 ///> Debug functions
 ///
