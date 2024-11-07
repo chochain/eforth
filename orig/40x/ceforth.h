@@ -56,13 +56,16 @@ typedef struct _VM {
     
     DU       _tos    = -DU1;       ///< top of stack (cached)
     IU       _ip     = 0;          ///< instruction pointer
-    
     vm_state state   = STOP;       ///< VM status
-    U8       compile = false;      ///< compiler flag
-    U8       base    = 10;         ///< numeric radix (a pointer)
-    U8       dflt    = USE_FLOAT;  ///< use float data unit flag
+    bool     compile = false;      ///< compiler flag
+    
+    U8       *base   = 0;          ///< numeric radix (a pointer)
 
-    void reset(IU ip) { _ip = ip; _rs.idx = _ss.idx = 0; }
+    void reset(IU ip, vm_state st) {
+        _rs.idx = _ss.idx = 0;
+        _tos = -DU1; _ip = ip; state = st; compile = false;
+        *(DU*)base = 10;
+    }
 } VM;
 ///
 ///@name Code flag masking options
