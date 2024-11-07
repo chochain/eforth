@@ -59,9 +59,11 @@ char key() { return word()[0]; }
 void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter
     RS.push(vm._ip);                     /// * save context
+    RS.push(vm.state);
     vm.state = NEST;                     /// * +recursive
     forth_include(fn);                   /// * include file
-    vm._ip = UINT(RS.pop());             /// * restore context
+    vm.state = static_cast<vm_state>(RS.pop());
+    vm._ip   = UINT(RS.pop());           /// * context restored
     --load_dp;                           /// * decrement depth counter
 }
 
@@ -212,7 +214,7 @@ void ss_dump(VM &vm, bool forced) {
     };
     SS.push(TOS);
     for (int i=0; i<SS.idx; i++) {
-        fout << rdx(SS[i], vm.base) << ' ';
+        fout << rdx(SS[i], *vm.base) << ' ';
     }
     TOS = SS.pop();
     fout << "-> ok" << ENDL;
