@@ -356,12 +356,12 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("base!",   dot(DOT,  vm.base=UINT(POP())));
     CODE("decimal", dot(BASE, vm.base=10));
     CODE("hex",     dot(BASE, vm.base=16));
-    CODE("bl",      dot(BL));
+    CODE("bl",      PUSH(0x20));
     CODE("cr",      dot(CR));
-    CODE(".",       dot(DOT, POP()));
-    CODE("u.",      dot(DOT, UINT(POP())));
-    CODE(".r",      IU w = UINT(POP()); dotr(vm.base, w, POP()));
-    CODE("u.r",     IU w = UINT(POP()); dotr(vm.base, w, UINT(POP())));
+    CODE(".",       dot(DOT,  POP()));
+    CODE("u.",      dot(UDOT, POP()));
+    CODE(".r",      IU w = UINT(POP()); dotr(w, POP(), vm.base));
+    CODE("u.r",     IU w = UINT(POP()); dotr(w, POP(), vm.base, true));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
     IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key()));
     CODE("emit",    dot(EMIT, POP()));
