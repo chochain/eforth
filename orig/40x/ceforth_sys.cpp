@@ -69,16 +69,17 @@ void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void dot(io_op op, DU v) {
     switch (op) {
     case BASE:  fout << setbase(UINT(v));               break;
-    case BL:    fout << " ";                            break;
     case CR:    fout << ENDL;                           break;
     case DOT:   fout << v << " ";                       break;
+    case UDOT:  fout << static_cast<U32>(v) << " ";     break;
     case EMIT:  { char b = (char)UINT(v); fout << b; }  break;
     case SPCS:  spaces(UINT(v));                        break;
     default:    fout << "unknown io_op=" << op << ENDL; break;
     }
 }
-void dotr(int base, int w, DU v) {
-    fout << setbase(base) << setw(w) << v;
+void dotr(int w, DU v, int b, bool u) {
+    fout << setbase(b) << setw(w)
+         << (u ? static_cast<U32>(v) : v);
 }
 void pstr(const char *str, io_op op) {
     fout << str;
