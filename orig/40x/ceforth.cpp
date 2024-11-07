@@ -352,16 +352,15 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base@",   PUSH(vm.base));
-    CODE("base!",   dot(DOT,  vm.base=UINT(POP())));
-    CODE("decimal", dot(BASE, vm.base=10));
-    CODE("hex",     dot(BASE, vm.base=16));
+    CODE("base",    PUSH((IU)(vm.base - MEM0)));
+    CODE("decimal", dot(BASE, *vm.base=10));
+    CODE("hex",     dot(BASE, *vm.base=16));
     CODE("bl",      PUSH(0x20));
     CODE("cr",      dot(CR));
     CODE(".",       dot(DOT,  POP()));
     CODE("u.",      dot(UDOT, POP()));
-    CODE(".r",      IU w = UINT(POP()); dotr(w, POP(), vm.base));
-    CODE("u.r",     IU w = UINT(POP()); dotr(w, POP(), vm.base, true));
+    CODE(".r",      IU w = UINT(POP()); dotr(w, POP(), *vm.base));
+    CODE("u.r",     IU w = UINT(POP()); dotr(w, POP(), *vm.base, true));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
     IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key()));
     CODE("emit",    dot(EMIT, POP()));
@@ -498,17 +497,17 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE(".s",    ss_dump(vm, true));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
     CODE("r",     PUSH(RS.idx));
-    CODE("words", words(vm.base));
+    CODE("words", words(*vm.base));
     CODE("see",
          IU w = find(word()); if (!w) return;
          pstr(": "); pstr(dict[w].name);
-         if (IS_UDF(w)) see(dict[w].pfa, vm.base);
+         if (IS_UDF(w)) see(dict[w].pfa, *vm.base);
          else           pstr(" ( built-ins ) ;");
          dot(CR));
     CODE("dump",
          U32 n = UINT(POP());
-         mem_dump(UINT(POP()), n, vm.base));
-    CODE("dict",  dict_dump(vm.base));
+         mem_dump(UINT(POP()), n, *vm.base));
+    CODE("dict",  dict_dump(*vm.base));
     CODE("forget",
          IU w = find(word()); if (!w) return;                  // bail, if not found
          IU b = find("boot")+1;
@@ -599,9 +598,8 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         return;
     }
     // try as a number
-    int err  = 0;
-    int base = static_cast<int>(vm.base);
-    DU  n    = parse_number(idiom, base, &err);
+    int err = 0;
+    DU  n   = parse_number(idiom, *vm.base, &err);
     if (err) {                           /// * not number
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
         pstr(strerror(err), CR);         ///> and error description
@@ -629,17 +627,16 @@ void forth_init() {
         exit(0);
     }
     MEM0  = &pmem[0];
+
+    t_pool_init();                       /// * initialize thread pool
+    VM &vm0   = vm_get(0);               /// * initialize main vm
+    vm0.state = QUERY;
     
-    for (int i=pmem.idx; i<USER_AREA; i+=sizeof(IU)) {
-        add_iu(0xffff);                  /// * padding user area
+    for (int i = pmem.idx; i < USER_AREA; i+=sizeof(IU)) {
+        add_iu(0xffff);                  /// * reserved user area
     }
     dict_compile();                      ///> compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
-
-    t_pool_init();                       /// * initialize thread pool
-    
-    VM &vm0   = vm_get(0);               /// * initialize main vm
-    vm0.state = QUERY;
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     auto time_up = []() {                /// * time slice up
