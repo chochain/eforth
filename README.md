@@ -143,6 +143,10 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > make 40x
     > ./tests/eforth40x
 
+### TODO
+    perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
+    coding - [occlusion](https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/)
+
 ## Source Code Directories
 
     + ~/src       - common source code for all supported platforms
