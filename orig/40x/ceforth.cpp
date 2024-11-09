@@ -258,7 +258,13 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-//        printf("   => IP=%4x, SS.idx=%d, RS.idx=%d, VM=%d\n", IP, SS.idx, RS.idx, vm.state);
+/*        
+        U8 cpu = sched_getcpu();
+        if (vm.cpu != cpu) {           /// check affinity
+            vm.cpu = cpu; vm.xcpu++;
+        }
+            printf("   => IP=%4x, SS.idx=%d, RS.idx=%d, VM=%d on CPU%d\n", IP, SS.idx, RS.idx, vm.state, cpu);
+*/
     }
 }
 ///
