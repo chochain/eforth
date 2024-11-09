@@ -144,8 +144,10 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > ./tests/eforth40x
 
 ### TODO
-    perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
-    coding - [occlusion](https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/)
+    + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
+    + coding -
+        [occlusion](https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/)
+        [false-sharing](https://medium.com/distributed-knowledge/optimizations-for-c-multi-threaded-programs-33284dee5e9c)
 
 ## Source Code Directories
 
