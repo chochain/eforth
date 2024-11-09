@@ -43,7 +43,7 @@ void _event_loop(int id) {
         printf(">> vm[%d] started, vm.state=%d\n", id, vm->state);
         vm->_rs.push(DU0);         /// exit token
         while (vm->state==HOLD) nest(*vm);
-        printf(">> vm[%d] done state=%d\n", id, vm->state);
+        printf(">> vm[%d] done, state=%d\n", id, vm->state);
     }
 }
 
@@ -57,12 +57,24 @@ void t_pool_init() {
         printf("thread_pool_init allocation failed\n");
         exit(-1);
     }
+    /// setup VMs
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
         _vm[i].base = &pmem[pmem.idx];       /// * HERE
         add_du(10);                          /// * default base=10
     }
+    /// setup threads
+    cpu_set_t set;
+    CPU_ZERO(&set);                          /// * clear affinity
     for (int i = 0; i < NT; i++) {
         _pool[i] = thread(_event_loop, i);
+        CPU_SET(i, &set);
+        int rc = pthread_setaffinity_np(     /// * set core affinity
+            _pool[i].native_handle(),
+            sizeof(cpu_set_t), &set
+        );
+        if (rc !=0) {
+            printf("thread[%d] failed to set affinity: %d\n", i, rc);
+        }
     }
     printf("thread pool[%d] initialized\n", NT);
 }
