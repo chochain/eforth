@@ -146,8 +146,10 @@ We hope it can serve as a stepping stone for learning Forth to even building the
 ### TODO
     + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
     + coding -
-        [occlusion](https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/)
+        [optimizing](http://www.agner.org/optimize/optimizing_cpp.pdf)
         [false-sharing](https://medium.com/distributed-knowledge/optimizations-for-c-multi-threaded-programs-33284dee5e9c)
+        [affinity](https://eli.thegreenplace.net/2016/c11-threads-affinity-and-hyperthreading/)
+        [occlusion](https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/)
         [perf c2c](https://coffeebeforearch.github.io/2020/03/27/perf-c2c.html)
 
 ## Source Code Directories
