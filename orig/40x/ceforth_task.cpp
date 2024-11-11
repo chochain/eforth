@@ -123,36 +123,45 @@ void task_start(int id) {
 ///
 ///> Messaging control
 ///
-void _ss_dup(VM &vm1, VM &vm0, int n) {
-    for (int i = n; i > 1; --i) {
-        vm1._ss.push(vm0._ss[-i]);
+void _ss_dup(VM &dst, VM &src, int n) {
+    for (int i = n; i > 0; --i) {
+        dst._ss.push(src._ss[-i]);   /// * passing stack elements
     }
-    vm1._tos = vm0._ss[-1];
-    vm0._tos = vm0._ss[-(n+1)];
-    vm0._ss.idx -= n;
 }
-void task_send(VM &vm0, int id) {    ///< ( v1 v2 .. vn n -- )
-    VM &vm1 = vm_get(id);
+
+void task_send(VM &vm0, int d_id) {  ///< ( v1 v2 .. vn n -- )
+    VM& dst = vm_get(d_id);
     {
         unique_lock<mutex> lck(_mtx);
         _cv_msg.wait(lck,            ///< release lock and wait
                      [&vm0]{ return vm0.state!=HOLD || _done; });
-        vm0.state = HOLD;
-        IU n = UINT(vm0._tos);       ///< number of elements
-        _ss_dup(vm1, vm0, n);        ///< message passing
-        vm0.state = NEST;
+        vm_state st = vm0.state;     ///< save state
+        vm0.state = HOLD;            /// * make sure other doesn't
+        
+        IU n = UINT(vm0._tos);       /// * number of elements
+        _ss_dup(dst, vm0, n);        /// * passing n variables
+        dst._tos = dst._ss.pop();    /// * set dest TOS
+        vm0._tos = vm0._ss[-(n+1)];  /// * adjust current TOS
+        vm0._ss.idx -= (n+1);        /// * and pop off stack index
+        
+        vm0.state = st;              /// * restore VM state
     }
     _cv_msg.notify_one();
 }
-
-void task_recv(VM &vm0, int id) {
-    VM &vm1 = vm_get(id);
+///
+///> retrieve stack elements from completed task
+///
+void task_recv(VM &vm0, int s_id) {  ///< ( n -- v1 v2 .. vn )
+    VM &src = vm_get(s_id);
     {
         unique_lock<mutex> lck(_mtx);
         _cv_msg.wait(lck,            ///< release lock and wait
-                     [&vm1]{ return vm1.state==STOP || _done; });
-        IU n = vm1._ss.idx;
-        _ss_dup(vm0, vm1, n);
+                     [&src]{ return src.state==STOP || _done; });
+        
+        IU n = UINT(vm0._tos);       ///< number of elements
+        src._ss.push(src._tos);      /// * make TOS the last element
+        _ss_dup(vm0, src, n);        /// * retrieve from completed task
+        vm0._tos = vm0._ss.pop();    /// * adjust TOS
     }
     _cv_msg.notify_one();
 }
