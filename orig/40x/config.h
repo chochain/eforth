@@ -87,6 +87,8 @@ typedef int32_t         DU;
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 #define ALIGN(sz)       ALIGN2(sz)
+// #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
+#define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
 ///@}
 ///@name Multi-platform support
