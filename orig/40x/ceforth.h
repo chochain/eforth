@@ -50,15 +50,17 @@ struct List {
 ///> VM context (single task)
 ///
 typedef enum { STOP=0, HOLD, QUERY, NEST, IO } vm_state;
-typedef struct _VM {
+typedef struct ALIGNAS _VM {
     List<DU, E4_SS_SZ> _ss;        ///< parameter stack
     List<DU, E4_RS_SZ> _rs;        ///< parameter stack
-    
-    DU       _tos    = -DU1;       ///< top of stack (cached)
+
+    IU       _id     = 0;          ///< vm id
     IU       _ip     = 0;          ///< instruction pointer
+    DU       _tos    = -DU1;       ///< top of stack (cached)
+    
     vm_state state   = STOP;       ///< VM status
     bool     compile = false;      ///< compiler flag
-    
+
     U8       *base   = 0;          ///< numeric radix (a pointer)
 
     void reset(IU ip, vm_state st) {
@@ -164,6 +166,8 @@ void t_pool_init();
 void t_pool_stop();
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int id);                  ///< start a thread with given VM[id]
+void task_send(VM &vm0, int id);          ///< pass values onto task's stack
+void task_recv(VM &vm0, int id);          ///< retrieve values from task's stack
 void task_wait();
 void task_signal();
 #else  // !DO_MULTITASK
