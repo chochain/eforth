@@ -203,7 +203,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-//        printf("[%4x]:%4x", IP, ix);
+        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -258,12 +258,12 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
+        printf("   => IP=%4x, SS.idx=%d, RS.idx=%d, VM=%d on CPU%d\n", IP, SS.idx, RS.idx, vm.state, vm._id);
 /*        
         U8 cpu = sched_getcpu();
-        if (vm.cpu != cpu) {           /// check affinity
-            vm.cpu = cpu; vm.xcpu++;
+        if (vm._id != cpu) {           /// check affinity
+            vm._id = cpu; vm.xcpu++;
         }
-            printf("   => IP=%4x, SS.idx=%d, RS.idx=%d, VM=%d on CPU%d\n", IP, SS.idx, RS.idx, vm.state, cpu);
 */
     }
 }
@@ -492,7 +492,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("wait",  task_wait());                                 /// wait for IO semaphore
     CODE("signal",task_signal());                               /// release IO semaphore
     CODE("send",  task_send(vm, UINT(POP())));                  /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
-    CODE("recv",  task_recv(vm, UINT(POP())));                  /// ( tid -- v1 v2 .. vn n ) fetch values from task's stack
+    CODE("recv",  task_recv(vm, UINT(POP())));                  /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
     /// @}
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
