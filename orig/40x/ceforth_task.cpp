@@ -24,26 +24,28 @@ extern void nest(VM &vm);
 #include <condition_variable>
 
 int                _nthread = 0;   ///< max # of threads hardware supports
+bool               _done = false;  ///< pool exit flag
 List<thread, 0>    _pool;          ///< thread pool
 List<VM*,    0>    _que;           ///< event queue
-bool               _done = false;
-mutex              _mtx;
-condition_variable _cv;
+mutex              _mtx;           ///< mutex for multithreading
+condition_variable _cv_mtx;        ///< for pool exit
+condition_variable _cv_msg;        ///< for messaging
+atomic<int>        _io(1);         ///< for io control
 
-void _event_loop(int id) {
+void _event_loop(int pid) {
     VM *vm;
     while (true) {
         {
             unique_lock<mutex> lck(_mtx);
-            _cv.wait(lck,          ///< release lock and wait
+            _cv_mtx.wait(lck,      ///< release lock and wait
                      []{ return _que.idx > 0 || _done; });
             if (_done) return;     ///< lock reaccquired
             vm = _que.pop();       ///< get next event
         }
-        printf(">> vm[%d] started, vm.state=%d\n", id, vm->state);
+        printf(">> vm[%d] started on thread[%d], vm.state=%d\n", vm->_id, pid, vm->state);
         vm->_rs.push(DU0);         /// exit token
         while (vm->state==HOLD) nest(*vm);
-        printf(">> vm[%d] done, state=%d\n", id, vm->state);
+        printf(">> vm[%d] on thread[%d] done, vm.state=%d\n", vm->_id, pid, vm->state);
     }
 }
 
@@ -57,16 +59,17 @@ void t_pool_init() {
         printf("thread_pool_init allocation failed\n");
         exit(-1);
     }
-    /// setup VMs
+    /// setup VMs user area
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
         _vm[i].base = &pmem[pmem.idx];       /// * HERE
+        _vm[i]._id  = i;                     /// * VM id
         add_du(10);                          /// * default base=10
     }
     /// setup threads
     cpu_set_t set;
     CPU_ZERO(&set);                          /// * clear affinity
     for (int i = 0; i < NT; i++) {
-        _pool[i] = thread(_event_loop, i);
+        _pool[i] = thread(_event_loop, i);   /// * closure
         CPU_SET(i, &set);
         int rc = pthread_setaffinity_np(     /// * set core affinity
             _pool[i].native_handle(),
@@ -84,7 +87,7 @@ void t_pool_stop() {
         lock_guard<mutex> lck(_mtx);
         _done = true;
     }
-    _cv.notify_all();
+    _cv_mtx.notify_all();
 
     printf("joining thread...");
     for (int i = 0; i < _nthread; i++) {
@@ -97,28 +100,65 @@ void t_pool_stop() {
 }
 
 int task_create(IU pfa) {
-    int i = 1;
-    while (i < E4_VM_POOL_SZ && _vm[i].state != STOP) i++;
-    if (i >= E4_VM_POOL_SZ) return 0;
+    int i = E4_VM_POOL_SZ - 1;
+    while (i > 0 && _vm[i].state != STOP) --i;
     
-    _vm[i].reset(pfa, HOLD);
-
+    if (i > 0) _vm[i].reset(pfa, HOLD);
+    
     return i;
 }
 
 void task_start(int id) {
+    if (id == 0) {
+        printf("skip, main task occupied.\n");
+        return;
+    }
     VM &vm = vm_get(id);
     {
         lock_guard<mutex> lck(_mtx);
         _que.push(&vm);
     }
-    _cv.notify_one();
+    _cv_mtx.notify_one();
+}
+///
+///> Messaging control
+///
+void _ss_dup(VM &vm1, VM &vm0, int n) {
+    for (int i = n; i > 1; --i) {
+        vm1._ss.push(vm0._ss[-i]);
+    }
+    vm1._tos = vm0._ss[-1];
+    vm0._tos = vm0._ss[-(n+1)];
+    vm0._ss.idx -= n;
+}
+void task_send(VM &vm0, int id) {    ///< ( v1 v2 .. vn n -- )
+    VM &vm1 = vm_get(id);
+    {
+        unique_lock<mutex> lck(_mtx);
+        _cv_msg.wait(lck,            ///< release lock and wait
+                     [&vm0]{ return vm0.state!=HOLD || _done; });
+        vm0.state = HOLD;
+        IU n = UINT(vm0._tos);       ///< number of elements
+        _ss_dup(vm1, vm0, n);        ///< message passing
+        vm0.state = NEST;
+    }
+    _cv_msg.notify_one();
+}
+
+void task_recv(VM &vm0, int id) {
+    VM &vm1 = vm_get(id);
+    {
+        unique_lock<mutex> lck(_mtx);
+        _cv_msg.wait(lck,            ///< release lock and wait
+                     [&vm1]{ return vm1.state==STOP || _done; });
+        IU n = vm1._ss.idx;
+        _ss_dup(vm0, vm1, n);
+    }
+    _cv_msg.notify_one();
 }
 ///
 ///> IO control
 ///
-atomic<int> _io(1);
-
 void task_wait() {
     while (!_io) delay(1);
     --_io;
