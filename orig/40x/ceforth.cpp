@@ -486,13 +486,13 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("task",                                                // w -- task_id
          IU w = UINT(POP());                                    ///< dictionary index
-         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         // create a task starting on pfa
+         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
-    CODE("start", task_start(UINT(POP())));                     // task_id --
-    CODE("wait",  task_wait());                                 // wait for IO semaphore
-    CODE("signal",task_signal());                               // release IO semaphore
-    CODE("send",  /* ( n tid -- ) */ {});
-    CODE("recv",  /* ( -- n ) */ {});
+    CODE("start", task_start(UINT(POP())));                     /// ( task_id -- )
+    CODE("wait",  task_wait());                                 /// wait for IO semaphore
+    CODE("signal",task_signal());                               /// release IO semaphore
+    CODE("send",  task_send(vm, UINT(POP())));                  /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
+    CODE("recv",  task_recv(vm, UINT(POP())));                  /// ( tid -- v1 v2 .. vn n ) fetch values from task's stack
     /// @}
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
