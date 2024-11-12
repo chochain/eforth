@@ -24,13 +24,15 @@ extern void nest(VM &vm);
 #include <condition_variable>
 
 int                _nthread = 0;   ///< max # of threads hardware supports
-bool               _done = false;  ///< pool exit flag
+bool               _done    = 0;   ///< thread pool exit flag
+bool               _io_busy = 0;   ///< io control
 List<thread, 0>    _pool;          ///< thread pool
 List<VM*,    0>    _que;           ///< event queue
-mutex              _mtx;           ///< mutex for multithreading
+mutex              _mtx;           ///< mutex for memory access
+mutex              _io;            ///< mutex for io access
 condition_variable _cv_mtx;        ///< for pool exit
 condition_variable _cv_msg;        ///< for messaging
-atomic<int>        _io(1);         ///< for io control
+condition_variable _cv_io;         ///< for io control
 
 void _event_loop(int rank) {
     VM *vm;
@@ -178,11 +180,19 @@ void task_bcast(VM &vm0) {
 ///> IO control
 ///
 void task_wait() {
-    while (!_io) delay(1);
-    --_io;
+    {
+        unique_lock<mutex> lck(_io);
+        _cv_io.wait(lck, []{ return !_io_busy; });
+        _io_busy = true;           /// * lock
+    }
+    _cv_io.notify_one();
 }
 
 void task_signal() {
-    _io++;
+    {
+        lock_guard<mutex> lck(_io);
+        _io_busy = false;          /// * unlock
+    }
+    _cv_io.notify_one();
 }
 #endif // DO_MULTITASK
