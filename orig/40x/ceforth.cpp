@@ -488,6 +488,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = UINT(POP());                                    ///< dictionary index
          if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
+    CODE("rank",  PUSH(vm._id));                                /// ( -- n ) thread id
     CODE("start", task_start(UINT(POP())));                     /// ( task_id -- )
     CODE("wait",  task_wait());                                 /// wait for IO semaphore
     CODE("signal",task_signal());                               /// release IO semaphore
