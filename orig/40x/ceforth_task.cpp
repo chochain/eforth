@@ -128,16 +128,18 @@ void _ss_dup(VM &dst, VM &src, int n) {
         dst._ss.push(src._ss[-i]);   /// * passing stack elements
     }
 }
-
+///
+///> send to destination VM's stack (blocking)
+///
 void task_send(VM &vm0, int d_id) {  ///< ( v1 v2 .. vn n -- )
-    VM& dst = vm_get(d_id);
+    VM& dst = vm_get(d_id);          ///< destination VM
     {
         unique_lock<mutex> lck(_mtx);
         _cv_msg.wait(lck,            ///< release lock and wait
-                     [&vm0]{ return vm0.state!=HOLD || _done; });
-        vm_state st = vm0.state;     ///< save state
-        vm0.state = HOLD;            /// * make sure other doesn't
-        
+            [&dst]{ return dst.state==HOLD || _done; });
+        vm_state st  = vm0.state;    ///< save state
+        vm0.state = MSG;             /// * make sure other doesn't
+    
         IU n = UINT(vm0._tos);       /// * number of elements
         _ss_dup(dst, vm0, n);        /// * passing n variables
         dst._tos = dst._ss.pop();    /// * set dest TOS
@@ -149,21 +151,29 @@ void task_send(VM &vm0, int d_id) {  ///< ( v1 v2 .. vn n -- )
     _cv_msg.notify_one();
 }
 ///
-///> retrieve stack elements from completed task
+///> receive from source VM's stack (blocking)
 ///
 void task_recv(VM &vm0, int s_id) {  ///< ( n -- v1 v2 .. vn )
-    VM &src = vm_get(s_id);
+    VM& src = vm_get(s_id);          ///< srouce VM
     {
         unique_lock<mutex> lck(_mtx);
         _cv_msg.wait(lck,            ///< release lock and wait
-                     [&src]{ return src.state==STOP || _done; });
+            [&src]{ return src.state==STOP || _done; });
         
-        IU n = UINT(vm0._tos);       ///< number of elements
-        src._ss.push(src._tos);      /// * make TOS the last element
-        _ss_dup(vm0, src, n);        /// * retrieve from completed task
-        vm0._tos = vm0._ss.pop();    /// * adjust TOS
+        if (src.state==STOP) {       ///< forced fetch from completed VM
+            IU n = UINT(vm0._tos);   ///< number of elements
+            src._ss.push(src._tos);  /// * make TOS the last element
+            _ss_dup(vm0, src, n);    /// * retrieve from completed task
+            vm0._tos = vm0._ss.pop();/// * adjust TOS
+        }
     }
     _cv_msg.notify_one();
+}
+///
+///> broadcasting to all receving VMs
+///
+void task_bcast(VM &vm0) {
+    ///< TODO
 }
 ///
 ///> IO control
