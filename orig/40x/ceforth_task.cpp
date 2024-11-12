@@ -32,7 +32,7 @@ condition_variable _cv_mtx;        ///< for pool exit
 condition_variable _cv_msg;        ///< for messaging
 atomic<int>        _io(1);         ///< for io control
 
-void _event_loop(int pid) {
+void _event_loop(int rank) {
     VM *vm;
     while (true) {
         {
@@ -42,18 +42,18 @@ void _event_loop(int pid) {
             if (_done) return;     ///< lock reaccquired
             vm = _que.pop();       ///< get next event
         }
-        printf(">> vm[%d] started on thread[%d], vm.state=%d\n", vm->_id, pid, vm->state);
+        printf(">> vm[%d] started on thread[%d], vm.state=%d\n", vm->_id, rank, vm->state);
         vm->_rs.push(DU0);         /// exit token
         while (vm->state==HOLD) nest(*vm);
-        printf(">> vm[%d] on thread[%d] done, vm.state=%d\n", vm->_id, pid, vm->state);
+        printf(">> vm[%d] on thread[%d] done, vm.state=%d\n", vm->_id, rank, vm->state);
     }
 }
 
 void t_pool_init() {
-    const int NT = _nthread = thread::hardware_concurrency();
+    const int RANK = _nthread = thread::hardware_concurrency();
     
-    _pool = new thread[NT];
-    _que  = new VM*[NT*2];
+    _pool = new thread[RANK];
+    _que  = new VM*[RANK*2];
     
     if (!_pool.v || !_que.v) {
         printf("thread_pool_init allocation failed\n");
@@ -68,8 +68,8 @@ void t_pool_init() {
     /// setup threads
     cpu_set_t set;
     CPU_ZERO(&set);                          /// * clear affinity
-    for (int i = 0; i < NT; i++) {
-        _pool[i] = thread(_event_loop, i);   /// * closure
+    for (int i = 0; i < RANK; i++) {         ///< loop thru ranks
+        _pool[i] = thread(_event_loop, i);   /// * closure with rank id
         CPU_SET(i, &set);
         int rc = pthread_setaffinity_np(     /// * set core affinity
             _pool[i].native_handle(),
@@ -79,7 +79,7 @@ void t_pool_init() {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
     }
-    printf("thread pool[%d] initialized\n", NT);
+    printf("thread pool[%d] initialized\n", RANK);
 }
 
 void t_pool_stop() {
