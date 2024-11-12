@@ -127,6 +127,8 @@ void _ss_dup(VM &dst, VM &src, int n) {
     for (int i = n; i > 0; --i) {
         dst._ss.push(src._ss[-i]);   /// * passing stack elements
     }
+    dst._tos = dst._ss.pop();        /// * set dest TOS
+    src._ss.idx -= n;                /// * pop src by n items
 }
 ///
 ///> send to destination VM's stack (blocking)
@@ -142,9 +144,7 @@ void task_send(VM &vm0, int d_id) {  ///< ( v1 v2 .. vn n -- )
     
         IU n = UINT(vm0._tos);       /// * number of elements
         _ss_dup(dst, vm0, n);        /// * passing n variables
-        dst._tos = dst._ss.pop();    /// * set dest TOS
-        vm0._tos = vm0._ss[-(n+1)];  /// * adjust current TOS
-        vm0._ss.idx -= (n+1);        /// * and pop off stack index
+        vm0._tos = vm0._ss.pop();    /// * set dest TOS
         
         vm0.state = st;              /// * restore VM state
     }
@@ -164,7 +164,6 @@ void task_recv(VM &vm0, int s_id) {  ///< ( n -- v1 v2 .. vn )
             IU n = UINT(vm0._tos);   ///< number of elements
             src._ss.push(src._tos);  /// * make TOS the last element
             _ss_dup(vm0, src, n);    /// * retrieve from completed task
-            vm0._tos = vm0._ss.pop();/// * adjust TOS
         }
     }
     _cv_msg.notify_one();
