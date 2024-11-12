@@ -493,6 +493,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("signal",task_signal());                               /// release IO semaphore
     CODE("send",  task_send(vm, UINT(POP())));                  /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
     CODE("recv",  task_recv(vm, UINT(POP())));                  /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
+    CODE("bcast", task_bcast(vm));                              /// ( v1 v2 .. vn n -- )
     /// @}
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
