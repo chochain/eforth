@@ -495,12 +495,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("start", task_start(POPI()));                          /// ( task_id -- )
     CODE("lock",  task_wait());                                 /// wait for IO semaphore
     CODE("unlock",task_signal());                               /// release IO semaphore
-    CODE("send",                                                /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
-         IU t = POPI();                                         ///< target task
-         vm.send(t, POPI()));
-    CODE("recv",                                                /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
-         IU t = POPI();                                         ///< srouce task
-         vm.recv(t, POPI()));
+    CODE("send",  IU t = POPI(); vm.send(t, POPI()));           /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
+    CODE("recv",  IU t = POPI(); vm.recv(t, POPI()));           /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
     CODE("bcast", vm.bcast(POPI()));                            /// ( v1 v2 .. vn n -- )
     /// @}
 #endif // DO_MULTITASK    
