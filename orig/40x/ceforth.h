@@ -4,6 +4,13 @@
 #include <stdint.h>     // uintxx_t
 #include <exception>    // try...catch, throw
 #include "config.h"     // configuation and cross-platform support
+
+#if DO_MULTITASK
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#endif // DO_MULTITASK
+
 using namespace std;
 ///
 /// array class template (so we don't have dependency on C++ STL)
@@ -50,7 +57,7 @@ struct List {
 ///> VM context (single task)
 ///
 typedef enum { STOP=0, HOLD, QUERY, NEST, MSG, IO } vm_state;
-typedef struct ALIGNAS _VM {
+struct ALIGNAS VM {
     List<DU, E4_SS_SZ> _ss;        ///< parameter stack
     List<DU, E4_RS_SZ> _rs;        ///< parameter stack
 
@@ -62,13 +69,18 @@ typedef struct ALIGNAS _VM {
     bool     compile = false;      ///< compiler flag
 
     U8       *base   = 0;          ///< numeric radix (a pointer)
-
-    void reset(IU ip, vm_state st) {
-        _rs.idx = _ss.idx = 0;
-        _tos = -DU1; _ip = ip; state = st; compile = false;
-        *(DU*)base = 10;
-    }
-} VM;
+    
+#if DO_MULTITASK
+    static mutex              mtx; ///< messing mutex
+    static condition_variable msg; ///< messing condition variable
+    static void _ss_dup(VM &dst, VM &src, int n);
+    
+    void reset(IU ip, vm_state st);
+    void send(int tid, int n);     ///< send onto destination VM's stack (blocking)
+    void recv(int tid, int n);     ///< receive from source VM's stack (blocking)
+    void bcast(int n);             ///< broadcast to all receivers
+#endif // DO_MULTITASK
+};
 ///
 ///@name Code flag masking options
 ///@{
@@ -166,9 +178,6 @@ void t_pool_init();
 void t_pool_stop();
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int id);                  ///< start a thread with given VM[id]
-void task_send(VM &vm0, int dst_id);      ///< send onto destination VM's stack (blocking)
-void task_recv(VM &vm0, int src_id);      ///< receive from source VM's stack (blocking)
-void task_bcast(VM &vm0);                 ///< broadcast to all receivers
 void task_wait();
 void task_signal();
 #else  // !DO_MULTITASK
