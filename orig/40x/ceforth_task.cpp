@@ -19,7 +19,6 @@ extern void nest(VM &vm);
 ///
 ///> Thread pool
 ///
-int                _nthread = 0;   ///< max # of threads hardware supports
 bool               _done    = 0;   ///< thread pool exit flag
 bool               _io_busy = 0;   ///< io control
 List<thread, 0>    _pool;          ///< thread pool
@@ -47,10 +46,8 @@ void _event_loop(int rank) {
 }
 
 void t_pool_init() {
-    const int RANK = _nthread = thread::hardware_concurrency();
-    
-    _pool = new thread[RANK];
-    _que  = new VM*[RANK*2];
+    _pool = new thread[VM::RANK];
+    _que  = new VM*[VM::RANK*2];
     
     if (!_pool.v || !_que.v) {
         printf("thread_pool_init allocation failed\n");
@@ -65,7 +62,7 @@ void t_pool_init() {
     /// setup threads
     cpu_set_t set;
     CPU_ZERO(&set);                          /// * clear affinity
-    for (int i = 0; i < RANK; i++) {         ///< loop thru ranks
+    for (int i = 0; i < VM::RANK; i++) {     ///< loop thru ranks
         _pool[i] = thread(_event_loop, i);   /// * closure with rank id
         CPU_SET(i, &set);
         int rc = pthread_setaffinity_np(     /// * set core affinity
@@ -76,7 +73,7 @@ void t_pool_init() {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
     }
-    printf("thread pool[%d] initialized\n", RANK);
+    printf("thread pool[%d] initialized\n", VM::RANK);
 }
 
 void t_pool_stop() {
@@ -87,7 +84,7 @@ void t_pool_stop() {
     _cv_mtx.notify_all();
 
     printf("joining thread...");
-    for (int i = 0; i < _nthread; i++) {
+    for (int i = 0; i < VM::RANK; i++) {
         _pool[i].join();
         printf("%d ", i);
     }
@@ -138,6 +135,7 @@ void task_signal() {
 ///
 ///> Messaging control
 ///
+int VM::RANK = thread::hardware_concurrency();  ///< 
 mutex              VM::mtx;
 condition_variable VM::msg;
 
@@ -183,8 +181,8 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
 ///
 ///> receive from source VM's stack (blocking)
 ///
-void VM::recv(int s_id, int n) {     ///< ( -- v1 v2 .. vn )
-    VM& src = vm_get(s_id);          ///< srouce VM
+void VM::recv(int tid, int n) {      ///< ( -- v1 v2 .. vn )
+    VM& src = vm_get(tid);           ///< source VM
     {
         unique_lock<mutex> lck(mtx);
         auto st = state;             ///< keep current state

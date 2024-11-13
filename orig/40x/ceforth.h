@@ -71,6 +71,8 @@ struct ALIGNAS VM {
     U8       *base   = 0;          ///< numeric radix (a pointer)
     
 #if DO_MULTITASK
+    static int RANK;               ///< thread pool size
+    
     static mutex              mtx; ///< messing mutex
     static condition_variable msg; ///< messing condition variable
     static void _ss_dup(VM &dst, VM &src, int n);
