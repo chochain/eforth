@@ -19,14 +19,13 @@ extern void nest(VM &vm);
 ///
 ///> Thread pool
 ///
+/// Note: Thread pool is universal and singleton,
+///       so we keep them in C. Hopefully can be reused later
 bool               _done    = 0;   ///< thread pool exit flag
-bool               _io_busy = 0;   ///< io control
 List<thread, 0>    _pool;          ///< thread pool
 List<VM*,    0>    _que;           ///< event queue
 mutex              _mtx;           ///< mutex for memory access
-mutex              _io;            ///< mutex for io access
 condition_variable _cv_mtx;        ///< for pool exit
-condition_variable _cv_io;         ///< for io control
 
 void _event_loop(int rank) {
     VM *vm;
@@ -38,16 +37,16 @@ void _event_loop(int rank) {
             if (_done) return;     ///< lock reaccquired
             vm = _que.pop();       ///< get next event
         }
-        printf(">> vm[%d] started on thread[%d], vm.state=%d\n", vm->_id, rank, vm->state);
+        printf(">> T%d=VM%d.%d started IP=%4x\n", rank, vm->_id, vm->state, vm->_ip);
         vm->_rs.push(DU0);         /// exit token
         while (vm->state==HOLD) nest(*vm);
-        printf(">> vm[%d] on thread[%d] done, vm.state=%d\n", vm->_id, rank, vm->state);
+        printf(">> T%d=VM%d.%d done\n", rank, vm->_id, vm->state);
     }
 }
 
 void t_pool_init() {
-    _pool = new thread[VM::RANK];
-    _que  = new VM*[VM::RANK*2];
+    _pool = new thread[VM::NCORE];           ///< a thread each core
+    _que  = new VM*[VM::NCORE * 2];          ///< queue with spare 
     
     if (!_pool.v || !_que.v) {
         printf("thread_pool_init allocation failed\n");
@@ -62,7 +61,7 @@ void t_pool_init() {
     /// setup threads
     cpu_set_t set;
     CPU_ZERO(&set);                          /// * clear affinity
-    for (int i = 0; i < VM::RANK; i++) {     ///< loop thru ranks
+    for (int i = 0; i < VM::NCORE; i++) {    ///< loop thru ranks
         _pool[i] = thread(_event_loop, i);   /// * closure with rank id
         CPU_SET(i, &set);
         int rc = pthread_setaffinity_np(     /// * set core affinity
@@ -73,7 +72,7 @@ void t_pool_init() {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
     }
-    printf("thread pool[%d] initialized\n", VM::RANK);
+    printf("thread pool[%d] initialized\n", VM::NCORE);
 }
 
 void t_pool_stop() {
@@ -84,7 +83,7 @@ void t_pool_stop() {
     _cv_mtx.notify_all();
 
     printf("joining thread...");
-    for (int i = 0; i < VM::RANK; i++) {
+    for (int i = 0; i < VM::NCORE; i++) {
         _pool[i].join();
         printf("%d ", i);
     }
@@ -102,12 +101,12 @@ int task_create(IU pfa) {
     return i;
 }
 
-void task_start(int id) {
-    if (id == 0) {
-        printf("skip, main task occupied.\n");
+void task_start(int tid) {
+    if (tid == 0) {
+        printf("skip, main task (tid=0) running.\n");
         return;
     }
-    VM &vm = vm_get(id);
+    VM &vm = vm_get(tid);
     {
         lock_guard<mutex> lck(_mtx);
         _que.push(&vm);
@@ -115,30 +114,23 @@ void task_start(int id) {
     _cv_mtx.notify_one();
 }
 ///
-///> IO control (can use atomic _io after C++20)
-///
-/// Note: after C++20, _io can be atomic.wait
-void task_wait() {
-    unique_lock<mutex> lck(_io);
-    _cv_io.wait(lck, []{ return !_io_busy; });
-    _io_busy = true;               /// * lock
-    _cv_io.notify_one();
-}
-
-void task_signal() {
-    {
-        lock_guard<mutex> lck(_io);
-        _io_busy = false;          /// * unlock
-    }
-    _cv_io.notify_one();
-}
-///
 ///> Messaging control
 ///
-int VM::RANK = thread::hardware_concurrency();  ///< 
-mutex              VM::mtx;
-condition_variable VM::msg;
+int  VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
+bool VM::io_busy = false;
+mutex              VM::msg;
+mutex              VM::io;
+condition_variable VM::cv_msg;
+condition_variable VM::cv_io;
 
+void VM::join(int tid) {
+    VM& vm = vm_get(tid);
+    {
+        unique_lock<mutex> lck(msg);
+        cv_msg.wait(lck, [&vm]{ return vm.state==STOP; });
+    }
+    cv_msg.notify_one();
+}
 void VM::_ss_dup(VM &dst, VM &src, int n) {
     dst._ss.push(dst._tos);          /// * push dest TOS
     dst._tos = src._tos;             /// * set dest TOS
@@ -161,50 +153,70 @@ void VM::reset(IU ip, vm_state st) {
 ///> send to destination VM's stack (blocking)
 ///
 void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
-    VM& dst = vm_get(tid);           ///< destination VM
+    VM& vm = vm_get(tid);            ///< destination VM
     {
-        unique_lock<mutex> lck(mtx);
-        msg.wait(lck,                ///< release lock and wait
-            [&dst]{ return _done ||  /// * Forth exit
-                dst.state==HOLD  ||  /// * init before task start
-                dst.state==MSG;      /// * block on dest task here
+        unique_lock<mutex> lck(msg);
+        cv_msg.wait(lck,             ///< release lock and wait
+            [&vm]{ return _done ||   /// * Forth exit
+                vm.state==HOLD  ||   /// * init before task start
+                vm.state==MSG;       /// * block on dest task here
             });
-
-        _ss_dup(dst, *this, n);      /// * passing n variables
+        printf(">> VM%d.%d send %d items to VM%d.%d\n", _id, state, n, tid, vm.state);
+        _ss_dup(vm, *this, n);       /// * passing n variables
         
-        if (dst.state==MSG) {        /// * messaging completed
-            dst.state = NEST;        /// * unblock dest task
+        if (vm.state==MSG) {         /// * messaging completed
+            vm.state = NEST;         /// * unblock target task
         }
     }
-    msg.notify_one();
+    cv_msg.notify_one();
 }
 ///
 ///> receive from source VM's stack (blocking)
 ///
 void VM::recv(int tid, int n) {      ///< ( -- v1 v2 .. vn )
-    VM& src = vm_get(tid);           ///< source VM
+    VM& vm = vm_get(tid);            ///< source VM
     {
-        unique_lock<mutex> lck(mtx);
+        unique_lock<mutex> lck(msg);
         auto st = state;             ///< keep current state
+        if (st==STOP) {              ///< forced fetch from completed VM
+            printf(">> forced recv from VM%d.%d\n", vm._id, vm.state);
+            _ss_dup(*this, vm, n);   /// * retrieve from completed task
+            return;                  /// * no notify needed
+        }
         state = MSG;                 /// * ready for messaging
-        msg.wait(lck,                ///< release lock and wait
-            [this, &src]{ return
+        cv_msg.wait(lck,             ///< release lock and wait
+            [this, &vm]{ return
                 _done           ||   /// * Forth exit
-                src.state==STOP ||   /// * until task finished or
+                vm.state==STOP ||    /// * until task finished or
                 state!=MSG;          /// * until messaging complete
             });
-        
-        if (src.state==STOP) {       ///< forced fetch from completed VM
-            _ss_dup(*this, src, n);  /// * retrieve from completed task
-        }
+        printf(">> VM%d.%d recv %d items from VM%d.%d\n", _id, state, n, tid, vm.state);
         state = st;                  /// * restore VM state
     }
-    msg.notify_one();
+    cv_msg.notify_one();
 }
 ///
 ///> broadcasting to all receving VMs
 ///
 void VM::bcast(int n) {
     ///< TODO
+}
+///
+///> IO control (can use atomic _io after C++20)
+///
+/// Note: after C++20, _io can be atomic.wait
+void VM::io_lock() {
+    unique_lock<mutex> lck(io);
+    cv_io.wait(lck, []{ return !io_busy; });
+    io_busy = true;                /// * lock
+    cv_io.notify_one();
+}
+
+void VM::io_unlock() {
+    {
+        lock_guard<mutex> lck(io);
+        io_busy = false;           /// * unlock
+    }
+    cv_io.notify_one();
 }
 #endif // DO_MULTITASK
