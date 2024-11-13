@@ -19,10 +19,6 @@ extern void nest(VM &vm);
 ///
 ///> Thread pool
 ///
-#include <atomic>
-#include <mutex>
-#include <condition_variable>
-
 int                _nthread = 0;   ///< max # of threads hardware supports
 bool               _done    = 0;   ///< thread pool exit flag
 bool               _io_busy = 0;   ///< io control
@@ -31,7 +27,6 @@ List<VM*,    0>    _que;           ///< event queue
 mutex              _mtx;           ///< mutex for memory access
 mutex              _io;            ///< mutex for io access
 condition_variable _cv_mtx;        ///< for pool exit
-condition_variable _cv_msg;        ///< for messaging
 condition_variable _cv_io;         ///< for io control
 
 void _event_loop(int rank) {
@@ -123,68 +118,13 @@ void task_start(int id) {
     _cv_mtx.notify_one();
 }
 ///
-///> Messaging control
+///> IO control (can use atomic _io after C++20)
 ///
-void _ss_dup(VM &dst, VM &src, int n) {
-    for (int i = n; i > 0; --i) {
-        dst._ss.push(src._ss[-i]);   /// * passing stack elements
-    }
-    dst._tos = dst._ss.pop();        /// * set dest TOS
-    src._ss.idx -= n;                /// * pop src by n items
-}
-///
-///> send to destination VM's stack (blocking)
-///
-void task_send(VM &vm0, int d_id) {  ///< ( v1 v2 .. vn n -- )
-    VM& dst = vm_get(d_id);          ///< destination VM
-    {
-        unique_lock<mutex> lck(_mtx);
-        _cv_msg.wait(lck,            ///< release lock and wait
-            [&dst]{ return dst.state==HOLD || _done; });
-        vm_state st  = vm0.state;    ///< save state
-        vm0.state = MSG;             /// * make sure other doesn't
-    
-        IU n = UINT(vm0._tos);       /// * number of elements
-        _ss_dup(dst, vm0, n);        /// * passing n variables
-        vm0._tos = vm0._ss.pop();    /// * set dest TOS
-        
-        vm0.state = st;              /// * restore VM state
-    }
-    _cv_msg.notify_one();
-}
-///
-///> receive from source VM's stack (blocking)
-///
-void task_recv(VM &vm0, int s_id) {  ///< ( n -- v1 v2 .. vn )
-    VM& src = vm_get(s_id);          ///< srouce VM
-    {
-        unique_lock<mutex> lck(_mtx);
-        _cv_msg.wait(lck,            ///< release lock and wait
-            [&src]{ return src.state==STOP || _done; });
-        
-        if (src.state==STOP) {       ///< forced fetch from completed VM
-            IU n = UINT(vm0._tos);   ///< number of elements
-            src._ss.push(src._tos);  /// * make TOS the last element
-            _ss_dup(vm0, src, n);    /// * retrieve from completed task
-        }
-    }
-    _cv_msg.notify_one();
-}
-///
-///> broadcasting to all receving VMs
-///
-void task_bcast(VM &vm0) {
-    ///< TODO
-}
-///
-///> IO control
-///
+/// Note: after C++20, _io can be atomic.wait
 void task_wait() {
-    {
-        unique_lock<mutex> lck(_io);
-        _cv_io.wait(lck, []{ return !_io_busy; });
-        _io_busy = true;           /// * lock
-    }
+    unique_lock<mutex> lck(_io);
+    _cv_io.wait(lck, []{ return !_io_busy; });
+    _io_busy = true;               /// * lock
     _cv_io.notify_one();
 }
 
@@ -194,5 +134,79 @@ void task_signal() {
         _io_busy = false;          /// * unlock
     }
     _cv_io.notify_one();
+}
+///
+///> Messaging control
+///
+mutex              VM::mtx;
+condition_variable VM::msg;
+
+void VM::_ss_dup(VM &dst, VM &src, int n) {
+    dst._ss.push(dst._tos);          /// * push dest TOS
+    dst._tos = src._tos;             /// * set dest TOS
+    src._tos = src._ss[-n];          /// * set src TOS
+    for (int i = n - 1; i > 0; --i) {
+        dst._ss.push(src._ss[-i]);   /// * passing stack elements
+    }
+    src._ss.idx -= n;                /// * pop src by n items
+}
+
+void VM::reset(IU ip, vm_state st) {
+    _rs.idx    = _ss.idx = 0;
+    _ip        = ip;
+    _tos       = -DU1;
+    state      = st;
+    compile    = false;
+    *(DU*)base = 10;
+}
+///
+///> send to destination VM's stack (blocking)
+///
+void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
+    VM& dst = vm_get(tid);           ///< destination VM
+    {
+        unique_lock<mutex> lck(mtx);
+        msg.wait(lck,                ///< release lock and wait
+            [&dst]{ return _done ||  /// * Forth exit
+                dst.state==HOLD  ||  /// * init before task start
+                dst.state==MSG;      /// * block on dest task here
+            });
+
+        _ss_dup(dst, *this, n);      /// * passing n variables
+        
+        if (dst.state==MSG) {        /// * messaging completed
+            dst.state = NEST;        /// * unblock dest task
+        }
+    }
+    msg.notify_one();
+}
+///
+///> receive from source VM's stack (blocking)
+///
+void VM::recv(int s_id, int n) {     ///< ( -- v1 v2 .. vn )
+    VM& src = vm_get(s_id);          ///< srouce VM
+    {
+        unique_lock<mutex> lck(mtx);
+        auto st = state;             ///< keep current state
+        state = MSG;                 /// * ready for messaging
+        msg.wait(lck,                ///< release lock and wait
+            [this, &src]{ return
+                _done           ||   /// * Forth exit
+                src.state==STOP ||   /// * until task finished or
+                state!=MSG;          /// * until messaging complete
+            });
+        
+        if (src.state==STOP) {       ///< forced fetch from completed VM
+            _ss_dup(*this, src, n);  /// * retrieve from completed task
+        }
+        state = st;                  /// * restore VM state
+    }
+    msg.notify_one();
+}
+///
+///> broadcasting to all receving VMs
+///
+void VM::bcast(int n) {
+    ///< TODO
 }
 #endif // DO_MULTITASK
