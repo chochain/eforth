@@ -204,7 +204,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        printf("[%4x]:%4x", IP, ix);
+        printf("%02d[%4x]:%4x", vm._id, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -259,7 +259,7 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-        printf("   => IP=%4x, SS.idx=%d, RS.idx=%d, VM=%d on CPU%d\n", IP, SS.idx, RS.idx, vm.state, vm._id);
+        printf("   => IP=%4x, SS=%d, RS=%d, state=%d\n", IP, SS.idx, RS.idx, vm.state);
 /*        
         U8 cpu = sched_getcpu();
         if (vm._id != cpu) {           /// check affinity
@@ -446,7 +446,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
     IMMD("does>",  add_w(DOES));
     IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
          IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
-         printf("vm.state=%d, w=%x ", vm.state, w);
          if (!w) return;
          if (vm.compile) {
              add_var(LIT, (DU)w);                               // save addr on stack
@@ -454,7 +453,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
          }
          else {
              w = dict[w].pfa + sizeof(IU);                      // calculate address to memory
-             printf(", w2 = %x\n", w);
              *(DU*)MEM(DALIGN(w)) = POP();                      // update constant
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
@@ -493,8 +491,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
          else pstr("  ?colon word only\n"));
     CODE("rank",  PUSH(vm._id));                                /// ( -- n ) thread id
     CODE("start", task_start(POPI()));                          /// ( task_id -- )
-    CODE("lock",  task_wait());                                 /// wait for IO semaphore
-    CODE("unlock",task_signal());                               /// release IO semaphore
+    CODE("join",  vm.join(POPI()));                             /// ( task_id -- )
+    CODE("lock",  vm.io_lock());                                /// wait for IO semaphore
+    CODE("unlock",vm.io_unlock());                              /// release IO semaphore
     CODE("send",  IU t = POPI(); vm.send(t, POPI()));           /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
     CODE("recv",  IU t = POPI(); vm.recv(t, POPI()));           /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
     CODE("bcast", vm.bcast(POPI()));                            /// ( v1 v2 .. vn n -- )
