@@ -154,6 +154,7 @@ void add_var(IU op, DU v=DU0) {     ///< add a varirable header
 ///
 #define PUSH(v) (SS.push(TOS), TOS = v)
 #define POP()   ({ DU n=TOS; TOS=SS.pop(); n; })
+#define POPI()  (UINT(POP()))
 
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
@@ -365,8 +366,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("cr",      dot(CR));
     CODE(".",       dot(DOT,  POP()));
     CODE("u.",      dot(UDOT, POP()));
-    CODE(".r",      IU w = UINT(POP()); dotr(w, POP(), *vm.base));
-    CODE("u.r",     IU w = UINT(POP()); dotr(w, POP(), *vm.base, true));
+    CODE(".r",      IU w = POPI(); dotr(w, POP(), *vm.base));
+    CODE("u.r",     IU w = POPI(); dotr(w, POP(), *vm.base, true));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
     IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key()));
     CODE("emit",    dot(EMIT, POP()));
@@ -445,6 +446,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     IMMD("does>",  add_w(DOES));
     IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
          IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
+         printf("vm.state=%d, w=%x ", vm.state, w);
          if (!w) return;
          if (vm.compile) {
              add_var(LIT, (DU)w);                               // save addr on stack
@@ -452,6 +454,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          }
          else {
              w = dict[w].pfa + sizeof(IU);                      // calculate address to memory
+             printf(", w2 = %x\n", w);
              *(DU*)MEM(DALIGN(w)) = POP();                      // update constant
          });
     IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
@@ -469,32 +472,36 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// it could make access misaligned which slows the access speed by 2x
     ///
     CODE("@",                                                   // w -- n
-         IU w = UINT(POP());
+         IU w = POPI();
          PUSH(w < USER_AREA ? (DU)IGET(w) : CELL(w)));          // check user area
-    CODE("!",     IU w = UINT(POP()); CELL(w) = POP(););        // n w --
+    CODE("!",     IU w = POPI(); CELL(w) = POP(););             // n w --
     CODE(",",     DU n = POP(); add_du(n));                     // n -- , compile a cell
-    CODE("cells", IU i = UINT(POP()); PUSH(i * sizeof(DU)));    // n -- n'
+    CODE("cells", IU i = POPI(); PUSH(i * sizeof(DU)));         // n -- n'
     CODE("allot",                                               // n --
-         IU n = UINT(POP());                                    // number of bytes
+         IU n = POPI();                                         // number of bytes
          for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0));    // zero padding
-    CODE("th",    IU i = UINT(POP()); TOS += i * sizeof(DU));   // w i -- w'
-    CODE("+!",    IU w = UINT(POP()); CELL(w) += POP());        // n w --
-    CODE("?",     IU w = UINT(POP()); dot(DOT, CELL(w)));       // w --
+    CODE("th",    IU i = POPI(); TOS += i * sizeof(DU));        // w i -- w'
+    CODE("+!",    IU w = POPI(); CELL(w) += POP());             // n w --
+    CODE("?",     IU w = POPI(); dot(DOT, CELL(w)));            // w --
     /// @}
 #if DO_MULTITASK    
     /// @defgroup Multitasking ops
     /// @}
     CODE("task",                                                // w -- task_id
-         IU w = UINT(POP());                                    ///< dictionary index
+         IU w = POPI();                                         ///< dictionary index
          if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
     CODE("rank",  PUSH(vm._id));                                /// ( -- n ) thread id
-    CODE("start", task_start(UINT(POP())));                     /// ( task_id -- )
-    CODE("wait",  task_wait());                                 /// wait for IO semaphore
-    CODE("signal",task_signal());                               /// release IO semaphore
-    CODE("send",  task_send(vm, UINT(POP())));                  /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
-    CODE("recv",  task_recv(vm, UINT(POP())));                  /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
-    CODE("bcast", task_bcast(vm));                              /// ( v1 v2 .. vn n -- )
+    CODE("start", task_start(POPI()));                          /// ( task_id -- )
+    CODE("lock",  task_wait());                                 /// wait for IO semaphore
+    CODE("unlock",task_signal());                               /// release IO semaphore
+    CODE("send",                                                /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
+         IU t = POPI();                                         ///< target task
+         vm.send(t, POPI()));
+    CODE("recv",                                                /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
+         IU t = POPI();                                         ///< srouce task
+         vm.recv(t, POPI()));
+    CODE("bcast", vm.bcast(POPI()));                            /// ( v1 v2 .. vn n -- )
     /// @}
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
@@ -513,8 +520,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
          else           pstr(" ( built-ins ) ;");
          dot(CR));
     CODE("dump",
-         U32 n = UINT(POP());
-         mem_dump(UINT(POP()), n, *vm.base));
+         U32 n = POPI();
+         mem_dump(POPI(), n, *vm.base));
     CODE("dict",  dict_dump(*vm.base));
     CODE("forget",
          IU w = find(word()); if (!w) return;                  // bail, if not found
@@ -534,7 +541,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("mstat", mem_stat());
     CODE("ms",    PUSH(millis()));
     CODE("rnd",   PUSH(RND()));              // generate random number
-    CODE("delay", delay(UINT(POP())));
+    CODE("delay", delay(POPI()));
     CODE("included",                         // include external file
          POP();                              // string length, not used
          load(vm, (const char*)MEM(POP()))); // include external file
