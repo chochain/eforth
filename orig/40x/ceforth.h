@@ -71,12 +71,18 @@ struct ALIGNAS VM {
     U8       *base   = 0;          ///< numeric radix (a pointer)
     
 #if DO_MULTITASK
-    static int RANK;               ///< thread pool size
+    static int NCORE;              ///< number of hardware cores
     
-    static mutex              mtx; ///< messing mutex
-    static condition_variable msg; ///< messing condition variable
+    static bool io_busy;              ///< IO locking control
+    static mutex              msg;    ///< messing mutex
+    static mutex              io;     ///< mutex for io access
+    static condition_variable cv_io;  ///< for io control
+    static condition_variable cv_msg; ///< messing condition variable
     static void _ss_dup(VM &dst, VM &src, int n);
     
+    void join(int tid);            ///< wait for the given task to end
+    void io_lock();                ///< lock IO
+    void io_unlock();              ///< unlock IO
     void reset(IU ip, vm_state st);
     void send(int tid, int n);     ///< send onto destination VM's stack (blocking)
     void recv(int tid, int n);     ///< receive from source VM's stack (blocking)
@@ -179,7 +185,7 @@ VM&  vm_get(int id=0);                    ///< get a VM with given id
 void t_pool_init();
 void t_pool_stop();
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
-void task_start(int id);                  ///< start a thread with given VM[id]
+void task_start(int tid);                 ///< start a thread with given task/VM id
 void task_wait();
 void task_signal();
 #else  // !DO_MULTITASK
