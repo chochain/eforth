@@ -37,10 +37,10 @@ void _event_loop(int rank) {
             if (_done) return;     ///< lock reaccquired
             vm = _que.pop();       ///< get next event
         }
-        printf(">> T%d=VM%d.%d started IP=%4x\n", rank, vm->_id, vm->state, vm->_ip);
-        vm->_rs.push(DU0);         /// exit token
+        printf(">> T%d=VM%d.%d started IP=%4x\n", rank, vm->id, vm->state, vm->ip);
+        vm->rs.push(DU0);          /// exit token
         while (vm->state==HOLD) nest(*vm);
-        printf(">> T%d=VM%d.%d done\n", rank, vm->_id, vm->state);
+        printf(">> T%d=VM%d.%d done\n", rank, vm->id, vm->state);
     }
 }
 
@@ -55,7 +55,7 @@ void t_pool_init() {
     /// setup VMs user area
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
         _vm[i].base = &pmem[pmem.idx];       /// * HERE
-        _vm[i]._id  = i;                     /// * VM id
+        _vm[i].id  = i;                      /// * VM id
         add_du(10);                          /// * default base=10
     }
     /// setup threads
@@ -132,19 +132,19 @@ void VM::join(int tid) {
     cv_msg.notify_one();
 }
 void VM::_ss_dup(VM &dst, VM &src, int n) {
-    dst._ss.push(dst._tos);          /// * push dest TOS
-    dst._tos = src._tos;             /// * set dest TOS
-    src._tos = src._ss[-n];          /// * set src TOS
+    dst.ss.push(dst.tos);           /// * push dest TOS
+    dst.tos = src.tos;              /// * set dest TOS
+    src.tos = src.ss[-n];           /// * set src TOS
     for (int i = n - 1; i > 0; --i) {
-        dst._ss.push(src._ss[-i]);   /// * passing stack elements
+        dst.ss.push(src.ss[-i]);    /// * passing stack elements
     }
-    src._ss.idx -= n;                /// * pop src by n items
+    src.ss.idx -= n;                /// * pop src by n items
 }
 
-void VM::reset(IU ip, vm_state st) {
-    _rs.idx    = _ss.idx = 0;
-    _ip        = ip;
-    _tos       = -DU1;
+void VM::reset(IU ip0, vm_state st) {
+    rs.idx     = ss.idx = 0;
+    ip         = ip0;
+    tos        = -DU1;
     state      = st;
     compile    = false;
     *(DU*)base = 10;
@@ -161,7 +161,7 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
                 vm.state==HOLD  ||   /// * init before task start
                 vm.state==MSG;       /// * block on dest task here
             });
-        printf(">> VM%d.%d send %d items to VM%d.%d\n", _id, state, n, tid, vm.state);
+        printf(">> VM%d.%d send %d items to VM%d.%d\n", id, state, n, tid, vm.state);
         _ss_dup(vm, *this, n);       /// * passing n variables
         
         if (vm.state==MSG) {         /// * messaging completed
@@ -179,7 +179,7 @@ void VM::recv(int tid, int n) {      ///< ( -- v1 v2 .. vn )
         unique_lock<mutex> lck(msg);
         auto st = state;             ///< keep current state
         if (st==STOP) {              ///< forced fetch from completed VM
-            printf(">> forced recv from VM%d.%d\n", vm._id, vm.state);
+            printf(">> forced recv from VM%d.%d\n", vm.id, vm.state);
             _ss_dup(*this, vm, n);   /// * retrieve from completed task
             return;                  /// * no notify needed
         }
@@ -190,7 +190,7 @@ void VM::recv(int tid, int n) {      ///< ( -- v1 v2 .. vn )
                 vm.state==STOP ||    /// * until task finished or
                 state!=MSG;          /// * until messaging complete
             });
-        printf(">> VM%d.%d recv %d items from VM%d.%d\n", _id, state, n, tid, vm.state);
+        printf(">> VM%d.%d recv %d items from VM%d.%d\n", id, state, n, tid, vm.state);
         state = st;                  /// * restore VM state
     }
     cv_msg.notify_one();

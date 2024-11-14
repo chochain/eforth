@@ -66,10 +66,10 @@ U8  *MEM0;                         ///< base of parameter memory block
 ///
 ///@name Dictionary and data stack access macros
 ///@{
-#define TOS       (vm._tos)                /**< Top of stack                            */
-#define SS        (vm._ss)                 /**< parameter stack (per task)              */
-#define IP        (vm._ip)                 /**< instruction pointer (per task)          */
-#define RS        (vm._rs)                 /**< return stack (per task)                 */
+#define TOS       (vm.tos)                 /**< Top of stack                            */
+#define SS        (vm.ss)                  /**< parameter stack (per task)              */
+#define IP        (vm.ip)                  /**< instruction pointer (per task)          */
+#define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
@@ -204,7 +204,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        printf("\033[%dm%02d[%4x]:%4x\033[0m", vm._id ? 38-vm._id : 37, vm._id, IP, ix);
+//        printf("\033[%dm%02d[%4x]:%4x\033[0m", vm.id ? 38-vm.id : 37, vm.id, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -259,11 +259,11 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-        printf("\033[%dm   => IP=%4x, SS=%d, RS=%d, state=%d\033[0m\n", vm._id ? 38-vm._id : 37, IP, SS.idx, RS.idx, vm.state);
+//        printf("\033[%dm   => IP=%4x, SS=%d, RS=%d, state=%d\033[0m\n", vm.id ? 38-vm.id : 37, IP, SS.idx, RS.idx, vm.state);
 /*        
         U8 cpu = sched_getcpu();
-        if (vm._id != cpu) {           /// check affinity
-            vm._id = cpu; vm.xcpu++;
+        if (vm.id != cpu) {            /// check affinity
+            vm.id = cpu; vm.xcpu++;
         }
 */
     }
@@ -489,7 +489,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = POPI();                                         ///< dictionary index
          if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
-    CODE("rank",  PUSH(vm._id));                                /// ( -- n ) thread id
+    CODE("rank",  PUSH(vm.id));                                 /// ( -- n ) thread id
     CODE("start", task_start(POPI()));                          /// ( task_id -- )
     CODE("join",  vm.join(POPI()));                             /// ( task_id -- )
     CODE("lock",  vm.io_lock());                                /// wait for IO semaphore

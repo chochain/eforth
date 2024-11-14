@@ -24,9 +24,9 @@ extern List<Code> dict;                    ///< dictionary
 extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
 extern U8         *MEM0;                   ///< base of parameter memory block
 
-#define TOS       (vm._tos)                /**< Top of stack                            */
-#define SS        (vm._ss)                 /**< parameter stack (per task)              */
-#define RS        (vm._rs)                 /**< return stack (per task)                 */
+#define TOS       (vm.tos)                 /**< Top of stack                            */
+#define SS        (vm.ss)                  /**< parameter stack (per task)              */
+#define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define DICT(w)   (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
@@ -58,12 +58,12 @@ char *word() {                           ///< get next idiom
 char key() { return word()[0]; }
 void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter
-    RS.push(vm._ip);                     /// * save context
+    RS.push(vm.ip);                      /// * save context
     RS.push(vm.state);
     vm.state = NEST;                     /// * +recursive
     forth_include(fn);                   /// * include file
     vm.state = static_cast<vm_state>(RS.pop());
-    vm._ip   = UINT(RS.pop());           /// * context restored
+    vm.ip   = UINT(RS.pop());            /// * context restored
     --load_dp;                           /// * decrement depth counter
 }
 

@@ -58,12 +58,12 @@ struct List {
 ///
 typedef enum { STOP=0, HOLD, QUERY, NEST, MSG, IO } vm_state;
 struct ALIGNAS VM {
-    List<DU, E4_SS_SZ> _ss;        ///< parameter stack
-    List<DU, E4_RS_SZ> _rs;        ///< parameter stack
+    List<DU, E4_SS_SZ> ss;         ///< parameter stack
+    List<DU, E4_RS_SZ> rs;         ///< parameter stack
 
-    IU       _id     = 0;          ///< vm id
-    IU       _ip     = 0;          ///< instruction pointer
-    DU       _tos    = -DU1;       ///< top of stack (cached)
+    IU       id     = 0;           ///< vm id
+    IU       ip     = 0;           ///< instruction pointer
+    DU       tos    = -DU1;        ///< top of stack (cached)
     
     vm_state state   = STOP;       ///< VM status
     bool     compile = false;      ///< compiler flag
