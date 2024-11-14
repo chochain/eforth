@@ -204,7 +204,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (vm.state==NEST && IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        printf("%02d[%4x]:%4x", vm._id, IP, ix);
+        printf("\033[%dm%02d[%4x]:%4x\033[0m", vm._id ? 38-vm._id : 37, vm._id, IP, ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -259,7 +259,7 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-        printf("   => IP=%4x, SS=%d, RS=%d, state=%d\n", IP, SS.idx, RS.idx, vm.state);
+        printf("\033[%dm   => IP=%4x, SS=%d, RS=%d, state=%d\033[0m\n", vm._id ? 38-vm._id : 37, IP, SS.idx, RS.idx, vm.state);
 /*        
         U8 cpu = sched_getcpu();
         if (vm._id != cpu) {           /// check affinity
