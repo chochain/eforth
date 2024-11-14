@@ -40,11 +40,11 @@ struct FV : public vector<T> {         ///< our super-vector class
 ///
 typedef enum { STOP=0, HOLD, QUERY, NEST, MSG, IO } vm_state;
 struct ALIGNAS VM {
-    FV<DU>    ss;                  ///< data stack
-    FV<DU>    rs;                  ///< return stack
+    FV<DU>   ss;                   ///< data stack
+    FV<DU>   rs;                   ///< return stack
     
-    IU       _id     = 0;          ///< vm id
-    IU       _ip     = 0;          ///< instruction pointer
+    IU       id      = 0;          ///< vm id
+    IU       ip      = 0;          ///< instruction pointer
     DU       tos     = -DU1;       ///< cached top of stack
     
     vm_state state   = STOP;       ///< VM status
@@ -74,8 +74,8 @@ struct ALIGNAS VM {
 ///
 ///> data structure for dictionary entry
 ///
-struct Code;                 ///< Code class forward declaration
-typedef void (*XT)(Code*);   ///< function pointer
+struct Code;                       ///< Code class forward declaration
+typedef void (*XT)(VM &vm, Code*); ///< function pointer
 
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
@@ -101,10 +101,10 @@ struct Code {
     ~Code() {}                            ///> do nothing now
     
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-    void exec() {                         ///> inner interpreter
-        if (xt) { xt(this); return; }     /// * run primitive word
+    void exec(VM &vm) {                   ///> inner interpreter
+        if (xt) { xt(vm, this); return; } /// * run primitive word
         for (Code *w : pf) {              /// * run colon word
-            try { w->exec(); }            /// * execute recursively
+            try { w->exec(vm); }          /// * execute recursively
             catch (...) { break; }        /// * break loop with throw 0
         }
     }
@@ -112,19 +112,19 @@ struct Code {
 ///
 ///> Primitve object and function forward declarations
 ///
-struct Code;                 ///< Code class forward declaration
-typedef void (*XT)(Code*);   ///< function pointer
+struct Code;                         ///< Code class forward declaration
+typedef void (*XT)(VM&, Code*);      ///< function pointer
 
-void   _str(Code *c);        ///< dotstr, dostr
-void   _lit(Code *c);        ///< numeric liternal
-void   _var(Code *c);        ///< variable and constant
-void   _tor(Code *c);        ///< >r (for..next)
-void   _tor2(Code *c);       ///< swap >r >r (do..loop)
-void   _if(Code *c);         ///< if..then, if..else..then
-void   _begin(Code *c);      ///< ..until, ..again, ..while..repeat
-void   _for(Code *c);        ///< for..next, for..aft..then..next
-void   _loop(Code *c);       ///< do..loop
-void   _does(Code *c);       ///< does>
+void   _str(VM &vm, Code *c);        ///< dotstr, dostr
+void   _lit(VM &vm, Code *c);        ///< numeric liternal
+void   _var(VM &vm, Code *c);        ///< variable and constant
+void   _tor(VM &vm, Code *c);        ///< >r (for..next)
+void   _tor2(VM &vm, Code *c);       ///< swap >r >r (do..loop)
+void   _if(VM &vm, Code *c);         ///< if..then, if..else..then
+void   _begin(VM &vm, Code *c);      ///< ..until, ..again, ..while..repeat
+void   _for(VM &vm, Code *c);        ///< for..next, for..aft..then..next
+void   _loop(VM &vm, Code *c);       ///< do..loop
+void   _does(VM &vm, Code *c);       ///< does>
 ///
 ///> polymorphic constructors
 ///
@@ -134,7 +134,7 @@ struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
     Str(string s, int tok=0, int len=0) : Code(_str) {
         name  = (new string(s))->c_str();
-        token = (len << 16) | tok;        /// * encode word index and string length
+        token = (len << 16) | tok;   /// * encode word index and string length
         is_str= 1;
     }
 };
