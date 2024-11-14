@@ -10,6 +10,13 @@
 #include <vector>                      /// vector
 #include <chrono>
 #include "config.h"
+
+#if DO_MULTITASK
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#endif // DO_MULTITASK
+
 using namespace std;
 
 template<typename T>
@@ -27,34 +34,49 @@ struct FV : public vector<T> {         ///< our super-vector class
 #endif // CC_DEBUG
     }
 };
+///====================================================================
 ///
-///> Primitve object and function forward declarations
+///> VM context (single task)
+///
+typedef enum { STOP=0, HOLD, QUERY, NEST, MSG, IO } vm_state;
+struct ALIGNAS VM {
+    FV<DU>    ss;                  ///< data stack
+    FV<DU>    rs;                  ///< return stack
+    
+    IU       _id     = 0;          ///< vm id
+    IU       _ip     = 0;          ///< instruction pointer
+    DU       tos     = -DU1;       ///< cached top of stack
+    
+    vm_state state   = STOP;       ///< VM status
+    bool     compile = false;      ///< compiler flag
+
+    U8       *base   = 0;          ///< numeric radix (a pointer)
+    
+#if DO_MULTITASK
+    static int NCORE;              ///< number of hardware cores
+    
+    static bool io_busy;              ///< IO locking control
+    static mutex              msg;    ///< messing mutex
+    static mutex              io;     ///< mutex for io access
+    static condition_variable cv_io;  ///< for io control
+    static condition_variable cv_msg; ///< messing condition variable
+    static void _ss_dup(VM &dst, VM &src, int n);
+    
+    void join(int tid);            ///< wait for the given task to end
+    void io_lock();                ///< lock IO
+    void io_unlock();              ///< unlock IO
+    void reset(IU ip, vm_state st);
+    void send(int tid, int n);     ///< send onto destination VM's stack (blocking)
+    void recv(int tid, int n);     ///< receive from source VM's stack (blocking)
+    void bcast(int n);             ///< broadcast to all receivers
+#endif // DO_MULTITASK
+};
+///
+///> data structure for dictionary entry
 ///
 struct Code;                 ///< Code class forward declaration
 typedef void (*XT)(Code*);   ///< function pointer
 
-void   _str(Code *c);        ///< dotstr, dostr
-void   _lit(Code *c);        ///< numeric liternal
-void   _var(Code *c);        ///< variable and constant
-void   _tor(Code *c);        ///< >r (for..next)
-void   _tor2(Code *c);       ///< swap >r >r (do..loop)
-void   _if(Code *c);         ///< if..then, if..else..then
-void   _begin(Code *c);      ///< ..until, ..again, ..while..repeat
-void   _for(Code *c);        ///< for..next, for..aft..then..next
-void   _loop(Code *c);       ///< do..loop
-void   _does(Code *c);       ///< does> 
-///
-///> IO function declarations
-///
-string word(char delim=0);   ///< read next idiom from input stream
-void   ss_dump(DU base);     ///< display data stack contents
-void   see(Code *c);         ///< disassemble word
-void   words();              ///< list words in dictionary
-void   load(const char *fn); ///< include script from stream
-Code   *find(string s);      ///< dictionary scanner forward declare
-///
-///> data structure for dictionary entry
-///
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
     const char *name;        ///< name of word
@@ -88,6 +110,22 @@ struct Code {
     }
 };
 ///
+///> Primitve object and function forward declarations
+///
+struct Code;                 ///< Code class forward declaration
+typedef void (*XT)(Code*);   ///< function pointer
+
+void   _str(Code *c);        ///< dotstr, dostr
+void   _lit(Code *c);        ///< numeric liternal
+void   _var(Code *c);        ///< variable and constant
+void   _tor(Code *c);        ///< >r (for..next)
+void   _tor2(Code *c);       ///< swap >r >r (do..loop)
+void   _if(Code *c);         ///< if..then, if..else..then
+void   _begin(Code *c);      ///< ..until, ..again, ..while..repeat
+void   _for(Code *c);        ///< for..next, for..aft..then..next
+void   _loop(Code *c);       ///< do..loop
+void   _does(Code *c);       ///< does>
+///
 ///> polymorphic constructors
 ///
 struct Tmp : Code { Tmp() : Code(NULL) {} };
@@ -114,9 +152,59 @@ struct Bran: Code {
     }
 };
 ///
-///> OS platform specific implementation
+///> Multitasking support
 ///
-extern void mem_stat();
-extern void forth_include(const char *fn);
+VM&  vm_get(int id=0);                    ///< get a VM with given id
+#if DO_MULTITASK
+void t_pool_init();
+void t_pool_stop();
+int  task_create(IU pfa);                 ///< create a VM starting on pfa
+void task_start(int tid);                 ///< start a thread with given task/VM id
+void task_wait();
+void task_signal();
+#else  // !DO_MULTITASK
+void t_pool_init() {}
+void t_pool_stop() {}
+#endif // !DO_MULTITASK
+///
+///> System interface
+///
+void forth_init();
+int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
+int  forth_include(const char *fn);       /// load external Forth script
+void outer(istream &in);                  ///< Forth outer loop
+///
+///> IO functions
+///
+typedef enum { BASE=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
+
+void fin_setup(const char *line);
+void fout_setup(void (*hook)(int, const char*));
+
+Code *find(string s);                     ///< dictionary scanner forward declare
+char *scan(char c);                       ///< scan input stream for a given char
+int  fetch(string &idiom);                ///< read input stream into string
+string word(char delim=0);                ///< read next idiom from input stream
+char key();                               ///< read key from console
+void load(VM &vm, const char* fn);        ///< load external Forth script
+void spaces(int n);                       ///< show spaces
+void dot(io_op op, DU v=DU0);             ///< print literals
+void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
+void pstr(const char *str, io_op op=SPCS);///< print string
+///
+///> Debug functions
+///
+void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
+void see(Code *c, int base);              ///< disassemble user defined word
+void words(int base);                     ///< list dictionary words
+void dict_dump(int base);                 ///< dump dictionary
+void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
+void mem_stat();                          ///< display memory statistics
+///
+///> Javascript interface
+///
+#if DO_WASM
+void native_api();
+#endif // DO_WASM
 
 #endif  // __EFORTH_SRC_CEFORTH_H
