@@ -6,44 +6,75 @@
 #include <sstream>                     /// iostream, stringstream
 #include <cstring>
 #include "ceforth.h"
-
 using namespace std;
+
+extern FV<Code*> dict;
+
+#define TOS     (vm.tos)
+#define SS      (vm.ss)
 ///
 ///> I/O streaming interface
 ///
 istringstream   fin;                   ///< forth_in
 ostringstream   fout;                  ///< forth_out
-string          pad;                   ///< string buffers
 void (*fout_cb)(int, const char*);     ///< forth output callback functi
 ///====================================================================
 ///
 ///> IO functions
 ///
+void fin_setup(const char *line) {
+    fout.str("");                        /// * clean output buffer
+    fin.clear();                         /// * clear input stream error bit if any
+    fin.str(line);                       /// * reload user command into input stream
+}
+void fout_setup(void (*hook)(int, const char*)) {
+    auto cb = [](int, const char *rst) { printf("%s", rst); };
+    fout_cb = hook ? hook : cb;          ///< serial output hook up
+}
+char *scan(char c) {
+    static string pad;                   ///< temp storage
+    getline(fin, pad, c);                ///< scan fin for char c
+    return (char*)pad.c_str();           ///< return found string
+}
+int  fetch(string &idiom) { return !(fin >> idiom)==0; }
 string word(char delim) {            ///> read next idiom form input stream
     string s; delim ? getline(fin, s, delim) : fin >> s; return s;
 }
-void ss_dump(DU base) {              ///> display data stack and ok promt
-    char buf[34];
-    auto rdx = [&buf](DU v, int b) {      ///> display v by radix
-#if USE_FLOAT
-        sprintf(buf, "%0.6g", v);
-        return buf;
-#else // !USE_FLOAT
-        int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
-        DU  n = ABS(v);                   ///< handle negative
-        do {
-            U8 d = (U8)MOD(n, b);  n /= b;
-            buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
-        } while (n && i);
-        if (v < 0) buf[--i]='-';
-        return &buf[i];
-#endif // USE_FLOAT
-    };
-    ss.push(tos);
-    for (DU v : ss) { fout << rdx(v, base) << ' '; }
-    tos = ss.pop();
-    fout << "-> ok" << ENDL;
+char key() { return word()[0]; }
+void load(VM &vm, const char *fn) {          ///> include script from stream
+    void (*cb)(int, const char*) = fout_cb;  ///< keep output function
+    string in; getline(fin, in);             ///< keep input buffers
+    fout << ENDL;                            /// * flush output
+    
+    forth_include(fn);                       /// * send script to VM
+    
+    fout_cb = cb;                            /// * restore output cb
+    fin.clear(); fin.str(in);                /// * restore input
 }
+void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
+void dot(io_op op, DU v) {
+    switch (op) {
+    case BASE:  fout << setbase(UINT(v));               break;
+    case CR:    fout << ENDL;                           break;
+    case DOT:   fout << v << " ";                       break;
+    case UDOT:  fout << static_cast<U32>(v) << " ";     break;
+    case EMIT:  { char b = (char)UINT(v); fout << b; }  break;
+    case SPCS:  spaces(UINT(v));                        break;
+    default:    fout << "unknown io_op=" << op << ENDL; break;
+    }
+}
+void dotr(int w, DU v, int b, bool u) {
+    fout << setbase(b) << setw(w)
+         << (u ? static_cast<U32>(v) : v);
+}
+void pstr(const char *str, io_op op) {
+    fout << str;
+    if (op==CR) fout << ENDL;
+}
+///====================================================================
+///
+///> Debug functions
+///
 void _see(Code *c, int dp) {         ///> disassemble a colon word
     auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
         int i = dp;
@@ -84,13 +115,13 @@ void _see(Code *c, int dp) {         ///> disassemble a colon word
     }
     else pq(c->q);
 }
-void see(Code *c) {
+void see(Code *c, int base) {
     if (c->xt) fout << "  ->{ " << c->desc << "; }";
     else {
         fout << ": "; _see(c, 0); fout << " ;";
     }
 }
-void words() {              ///> display word list
+void words(int base) {                    ///> display word list
     const int WIDTH = 60;
     int x = 0;
     fout << setbase(16) << setfill('0');
@@ -107,15 +138,95 @@ void words() {              ///> display word list
         if (x > WIDTH) { fout << ENDL; x = 0; }
 #endif // CC_DEBUG
     }
-    fout << setfill(' ') << setbase(BASE) << ENDL;
+    fout << setfill(' ') << setbase(base) << ENDL;
 }
-void load(const char *fn) {          ///> include script from stream
-    void (*cb)(int, const char*) = fout_cb;  ///< keep output function
-    string in; getline(fin, in);             ///< keep input buffers
-    fout << ENDL;                            /// * flush output
-    
-    forth_include(fn);                       /// * send script to VM
-    
-    fout_cb = cb;                            /// * restore output cb
-    fin.clear(); fin.str(in);                /// * restore input
+void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
+    char buf[34];
+    auto rdx = [&buf](DU v, int b) {      ///> display v by radix
+#if USE_FLOAT
+        sprintf(buf, "%0.6g", v);
+        return buf;
+#else // !USE_FLOAT
+        int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
+        DU  n = ABS(v);                   ///< handle negative
+        do {
+            U8 d = (U8)MOD(n, b);  n /= b;
+            buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
+        } while (n && i);
+        if (v < 0) buf[--i]='-';
+        return &buf[i];
+#endif // USE_FLOAT
+    };
+    SS.push(TOS);
+    for (DU v : SS) { fout << rdx(v, *vm.base) << ' '; }
+    TOS = SS.pop();
+    fout << "-> ok" << ENDL;
 }
+///====================================================================
+///
+///> Javascript/WASM interface
+///
+#if DO_WASM
+EM_JS(void, js_call, (const char *ops), {
+        const req = UTF8ToString(ops).split(/\\s+/);
+        const wa  = wasmExports;
+        const mem = wa.vm_mem();
+        let msg = [], tfr = [];
+        for (let i=0, n=req.length; i < n; i++) {
+            if (req[i]=='p') {
+                const a = new Float32Array(     ///< create a buffer ref
+                    wa.memory.buffer,           /// * WASM ArrayBuffer
+                    mem + (req[i+1]|0),         /// * pointer address
+                    req[i+2]|0                  /// * length
+                );
+                i += 2;                         /// *  skip over addr, len
+                const t = new Float64Array(a);  ///< create a transferable
+                msg.push(t);                    /// * which speeds postMessage
+                tfr.push(t.buffer);             /// * from 20ms => 5ms
+            }
+            else msg.push(req[i]);
+        }
+        msg.push(Date.now());                   /// * t0 anchor for performance check
+        postMessage(['js', msg], tfr);
+});
+///
+///> Javascript calling, before passing to js_call()
+///
+///  String substitude similar to printf
+///    %d - integer
+///    %f - float
+///    %x - hex
+///    %s - string
+///    %p - pointer (memory block)
+///
+void native_api() {                        ///> ( n addr u -- )
+    static stringstream n;                 ///< string processor
+    static string       pad;               ///< tmp storage
+    auto t2s = [&n](char c) {              ///< template to string
+        n.str("");                         /// * clear stream
+        switch (c) {
+        case 'd': n << UINT(POP());                break;
+        case 'f': n << (DU)POP();                  break;
+        case 'x': n << "0x" << hex << UINT(POP()); break;
+        case 's': POP(); n << (char*)MEM(POP());   break;  /// also handles raw stream
+        case 'p':
+            n << "p " << UINT(POP());
+            n << ' '  << UINT(POP());              break;
+        default : n << c << '?';                   break;
+        }
+        return n.str();
+    };
+    POP();                                 /// * strlen, not used
+    pad.clear();                           /// * init pad
+    pad.append((char*)MEM(POP()));         /// * copy string on stack
+    for (size_t i=pad.find_last_of('%');   ///> find % from back
+         i!=string::npos;                  /// * until not found
+         i=pad.find_last_of('%',i?i-1:0)) {
+        if (i && pad[i-1]=='%') {          /// * double %%
+            pad.replace(--i,1,"");         /// * drop one %
+        }
+        else pad.replace(i, 2, t2s(pad[i+1]));
+    }
+    js_call(pad.c_str());    /// * call Emscripten js function
+}
+#endif // DO_WASM
