@@ -269,7 +269,7 @@ void nest(VM& vm) {
 //        printf("\033[%dm   => IP=%4x, SS=%d, RS=%d, state=%d\033[0m\n", vm.id ? 38-vm.id : 37, IP, SS.idx, RS.idx, vm.state);
 /*        
         U8 cpu = sched_getcpu();
-        if (vm.id != cpu) {           /// check affinity
+        if (vm.id != cpu) {            /// check affinity
             vm.id = cpu; vm.xcpu++;
         }
 */
@@ -502,6 +502,23 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("+!",    IU w = POPI(); CELL(w) += POP());             // n w --
     CODE("?",     IU w = POPI(); put(DOT, CELL(w)));            // w --
     /// @}
+#if DO_MULTITASK    
+    /// @defgroup Multitasking ops
+    /// @}
+    CODE("task",                                                // w -- task_id
+         IU w = POPI();                                         ///< dictionary index
+         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
+         else pstr("  ?colon word only\n"));
+    CODE("rank",  PUSH(vm.id));                                 /// ( -- n ) thread id
+    CODE("start", task_start(POPI()));                          /// ( task_id -- )
+    CODE("join",  vm.join(POPI()));                             /// ( task_id -- )
+    CODE("lock",  vm.io_lock());                                /// wait for IO semaphore
+    CODE("unlock",vm.io_unlock());                              /// release IO semaphore
+    CODE("send",  IU t = POPI(); vm.send(t, POPI()));           /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
+    CODE("recv",  IU t = POPI(); vm.recv(t, POPI()));           /// ( n tid -- v1 v2 .. vn ) fetch values from task's stack
+    CODE("bcast", vm.bcast(POPI()));                            /// ( v1 v2 .. vn n -- )
+    /// @}
+#endif // DO_MULTITASK    
     /// @defgroup Debug ops
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());          // clear ss, rs
