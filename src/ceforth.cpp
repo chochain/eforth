@@ -13,8 +13,7 @@ using namespace std;
 ///
 FV<Code*> dict;                        ///< Forth dictionary
 Code      *last;                       ///< cached dict[-1]
-VM        vm0;
-string    pad;
+VM        vm0;                         ///< Forth VM
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
@@ -31,7 +30,7 @@ string    pad;
 #define BRAN_TGT()   (dict[-2]->pf[-1]) /* branching target */
 #define STR(i_w)     (                                  \
         EQ(i_w, UINT(-DU1))                             \
-        ? pad.c_str()                                   \
+        ? vm.pad.c_str()                                \
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
 #define NEST(pf)  for (Code *w: (pf)) w->exec(vm)
@@ -139,10 +138,10 @@ const Code rom[] = {               ///< Forth dictionary
     CODE(".r",     IU w = POPI(); dotr(w, POP(), *vm.base)),
     CODE("u.r",    IU w = POPI(); dotr(w, POP(), *vm.base, true)),
     CODE("type",   POP(); U32 i_w=POPI(); pstr(STR(i_w))),
-//    IMMD("key",    if (vm.compile) add_w(KEY); else PUSH(key())),
+    CODE("key",    PUSH(key())),
     CODE("emit",   dot(EMIT, POP())),
     CODE("space",  dot(SPCS, DU1)),
-    CODE("spaces",  dot(SPCS, POP())),
+    CODE("spaces", dot(SPCS, POP())),
     /// @}
     /// @defgroup Literal ops
     /// @{
@@ -155,7 +154,7 @@ const Code rom[] = {               ///< Forth dictionary
              last->append(new Str(s, last->token, last->pf.size()));
          }
          else {
-             pad = s;                                // keep string on pad
+             vm.pad = s;                             // keep string on pad
              PUSH(-DU1); PUSH(s.length());           // -1 = pad, len
          }),
     IMMD(".\"",
@@ -462,16 +461,17 @@ void forth_init() {
     
     dict[0]->append(new Var(10));     /// * borrow dict[0] for base
     vm0.base = (U8*)&VAR(0);
+    
 #if DO_WASM
-    fout << "WASM build" << endl;
+    pstr("WASM build", CR);
 #endif
 }
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm0;
 
-    fout_setup(hook);
-    fin_setup(line);                  /// * refresh buffer
+    fout_setup(hook);                 /// * init output stream
+    fin_setup(line);                  /// * init input stream
     
     string idiom;
     while (fetch(idiom)) {            /// * fetch a word
@@ -483,7 +483,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             pstr("?");
             pstr(e.what(), CR);
             vm.compile = false;
-            scan('\n');
+            scan('\n');               /// * exhaust input line
         }
     }
     if (!vm.compile) ss_dump(vm);
