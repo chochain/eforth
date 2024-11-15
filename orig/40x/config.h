@@ -14,6 +14,7 @@
 #define RANGE_CHECK     0               /**< vector range check     */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
+#define DO_MULTITASK    1               /**< multitasking/pthread   */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
 ///@name Memory block configuation
@@ -22,6 +23,7 @@
 #define E4_SS_SZ        32
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
+#define E4_VM_POOL_SZ   8
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
@@ -74,8 +76,10 @@ typedef int32_t         DU;
 #include <strings.h>     // strcasecmp
 #define STRCMP(a, b)    (strcasecmp(a, b))
 #endif // CASE_SENSITIVE
+///@}
 ///@name Inline & Alignment macros
 ///@{
+#include <cstring>
 #pragma GCC optimize("align-functions=4")    // we need fn alignment
 #define INLINE          __attribute__((always_inline))
 #define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
@@ -83,6 +87,8 @@ typedef int32_t         DU;
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 #define ALIGN(sz)       ALIGN2(sz)
+// #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
+#define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
 ///@}
 ///@name Multi-platform support

@@ -24,7 +24,7 @@ all: exe 36b 40x wasm
 %.o: %.cpp
 	$(CC) $(CC_FLAG) -Isrc -c -o $@ $<
 
-tests/eforth: platform/main.o src/ceforth.o
+tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o
 	$(CC) -o $@ $^
 
 tests/ceforth36b: orig/ting/ceforth_36b.cpp
