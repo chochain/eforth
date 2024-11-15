@@ -51,6 +51,7 @@ struct ALIGNAS VM {
     bool     compile = false;      ///< compiler flag
 
     U8       *base   = 0;          ///< numeric radix (a pointer)
+    string   pad;
     
 #if DO_MULTITASK
     static int NCORE;              ///< number of hardware cores
@@ -125,6 +126,7 @@ void   _begin(VM &vm, Code *c);      ///< ..until, ..again, ..while..repeat
 void   _for(VM &vm, Code *c);        ///< for..next, for..aft..then..next
 void   _loop(VM &vm, Code *c);       ///< do..loop
 void   _does(VM &vm, Code *c);       ///< does>
+void   _nest(VM &vm, FV<Code*> pf);  ///< does>
 ///
 ///> polymorphic constructors
 ///
