@@ -1,9 +1,16 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
-#include <cstdio>
-#include <cstdint>      // uintxx_t
-#include <string.h>     // string, strlen
+#include <stdio.h>
+#include <stdint.h>     // uintxx_t
+#include <exception>    // try...catch, throw
 #include "config.h"     // configuation and cross-platform support
+
+#if DO_MULTITASK
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#endif // DO_MULTITASK
+
 using namespace std;
 ///
 /// array class template (so we don't have dependency on C++ STL)
@@ -62,6 +69,25 @@ struct ALIGNAS VM {
     bool     compile = false;      ///< compiler flag
 
     U8       *base   = 0;          ///< numeric radix (a pointer)
+    
+#if DO_MULTITASK
+    static int NCORE;              ///< number of hardware cores
+    
+    static bool io_busy;              ///< IO locking control
+    static mutex              msg;    ///< messing mutex
+    static mutex              io;     ///< mutex for io access
+    static condition_variable cv_io;  ///< for io control
+    static condition_variable cv_msg; ///< messing condition variable
+    static void _ss_dup(VM &dst, VM &src, int n);
+    
+    void join(int tid);            ///< wait for the given task to end
+    void io_lock();                ///< lock IO
+    void io_unlock();              ///< unlock IO
+    void reset(IU ip, vm_state st);
+    void send(int tid, int n);     ///< send onto destination VM's stack (blocking)
+    void recv(int tid, int n);     ///< receive from source VM's stack (blocking)
+    void bcast(int n);             ///< broadcast to all receivers
+#endif // DO_MULTITASK
 };
 ///
 ///@name Code flag masking options
@@ -152,6 +178,21 @@ struct Code {
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
 ///
+///> Multitasking support
+///
+VM&  vm_get(int id=0);                    ///< get a VM with given id
+#if DO_MULTITASK
+void t_pool_init();
+void t_pool_stop();
+int  task_create(IU pfa);                 ///< create a VM starting on pfa
+void task_start(int tid);                 ///< start a thread with given task/VM id
+void task_wait();
+void task_signal();
+#else  // !DO_MULTITASK
+void t_pool_init() {}
+void t_pool_stop() {}
+#endif // !DO_MULTITASK
+///
 ///> System interface
 ///
 void forth_init();
@@ -161,28 +202,34 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
 ///
-typedef enum { BASE=0, CR, DOT, UDOT, DOTR, UDOTR, EMIT, SPCS } io_op;
-char key();                               ///< read key from console
+typedef enum { BASE=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
+
 void fin_setup(const char *line);
-void fout_setup(void (*hook)(int, const char*)=NULL);
+void fout_setup(void (*hook)(int, const char*));
 
 char *scan(char c);                       ///< scan input stream for a given char
 int  fetch(string &idiom);                ///< read input stream into string
+char *word();                             ///< get next idiom
+char key();                               ///< read key from console
+void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
-void put(io_op op, DU v=DU0, DU v2=DU0);  ///< print literals
+void dot(io_op op, DU v=DU0);             ///< print literals
+void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
 void pstr(const char *str, io_op op=SPCS);///< print string
 ///
 ///> Debug functions
 ///
+void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
 void words(int base);                     ///< list dictionary words
-void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void dict_dump(int base);                 ///< dump dictionary
 void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
 ///
 ///> Javascript interface
 ///
+#if DO_WASM
 void native_api();
-///
+#endif // DO_WASM
+
 #endif // __EFORTH_SRC_CEFORTH_H
