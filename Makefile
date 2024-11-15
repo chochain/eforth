@@ -27,11 +27,11 @@ all: exe 36b 40x wasm
 tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o
 	$(CC) -o $@ $^
 
-tests/ceforth36b: orig/ting/ceforth_36b.cpp
-	$(CC) $(CC_FLAG) -o $@ $<
+tests/ceforth36b: orig/ting/ceforth_36b.o
+	$(CC) -o $@ $<
 
-tests/ceforth40x: platform/main.o orig/40x/ceforth.cpp
-	$(CC) $(CC_FLAG) -Iorig/40x -o $@ $^
+tests/ceforth40x: platform/main.o orig/40x/ceforth.o orig/40x/ceforth_sys.o orig/40x/ceforth_task.o
+	$(CC) $(CC_FLAG) -pthread -o $@ $^
 
 tests/eforth.html: platform/wasm.cpp src/ceforth.cpp
 	$(EM) -Isrc -o $@ $^ \
@@ -40,6 +40,6 @@ tests/eforth.html: platform/wasm.cpp src/ceforth.cpp
 	  -sEXPORTED_RUNTIME_METHODS=cwrap -O2
 
 clean:
-	rm src/*.o platform/*.o $(FLST)
+	rm orig/40x/*.o src/*.o platform/*.o $(FLST)
 
 
