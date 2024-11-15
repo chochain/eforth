@@ -34,6 +34,7 @@ string    pad;
         ? pad.c_str()                                   \
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
+#define NEST(pf)  for (Code *w: (pf)) w->exec(vm)
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -353,29 +354,27 @@ void _lit(VM &vm, Code *c)  { PUSH(c->q[0]);  }
 void _var(VM &vm, Code *c)  { PUSH(c->token); }
 void _tor(VM &vm, Code *c)  { RS.push(POP()); }
 void _tor2(VM &vm, Code *c) { RS.push(SS.pop()); RS.push(POP()); }
-void _if(VM &vm, Code *c)   {
-    for (Code *w : (POP() ? c->pf : c->p1)) w->exec(vm);
-}
-void _begin(VM &vm, Code *c) {   ///> begin.while.repeat, begin.until
+void _if(VM &vm, Code *c)   { NEST(POP() ? c->pf : c->p1); }
+void _begin(VM &vm, Code *c){    ///> begin.while.repeat, begin.until
     int b = c->stage;            ///< branching state
     while (true) {
-        for (Code *w : c->pf) w->exec(vm);     /// * begin..
+        NEST(c->pf);                           /// * begin..
         if (b==0 && POP()!=0) break;           /// * ..until
         if (b==1)             continue;        /// * ..again
         if (b==2 && POP()==0) break;           /// * ..while..repeat
-        for (Code *w : c->p1) w->exec(vm);
+        NEST(c->p1);
     }
 }
 void _for(VM &vm, Code *c) {     ///> for..next, for..aft..then..next
     int b = c->stage;                          /// * kept in register
     try {
         do {
-            for (Code *w : c->pf) w->exec(vm);
+            NEST(c->pf);
         } while (b==0 && (RS[-1]-=1) >=0);     /// * for..next only
         while (b) {                            /// * aft
-            for (Code *w : c->p2) w->exec(vm); /// * then..next
+            NEST(c->p2);                       /// * then..next
             if ((RS[-1]-=1) < 0) break;        /// * decrement counter
-            for (Code *w : c->p1) w->exec(vm); /// * aft..then
+            NEST(c->p1);                       /// * aft..then
         }
         RS.pop();
     }
@@ -384,7 +383,7 @@ void _for(VM &vm, Code *c) {     ///> for..next, for..aft..then..next
 void _loop(VM &vm, Code *c) {                ///> do..loop
     try { 
         do {
-            for (Code *w : c->pf) w->exec(vm);
+            NEST(c->pf);
         } while ((RS[-1]+=1) < RS[-2]);      // increment counter
         RS.pop(); RS.pop();
     }
@@ -409,9 +408,8 @@ Code *find(string s) {      ///> scan dictionary, last to first
     return NULL;            /// * word not found
 }
 
-DU parse_number(string idiom) {
+DU parse_number(string idiom, int b) {
     const char *cs = idiom.c_str();
-    int b = BASE;
     switch (*cs) {                    ///> base override
     case '%': b = 2;  cs++; break;
     case '&':
@@ -440,7 +438,7 @@ void forth_core(VM &vm, string idiom) {
         
         return;
     }
-    DU  n = parse_number(idiom);      ///< try as a number
+    DU  n = parse_number(idiom, *vm.base);  ///< try as a number
     if (vm.compile)                   /// * are we compiling new word?
         last->append(new Lit(n));     /// * append numeric literal to it
     else PUSH(n);                     /// * add value to data stack
