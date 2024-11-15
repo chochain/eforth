@@ -18,38 +18,41 @@ extern FV<Code*> dict;
 istringstream   fin;                   ///< forth_in
 ostringstream   fout;                  ///< forth_out
 void (*fout_cb)(int, const char*);     ///< forth output callback functi
+int load_dp = 0;                       ///< load depth control
 ///====================================================================
 ///
 ///> IO functions
 ///
 void fin_setup(const char *line) {
-    fout.str("");                        /// * clean output buffer
-    fin.clear();                         /// * clear input stream error bit if any
-    fin.str(line);                       /// * reload user command into input stream
+    fout.str("");                      /// * clean output buffer
+    fin.clear();                       /// * clear input stream error bit if any
+    fin.str(line);                     /// * reload user command into input stream
 }
 void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
-    fout_cb = hook ? hook : cb;          ///< serial output hook up
+    fout_cb = hook ? hook : cb;        ///< serial output hook up
 }
 char *scan(char c) {
-    static string pad;                   ///< temp storage
-    getline(fin, pad, c);                ///< scan fin for char c
-    return (char*)pad.c_str();           ///< return found string
+    static string pad;                 ///< temp storage
+    getline(fin, pad, c);              ///< scan fin for char c
+    return (char*)pad.c_str();         ///< return found string
 }
 int  fetch(string &idiom) { return !(fin >> idiom)==0; }
-string word(char delim) {            ///> read next idiom form input stream
+string word(char delim) {              ///> read next idiom form input stream
     string s; delim ? getline(fin, s, delim) : fin >> s; return s;
 }
 char key() { return word()[0]; }
-void load(VM &vm, const char *fn) {          ///> include script from stream
+void load(VM &vm, const char *fn) {    ///> include script from stream
+    load_dp++;                         /// * increment depth counter
     void (*cb)(int, const char*) = fout_cb;  ///< keep output function
     string in; getline(fin, in);             ///< keep input buffers
-    fout << ENDL;                            /// * flush output
+    fout << ENDL;                      /// * flush output
     
-    forth_include(fn);                       /// * send script to VM
+    forth_include(fn);                 /// * send script to VM
     
-    fout_cb = cb;                            /// * restore output cb
-    fin.clear(); fin.str(in);                /// * restore input
+    fout_cb = cb;                      /// * restore output cb
+    fin.clear(); fin.str(in);          /// * restore input
+    --load_dp;                         /// * decrement depth counter
 }
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void dot(io_op op, DU v) {
@@ -141,21 +144,28 @@ void words(int base) {                    ///> display word list
     fout << setfill(' ') << setbase(base) << ENDL;
 }
 void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
+    if (load_dp) return;                  /// * skip when including file
+#if DO_WASM    
+    if (!forced) { fout << "ok" << ENDL; return; }
+#endif // DO_WASM
     char buf[34];
     auto rdx = [&buf](DU v, int b) {      ///> display v by radix
 #if USE_FLOAT
-        sprintf(buf, "%0.6g", v);
-        return buf;
-#else // !USE_FLOAT
+        DU t, f = modf(v, &t);            ///< integral, fraction
+        if (ABS(f) > DU_EPS) {
+            sprintf(buf, "%0.6g", v);
+            return buf;
+        }
+#endif // USE_FLOAT
         int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
-        DU  n = ABS(v);                   ///< handle negative
+        int dec = b==10;
+        U32 n   = dec ? UINT(ABS(v)) : UINT(v);  ///< handle negative
         do {
             U8 d = (U8)MOD(n, b);  n /= b;
             buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
         } while (n && i);
-        if (v < 0) buf[--i]='-';
+        if (dec && v < DU0) buf[--i]='-';
         return &buf[i];
-#endif // USE_FLOAT
     };
     SS.push(TOS);
     for (DU v : SS) { fout << rdx(v, *vm.base) << ' '; }
