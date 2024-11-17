@@ -45,19 +45,21 @@ void _event_loop(int rank) {
 }
 
 void t_pool_init() {
-    _pool = new thread[VM::NCORE];           ///< a thread each core
-    _que  = new VM*[VM::NCORE * 2];          ///< queue with spare 
+    _pool = new thread[VM::NCORE];                ///< a thread each core
+    _que  = new VM*[VM::NCORE * 2];               ///< queue with spare 
     
     if (!_pool.v || !_que.v) {
         printf("thread_pool_init allocation failed\n");
         exit(-1);
     }
-    /// setup VMs user area
+    /// setup VMs base pointers
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
-        _vm[i].base = &pmem[pmem.idx];       /// * HERE
-        _vm[i].id  = i;                      /// * VM id
-        add_du(10);                          /// * default base=10
+        U8 *b = _vm[i].base = &pmem[pmem.idx++];  ///< *base 
+        *b = 10;                                  /// * default 10
+        _vm[i].id = i;                            /// * VM id
     }
+    pmem.idx = DALIGN(pmem.idx);                  /// DU aligned 
+    
     /// setup threads
     cpu_set_t set;
     CPU_ZERO(&set);                          /// * clear affinity
