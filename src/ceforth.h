@@ -173,7 +173,7 @@ void t_pool_stop() {}
 ///
 void forth_init();
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
-int  forth_include(const char *fn);       /// load external Forth script
+void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
@@ -202,11 +202,4 @@ void words(int base);                     ///< list dictionary words
 void dict_dump(int base);                 ///< dump dictionary
 void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
-///
-///> Javascript interface
-///
-#if DO_WASM
-void native_api();
-#endif // DO_WASM
-
 #endif  // __EFORTH_SRC_CEFORTH_H
