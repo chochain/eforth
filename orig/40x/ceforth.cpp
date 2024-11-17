@@ -199,11 +199,11 @@ void s_quote(VM &vm, prim_op op) {
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
-#define UNNEST()     (vm.state = (IP=UINT(RS.pop())) ? HOLD : STOP)
+#define UNNEST()     (IP=UINT(RS.pop()))
 
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
-    while (vm.state==NEST && IP) {
+    while (IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
 //        printf("\033[%dm%02d[%4x]:%4x\033[0m", vm.id ? 38-vm.id : 37, vm.id, IP, ix);
         IP += sizeof(IU);
@@ -252,7 +252,7 @@ void nest(VM& vm) {
         CASE(FOR,  RS.push(POP()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
              RS.push(SS.pop()); RS.push(POP()));
-        CASE(KEY,  key(); vm.state = IO);            /// * fetch single keypress
+        CASE(KEY,  PUSH(key()); goto vm_hold);       /// * fetch single keypress
         OTHER(
             if (ix & EXT_FLAG) {                     /// * colon word?
                 RS.push(IP);                         /// * setup call frame
@@ -261,13 +261,9 @@ void nest(VM& vm) {
             else Code::exec(vm, ix));               ///> execute built-in word
         }
 //        printf("\033[%dm   => IP=%4x, SS=%d, RS=%d, state=%d\033[0m\n", vm.id ? 38-vm.id : 37, IP, SS.idx, RS.idx, vm.state);
-/*        
-        U8 cpu = sched_getcpu();
-        if (vm.id != cpu) {            /// check affinity
-            vm.id = cpu; vm.xcpu++;
-        }
-*/
     }
+    vm_hold:
+    vm.state = IP ? HOLD : STOP;
 }
 ///
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
@@ -504,7 +500,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
-    CODE("'",     IU w = find(word()); if (w) PUSH(w));
+    IMMD("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump(vm, true));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
     CODE("r",     PUSH(RS.idx));
@@ -650,16 +646,10 @@ void forth_init() {
     dict_validate();                     ///< collect XT0, and check xtoff range
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
-    auto time_up = []() {                /// * time slice up
-        static long t0 = 0;              /// * real-time support, 10ms = 100Hz
-        long t1 = millis();              ///> check timing
-        return (t1 >= t0) ? (t0 = t1 + t0, 1) : 0;
-    };
     VM &vm = vm_get(0);                  ///< get main thread
     fout_setup(hook);
 
-    bool resume =                        ///< check VM resume status
-        (vm.state==HOLD || vm.state==IO);
+    bool resume = vm.state==HOLD;        ///< check VM resume status
     if (resume) IP = UINT(RS.pop());     /// * restore context
     else        fin_setup(line);         /// * refresh buffer if not resuming
     
@@ -667,11 +657,10 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     while (resume || fetch(idiom)) {     /// * parse a word
         if (resume) nest(vm);                      /// * resume task
         else        forth_core(vm, idiom.c_str()); /// * send to Forth core
-        resume = vm.state==HOLD;
-        if (resume && time_up()) break;            ///> multi-threading support
+        if (vm.state==HOLD) break;       /// * pause for IO
     }
-    bool yield = vm.state==HOLD || vm.state==IO;   /// * yield to other tasks
-
+    bool yield = vm.state==HOLD;
+    
     if (yield)            RS.push(IP);   /// * save context
     else if (!vm.compile) ss_dump(vm);   /// * optionally display stack contents
     

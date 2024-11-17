@@ -56,7 +56,7 @@ struct List {
 ///
 ///> VM context (single task)
 ///
-typedef enum { STOP=0, HOLD, QUERY, NEST, MSG, IO } vm_state;
+typedef enum { STOP=0, HOLD, QUERY, NEST, MSG } vm_state;
 struct ALIGNAS VM {
     List<DU, E4_SS_SZ> ss;         ///< parameter stack
     List<DU, E4_RS_SZ> rs;         ///< parameter stack
