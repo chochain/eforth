@@ -214,7 +214,7 @@ void ss_dump(VM &vm, bool forced) {
     };
     SS.push(TOS);
     for (int i=0; i<SS.idx; i++) {
-        fout << rdx(SS[i], *vm.base) << ' ';
+        fout << rdx(SS[i], *MEM(vm.base)) << ' ';
     }
     TOS = SS.pop();
     fout << "-> ok" << ENDL;
