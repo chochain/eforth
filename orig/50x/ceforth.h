@@ -64,11 +64,10 @@ struct ALIGNAS VM {
     IU       id      = 0;          ///< vm id
     IU       ip      = 0;          ///< instruction pointer
     DU       tos     = -DU1;       ///< top of stack (cached)
-    
-    vm_state state   = STOP;       ///< VM status
-    bool     compile = false;      ///< compiler flag
 
-    U8       *base   = 0;          ///< numeric radix (a pointer)
+    bool     compile = false;      ///< compiler flag
+    vm_state state   = STOP;       ///< VM status
+    IU       base    = 0;          ///< numeric radix (a pointer)
     
 #if DO_MULTITASK
     static int NCORE;              ///< number of hardware cores
@@ -202,7 +201,7 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
 ///
-typedef enum { BASE=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
+typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
