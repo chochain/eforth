@@ -1,9 +1,9 @@
 \page 5
 ### Why
-Even with vocabulary, multi-tasking, and metacompilation (the black-belt stuffs of Forth greatness) delibrately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.
+Even with vocabulary, multi-tasking, and metacompilation (the black-belt stuffs of Forth greatness) deliberately dropped to reduce the complexity, eForth traditionally uses linear memory to host words of the entire dictionary, including codes and their parameters with a backward linked-list and hence the well-known term threading. This model is crucial when memory is scarce or compiler resource is just underwhelming. It, however, does create extra hurdle that sometimes hinder the learning of newbies.
 
 ### Synopsis
-With C++ implementation of Forth as the back drop, I experimented with verious changes to the classic Forth linear-memory model detailed in next section. By manually turning the rocks under each memory management scenarions to find out what could we do better.
+With C++ implementation of Forth as the back drop, I experimented with various changes to the classic Forth linear-memory model detailed in next section. By manually turning the rocks under each memory management scenarios to find out what could we do better.
 At the end of the day, the simplest vector-based token-threading implementation with just C++ compiler optimizer actually out perform all the following tuning, 10% on AMD and 25% on ESP32.
 So, respect Dr. Ting's original goal of creating an educational platform, I have decided to stick with the simplest, shortest code-base.
 
@@ -15,7 +15,7 @@ So, respect Dr. Ting's original goal of creating an educational platform, I have
 - the down side is that it requires manual array size tuning
 </pre>
    
-eForth_33 uses functions i.g. CODE, LABEL, HEADER, ... as macros to assemble dictionary which just mimicing how classic Forth creates the dictionary. Visually, it is not that different from using Forth which is challenging for new comers.
+eForth_33 uses functions i.g. CODE, LABEL, HEADER, ... as macros to assemble dictionary which just mimicking how classic Forth creates the dictionary. Visually, it is not that different from using Forth which is challenging for new comers.
 
 ** 2: Use struct to host a dictionary entry**
 <pre>
@@ -24,7 +24,7 @@ struct Code {
     void   (*xt)(void);
     int    immd;
 };
-+ it simpify the classic field management of Forth
++ it simplify the classic field management of Forth
 - extra space to store the name and code pointers
 </pre>
 
@@ -75,7 +75,7 @@ while (cin >> idiom) {
 + our outer-interpreter is understandable even without any comment
 </pre>
 
-Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as wll as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of a subroutine indirect threading model.
+Dr. Ting latest ceForth uses the token indirect threading model. It is great for learning as well as being portable. The extra lookup for token to function pointer makes it slower (at about 50%) of a subroutine indirect threading model.
 
 ** 5: Using 16-bit xt offset in parameter field (instead of full 32 or 64 bits)**
 <pre>
