@@ -1,9 +1,16 @@
 #ifndef __EFORTH_SRC_CEFORTH_H
 #define __EFORTH_SRC_CEFORTH_H
-#include <cstdio>
-#include <cstdint>      // uintxx_t
-#include <string.h>     // string, strlen
+#include <stdio.h>
+#include <stdint.h>     // uintxx_t
+#include <exception>    // try...catch, throw
 #include "config.h"     // configuation and cross-platform support
+
+#if DO_MULTITASK
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#endif // DO_MULTITASK
+
 using namespace std;
 ///
 /// array class template (so we don't have dependency on C++ STL)
@@ -11,7 +18,7 @@ using namespace std;
 ///   * using decorator pattern
 ///   * this is similar to vector class but much simplified
 ///
-template<class T, int N>
+template<class T, int N=0>
 struct List {
     T   *v;             ///< fixed-size array storage
     int idx = 0;        ///< current index of array
@@ -19,7 +26,7 @@ struct List {
 
     List()  {
         v = N ? new T[N] : 0;                     ///< dynamically allocate array storage
-        if (!v) throw "ERR: List allot failed";
+        if (N && !v) throw "ERR: List allot failed";
     }
     ~List() { if (v) delete[] v;   }              ///< free memory
 
@@ -45,6 +52,43 @@ struct List {
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
     void clear(int i=0)    INLINE { idx=i; }
 };
+///====================================================================
+///
+///> VM context (single task)
+///
+typedef enum { STOP=0, HOLD, QUERY, NEST, MSG } vm_state;
+struct ALIGNAS VM {
+    List<DU, E4_SS_SZ> ss;         ///< parameter stack
+    List<DU, E4_RS_SZ> rs;         ///< parameter stack
+
+    IU       id      = 0;          ///< vm id
+    IU       ip      = 0;          ///< instruction pointer
+    DU       tos     = -DU1;       ///< top of stack (cached)
+    
+    vm_state state   = STOP;       ///< VM status
+    bool     compile = false;      ///< compiler flag
+
+    U8       *base   = 0;          ///< numeric radix (a pointer)
+    
+#if DO_MULTITASK
+    static int NCORE;              ///< number of hardware cores
+    
+    static bool io_busy;              ///< IO locking control
+    static mutex              msg;    ///< messing mutex
+    static mutex              io;     ///< mutex for io access
+    static condition_variable cv_io;  ///< for io control
+    static condition_variable cv_msg; ///< messing condition variable
+    static void _ss_dup(VM &dst, VM &src, int n);
+    
+    void join(int tid);            ///< wait for the given task to end
+    void io_lock();                ///< lock IO
+    void io_unlock();              ///< unlock IO
+    void reset(IU ip, vm_state st);
+    void send(int tid, int n);     ///< send onto destination VM's stack (blocking)
+    void recv(int tid, int n);     ///< receive from source VM's stack (blocking)
+    void bcast(int n);             ///< broadcast to all receivers
+#endif // DO_MULTITASK
+};
 ///
 ///@name Code flag masking options
 ///@{
@@ -59,9 +103,9 @@ struct List {
 
 #define IS_UDF(w) (dict[w].attr & UDF_ATTR)
 #define IS_IMM(w) (dict[w].attr & IMM_ATTR)
-///@}
+///}
 ///@name primitive opcode
-///@{
+///{
 typedef enum {
     EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
     VBRAN, DOES, FOR, DO, KEY, MAX_OP
@@ -86,14 +130,14 @@ typedef enum {
 ///            |attr|pfa |
 ///            +----+----+
 ///
-///  Code class on WASM systems (a bit wasteful)
+///  Code class on WASM systems (a bit wasteful but faster)
 ///  +---------+---------+----+
 ///  |  *name  |   xt    |attr|
 ///  +---------+----+----+----+
 ///            |pfa |xxxx|
 ///            +----+----+
 ///
-typedef void (*FPTR)();     ///< function pointer
+typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
@@ -113,7 +157,7 @@ struct Code {
     };
 #endif // DO_WASM
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
-    static void exec(IU ix) INLINE { (*XT(ix))(); }
+    static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
 
     Code() {}               ///< blank struct (for initilization)
     Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
@@ -121,18 +165,33 @@ struct Code {
         attr |= im ? IMM_ATTR : 0;
     }
     IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
-    void call()  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(); }
+    void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
 };
 ///
 ///> Add a Word to dictionary
 /// Note:
 ///    a lambda without capture can degenerate into a function pointer
-#define ADD_CODE(n, g, im) {    \
-    Code c(n, []{ g; }, im);	\
-    dict.push(c);               \
+#define ADD_CODE(n, g, im) {         \
+    Code c(n, [](VM& vm){ g; }, im); \
+    dict.push(c);                    \
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
+///
+///> Multitasking support
+///
+VM&  vm_get(int id=0);                    ///< get a VM with given id
+#if DO_MULTITASK
+void t_pool_init();
+void t_pool_stop();
+int  task_create(IU pfa);                 ///< create a VM starting on pfa
+void task_start(int tid);                 ///< start a thread with given task/VM id
+void task_wait();
+void task_signal();
+#else  // !DO_MULTITASK
+void t_pool_init() {}
+void t_pool_stop() {}
+#endif // !DO_MULTITASK
 ///
 ///> System interface
 ///
@@ -143,28 +202,34 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
 ///
-typedef enum { BASE=0, CR, DOT, UDOT, DOTR, UDOTR, EMIT, SPCS } io_op;
-void key();                               ///< read key from console
+typedef enum { BASE=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
+
 void fin_setup(const char *line);
-void fout_setup(void (*hook)(int, const char*)=NULL);
+void fout_setup(void (*hook)(int, const char*));
 
 char *scan(char c);                       ///< scan input stream for a given char
 int  fetch(string &idiom);                ///< read input stream into string
+char *word();                             ///< get next idiom
+char key();                               ///< read key from console
+void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
-void put(io_op op, DU v=DU0, DU v2=DU0);  ///< print literals
+void dot(io_op op, DU v=DU0);             ///< print literals
+void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
 void pstr(const char *str, io_op op=SPCS);///< print string
 ///
 ///> Debug functions
 ///
-void see(IU pfa);                         ///< disassemble user defined word
-void words();                             ///< list dictionary words
-void ss_dump(bool forced=false);          ///< show data stack content
-void dict_dump();                         ///< dump dictionary
-void mem_dump(U32 addr, IU sz);           ///< dump memory frm addr...addr+sz
+void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
+void see(IU pfa, int base);               ///< disassemble user defined word
+void words(int base);                     ///< list dictionary words
+void dict_dump(int base);                 ///< dump dictionary
+void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
 ///
 ///> Javascript interface
 ///
+#if DO_WASM
 void native_api();
-///
+#endif // DO_WASM
+
 #endif // __EFORTH_SRC_CEFORTH_H
