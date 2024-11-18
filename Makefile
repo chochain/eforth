@@ -1,11 +1,10 @@
 EM = em++
 CC = g++
-CC_FLAG = -std=c++17 -O2 -Wall \
+CC_FLAG = -std=c++17 -g -O2 -Wall \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector
 
 FLST = \
-	tests/ceforth36b  \
-	tests/ceforth40x  \
+	tests/ceforth50x  \
 	tests/eforth      \
 	tests/eforth.html \
 	tests/eforth.js   \
@@ -13,13 +12,11 @@ FLST = \
 
 exe: tests/eforth
 
-36b: tests/ceforth36b
-
-40x: tests/ceforth40x
+50x: tests/ceforth50x
 
 wasm: tests/eforth.html
 
-all: exe 36b 40x wasm
+all: exe 50x wasm
 
 %.o: %.cpp
 	$(CC) $(CC_FLAG) -Isrc -c -o $@ $<
@@ -27,19 +24,16 @@ all: exe 36b 40x wasm
 tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o
 	$(CC) -o $@ $^
 
-tests/ceforth36b: orig/ting/ceforth_36b.o
-	$(CC) -o $@ $<
-
-tests/ceforth40x: platform/main.o orig/40x/ceforth.o orig/40x/ceforth_sys.o orig/40x/ceforth_task.o
+tests/ceforth50x: platform/main.o orig/50x/ceforth.o orig/50x/ceforth_sys.o orig/50x/ceforth_task.o
 	$(CC) $(CC_FLAG) -pthread -o $@ $^
 
-tests/eforth.html: platform/wasm.cpp src/ceforth.cpp
+tests/eforth.html: platform/wasm.cpp src/ceforth.cpp src/ceforth_sys.cpp
 	$(EM) -Isrc -o $@ $^ \
 	  --shell-file platform/eforth.html \
 	  -sEXPORTED_FUNCTIONS=_main,_forth \
 	  -sEXPORTED_RUNTIME_METHODS=cwrap -O2
 
 clean:
-	rm orig/40x/*.o src/*.o platform/*.o $(FLST)
+	rm orig/50x/*.o src/*.o platform/*.o $(FLST)
 
 

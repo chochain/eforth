@@ -111,10 +111,10 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > type> bye⏎  or Ctrl-C      \ to exit eForth
 
     Once you get pass the above, try the lessons by Dr. Ting.
-    > ./tests/eforth < ./tests/lessons420.txt
+    > ./tests/eforth < ./tests/demo.fs
 
     Pretty amazing stuffs! To grasp how they were done, study the
-    individual files under ~/tests/demo.
+    individual files (*.fs) under ~/tests/demo.
 
 ### WASM
 
@@ -133,15 +133,10 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
     > from your browser, enter the IP address to access the ESP32 web server
 
-### Legacy ceForth, 32-bit token-threaded
+### Experimental multithreading eForth, Linear-memory, 32-bit subroutine-threaded
 
-    > make 36b
-    > ./tests/ceforth36b
-
-### Experimental ceForth, Linear-memory, 32-bit subroutine-threaded
-
-    > make 40x
-    > ./tests/eforth40x
+    > make 50x
+    > ./tests/eforth50x
 
 ### TODO
     + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
@@ -161,37 +156,14 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     +    /ting    - ceForth source codes collaborated with Dr. Ting
     +    /esp32   - esp32forth source codes collaborated with Dr. Ting
     +    /40x     - my experiments, refactor _40 into vector-based subroutine-threaded, with 16-bit offset
+    +    /50x     - my experiments, add multithreading to _40
 
-## Evolution - continuation of Dr. Ting's final work
+## Evolution - my experiments on various implementation and tuning
 
-Kept under ~/orig and details [here](https://chochain.github.io/eforth/orig/index.html)
-
-### ~/orig/ting - Dr. Ting's original ceForth
-
-    + ting/_23                 - cross-compiled ROM, token-threaded
-    + ting/_33                 - assembler with C functions as macro, token-threaded
-    + 33b/                     - from _33, I refactored assembler from inner interpreter
-    + ting/_40, _40b, _40c     - my input, array-based, token-threaded
-    + ting/_401, _402, _403    - email exchange on _40 with Dr. Ting
-    + ting/_36, _36b, _36x     - from _33, Dr. Ting updated his linear memory, subroutine-threaded
-    + ting/_410                - from _403, I refactored with initializer_list, and bug fixes
-
-### ~/orig/esp32 - the origin of ESP32Forth
-
-    + esp32/_54, _59           - cross-compiled ROM, token-threaded
-    + esp32/_62, _63           - assembler with C functions as macros, from ceForth_33
-    + esp32/_705               - ESP32Forth v7, C macro-based assembler with Brad and Peter
-    + esp32/_802               - my interim work shown to Dr. Ting, sync ceForth_403
-    + esp32/_82, _83, _84, _85 - from _63, Dr. Ting adapted array-based, token-threaded
-
-### ~/orig/40x - experiments on _40 for various implementation and tuning
-
-    + 40x/ceforth - array-based subroutine-threaded, with 16-bit offset enhanced
-
-### life after _410 and 40x - my current work
-
-    + src/ceforth - multi-platform supporting code base
-    + platform/   - platform specific for C++, ESP32, WASM
+    + ~/platform/   - platform specific for C++, ESP32, WASM
+    + ~/orig/40x/ceforth - array-based subroutine-threaded, with 16-bit offset enhanced (released as v4.2)
+    + ~/orig/50x/ceforth - multithreading on top of 40x
+    + ~/src/ceforth - dynamic vector-based, object threading
 
 ## Benchmark and Tuning
 
