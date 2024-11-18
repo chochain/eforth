@@ -13,9 +13,10 @@ VM& vm_get(int id) {
 }
 
 #if DO_MULTITASK
-extern List<U8, 0> pmem;
-extern void add_du(DU v);
-extern void nest(VM &vm);
+extern List<U8, 0> pmem;           ///< parameter memory block
+extern U8          *MEM0;          ///< base pointer of pmem
+extern void add_du(DU v);          ///< add data unit to pmem
+extern void nest(VM &vm);          ///< Forth inner loop
 ///
 ///> Thread pool
 ///
@@ -54,9 +55,10 @@ void t_pool_init() {
     }
     /// setup VMs base pointers
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
-        U8 *b = _vm[i].base = &pmem[pmem.idx++];  ///< *base 
+        U8 *b = &pmem[pmem.idx++];                ///< *base
         *b = 10;                                  /// * default 10
-        _vm[i].id = i;                            /// * VM id
+        _vm[i].id   = i;                          /// * VM id
+        _vm[i].base = (IU)(b - MEM0);             /// * base idx
     }
     pmem.idx = DALIGN(pmem.idx);                  /// DU aligned 
     
@@ -149,7 +151,7 @@ void VM::reset(IU ip0, vm_state st) {
     tos        = -DU1;
     state      = st;
     compile    = false;
-    *(DU*)base = 10;
+    *(MEM0 + base) = 10;            /// * default radix = 10
 }
 ///
 ///> send to destination VM's stack (blocking)
