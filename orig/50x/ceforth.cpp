@@ -74,6 +74,7 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
+#define BASE      (MEM(vm.base))           /**< pointer to base in VM user area         */
 #define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
@@ -252,7 +253,7 @@ void nest(VM& vm) {
         CASE(FOR,  RS.push(POP()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
              RS.push(SS.pop()); RS.push(POP()));
-        CASE(KEY,  PUSH(key()); goto vm_hold);       /// * fetch single keypress
+        CASE(KEY,  PUSH(key()); UNNEST());           /// * fetch single keypress
         OTHER(
             if (ix & EXT_FLAG) {                     /// * colon word?
                 RS.push(IP);                         /// * setup call frame
@@ -262,7 +263,6 @@ void nest(VM& vm) {
         }
 //        printf("\033[%dm   => IP=%4x, SS=%d, RS=%d, state=%d\033[0m\n", vm.id ? 38-vm.id : 37, IP, SS.idx, RS.idx, vm.state);
     }
-    vm_hold:
     vm.state = IP ? HOLD : STOP;
 }
 ///
@@ -356,15 +356,15 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base",    PUSH((IU)(vm.base - MEM0)));
-    CODE("decimal", dot(BASE, *vm.base=10));
-    CODE("hex",     dot(BASE, *vm.base=16));
+    CODE("base",    PUSH(vm.base));
+    CODE("decimal", dot(RDX, *BASE=10));
+    CODE("hex",     dot(RDX, *BASE=16));
     CODE("bl",      PUSH(0x20));
     CODE("cr",      dot(CR));
     CODE(".",       dot(DOT,  POP()));
     CODE("u.",      dot(UDOT, POP()));
-    CODE(".r",      IU w = POPI(); dotr(w, POP(), *vm.base));
-    CODE("u.r",     IU w = POPI(); dotr(w, POP(), *vm.base, true));
+    CODE(".r",      IU w = POPI(); dotr(w, POP(), *BASE));
+    CODE("u.r",     IU w = POPI(); dotr(w, POP(), *BASE, true));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
     IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key()));
     CODE("emit",    dot(EMIT, POP()));
@@ -504,17 +504,17 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE(".s",    ss_dump(vm, true));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
     CODE("r",     PUSH(RS.idx));
-    CODE("words", words(*vm.base));
+    CODE("words", words(*BASE));
     CODE("see",
          IU w = find(word()); if (!w) return;
          pstr(": "); pstr(dict[w].name);
-         if (IS_UDF(w)) see(dict[w].pfa, *vm.base);
+         if (IS_UDF(w)) see(dict[w].pfa, *BASE);
          else           pstr(" ( built-ins ) ;");
          dot(CR));
     CODE("dump",
          U32 n = POPI();
-         mem_dump(POPI(), n, *vm.base));
-    CODE("dict",  dict_dump(*vm.base));
+         mem_dump(POPI(), n, *BASE));
+    CODE("dict",  dict_dump(*BASE));
     CODE("forget",
          IU w = find(word()); if (!w) return;                  // bail, if not found
          IU b = find("boot")+1;
@@ -606,7 +606,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     }
     // try as a number
     int err = 0;
-    DU  n   = parse_number(idiom, *vm.base, &err);
+    DU  n   = parse_number(idiom, *BASE, &err);
     if (err) {                           /// * not number
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
         pstr(strerror(err), CR);         ///> and error description
