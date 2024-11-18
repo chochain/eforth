@@ -1,4 +1,13 @@
 \page 3 - Evolution of ESP32Forth
+
+## ~/orig/esp32 - the origin of ESP32Forth
+
+    + esp32/_54, _59           - cross-compiled ROM, token-threaded
+    + esp32/_62, _63           - assembler with C functions as macros, from ceForth_33
+    + esp32/_705               - ESP32Forth v7, C macro-based assembler with Brad and Peter
+    + esp32/_802               - my interim work shown to Dr. Ting, sync ceForth_403
+    + esp32/_82, _83, _84, _85 - from _63, Dr. Ting adapted array-based, token-threaded
+    
 ### Dr. Ting's original esp32forth
   + _54
   + _59
