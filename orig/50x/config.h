@@ -145,5 +145,23 @@ typedef int32_t         DU;
 #define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] ");  \
                         LOGS(dict[i].name); LOGS(" attr="); \
                         LOGX(dict[i].attr); LOGS("\n")
+#if DO_MULTITASK
+#if CC_DEBUG
+#include <stdarg.h>
+#define VM_HDR(vm, fmt, ...)                  \
+    printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
+           (vm)->id ? 38-(vm)->id : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
+#define VM_TLR(vm, fmt, ...)              \
+    printf("\e[%dm" fmt "\e[0m\n",        \
+           (vm)->id ? 38-(vm)->id : 37, ##__VA_ARGS__)
+#define VM_LOG(vm, fmt, ...)              \
+    VM_HDR(vm, fmt, ##__VA_ARGS__);       \
+    printf("\n")
+#else
+#define VM_HDR(vm, fmt, ...)
+#define VM_TLR(vm, fmt, ...)
+#define VM_LOG(vm, fmt, ...)
+#endif // CC_DEBUG
+#endif // DO_MULTITASK
 ///@}
 #endif // __EFORTH_SRC_CONFIG_H
