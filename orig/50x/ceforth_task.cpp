@@ -191,7 +191,7 @@ void VM::recv() {                    ///< ( -- v1 v2 .. vn )
             [this]{ return _done ||  /// * wait till Forth exit, or
                 state != HOLD;       /// * message arrived
             });
-        printf(">> VM%d.%d received\n", id, state);
+        printf(">> VM%d.%d received => VM%d.%d\n", id, state, id, st);
         state = st;                  /// * restore VM state
     }
     cv_msg.notify_one();
