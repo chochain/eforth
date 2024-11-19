@@ -18,6 +18,17 @@ extern U8          *MEM0;          ///< base pointer of pmem
 extern void add_du(DU v);          ///< add data unit to pmem
 extern void nest(VM &vm);          ///< Forth inner loop
 ///
+///> VM messaging and IO control variables
+///
+int  VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
+bool VM::io_busy = false;
+mutex              VM::msg;
+mutex              VM::io;
+condition_variable VM::cv_msg;
+condition_variable VM::cv_io;
+
+///============================================================
+///
 ///> Thread pool
 ///
 /// Note: Thread pool is universal and singleton,
@@ -27,10 +38,6 @@ List<thread, 0>    _pool;          ///< thread pool
 List<VM*,    0>    _que;           ///< event queue
 mutex              _mtx;           ///< mutex for memory access
 condition_variable _cv_mtx;        ///< for pool exit
-
-#define HDR    "\033[%dm"          /** ANSI Color prefix     */
-#define TLR    "\033[0m\n"         /** ANSI Color postfix    */
-#define TC(n)  (n ? 38-(n) : 37)   /** ANSI color by core id */
 
 void _event_loop(int rank) {
     VM *vm;
@@ -43,11 +50,13 @@ void _event_loop(int rank) {
             vm = _que.pop();       ///< get next event
         }
         _cv_mtx.notify_one();
-        
-        printf(HDR ">> T%d=VM%d.%d started IP=%4x" TLR, TC(vm->id), rank, vm->id, vm->state, vm->ip);
-        vm->rs.push(DU0);          /// exit token
+
+        VM_LOG(vm, ">> started on T%d", rank);
+        vm->rs.push(DU0);           /// exit token
         while (vm->state==HOLD) nest(*vm);
-        printf(HDR ">> T%d=VM%d.%d done" TLR, TC(vm->id), rank, vm->id, vm->state);
+        VM_LOG(vm, ">> stopped on T%d", rank);
+        
+        VM::cv_msg.notify_one();   /// * release join lock if any
     }
 }
 
@@ -123,23 +132,18 @@ void task_start(int tid) {
     }
     _cv_mtx.notify_one();
 }
+///==================================================================
 ///
-///> Messaging control
+///> VM methods
 ///
-int  VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
-bool VM::io_busy = false;
-mutex              VM::msg;
-mutex              VM::io;
-condition_variable VM::cv_msg;
-condition_variable VM::cv_io;
-
 void VM::join(int tid) {
     VM& vm = vm_get(tid);
-    printf(HDR ">> VM%d.%d waiting to join" TLR, TC(vm.id), vm.id, vm.state);
+    if (vm.state == STOP) return;
+    VM_LOG(&vm, ">> waiting to join");
     {
         unique_lock<mutex> lck(msg);
         cv_msg.wait(lck, [&vm]{ return vm.state==STOP; });
-        printf(HDR ">> VM%d.%d joint" TLR, TC(vm.id), vm.id, vm.state);
+        VM_LOG(&vm, ">> joint VM%d", tid);
     }
     cv_msg.notify_one();
 }
@@ -175,7 +179,7 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
             [&vm]{ return _done ||   /// * Forth exit, or
                 vm.state==HOLD;      /// * waiting for messaging
             });
-        printf(HDR ">> VM%d.%d sending %d items to VM%d.%d" TLR, TC(id), id, state, n, tid, vm.state);
+        VM_LOG(&vm, " >> sending %d items to VM%d.%d", n, tid, vm.state);
         _ss_dup(vm, *this, n);       /// * pass n variables as a queue
         
         vm.state = NEST;             /// * unblock target task
@@ -192,14 +196,15 @@ void VM::recv() {                    ///< ( -- v1 v2 .. vn )
         state = HOLD;
     }
     cv_msg.notify_one();
-    printf(HDR ">> VM%d.%d waiting" TLR, TC(id), id, state);
+
+    VM_LOG(this, " >> waiting");
     {
         unique_lock<mutex> lck(msg);
         cv_msg.wait(lck,             /// * block until message arrival
             [this]{ return _done ||  /// * wait till Forth exit, or
                 state != HOLD;       /// * message arrived
             });
-        printf(HDR ">> VM%d.%d received => VM%d.%d" TLR, TC(id), id, state, id, st);
+        VM_LOG(this, " >> received => state=%d", st);
         state = st;                  /// * restore VM state
     }
     cv_msg.notify_one();
@@ -225,7 +230,7 @@ void VM::pull(int tid, int n) {
         
         _ss_dup(*this, vm, n);       /// * retrieve from completed task
     
-        printf(">> pull %d items from VM%d.%d\n", n, vm.id, vm.state);
+        printf(">> pulled %d items from VM%d.%d\n", n, vm.id, vm.state);
     }
     cv_msg.notify_one();
 }
