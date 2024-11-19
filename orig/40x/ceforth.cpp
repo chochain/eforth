@@ -189,8 +189,11 @@ void s_quote(prim_op op) {
     else {                          ///> use PAD ad TEMP storage
         IU h0  = HERE;              ///> keep current memory addr
         DU len = add_str(s);        ///> write string to PAD
-        PUSH(h0);                   ///> push string address
-        PUSH(len);                  ///> push string length
+        switch (op) {
+        case STR:  PUSH(h0); PUSH(len);        break; ///> addr, len
+        case DOTQ: pstr((const char*)MEM(h0)); break; ///> to console
+        default:   pstr("s_quote unknown op:");
+        }
         HERE = h0;                  ///> restore memory addr
     }
 }
