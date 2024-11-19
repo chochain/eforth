@@ -78,14 +78,15 @@ struct ALIGNAS VM {
     static condition_variable cv_io;  ///< for io control
     static condition_variable cv_msg; ///< messing condition variable
     static void _ss_dup(VM &dst, VM &src, int n);
-    
+
+    void reset(IU ip, vm_state st);///< reset a VM user variables
+    void send(int tid, int n);     ///< send onto destination VM's stack (blocking, wait for receiver availabe)
+    void recv();                   ///< receive data from any sending VM's stack (blocking, wait for sender's message)
+    void bcast(int n);             ///< broadcast to all receivers
+    void pull(int tid, int n);     ///< pull n items from the stack of a stopped task
     void join(int tid);            ///< wait for the given task to end
     void io_lock();                ///< lock IO
     void io_unlock();              ///< unlock IO
-    void reset(IU ip, vm_state st);
-    void send(int tid, int n);     ///< send onto destination VM's stack (blocking)
-    void recv(int tid, int n);     ///< receive from source VM's stack (blocking)
-    void bcast(int n);             ///< broadcast to all receivers
 #endif // DO_MULTITASK
 };
 ///
