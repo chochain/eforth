@@ -135,6 +135,9 @@ void VM::join(int tid) {
     }
     cv_msg.notify_one();
 }
+///
+///> hard copying data stacks, behaves like a message queue
+///
 void VM::_ss_dup(VM &dst, VM &src, int n) {
     dst.ss.push(dst.tos);           /// * push dest TOS
     dst.tos = src.tos;              /// * set dest TOS
@@ -161,40 +164,34 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
     {
         unique_lock<mutex> lck(msg);
         cv_msg.wait(lck,             ///< release lock and wait
-            [&vm]{ return _done ||   /// * Forth exit
-                vm.state==HOLD  ||   /// * init before task start
-                vm.state==MSG;       /// * block on dest task here
+            [&vm]{ return _done ||   /// * Forth exit, or
+                vm.state==HOLD;      /// * waiting for messaging
             });
-        printf(">> VM%d.%d send %d items to VM%d.%d\n", id, state, n, tid, vm.state);
-        _ss_dup(vm, *this, n);       /// * passing n variables
+        printf(">> VM%d.%d sending %d items to VM%d.%d\n", id, state, n, tid, vm.state);
+        _ss_dup(vm, *this, n);       /// * pass n variables as a queue
         
-        if (vm.state==MSG) {         /// * messaging completed
-            vm.state = NEST;         /// * unblock target task
-        }
+        vm.state = NEST;             /// * unblock target task
     }
     cv_msg.notify_one();
 }
 ///
 ///> receive from source VM's stack (blocking)
 ///
-void VM::recv(int tid, int n) {      ///< ( -- v1 v2 .. vn )
-    VM& vm = vm_get(tid);            ///< source VM
+void VM::recv() {                    ///< ( -- v1 v2 .. vn )
+    vm_state st = state;             ///< keep current VM state
+    {
+        lock_guard<mutex> lck(msg);
+        state = HOLD;
+    }
+    cv_msg.notify_one();
+    printf(">> VM%d.%d waiting\n", id, state);
     {
         unique_lock<mutex> lck(msg);
-        auto st = state;             ///< keep current state
-        if (st==STOP) {              ///< forced fetch from completed VM
-            printf(">> forced recv from VM%d.%d\n", vm.id, vm.state);
-            _ss_dup(*this, vm, n);   /// * retrieve from completed task
-            return;                  /// * no notify needed
-        }
-        state = MSG;                 /// * ready for messaging
-        cv_msg.wait(lck,             ///< release lock and wait
-            [this, &vm]{ return
-                _done           ||   /// * Forth exit
-                vm.state==STOP ||    /// * until task finished or
-                state!=MSG;          /// * until messaging complete
+        cv_msg.wait(lck,             /// * block until message arrival
+            [this]{ return _done ||  /// * wait till Forth exit, or
+                state != HOLD;       /// * message arrived
             });
-        printf(">> VM%d.%d recv %d items from VM%d.%d\n", id, state, n, tid, vm.state);
+        printf(">> VM%d.%d received\n", id, state);
         state = st;                  /// * restore VM state
     }
     cv_msg.notify_one();
@@ -203,7 +200,26 @@ void VM::recv(int tid, int n) {      ///< ( -- v1 v2 .. vn )
 ///> broadcasting to all receving VMs
 ///
 void VM::bcast(int n) {
-    ///< TODO
+    /// CC: TODO
+}
+///
+///> pull n items from stopped/completed task
+///
+void VM::pull(int tid, int n) {
+    VM& vm = vm_get(tid);            ///< source VM
+    {
+        unique_lock<mutex> lck(msg);
+        cv_msg.wait(lck,             ///< release lock and wait
+            [&vm]{ return _done ||   /// * Forth exit
+                 vm.state==STOP;     /// * init before task start
+            });
+        if (_done) return;
+        
+        _ss_dup(*this, vm, n);       /// * retrieve from completed task
+    
+        printf(">> pull %d items from VM%d.%d\n", n, vm.id, vm.state);
+    }
+    cv_msg.notify_one();
 }
 ///
 ///> IO control (can use atomic _io after C++20)
