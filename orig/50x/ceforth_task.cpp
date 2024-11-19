@@ -28,20 +28,26 @@ List<VM*,    0>    _que;           ///< event queue
 mutex              _mtx;           ///< mutex for memory access
 condition_variable _cv_mtx;        ///< for pool exit
 
+#define HDR    "\033[%dm"          /** ANSI Color prefix     */
+#define TLR    "\033[0m\n"         /** ANSI Color postfix    */
+#define TC(n)  (n ? 38-(n) : 37)   /** ANSI color by core id */
+
 void _event_loop(int rank) {
     VM *vm;
     while (true) {
         {
             unique_lock<mutex> lck(_mtx);
             _cv_mtx.wait(lck,      ///< release lock and wait
-                     []{ return _que.idx > 0 || _done; });
+                []{ return _que.idx > 0 || _done; });
             if (_done) return;     ///< lock reaccquired
             vm = _que.pop();       ///< get next event
         }
-        printf(">> T%d=VM%d.%d started IP=%4x\n", rank, vm->id, vm->state, vm->ip);
+        _cv_mtx.notify_one();
+        
+        printf(HDR ">> T%d=VM%d.%d started IP=%4x" TLR, TC(vm->id), rank, vm->id, vm->state, vm->ip);
         vm->rs.push(DU0);          /// exit token
         while (vm->state==HOLD) nest(*vm);
-        printf(">> T%d=VM%d.%d done\n", rank, vm->id, vm->state);
+        printf(HDR ">> T%d=VM%d.%d done" TLR, TC(vm->id), rank, vm->id, vm->state);
     }
 }
 
@@ -129,9 +135,11 @@ condition_variable VM::cv_io;
 
 void VM::join(int tid) {
     VM& vm = vm_get(tid);
+    printf(HDR ">> VM%d.%d waiting to join" TLR, TC(vm.id), vm.id, vm.state);
     {
         unique_lock<mutex> lck(msg);
         cv_msg.wait(lck, [&vm]{ return vm.state==STOP; });
+        printf(HDR ">> VM%d.%d joint" TLR, TC(vm.id), vm.id, vm.state);
     }
     cv_msg.notify_one();
 }
@@ -167,7 +175,7 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
             [&vm]{ return _done ||   /// * Forth exit, or
                 vm.state==HOLD;      /// * waiting for messaging
             });
-        printf(">> VM%d.%d sending %d items to VM%d.%d\n", id, state, n, tid, vm.state);
+        printf(HDR ">> VM%d.%d sending %d items to VM%d.%d" TLR, TC(id), id, state, n, tid, vm.state);
         _ss_dup(vm, *this, n);       /// * pass n variables as a queue
         
         vm.state = NEST;             /// * unblock target task
@@ -184,14 +192,14 @@ void VM::recv() {                    ///< ( -- v1 v2 .. vn )
         state = HOLD;
     }
     cv_msg.notify_one();
-    printf(">> VM%d.%d waiting\n", id, state);
+    printf(HDR ">> VM%d.%d waiting" TLR, TC(id), id, state);
     {
         unique_lock<mutex> lck(msg);
         cv_msg.wait(lck,             /// * block until message arrival
             [this]{ return _done ||  /// * wait till Forth exit, or
                 state != HOLD;       /// * message arrived
             });
-        printf(">> VM%d.%d received => VM%d.%d\n", id, state, id, st);
+        printf(HDR ">> VM%d.%d received => VM%d.%d" TLR, TC(id), id, state, id, st);
         state = st;                  /// * restore VM state
     }
     cv_msg.notify_one();
