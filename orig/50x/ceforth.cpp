@@ -176,8 +176,11 @@ void s_quote(VM &vm, prim_op op) {
     else {                          ///> use PAD ad TEMP storage
         IU h0  = HERE;              ///> keep current memory addr
         DU len = add_str(s);        ///> write string to PAD
-        PUSH(h0);                   ///> push string address
-        PUSH(len);                  ///> push string length
+        switch (op) {
+        case STR:  PUSH(h0); PUSH(len);        break; ///> addr, len
+        case DOTQ: pstr((const char*)MEM(h0)); break; ///> to console
+        default:   pstr("s_quote unknown op:");
+        }
         HERE = h0;                  ///> restore memory addr
     }
 }
@@ -206,7 +209,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        printf("\033[%dm%02d[%4x]:%4x\033[0m", vm.id ? 38-vm.id : 37, vm.id, IP, ix);
+        VM_HDR(&vm, ":%4x", ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -261,7 +264,7 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-        printf("\033[%dm   => IP=%4x, SS=%d, RS=%d, state=%d\033[0m\n", vm.id ? 38-vm.id : 37, IP, SS.idx, RS.idx, vm.state);
+        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
     }
     vm.state = IP ? HOLD : STOP;
 }
