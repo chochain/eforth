@@ -48,6 +48,9 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Object files
+*.o
+
 /Debug/
 /.settings
 .project
