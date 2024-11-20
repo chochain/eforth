@@ -36,14 +36,14 @@ condition_variable VM::cv_io;
 bool               _done    = 0;   ///< thread pool exit flag
 List<thread, 0>    _pool;          ///< thread pool
 List<VM*,    0>    _que;           ///< event queue
-mutex              _mtx;           ///< mutex for memory access
+mutex              _mtx;           ///< mutex for queue access
 condition_variable _cv_mtx;        ///< for pool exit
 
 void _event_loop(int rank) {
     VM *vm;
     while (true) {
         {
-            unique_lock<mutex> lck(_mtx);
+            unique_lock<mutex> lck(_mtx);   ///< lock queue
             _cv_mtx.wait(lck,      ///< release lock and wait
                 []{ return _que.idx > 0 || _done; });
             if (_done) return;     ///< lock reaccquired
@@ -52,11 +52,11 @@ void _event_loop(int rank) {
         _cv_mtx.notify_one();
 
         VM_LOG(vm, ">> started on T%d", rank);
-        vm->rs.push(DU0);           /// exit token
+        vm->rs.push(DU0);          /// exit token
         while (vm->state==HOLD) nest(*vm);
-        VM_LOG(vm, ">> stopped on T%d", rank);
+        VM_LOG(vm, ">> finished on T%d", rank);
         
-        VM::cv_msg.notify_one();   /// * release join lock if any
+        vm->stop();                /// * release any lock
     }
 }
 
@@ -96,7 +96,7 @@ void t_pool_init() {
 
 void t_pool_stop() {
     {
-        lock_guard<mutex> lck(_mtx);
+        lock_guard<mutex> lck(_mtx);        ///< lock queue
         _done = true;
     }
     _cv_mtx.notify_all();
@@ -113,21 +113,26 @@ void t_pool_stop() {
 
 int task_create(IU pfa) {
     int i = E4_VM_POOL_SZ - 1;
-    while (i > 0 && _vm[i].state != STOP) --i;
-    
-    if (i > 0) _vm[i].reset(pfa, HOLD);
+    {
+        lock_guard<mutex> lck(VM::msg);
+        while (i > 0 && _vm[i].state != STOP) --i;
+        if (i > 0) {
+            _vm[i].reset(pfa, HOLD);   /// ready to run
+        }
+    }
+    VM::cv_msg.notify_one();
     
     return i;
 }
 
 void task_start(int tid) {
     if (tid == 0) {
-        printf("skip, main task (tid=0) running.\n");
+        printf("main task (tid=0) already running.\n");
         return;
     }
     VM &vm = vm_get(tid);
     {
-        lock_guard<mutex> lck(_mtx);
+        lock_guard<mutex> lck(_mtx);   ///< lock queue
         _que.push(&vm);
     }
     _cv_mtx.notify_one();
@@ -137,15 +142,14 @@ void task_start(int tid) {
 ///> VM methods
 ///
 void VM::join(int tid) {
-    VM& vm = vm_get(tid);
-    if (vm.state == STOP) return;
-    VM_LOG(&vm, ">> waiting to join");
+    VM &vm = vm_get(tid);
+    VM_LOG(this, ">> joining VM%d", vm.id);
     {
-        unique_lock<mutex> lck(msg);
+        unique_lock<mutex> lck(msg);   ///< lock messenger
         cv_msg.wait(lck, [&vm]{ return vm.state==STOP; });
-        VM_LOG(&vm, ">> joint VM%d", tid);
     }
     cv_msg.notify_one();
+    VM_LOG(this, ">> VM%d joint", vm.id);
 }
 ///
 ///> hard copying data stacks, behaves like a message queue
@@ -159,14 +163,20 @@ void VM::_ss_dup(VM &dst, VM &src, int n) {
     }
     src.ss.idx -= n;                /// * pop src by n items
 }
-
-void VM::reset(IU ip0, vm_state st) {
+void VM::reset(IU cfa, vm_state st) {
     rs.idx     = ss.idx = 0;
-    ip         = ip0;
+    ip         = cfa;
     tos        = -DU1;
     state      = st;
     compile    = false;
     *(MEM0 + base) = 10;            /// * default radix = 10
+}
+void VM::stop() {
+    {
+        lock_guard<mutex> lck(msg); /// * lock messenger
+        state = STOP;
+    }
+    cv_msg.notify_one();            /// * release join lock if any
 }
 ///
 ///> send to destination VM's stack (blocking)
@@ -174,7 +184,7 @@ void VM::reset(IU ip0, vm_state st) {
 void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
     VM& vm = vm_get(tid);            ///< destination VM
     {
-        unique_lock<mutex> lck(msg);
+        unique_lock<mutex> lck(msg); ///< lock messenger
         cv_msg.wait(lck,             ///< release lock and wait
             [&vm]{ return _done ||   /// * Forth exit, or
                 vm.state==HOLD;      /// * waiting for messaging
