@@ -61,8 +61,8 @@ void _event_loop(int rank) {
 }
 
 void t_pool_init() {
-    _pool = new thread[VM::NCORE];                ///< a thread each core
-    _que  = new VM*[VM::NCORE * 2];               ///< queue with spare 
+    _pool = new thread[E4_VM_POOL_SZ];            ///< a thread each core
+    _que  = new VM*[E4_VM_POOL_SZ];               ///< queue with spare 
     
     if (!_pool.v || !_que.v) {
         printf("thread_pool_init allocation failed\n");
@@ -79,11 +79,11 @@ void t_pool_init() {
     
     /// setup threads
     cpu_set_t set;
-    CPU_ZERO(&set);                          /// * clear affinity
-    for (int i = 0; i < VM::NCORE; i++) {    ///< loop thru ranks
-        _pool[i] = thread(_event_loop, i);   /// * closure with rank id
-        CPU_SET(i, &set);
-        int rc = pthread_setaffinity_np(     /// * set core affinity
+    CPU_ZERO(&set);                               /// * clear affinity
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
+        _pool[i] = thread(_event_loop, i);        /// * closure with rank id
+        CPU_SET(i % VM::NCORE, &set);             /// * CPU affinity
+        int rc = pthread_setaffinity_np(          /// * set core affinity
             _pool[i].native_handle(),
             sizeof(cpu_set_t), &set
         );
@@ -91,7 +91,7 @@ void t_pool_init() {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
     }
-    printf("thread pool[%d] initialized\n", VM::NCORE);
+    printf("thread pool[%d] initialized\n", E4_VM_POOL_SZ);
 }
 
 void t_pool_stop() {
@@ -102,7 +102,7 @@ void t_pool_stop() {
     _cv_mtx.notify_all();
 
     printf("joining thread...");
-    for (int i = 0; i < VM::NCORE; i++) {
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {
         _pool[i].join();
         printf("%d ", i);
     }
