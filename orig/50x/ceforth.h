@@ -79,6 +79,7 @@ struct ALIGNAS VM {
     static condition_variable cv_msg; ///< messing condition variable
     static void _ss_dup(VM &dst, VM &src, int n);
 
+    void stop();                   ///< stop VM
     void reset(IU ip, vm_state st);///< reset a VM user variables
     void send(int tid, int n);     ///< send onto destination VM's stack (blocking, wait for receiver availabe)
     void recv();                   ///< receive data from any sending VM's stack (blocking, wait for sender's message)
