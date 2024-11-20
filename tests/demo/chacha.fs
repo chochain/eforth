@@ -1,7 +1,7 @@
 \
-\ ChaCha20 implementation
+\ ChaCha20 parallel implementation
 \
-\ : thx ( arr n -- &arr[n] ) cells swap + ;
+\ : th ( arr n -- &arr[n] ) cells swap + ;
 : a@ ( n arr -- v ) swap th @ ;        \ fetch a[n]
 : a! ( v n arr -- ) swap th ! ;        \ a[n] = v
 : a+! ( v n arr -- ) swap th +! ;      \ a[n] += v
@@ -44,26 +44,27 @@ create t0 $11111111 , $01020304 , $9b8d6f43 , $01234567 ,
 \ 0 1 2 3 t0 4@ qround
 
 \ ChaCha20 core
+8 constant NT                        \ max number of threads
+create hidx                          \ quater round indices
+  $e943d872 , $cb61fa50 ,            \ diag 2, 3, 0, 1
+  $fb73ea62 , $d951c840 ,            \ col  2, 3, 0, 1
 create st                            \ st[16]
   $61707865 , $3320646e , $79622d32 , $6b206574 ,  \ signature
   $03020100 , $07060504 , $0b0a0908 , $0f0e0d0c ,  \ key1
   $13121110 , $17161514 , $1b1a1918 , $1f1e1d1c ,  \ key2
   $00000001 , $09000000 , $4a000000 , $00000000 ,  \ counter, nonce
-create xt $40 allot                  \ 64-byte tmp calc array
-  
-: st2xt ( -- )                       \ st := xt, or st xt $10 move
-  $f for i st a@ i xt a! next ;    
-: xt+=st ( -- )                      \ xt += st
-  $f for i st a@ i xt a+! next ;
-create hidx                          \ quater round indices
-  $e943d872 , $cb61fa50 ,            \ diag 2, 3, 0, 1
-  $fb73ea62 , $d951c840 ,            \ col  2, 3, 0, 1
+create vbase NT $40 * allot          \ 64-byte tmp calc array
+: vt ( -- ) vbase rank $40 * + ;     \ vbase offset by thread id
+: st2vt ( -- )                       \ st := vt, or st vt $10 move
+  $f for i st a@ i vt a! next ;
+: vt+=st ( -- )                      \ vt += st
+  $f for i st a@ i vt a+! next ;
 : 4x8 ( dcba -- a b c d a b c d )    \ unpack (5% slower)
   3 for
     dup $f and swap 4 rshift
   next drop ;
 : quarter ( bcda -- )                \ run a quarter round
-  4x8 2over 2over xt 4@ qround xt 4! ;
+  4x8 2over 2over vt 4@ qround vt 4! ;
 : odd_even ( -- )                    \ column, and diag rounds
   3 for
     i hidx a@                        \ fetch indices
@@ -71,35 +72,35 @@ create hidx                          \ quater round indices
     $10 rshift quarter               \ even quarter round
   next ;
 : one_block ( -- )
-  st2xt
+  st2vt
   $9 for odd_even next               \ 10x2 rounds
-  xt+=st ;
-
-create gold                          \ expected xt after one_block
+  vt+=st ;
+  
+\ validation
+create gold                          \ expected vt after one_block
   $e4e7f110 , $15593bd1 , $1fdd0f50 , $c47120a3 ,
   $c7f4d1c7 , $0368c033 , $9aaa2204 , $4e6cd4c3 ,
   $466482d2 , $09aa9f07 , $05d7c214 , $a2028bd9 ,
   $d19c12b5 , $b94e16de , $e883d0cb , $4e3c50a2 ,
-: check ( -- )
+: check ( -- )                       \ validate against expected
   one_block
   $f for
-    i xt a@ i gold a@
-    <> if i . ." miss " then
-  next ." done " ;
-: qbench
+    i vt a@ i gold a@
+    <> if i . ." miss " cr then
+  next
+  ." done" rank . cr ;
+: qbench                             \ benchmark 100K qround
   ms negate
   0 1 2 3 t0 4@
   99999 for qround next
   2drop 2drop
   ms + ;
-: bench
-  ms negate
-  9999 for one_block next
-  ms +
-\  . ." ms " cr ;
-  lock . ." ms " cr unlock ;
-\ bench bench bench bench
-' bench constant b_xt
-: run 1- for b_xt task start next ;
-4 run
-  
+\ multithreading
+' one_block constant xt              \ keep thread starting point
+: run ( n -- )
+  1- dup >r for                      \ keep loop count
+    xt task dup start                \ start threads, keep thread ids
+  next
+  r> for join next ;                 \ waiting for threads to finish
+
+
