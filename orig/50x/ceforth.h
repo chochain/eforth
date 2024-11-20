@@ -73,10 +73,10 @@ struct ALIGNAS VM {
     static int NCORE;              ///< number of hardware cores
     
     static bool io_busy;              ///< IO locking control
-    static mutex              msg;    ///< messing mutex
     static mutex              io;     ///< mutex for io access
-    static condition_variable cv_io;  ///< for io control
-    static condition_variable cv_msg; ///< messing condition variable
+    static mutex              tsk;    ///< mutex for tasker
+    static condition_variable cv_io;  ///< io control
+    static condition_variable cv_tsk; ///< tasker control
     static void _ss_dup(VM &dst, VM &src, int n);
 
     void stop();                   ///< stop VM

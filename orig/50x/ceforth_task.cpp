@@ -22,9 +22,9 @@ extern void nest(VM &vm);          ///< Forth inner loop
 ///
 int  VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
 bool VM::io_busy = false;
-mutex              VM::msg;
+mutex              VM::tsk;
 mutex              VM::io;
-condition_variable VM::cv_msg;
+condition_variable VM::cv_tsk;
 condition_variable VM::cv_io;
 
 ///============================================================
@@ -114,13 +114,13 @@ void t_pool_stop() {
 int task_create(IU pfa) {
     int i = E4_VM_POOL_SZ - 1;
     {
-        lock_guard<mutex> lck(VM::msg);
+        lock_guard<mutex> lck(VM::tsk);
         while (i > 0 && _vm[i].state != STOP) --i;
         if (i > 0) {
             _vm[i].reset(pfa, HOLD);   /// ready to run
         }
     }
-    VM::cv_msg.notify_one();
+    VM::cv_tsk.notify_one();
     
     return i;
 }
@@ -145,10 +145,10 @@ void VM::join(int tid) {
     VM &vm = vm_get(tid);
     VM_LOG(this, ">> joining VM%d", vm.id);
     {
-        unique_lock<mutex> lck(msg);   ///< lock messenger
-        cv_msg.wait(lck, [&vm]{ return vm.state==STOP; });
+        unique_lock<mutex> lck(tsk);   ///< lock tasker
+        cv_tsk.wait(lck, [&vm]{ return vm.state==STOP; });
     }
-    cv_msg.notify_one();
+    cv_tsk.notify_one();
     VM_LOG(this, ">> VM%d joint", vm.id);
 }
 ///
@@ -173,10 +173,10 @@ void VM::reset(IU cfa, vm_state st) {
 }
 void VM::stop() {
     {
-        lock_guard<mutex> lck(msg); /// * lock messenger
+        lock_guard<mutex> lck(tsk); /// * lock tasker
         state = STOP;
     }
-    cv_msg.notify_one();            /// * release join lock if any
+    cv_tsk.notify_one();            /// * release join lock if any
 }
 ///
 ///> send to destination VM's stack (blocking)
@@ -184,8 +184,8 @@ void VM::stop() {
 void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
     VM& vm = vm_get(tid);            ///< destination VM
     {
-        unique_lock<mutex> lck(msg); ///< lock messenger
-        cv_msg.wait(lck,             ///< release lock and wait
+        unique_lock<mutex> lck(tsk); ///< lock tasker
+        cv_tsk.wait(lck,             ///< release lock and wait
             [&vm]{ return _done ||   /// * Forth exit, or
                 vm.state==HOLD;      /// * waiting for messaging
             });
@@ -194,7 +194,7 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
         
         vm.state = NEST;             /// * unblock target task
     }
-    cv_msg.notify_one();
+    cv_tsk.notify_one();
 }
 ///
 ///> receive from source VM's stack (blocking)
@@ -202,22 +202,22 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
 void VM::recv() {                    ///< ( -- v1 v2 .. vn )
     vm_state st = state;             ///< keep current VM state
     {
-        lock_guard<mutex> lck(msg);
+        lock_guard<mutex> lck(tsk);  ///< lock tasker
         state = HOLD;
     }
-    cv_msg.notify_one();
+    cv_tsk.notify_one();
 
     VM_LOG(this, " >> waiting");
     {
-        unique_lock<mutex> lck(msg);
-        cv_msg.wait(lck,             /// * block until message arrival
+        unique_lock<mutex> lck(tsk); ///< lock tasker
+        cv_tsk.wait(lck,             /// * block until message arrival
             [this]{ return _done ||  /// * wait till Forth exit, or
                 state != HOLD;       /// * message arrived
             });
         VM_LOG(this, " >> received => state=%d", st);
         state = st;                  /// * restore VM state
     }
-    cv_msg.notify_one();
+    cv_tsk.notify_one();
 }
 ///
 ///> broadcasting to all receving VMs
@@ -231,8 +231,8 @@ void VM::bcast(int n) {
 void VM::pull(int tid, int n) {
     VM& vm = vm_get(tid);            ///< source VM
     {
-        unique_lock<mutex> lck(msg);
-        cv_msg.wait(lck,             ///< release lock and wait
+        unique_lock<mutex> lck(tsk); ///< lock tasker
+        cv_tsk.wait(lck,             ///< release lock and wait
             [&vm]{ return _done ||   /// * Forth exit
                  vm.state==STOP;     /// * init before task start
             });
@@ -242,7 +242,7 @@ void VM::pull(int tid, int n) {
     
         printf(">> pulled %d items from VM%d.%d\n", n, vm.id, vm.state);
     }
-    cv_msg.notify_one();
+    cv_tsk.notify_one();
 }
 ///
 ///> IO control (can use atomic _io after C++20)
