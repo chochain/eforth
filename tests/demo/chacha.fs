@@ -56,9 +56,9 @@ create st                            \ st[16]
 create vbase NT $40 * allot          \ 64-byte tmp calc array
 : vt ( -- ) vbase rank $40 * + ;     \ vbase offset by thread id
 : st2vt ( -- )                       \ st := vt, or st vt $10 move
-  $f for i st a@ i vt a! next ;
+  $f for i st a@ i vt a! next ;      \ TODO: inc cntr
 : vt+=st ( -- )                      \ vt += st
-  $f for i st a@ i vt a+! next ;
+  $f for i st a@ i vt a+! next ;     \ TODO: xor data
 : 4x8 ( dcba -- a b c d a b c d )    \ unpack (5% slower)
   3 for
     dup $f and swap 4 rshift
@@ -89,14 +89,12 @@ create gold                          \ expected vt after one_block
     <> if i . ." miss " cr then
   next
   ." done" rank . cr ;
-: qbench                             \ benchmark 100K qround
+: bench ( -- )
   ms negate
-  0 1 2 3 t0 4@
-  99999 for qround next
-  2drop 2drop
-  ms + ;
+  9999 for one_block next            \ 640KB
+  ms + lock . ." ms " cr unlock ;
 \ multithreading
-' one_block constant xt              \ keep thread starting point
+' bench constant xt                  \ keep thread starting point
 : run ( n -- )
   1- dup >r for                      \ keep loop count
     xt task dup start                \ start threads, keep thread ids
