@@ -146,7 +146,7 @@ typedef int32_t         DU;
                         LOGS(dict[i].name); LOGS(" attr="); \
                         LOGX(dict[i].attr); LOGS("\n")
 #if DO_MULTITASK
-#if CC_DEBUG
+#if CC_DEBUG > 1
 #include <stdarg.h>
 #define VM_HDR(vm, fmt, ...)                  \
     printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
