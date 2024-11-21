@@ -296,8 +296,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("swap",    DU n = SS.pop(); PUSH(n));
     CODE("rot",     DU n = SS.pop(); DU m = SS.pop(); SS.push(n); PUSH(m));
     CODE("-rot",    DU n = SS.pop(); DU m = SS.pop(); PUSH(m); PUSH(n));
-    CODE("nip",     SS.pop());
     CODE("pick",    IU i = UINT(TOS); TOS = SS[-i]);
+    CODE("nip",     SS.pop());
+    CODE("?dup",    if (TOS != DU0) PUSH(TOS));
     /// @}
     /// @defgroup Stack ops - double
     /// @{
@@ -306,7 +307,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("2over",   DU v = SS[-3]; PUSH(v); v = SS[-3]; PUSH(v));
     CODE("2swap",   DU n = SS.pop(); DU m = SS.pop(); DU l = SS.pop();
                     SS.push(n); PUSH(l); PUSH(m));
-    CODE("?dup",    if (TOS != DU0) PUSH(TOS));
     /// @}
     /// @defgroup ALU ops
     /// @{
@@ -376,8 +376,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup Literal ops
     /// @{
-    CODE("[",       vm.compile = false);
-    CODE("]",       vm.compile = true);
     IMMD("(",       scan(')'));
     IMMD(".(",      pstr(scan(')')));
     IMMD("\\",      scan('\n'));
@@ -428,15 +426,17 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
+    CODE("[",       vm.compile = false);
+    CODE("]",       vm.compile = true);
     CODE(":",       vm.compile = def_word(word()));
     IMMD(";",       add_w(EXIT); vm.compile = false);
-    CODE("exit",    UNNEST());                                  // early exit the colon word
     CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
          add_var(LIT, POP());                                   // dovar (+parameter field)
          add_w(EXIT));
     IMMD("immediate", dict[-1].attr |= IMM_ATTR);
+    CODE("exit",    UNNEST());                                  // early exit the colon word
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -473,14 +473,14 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = POPI();
          PUSH(w < USER_AREA ? (DU)IGET(w) : CELL(w)));          // check user area
     CODE("!",     IU w = POPI(); CELL(w) = POP(););             // n w --
+    CODE("+!",    IU w = POPI(); CELL(w) += POP());             // n w --
+    CODE("?",     IU w = POPI(); dot(DOT, CELL(w)));            // w --
     CODE(",",     DU n = POP(); add_du(n));                     // n -- , compile a cell
     CODE("cells", IU i = POPI(); PUSH(i * sizeof(DU)));         // n -- n'
     CODE("allot",                                               // n --
          IU n = POPI();                                         // number of bytes
          for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0));    // zero padding
     CODE("th",    IU i = POPI(); TOS += i * sizeof(DU));        // w i -- w'
-    CODE("+!",    IU w = POPI(); CELL(w) += POP());             // n w --
-    CODE("?",     IU w = POPI(); dot(DOT, CELL(w)));            // w --
     /// @}
 #if DO_MULTITASK    
     /// @defgroup Multitasking ops
@@ -506,8 +506,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("here",  PUSH(HERE));
     IMMD("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump(vm, true));
-    CODE("depth", IU i = UINT(SS.idx); PUSH(i));
-    CODE("r",     PUSH(RS.idx));
     CODE("words", words(*BASE));
     CODE("see",
          IU w = find(word()); if (!w) return;
@@ -515,6 +513,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
          if (IS_UDF(w)) see(dict[w].pfa, *BASE);
          else           pstr(" ( built-ins ) ;");
          dot(CR));
+    CODE("depth", IU i = UINT(SS.idx); PUSH(i));
+    CODE("r",     PUSH(RS.idx));
     CODE("dump",
          U32 n = POPI();
          mem_dump(POPI(), n, *BASE));
@@ -654,8 +654,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     fout_setup(hook);
 
     bool resume = vm.state==HOLD;        ///< check VM resume status
-    if (resume) IP = UINT(RS.pop());     /// * restore context
-    else        fin_setup(line);         /// * refresh buffer if not resuming
+    if (!resume) fin_setup(line);        /// * refresh buffer if not resuming
     
     string idiom;
     while (resume || fetch(idiom)) {     /// * parse a word
@@ -665,8 +664,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     }
     bool yield = vm.state==HOLD;
     
-    if (yield)            RS.push(IP);   /// * save context
-    else if (!vm.compile) ss_dump(vm);   /// * optionally display stack contents
+    if (!yield && !vm.compile) ss_dump(vm);
     
     return yield;
 }
