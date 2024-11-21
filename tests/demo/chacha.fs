@@ -96,9 +96,10 @@ create gold                          \ expected vt after one_block
 \ multithreading
 ' bench constant xt                  \ keep thread starting point
 : run ( n -- )
+  ms negate >r
   1- dup >r for                      \ keep loop count
     xt task dup start                \ start threads, keep thread ids
   next
-  r> for join next ;                 \ waiting for threads to finish
-
+  r> for join next
+  r> ms + . ." elapse ms" ;          \ waiting for threads to finish
 
