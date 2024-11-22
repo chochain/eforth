@@ -57,7 +57,7 @@ void load(VM &vm, const char *fn) {    ///> include script from stream
 void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
 void dot(io_op op, DU v) {
     switch (op) {
-    case BASE:  fout << setbase(UINT(v));               break;
+    case RDX:   fout << setbase(UINT(v));               break;
     case CR:    fout << ENDL;                           break;
     case DOT:   fout << v << " ";                       break;
     case UDOT:  fout << static_cast<U32>(v) << " ";     break;
