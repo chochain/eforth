@@ -16,7 +16,7 @@
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define DO_MULTITASK    1               /**< multitasking/pthread   */
-#define E4_VM_POOL_SZ   8
+#define E4_VM_POOL_SZ   9
 //@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
@@ -98,12 +98,14 @@ typedef int32_t         DU;
     #if    ESP32
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
     #endif // ESP32
+    #define DALIGN(sz)      (sz)
 
 #elif  DO_WASM
     #include <emscripten.h>
     #define millis()        EM_ASM_INT({ return Date.now(); })
     #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
     #define yield()         /* JS is async */
+    #define DALIGN(sz)      ALIGN4(sz)
 
 #else  // !(ARDUINO || ESP32) && !DO_WASM
     #include <chrono>
@@ -113,6 +115,7 @@ typedef int32_t         DU;
     #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
     #define yield()         this_thread::yield()
     #define PROGMEM
+    #define DALIGN(sz)      (sz)
 
 #endif // (ARDUINO || ESP32)
 ///@}
@@ -135,5 +138,26 @@ typedef int32_t         DU;
 #define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] ");  \
                         LOGS(dict[i].name); LOGS(" attr="); \
                         LOGX(dict[i].attr); LOGS("\n")
+///@}
+///@name multithreading support
+///@{
+#if DO_MULTITASK
+#if CC_DEBUG
+#include <stdarg.h>
+#define VM_HDR(vm, fmt, ...)                  \
+    printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
+           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
+#define VM_TLR(vm, fmt, ...)                  \
+    printf("\e[%dm" fmt "\e[0m\n",            \
+           ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
+#define VM_LOG(vm, fmt, ...)                  \
+    VM_HDR(vm, fmt, ##__VA_ARGS__);           \
+    printf("\n")
+#else
+#define VM_HDR(vm, fmt, ...)
+#define VM_TLR(vm, fmt, ...)
+#define VM_LOG(vm, fmt, ...)
+#endif // CC_DEBUG
+#endif // DO_MULTITASK
 ///@}
 #endif // __EFORTH_SRC_CONFIG_H
