@@ -13,10 +13,7 @@ VM& vm_get(int id) {
 }
 
 #if DO_MULTITASK
-extern List<U8, 0> pmem;           ///< parameter memory block
-extern U8          *MEM0;          ///< base pointer of pmem
-extern void add_du(DU v);          ///< add data unit to pmem
-extern void nest(VM &vm);          ///< Forth inner loop
+extern FV<Code*> dict;             ///< Forth dictionary
 ///
 ///> VM messaging and IO control variables
 ///
@@ -36,7 +33,7 @@ condition_variable VM::cv_io;
 #include <queue>
 bool               _done    = 0;   ///< thread pool exit flag
 FV<thread>         _pool;          ///< thread pool
-queue              _que;           ///< event queue
+queue<VM*>         _que;           ///< event queue
 mutex              _mtx;           ///< mutex for queue access
 condition_variable _cv_mtx;        ///< for pool exit
 
@@ -46,15 +43,20 @@ void _event_loop(int rank) {
         {
             unique_lock<mutex> lck(_mtx);   ///< lock queue
             _cv_mtx.wait(lck,      ///< release lock and wait
-                []{ return _que.idx > 0 || _done; });
+                []{ return _que.size() > 0 || _done; });
             if (_done) return;     ///< lock reaccquired
-            vm = _que.pop();       ///< get next event
+            vm = _que.front();     ///< get next event
+            _que.pop();
         }
         _cv_mtx.notify_one();
 
         VM_LOG(vm, ">> started on T%d", rank);
         vm->rs.push(DU0);          /// exit token
-        while (vm->state==HOLD) nest(*vm);
+        while (vm->state==HOLD) {  /// nest(vm)
+            int i_w = vm->ip;      /// resume IP/WP
+            Code *w = dict[i_w & 0xffff];
+            w->exec(*vm, i_w >> 16);
+        }
         VM_LOG(vm, ">> finished on T%d", rank);
         
         vm->stop();                /// * release any lock
@@ -64,10 +66,13 @@ void _event_loop(int rank) {
 void t_pool_init() {
     /// setup VM and it's user area (base pointer)
     _vm.reserve(E4_VM_POOL_SZ);
+    
+    dict[0]->append(new Var(10));                 /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
+    Code *p0 = dict[0]->pf[0];
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
-        dict[0]->append(new Var(10));             /// * borrow dict[0] for base
+        _vm[i].base = (U8*)&p0->q[i];             /// * set base pointer
         _vm[i].id   = i;                          /// * VM id
-        _vm[i].base = (U8*)&dict[0]->pf[0]->q[i]; /// * set pointer
+        p0->q.push(10);                           /// * more base
     }
     
     /// setup threads
@@ -97,21 +102,20 @@ void t_pool_stop() {
     _cv_mtx.notify_all();
 
     printf("joining thread...");
-    for (thread t: _pool) {
-        t.join();
-    }
+    for (auto &t : _pool) t.join();
+
     _pool.clear();
     
     printf(" done!\n");
 }
 
-int task_create(IU pfa) {
+int task_create(int idx) {
     int i = E4_VM_POOL_SZ - 1;
     {
         lock_guard<mutex> lck(VM::tsk);
         while (i > 0 && _vm[i].state != STOP) --i;
         if (i > 0) {
-            _vm[i].reset(pfa, HOLD);   /// ready to run
+            _vm[i].reset(idx, HOLD);     /// ready to run
         }
     }
     VM::cv_tsk.notify_one();
@@ -155,15 +159,16 @@ void VM::_ss_dup(VM &dst, VM &src, int n) {
     for (int i = n - 1; i > 0; --i) {
         dst.ss.push(src.ss[-i]);    /// * passing stack elements
     }
-    src.ss.idx -= n;                /// * pop src by n items
+    src.ss.erase(src.ss.end() - n); /// * pop src by n items
 }
-void VM::reset(IU cfa, vm_state st) {
-    rs.idx     = ss.idx = 0;
-    ip         = cfa;
+void VM::reset(int idx, vm_state st) {
+    rs.clear();
+    ss.clear();
+    ip         = idx;               /// * dictionary index
     tos        = -DU1;
     state      = st;
     compile    = false;
-    *(MEM0 + base) = 10;            /// * default radix = 10
+    dict[0]->pf[0]->q[id << 16] = 10; /// * default radix = 10
 }
 void VM::stop() {
     {
