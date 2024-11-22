@@ -38,15 +38,15 @@ struct FV : public vector<T> {         ///< our super-vector class
 ///
 ///> VM context (single task)
 ///
-typedef enum { STOP=0, HOLD, QUERY, NEST, MSG, IO } vm_state;
+typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
 struct ALIGNAS VM {
     FV<DU>   ss;                   ///< data stack
     FV<DU>   rs;                   ///< return stack
     
-    IU       id      = 0;          ///< vm id
-    IU       ip      = 0;          ///< instruction pointer
     DU       tos     = -DU1;       ///< cached top of stack
+    U32      ip      = 0;          ///< instruction pointer
     
+    IU       id      = 0;          ///< vm id
     vm_state state   = STOP;       ///< VM status
     bool     compile = false;      ///< compiler flag
 
@@ -54,22 +54,24 @@ struct ALIGNAS VM {
     string   pad;
     
 #if DO_MULTITASK
-    static int NCORE;              ///< number of hardware cores
+    static int NCORE;                 ///< number of hardware cores
     
     static bool io_busy;              ///< IO locking control
-    static mutex              msg;    ///< messing mutex
     static mutex              io;     ///< mutex for io access
+    static mutex              tsk;    ///< messing mutex
     static condition_variable cv_io;  ///< for io control
-    static condition_variable cv_msg; ///< messing condition variable
+    static condition_variable cv_tsk; ///< messing condition variable
     static void _ss_dup(VM &dst, VM &src, int n);
     
-    void join(int tid);            ///< wait for the given task to end
-    void io_lock();                ///< lock IO
-    void io_unlock();              ///< unlock IO
-    void reset(IU ip, vm_state st);
-    void send(int tid, int n);     ///< send onto destination VM's stack (blocking)
-    void recv(int tid, int n);     ///< receive from source VM's stack (blocking)
-    void bcast(int n);             ///< broadcast to all receivers
+    void stop();                      ///< stop VM
+    void reset(int idx, vm_state st); ///< reset a VM user variables
+    void send(int tid, int n);        ///< send onto destination VM's stack (blocking, wait for receiver availabe)
+    void recv();                      ///< receive data from any sending VM's stack (blocking, wait for sender's message)
+    void bcast(int n);                ///< broadcast to all receivers
+    void pull(int tid, int n);        ///< pull n items from the stack of a stopped task
+    void join(int tid);               ///< wait for the given task to end
+    void io_lock();                   ///< lock IO
+    void io_unlock();                 ///< unlock IO
 #endif // DO_MULTITASK
 };
 ///
@@ -99,14 +101,17 @@ struct Code {
     Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
     Code(const string s, bool n=true);                 ///> colon, n=new word
     Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
-    ~Code() {}                            ///> do nothing now
+    ~Code() {}                                         ///> do nothing now
     
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-    void exec(VM &vm) {                   ///> inner interpreter
-        if (xt) { xt(vm, this); return; } /// * run primitive word
-        for (Code *w : pf) {              /// * run colon word
-            try { w->exec(vm); }          /// * execute recursively
-            catch (...) { break; }        /// * break loop with throw 0
+    void exec(VM &vm, int idx=0) {                     ///> inner interpreter
+        if (xt) { xt(vm, this); return; }              /// * run primitive word
+        for (auto i=pf.begin()+idx; i !=pf.end(); i++) {
+            try { (*i)->exec(vm); }  /// * execute recursively
+            catch (...) {            /// * break loop with throw 0 
+                vm.ip = ((i - pf.begin())<<16) | (*i)->token;
+                break;
+            }        
         }
     }
 };
@@ -157,13 +162,12 @@ struct Bran: Code {
 ///> Multitasking support
 ///
 VM&  vm_get(int id=0);                    ///< get a VM with given id
+
 #if DO_MULTITASK
 void t_pool_init();
 void t_pool_stop();
-int  task_create(IU pfa);                 ///< create a VM starting on pfa
+int  task_create(int idx);                ///< create a VM starting on dict[idx]
 void task_start(int tid);                 ///< start a thread with given task/VM id
-void task_wait();
-void task_signal();
 #else  // !DO_MULTITASK
 void t_pool_init() {}
 void t_pool_stop() {}
@@ -178,7 +182,7 @@ void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
 ///
-typedef enum { BASE=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
+typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
