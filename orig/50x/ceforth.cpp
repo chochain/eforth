@@ -659,12 +659,11 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     string idiom;
     while (resume || fetch(idiom)) {     /// * parse a word
         if (resume) nest(vm);                      /// * resume task
-        else        forth_core(vm, idiom.c_str()); /// * send to Forth core
-        if (vm.state==HOLD) break;       /// * pause for IO
+        else        forth_core(vm, idiom.c_str()); /// * outer interpreter
+        resume = vm.state==HOLD;         /// * pause for IO?
+        if (resume) break;
     }
-    bool yield = vm.state==HOLD;
+    if (!resume && !vm.compile) ss_dump(vm);
     
-    if (!yield && !vm.compile) ss_dump(vm);
-    
-    return yield;
+    return resume;
 }
