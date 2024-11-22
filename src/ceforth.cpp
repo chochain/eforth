@@ -13,7 +13,6 @@ using namespace std;
 ///
 FV<Code*> dict;                        ///< Forth dictionary
 Code      *last;                       ///< cached dict[-1]
-VM        vm0;                         ///< Forth VM
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
@@ -25,6 +24,7 @@ VM        vm0;                         ///< Forth VM
 #define PUSH(v)      (SS.push(TOS), TOS=(v))
 #define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
+#define BASE         ((U8*)&VAR(vm.id << 16))
 #define DICT_PUSH(c) (dict.push(last=(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
 #define BRAN_TGT()   (dict[-2]->pf[-1]) /* branching target */
@@ -34,6 +34,7 @@ VM        vm0;                         ///< Forth VM
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
 #define NEST(pf)  for (Code *w: (pf)) w->exec(vm)
+#define UNNEST()  throw 0
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -82,7 +83,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("1-",     TOS -= 1),
 #if USE_FLOAT
     CODE("int",
-         tos = tos < DU0 ? -DU1 * UINT(-tos) : UINT(tos)), // float to int
+        TOS = TOS < DU0 ? -DU1 * UINT(-TOS) : UINT(TOS)), // float to int
 #endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
@@ -128,15 +129,15 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base",   PUSH(0)),   // dict[0]->pf[0]->q[0] used for base
-    CODE("decimal",dot(BASE, *vm.base=10)),
-    CODE("hex",    dot(BASE, *vm.base=16)),
+    CODE("base",   PUSH(vm.id << 16)),   // dict[0]->pf[0]->q[id] used for base
+    CODE("decimal",dot(RDX, *BASE=10)),
+    CODE("hex",    dot(RDX, *BASE=16)),
     CODE("bl",     PUSH(0x20)),
     CODE("cr",     dot(CR)),
     CODE(".",      dot(DOT,  POP())),
     CODE("u.",     dot(UDOT, POP())),
-    CODE(".r",     IU w = POPI(); dotr(w, POP(), *vm.base)),
-    CODE("u.r",    IU w = POPI(); dotr(w, POP(), *vm.base, true)),
+    CODE(".r",     IU w = POPI(); dotr(w, POP(), *BASE)),
+    CODE("u.r",    IU w = POPI(); dotr(w, POP(), *BASE, true)),
     CODE("type",   POP(); U32 i_w=POPI(); pstr(STR(i_w))),
     CODE("key",    PUSH(key())),
     CODE("emit",   dot(EMIT, POP())),
@@ -234,7 +235,7 @@ const Code rom[] = {               ///< Forth dictionary
          DICT_PUSH(new Tmp())),
     CODE("i",      PUSH(RS[-1])),
     CODE("leave",
-         RS.pop(); RS.pop(); throw 0), /// * exit loop
+         RS.pop(); RS.pop(); UNNEST()), /// * exit loop
     IMMD("loop",
          Code *b = BRAN_TGT();
          b->pf.merge(last->pf);        /// * do.{pf}.loop
@@ -242,7 +243,6 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE("exit",   throw 0),           // -- (exit from word)
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
@@ -258,6 +258,7 @@ const Code rom[] = {               ///< Forth dictionary
          Code *w = last->append(new Var(DU0));
          w->pf[0]->token = w->token),
     CODE("immediate", last->immd = 1),
+    CODE("exit",   UNNEST()),          // -- (exit from word)
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -299,8 +300,27 @@ const Code rom[] = {               ///< Forth dictionary
     ///>
     CODE("th",      U32 i = POPI() << 16; TOS = UINT(TOS) | i),  // w i -- i_w
     /// @}
+#if 0 && DO_MULTITASK
+    /// @defgroup Multitasking ops
+    /// @}
+    CODE("task",                                                // w -- task_id
+         IU w = POPI();                                         ///< dictionary index
+         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
+         else pstr("  ?colon word only\n")),
+    CODE("rank",    PUSH(vm.id)),                               /// ( -- n ) thread id
+    CODE("start",   task_start(POPI())),                        /// ( task_id -- )
+    CODE("join",    vm.join(POPI())),                           /// ( task_id -- )
+    CODE("lock",    vm.io_lock()),                              /// wait for IO semaphore
+    CODE("unlock",  vm.io_unlock()),                            /// release IO semaphore
+    CODE("send",    IU t = POPI(); vm.send(t, POPI())),         /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
+    CODE("recv",    vm.recv()),                                 /// ( -- v1 v2 .. vn ) waiting for values passed by sender
+    CODE("bcast",   vm.bcast(POPI())),                          /// ( v1 v2 .. vn -- )
+    CODE("pull",    IU t = POPI(); vm.pull(t, POPI())),         /// ( tid n -- v1 v2 .. vn )
+    /// @}
+#endif // DO_MULTITASK    
     /// @defgroup Debug ops
     /// @{
+    CODE("abort",   TOS = -DU1; SS.clear(); RS.clear()),        // clear ss, rs
     CODE("here",    PUSH(last->token)),
     CODE("'",       Code *w = find(word()); if (w) PUSH(w->token)),
     CODE(".s",      ss_dump(vm, true)),  // dump parameter stack
@@ -446,9 +466,6 @@ void forth_core(VM &vm, string idiom) {
 ///
 ///> Forth VM - interface to outside world
 ///
-///
-///> setup user variables
-///
 void forth_init() {
     static bool init = false;         ///< singleton
     if (init) return;                 
@@ -458,35 +475,39 @@ void forth_init() {
     for (int i = 0; i < sz; i++) {    /// * collect Code pointers
         DICT_PUSH((Code*)&rom[i]);
     }
-    
-    dict[0]->append(new Var(10));     /// * borrow dict[0] for base
-    vm0.base = (U8*)&VAR(0);
-    
-#if DO_WASM
-    pstr("WASM build", CR);
-#endif
+
+    t_pool_init();                    /// * initialize thread pool
+    VM &vm0   = vm_get(0);            ///< main thread
+    vm0.state = QUERY;
 }
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
-    VM &vm = vm0;
-
+    VM &vm = vm_get(0);               ///< main thread
     fout_setup(hook);                 /// * init output stream
-    fin_setup(line);                  /// * init input stream
+    
+    bool resume = vm.state==HOLD;     ///< check VM resume status
+    if (!resume) fin_setup(line);     /// * refresh buffer if not resuming
     
     string idiom;
-    while (fetch(idiom)) {            /// * fetch a word
+    while (resume || fetch(idiom)) {  /// * parse a word
         try {
-            forth_core(vm, idiom);
+            if (resume) {
+                int i_w = vm.ip;
+                Code *w = dict[i_w & 0xffff];
+                w->exec(vm, i_w >> 16);/// * resume task
+            }
+            else        forth_core(vm, idiom); /// * send to Forth core
         }
         catch (exception &e) {
             pstr(idiom.c_str());
-            pstr("?");
-            pstr(e.what(), CR);
+            pstr("?"); pstr(e.what(), CR);
             vm.compile = false;
-            scan('\n');               /// * exhaust input line
+            scan('\n');                /// * exhaust input line
         }
+        resume = vm.state==HOLD;       /// * pause for IO?
+        if (resume) break;
     }
-    if (!vm.compile) ss_dump(vm);
+    if (!resume && !vm.compile) ss_dump(vm);
     
-    return 0;
+    return resume;
 }
