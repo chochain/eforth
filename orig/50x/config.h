@@ -23,7 +23,7 @@
 #define E4_SS_SZ        32
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
-#define E4_VM_POOL_SZ   9               /**< one plus # cors       */
+#define E4_VM_POOL_SZ   8               /**< one plus # cors       */
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
