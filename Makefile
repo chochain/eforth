@@ -21,8 +21,8 @@ all: exe 50x wasm
 %.o: %.cpp
 	$(CC) $(CC_FLAG) -Isrc -c -o $@ $<
 
-tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o
-	$(CC) -o $@ $^
+tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o src/ceforth_task.o
+	$(CC) $(CC_FLAG) -pthread -o $@ $^
 
 tests/ceforth50x: platform/main.o orig/50x/ceforth.o orig/50x/ceforth_sys.o orig/50x/ceforth_task.o
 	$(CC) $(CC_FLAG) -pthread -o $@ $^
