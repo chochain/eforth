@@ -25,7 +25,7 @@ Code      *last;                       ///< cached dict[-1]
 #define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
 #define BASE         ((U8*)&VAR(vm.id << 16))
-#define DICT_PUSH(c) (dict.push(last=(c)))
+#define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
 #define BRAN_TGT()   (dict[-2]->pf[-1]) /* branching target */
 #define STR(i_w)     (                                  \
@@ -33,7 +33,7 @@ Code      *last;                       ///< cached dict[-1]
         ? vm.pad.c_str()                                \
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
-#define NEST(pf)  for (Code *w: (pf)) w->exec(vm)
+#define NEST(pf)  for (auto w : (pf)) w->exec(vm)
 #define UNNEST()  throw 0
 ///
 ///> Forth Dictionary Assembler
@@ -51,7 +51,7 @@ Code      *last;                       ///< cached dict[-1]
 
 void _if();
 const Code rom[] = {               ///< Forth dictionary
-    CODE("bye",    exit(0)),       // exit to OS
+    CODE("bye",    t_pool_stop(); exit(0)),   // exit to OS
     ///
     /// @defgroup ALU ops
     /// @{
@@ -238,7 +238,7 @@ const Code rom[] = {               ///< Forth dictionary
          RS.pop(); RS.pop(); UNNEST()), /// * exit loop
     IMMD("loop",
          Code *b = BRAN_TGT();
-         b->pf.merge(last->pf);        /// * do.{pf}.loop
+         b->pf.merge(last->pf);         /// * do.{pf}.loop
          DICT_POP()),
     /// @}
     /// @defgrouop Compiler ops
@@ -246,7 +246,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
-         DICT_PUSH(new Code(word()));  // create new word
+         DICT_PUSH(new Code(word()));   // create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
     CODE("constant",
@@ -258,7 +258,7 @@ const Code rom[] = {               ///< Forth dictionary
          Code *w = last->append(new Var(DU0));
          w->pf[0]->token = w->token),
     CODE("immediate", last->immd = 1),
-    CODE("exit",   UNNEST()),          // -- (exit from word)
+    CODE("exit",   UNNEST()),           // -- (exit from word)
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -300,13 +300,13 @@ const Code rom[] = {               ///< Forth dictionary
     ///>
     CODE("th",      U32 i = POPI() << 16; TOS = UINT(TOS) | i),  // w i -- i_w
     /// @}
-#if 0 && DO_MULTITASK
+#if DO_MULTITASK
     /// @defgroup Multitasking ops
     /// @}
     CODE("task",                                                // w -- task_id
          IU w = POPI();                                         ///< dictionary index
-         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
-         else pstr("  ?colon word only\n")),
+         if (dict[w]->xt) pstr("  ?colon word only\n");
+         else PUSH(task_create(w))),                            /// create a task starting on pfa
     CODE("rank",    PUSH(vm.id)),                               /// ( -- n ) thread id
     CODE("start",   task_start(POPI())),                        /// ( task_id -- )
     CODE("join",    vm.join(POPI())),                           /// ( task_id -- )
@@ -336,7 +336,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("mstat",   mem_stat()),         // display memory stat
     CODE("ms",      PUSH(millis())),     // get system clock in msec
     CODE("rnd",     PUSH(RND())),        // get a random number
-    CODE("delay",   delay(POPI())), // n -- delay n msec
+    CODE("delay",   delay(POPI())),      // n -- delay n msec
     CODE("included",
          POP(); U32 i_w = POPI(); load(vm, STR(i_w))),
     CODE("forget",
@@ -410,7 +410,7 @@ void _loop(VM &vm, Code *c) {                ///> do..loop
 }
 void _does(VM &vm, Code *c) {
     bool hit = false;
-    for (Code *w : dict[c->token]->pf) {
+    for (auto w : dict[c->token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
         if (STRCMP(w->name, "does>")==0) hit = true;
     }
@@ -472,8 +472,8 @@ void forth_init() {
     
     const int sz = (int)(sizeof(rom))/(sizeof(Code));
     dict.reserve(sz * 2);             /// * pre-allocate vector
-    for (int i = 0; i < sz; i++) {    /// * collect Code pointers
-        DICT_PUSH((Code*)&rom[i]);
+    for (const Code &c : rom) {
+        DICT_PUSH(&c);
     }
 
     t_pool_init();                    /// * initialize thread pool
