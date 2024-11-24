@@ -4,7 +4,7 @@
 ///
 #include "ceforth.h"
 
-FV<VM> _vm;                        ///< VM pool
+VM _vm[E4_VM_POOL_SZ];             ///< VMs for multitasks
 ///
 ///> VM pool
 ///
@@ -31,11 +31,11 @@ condition_variable VM::cv_io;
 /// Note: Thread pool is universal and singleton,
 ///       so we keep them in C. Hopefully can be reused later
 #include <queue>
-bool               _done    = 0;   ///< thread pool exit flag
-FV<thread>         _pool;          ///< thread pool
-queue<VM*>         _que;           ///< event queue
-mutex              _mtx;           ///< mutex for queue access
-condition_variable _cv_mtx;        ///< for pool exit
+thread             _pool[E4_VM_POOL_SZ]; ///< thread pool
+queue<VM*>         _que;                 ///< event queue
+mutex              _mtx;                 ///< mutex for queue access
+condition_variable _cv_mtx;              ///< for pool exit
+bool               _done    = 0;         ///< thread pool exit flag
 
 void _event_loop(int rank) {
     VM *vm;
@@ -65,18 +65,15 @@ void _event_loop(int rank) {
 
 void t_pool_init() {
     /// setup VM and it's user area (base pointer)
-    _vm.reserve(E4_VM_POOL_SZ);
-    
     dict[0]->append(new Var(10));                 /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
-    Code *p0 = dict[0]->pf[0];
+
+    FV<DU> &q = dict[0]->pf[0]->q;
+    q.reserve(E4_VM_POOL_SZ);
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
-        _vm[i].base = (U8*)&p0->q[i];             /// * set base pointer
+        if (i > 0) q.push(10);                    /// * allocate next base storage
+        _vm[i].base = (U8*)&q[i];                 /// * set base pointer
         _vm[i].id   = i;                          /// * VM id
-        p0->q.push(10);                           /// * more base
     }
-    
-    /// setup threads
-    _pool.reserve(E4_VM_POOL_SZ);
     
     cpu_set_t set;
     CPU_ZERO(&set);                               /// * clear affinity
@@ -102,10 +99,10 @@ void t_pool_stop() {
     _cv_mtx.notify_all();
 
     printf("joining thread...");
-    for (auto &t : _pool) t.join();
-
-    _pool.clear();
-    
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {
+        printf(" %d", i);
+        _pool[i].join();
+    }
     printf(" done!\n");
 }
 
@@ -168,7 +165,7 @@ void VM::reset(int idx, vm_state st) {
     tos        = -DU1;
     state      = st;
     compile    = false;
-    dict[0]->pf[0]->q[id << 16] = 10; /// * default radix = 10
+    dict[0]->pf[0]->q[id] = 10;     /// * default radix = 10
 }
 void VM::stop() {
     {
