@@ -83,7 +83,7 @@ void _see(Code *c, int dp) {         ///> disassemble a colon word
         int i = dp;
         if (dp && s!="\t") fout << ENDL;           ///> newline control
         while (i--) { fout << "  "; } fout << s;   ///> indentation control
-        if (dp < 2) for (Code *w : v) _see(w, dp + 1);
+        if (dp < 2) for (auto w : v) _see(w, dp + 1);
     };
     auto pq = [](FV<DU> q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
@@ -128,7 +128,7 @@ void words(int base) {                    ///> display word list
     const int WIDTH = 60;
     int x = 0;
     fout << setbase(16) << setfill('0');
-    for (Code *w : dict) {
+    for (auto w : dict) {
 #if CC_DEBUG > 1
         fout << setw(4) << w->token << "> "
              << (UFP)w << ' '
