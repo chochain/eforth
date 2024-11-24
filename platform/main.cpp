@@ -10,7 +10,7 @@ using namespace std;
 extern void forth_init();
 extern int  forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
 
-const char* APP_VERSION = "eForth v4.2";
+const char* APP_VERSION = "eForth v5.0";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
