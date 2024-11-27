@@ -33,7 +33,7 @@ Code      *last;                       ///< cached dict[-1]
         ? vm.pad.c_str()                                \
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
-#define NEST(pf)  for (auto w : (pf)) w->exec(vm)
+#define NEST(pf)  for (auto w : (pf)) w->nest(vm)
 #define UNNEST()  throw 0
 ///
 ///> Forth Dictionary Assembler
@@ -263,7 +263,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   dict[POP()]->exec(vm)),            // w --
+    CODE("exec",   dict[POP()]->nest(vm)),            // w --
     CODE("create",
          DICT_PUSH(new Code(word()));
          Code *w = last->append(new Var(DU0));
@@ -361,6 +361,25 @@ Code::Code(string s, bool n) {           ///< new colon word
     token = n ? dict.size() : 0;
     if (n && w) pstr("reDef?");          /// * warn word redefined
 }
+void Code::nest(VM &vm, bool resume) {
+    if (xt) {                            /// * run primitive word
+        VM_HDR(&vm, " %s", this->name);
+        xt(vm, this);
+        VM_TLR(&vm, " => RS=%ld, SS=%ld", vm.rs.size(), vm.ss.size());
+        return;
+    }
+    vm.state = NEST;
+    if (!resume) vm.ip = pf.begin();     /// * start at pfa[0]
+    while (vm.ip != pf.end() && vm.state != STOP) {
+        try {
+            VM_HDR(&vm, ":%-4x", (int)(vm.ip - pf.begin()));
+            (*vm.ip)->nest(vm);          /// * execute recursively
+            VM_TLR(&vm, " => RS=%ld, SS=%ld", vm.rs.size(), vm.ss.size());
+            vm.ip++;
+        }
+        catch (...) { vm.state=STOP; }   /// * break loop with throw 0
+    }
+}
 ///====================================================================
 ///
 ///> Primitive Functions
@@ -453,8 +472,10 @@ void forth_core(VM &vm, string idiom) {
     if (w) {                          /// * word found?
         if (vm.compile && !w->immd)   /// * are we compiling new word?
             last->append(w);          /// * append word ptr to it
-        else w->exec(vm);             /// * execute forth word
-        
+        else {                        /// * execute forth word
+            vm.wp = w->token;
+            w->nest(vm);
+        }
         return;
     }
     DU  n = parse_number(idiom, *vm.base);  ///< try as a number
@@ -492,11 +513,9 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     while (resume || fetch(idiom)) {  /// * parse a word
         try {
             if (resume) {
-                int i_w = vm.ip;
-                Code *w = dict[i_w & 0xffff];
-                w->exec(vm, i_w >> 16);/// * resume task
+                dict[vm.wp]->nest(vm);/// * resume task
             }
-            else        forth_core(vm, idiom); /// * send to Forth core
+            else forth_core(vm, idiom);/// * send to Forth core
         }
         catch (exception &e) {
             pstr(idiom.c_str());
