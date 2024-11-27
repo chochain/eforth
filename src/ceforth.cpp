@@ -329,6 +329,8 @@ const Code rom[] = {               ///< Forth dictionary
          Code *w = find(word());
          if (w) see(w, *vm.base);
          dot(CR)),
+    CODE("dict",    dict_dump(*vm.base)),// display dictionary
+    CODE("dump",    IU w1 = POPI(); mem_dump(POPI(), w1, *vm.base)),
     CODE("depth",   PUSH(SS.size())),    // data stack depth
     /// @}
     /// @defgroup OS ops
@@ -361,23 +363,16 @@ Code::Code(string s, bool n) {           ///< new colon word
     token = n ? dict.size() : 0;
     if (n && w) pstr("reDef?");          /// * warn word redefined
 }
-void Code::nest(VM &vm, bool resume) {
-    if (xt) {                            /// * run primitive word
-        VM_HDR(&vm, " %s", this->name);
-        xt(vm, this);
-        VM_TLR(&vm, " => RS=%ld, SS=%ld", vm.rs.size(), vm.ss.size());
-        return;
-    }
+///
+///> Forth inner interpreter
+///
+void Code::nest(VM &vm) {
     vm.state = NEST;
-    if (!resume) vm.ip = pf.begin();     /// * start at pfa[0]
-    while (vm.ip != pf.end() && vm.state != STOP) {
-        try {
-            VM_HDR(&vm, ":%-4x", (int)(vm.ip - pf.begin()));
-            (*vm.ip)->nest(vm);          /// * execute recursively
-            VM_TLR(&vm, " => RS=%ld, SS=%ld", vm.rs.size(), vm.ss.size());
-            vm.ip++;
-        }
-        catch (...) { vm.state=STOP; }   /// * break loop with throw 0
+    if (xt) { xt(vm, this); return; }    /// * run primitive word
+    for (Iter c = pf.begin(); c != pf.end(); c++) {
+        try         { (*c)->nest(vm); }  /// * execute recursively
+        catch (...) { c = pf.end(); }    /// * break loop with throw 0
+        VM_LOG(&vm, "%-3x => RS=%ld, SS=%ld %s", (int)(c - pf.begin()), vm.rs.size(), vm.ss.size(), (*c)->name);
     }
 }
 ///====================================================================
@@ -472,10 +467,7 @@ void forth_core(VM &vm, string idiom) {
     if (w) {                          /// * word found?
         if (vm.compile && !w->immd)   /// * are we compiling new word?
             last->append(w);          /// * append word ptr to it
-        else {                        /// * execute forth word
-            vm.wp = w->token;
-            w->nest(vm);
-        }
+        else w->nest(vm);             /// * execute forth word
         return;
     }
     DU  n = parse_number(idiom, *vm.base);  ///< try as a number
@@ -489,7 +481,7 @@ void forth_core(VM &vm, string idiom) {
 ///
 void forth_init() {
     static bool init = false;         ///< singleton
-    if (init) return;                 
+    if (init) return;
     
     const int sz = (int)(sizeof(rom))/(sizeof(Code));
     dict.reserve(sz * 2);             /// * pre-allocate vector
@@ -505,8 +497,8 @@ void forth_init() {
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);               ///< main thread
     fout_setup(hook);                 /// * init output stream
-    
-    bool resume = vm.state==HOLD;     ///< check VM resume status
+
+    bool resume = vm.state == HOLD;   /// * new or resume task
     if (!resume) fin_setup(line);     /// * refresh buffer if not resuming
     
     string idiom;
