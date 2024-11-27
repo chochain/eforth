@@ -48,12 +48,11 @@ struct ALIGNAS VM {
     DU       tos     = -DU1;       ///< cached top of stack
     IU       id      = 0;          ///< vm id
     IU       wp      = 0;          ///< word pointer
-    Iter     ip;                   ///< instruction pointer
-
+    
+    U8       *base   = 0;          ///< numeric radix (a pointer)
     vm_state state   = STOP;       ///< VM status
     bool     compile = false;      ///< compiler flag
 
-    U8       *base   = 0;          ///< numeric radix (a pointer)
     string   pad;
     
 #if DO_MULTITASK
@@ -114,7 +113,7 @@ struct Code {
     ~Code() {}                                         ///> do nothing now
     
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-    void nest(VM &vm, bool resume=false);              ///> inner interpreter
+    void nest(VM &vm);                                 ///> inner interpreter
 };
 ///
 ///> Primitve object and function forward declarations
@@ -132,7 +131,6 @@ void   _begin(VM &vm, Code *c);      ///< ..until, ..again, ..while..repeat
 void   _for(VM &vm, Code *c);        ///< for..next, for..aft..then..next
 void   _loop(VM &vm, Code *c);       ///< do..loop
 void   _does(VM &vm, Code *c);       ///< does>
-void   _nest(VM &vm, FV<Code*> pf);  ///< does>
 ///
 ///> polymorphic constructors
 ///
@@ -205,6 +203,6 @@ void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(Code *c, int base);              ///< disassemble user defined word
 void words(int base);                     ///< list dictionary words
 void dict_dump(int base);                 ///< dump dictionary
-void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
+void mem_dump(IU w0, IU w1, int base);    ///< dump memory for a given wordrm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
 #endif  // __EFORTH_SRC_CEFORTH_H
