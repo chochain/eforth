@@ -145,8 +145,8 @@ typedef int32_t         DU;
 #if CC_DEBUG
 #include <stdarg.h>
 #define VM_HDR(vm, fmt, ...)                  \
-    printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
-           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
+    printf("\e[%dm[%02d.%d]%03x" fmt "\e[0m", \
+           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->wp, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                  \
     printf("\e[%dm" fmt "\e[0m\n",            \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
