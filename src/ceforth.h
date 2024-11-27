@@ -34,6 +34,8 @@ struct FV : public vector<T> {         ///< our super-vector class
 #endif // CC_DEBUG
     }
 };
+struct Code;                       ///< Code class forward declaration
+using Iter = FV<Code*>::iterator;  ///< shrothand for vector iterator
 ///====================================================================
 ///
 ///> VM context (single task)
@@ -44,9 +46,10 @@ struct ALIGNAS VM {
     FV<DU>   rs;                   ///< return stack
     
     DU       tos     = -DU1;       ///< cached top of stack
-    U32      ip      = 0;          ///< instruction pointer
-    
     IU       id      = 0;          ///< vm id
+    IU       wp      = 0;          ///< word pointer
+    Iter     ip;                   ///< instruction pointer
+
     vm_state state   = STOP;       ///< VM status
     bool     compile = false;      ///< compiler flag
 
@@ -62,14 +65,22 @@ struct ALIGNAS VM {
     static condition_variable cv_io;  ///< for io control
     static condition_variable cv_tsk; ///< messing condition variable
     static void _ss_dup(VM &dst, VM &src, int n);
-    
+    ///
+    /// task life cycle methods
+    ///
+    void reset(IU w, vm_state st);    ///< reset a VM user variables
+    void join(int tid);               ///< wait for the given task to end
     void stop();                      ///< stop VM
-    void reset(int idx, vm_state st); ///< reset a VM user variables
+    ///
+    /// messaging interface
+    ///
     void send(int tid, int n);        ///< send onto destination VM's stack (blocking, wait for receiver availabe)
     void recv();                      ///< receive data from any sending VM's stack (blocking, wait for sender's message)
     void bcast(int n);                ///< broadcast to all receivers
     void pull(int tid, int n);        ///< pull n items from the stack of a stopped task
-    void join(int tid);               ///< wait for the given task to end
+    ///
+    /// IO interface
+    ///
     void io_lock();                   ///< lock IO
     void io_unlock();                 ///< unlock IO
 #endif // DO_MULTITASK
@@ -77,7 +88,6 @@ struct ALIGNAS VM {
 ///
 ///> data structure for dictionary entry
 ///
-struct Code;                       ///< Code class forward declaration
 typedef void (*XT)(VM &vm, Code*); ///< function pointer
 
 struct Code {
@@ -104,16 +114,7 @@ struct Code {
     ~Code() {}                                         ///> do nothing now
     
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-    void exec(VM &vm, int idx=0) {                     ///> inner interpreter
-        if (xt) { xt(vm, this); return; }              /// * run primitive word
-        for (auto i=pf.begin()+idx; i !=pf.end(); i++) {
-            try { (*i)->exec(vm); }  /// * execute recursively
-            catch (...) {            /// * break loop with throw 0 
-                vm.ip = ((i - pf.begin())<<16) | (*i)->token;
-                break;
-            }        
-        }
-    }
+    void nest(VM &vm, bool resume=false);              ///> inner interpreter
 };
 ///
 ///> Primitve object and function forward declarations
@@ -166,7 +167,7 @@ VM&  vm_get(int id=0);                    ///< get a VM with given id
 #if DO_MULTITASK
 void t_pool_init();
 void t_pool_stop();
-int  task_create(int idx);                ///< create a VM starting on dict[idx]
+int  task_create(IU w);                   ///< create a VM starting on dict[w]
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else  // !DO_MULTITASK
 void t_pool_init() {}
