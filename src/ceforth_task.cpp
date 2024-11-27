@@ -156,12 +156,11 @@ void VM::_ss_dup(VM &dst, VM &src, int n) {
 void VM::reset(IU w, vm_state st) {
     rs.clear();
     ss.clear();
-    wp         = w;
-    ip         = dict[w]->pf.begin(); /// * dictionary index
     tos        = -DU1;
+    wp         = w;                 /// * task word
+    *base      = 10;                /// * default decimal
     state      = st;
     compile    = false;
-    dict[0]->pf[0]->q[id] = 10;     /// * default radix = 10
 }
 void VM::stop() {
     {
