@@ -78,6 +78,35 @@ void pstr(const char *str, io_op op) {
 ///
 ///> Debug functions
 ///
+void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
+    if (load_dp) return;                  /// * skip when including file
+#if DO_WASM    
+    if (!forced) { fout << "ok" << ENDL; return; }
+#endif // DO_WASM
+    char buf[34];
+    auto rdx = [&buf](DU v, int b) {      ///> display v by radix
+#if USE_FLOAT
+        DU t, f = modf(v, &t);            ///< integral, fraction
+        if (ABS(f) > DU_EPS) {
+            sprintf(buf, "%0.6g", v);
+            return buf;
+        }
+#endif // USE_FLOAT
+        int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
+        int dec = b==10;
+        U32 n   = dec ? UINT(ABS(v)) : UINT(v);  ///< handle negative
+        do {
+            U8 d = (U8)MOD(n, b);  n /= b;
+            buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
+        } while (n && i);
+        if (dec && v < DU0) buf[--i]='-';
+        return &buf[i];
+    };
+    SS.push(TOS);
+    for (DU v : SS) { fout << rdx(v, *vm.base) << ' '; }
+    TOS = SS.pop();
+    fout << "-> ok" << ENDL;
+}
 void _see(Code *c, int dp) {         ///> disassemble a colon word
     auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
         int i = dp;
@@ -143,33 +172,45 @@ void words(int base) {                    ///> display word list
     }
     fout << setfill(' ') << setbase(base) << ENDL;
 }
-void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
-    if (load_dp) return;                  /// * skip when including file
-#if DO_WASM    
-    if (!forced) { fout << "ok" << ENDL; return; }
-#endif // DO_WASM
-    char buf[34];
-    auto rdx = [&buf](DU v, int b) {      ///> display v by radix
-#if USE_FLOAT
-        DU t, f = modf(v, &t);            ///< integral, fraction
-        if (ABS(f) > DU_EPS) {
-            sprintf(buf, "%0.6g", v);
-            return buf;
-        }
-#endif // USE_FLOAT
-        int i = 33;  buf[i]='\0';         /// * C++ can do only 8,10,16
-        int dec = b==10;
-        U32 n   = dec ? UINT(ABS(v)) : UINT(v);  ///< handle negative
-        do {
-            U8 d = (U8)MOD(n, b);  n /= b;
-            buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
-        } while (n && i);
-        if (dec && v < DU0) buf[--i]='-';
-        return &buf[i];
+///====================================================================
+///
+///> System statistics - for heap, stack, external memory debugging
+///
+void dict_dump(int base) {
+    fout << setbase(16) << ENDL;
+    for (Iter c = dict.begin(); c != dict.end(); c++) {
+        fout << setfill('0') << setw(3) << (int)(c - dict.begin())
+             << "> name=" << setw(8) << (UFP)(*c)->name
+             << ", xt="   << setw(8) << (UFP)(*c)->xt
+             << ", attr=" << setw(8) << (*c)->attr
+             << " "       << (*c)->name << ENDL;
+    }
+    fout << setbase(base) << setfill(' ') << setw(-1);
+}
+void mem_dump(IU w0, IU w1, int base) {
+    auto show_pf = [](const char *nm, FV<Code*> pf) {
+        if (pf.size() == 0) return;
+        fout << "  " << nm << ": ";
+        for (auto p : pf) { fout << p->token << " "; }
+        fout << ENDL;
     };
-    SS.push(TOS);
-    for (DU v : SS) { fout << rdx(v, *vm.base) << ' '; }
-    TOS = SS.pop();
-    fout << "-> ok" << ENDL;
+    fout << setbase(16) << setfill('0');
+    Iter cx = dict.begin() + w1 + 1;
+    for (Iter c = dict.begin() + w0; c != cx; c++) {
+        fout << setw(4) << (int)(c - dict.begin()) << ": ";
+        Code *w = *c;
+        if (w->xt) { fout << "built-in" << ENDL; continue; }
+        
+        fout << w->name << ENDL;
+        show_pf("pf", w->pf);
+        show_pf("p1", w->p1);
+        show_pf("p2", w->p2);
+        
+        if (w->q.size()==0) continue;
+        fout << "  q:";
+        for (auto v : w->q) { fout << v << " "; }
+        fout << ENDL;
+    }
+    fout << setbase(base) << setfill(' ');
 }
 ///====================================================================
