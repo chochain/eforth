@@ -51,12 +51,7 @@ void _event_loop(int rank) {
         _cv_mtx.notify_one();
 
         VM_LOG(vm, ">> started on T%d", rank);
-        vm->rs.push(DU0);          /// exit token
-        while (vm->state==HOLD) {  /// nest(vm)
-            int i_w = vm->ip;      /// resume IP/WP
-            Code *w = dict[i_w & 0xffff];
-            w->exec(*vm, i_w >> 16);
-        }
+        dict[vm->wp]->nest(*vm);
         VM_LOG(vm, ">> finished on T%d", rank);
         
         vm->stop();                /// * release any lock
@@ -65,7 +60,7 @@ void _event_loop(int rank) {
 
 void t_pool_init() {
     /// setup VM and it's user area (base pointer)
-    dict[0]->append(new Var(10));                 /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
+    dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
 
     FV<DU> &q = dict[0]->pf[0]->q;
     q.reserve(E4_VM_POOL_SZ);
@@ -106,13 +101,13 @@ void t_pool_stop() {
     printf(" done!\n");
 }
 
-int task_create(int idx) {
+int task_create(IU w) {
     int i = E4_VM_POOL_SZ - 1;
     {
         lock_guard<mutex> lck(VM::tsk);
         while (i > 0 && _vm[i].state != STOP) --i;
         if (i > 0) {
-            _vm[i].reset(idx, HOLD);     /// ready to run
+            _vm[i].reset(w, HOLD);     /// ready to run
         }
     }
     VM::cv_tsk.notify_one();
@@ -158,10 +153,11 @@ void VM::_ss_dup(VM &dst, VM &src, int n) {
     }
     src.ss.erase(src.ss.end() - n); /// * pop src by n items
 }
-void VM::reset(int idx, vm_state st) {
+void VM::reset(IU w, vm_state st) {
     rs.clear();
     ss.clear();
-    ip         = idx;               /// * dictionary index
+    wp         = w;
+    ip         = dict[w]->pf.begin(); /// * dictionary index
     tos        = -DU1;
     state      = st;
     compile    = false;
