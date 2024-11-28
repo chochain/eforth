@@ -40,6 +40,7 @@ void (*fout_cb)(int, const char*);     ///< forth output callback functi
         ? pad.c_str()                                   \
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
+#define UNNEST()     throw 0
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -239,7 +240,7 @@ const Code rom[] = {               ///< Forth dictionary
          DICT_PUSH(new Tmp())),
     CODE("i",      PUSH(rs[-1])),
     CODE("leave",
-         rs.pop(); rs.pop(); throw 0), /// * exit loop
+         rs.pop(); rs.pop(); UNNEST()), /// * exit loop
     IMMD("loop",
          Code *b = BRAN_TGT();
          b->pf.merge(last->pf);        /// * do.{pf}.loop
@@ -247,7 +248,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgrouop Compiler ops
     /// @{
-    CODE("exit",   throw 0),           // -- (exit from word)
+    CODE("exit",   UNNEST()),          // -- (exit from word)
     CODE("[",      compile = false),
     CODE("]",      compile = true),
     CODE(":",
@@ -277,7 +278,7 @@ const Code rom[] = {               ///< Forth dictionary
          last->append(new Bran(_does));
          last->pf[-1]->token = last->token),          // keep WP
     CODE("to",                                        // n --
-         Code *w=find(word()); if (!c) return;
+         Code *w=find(word()); if (!w) return;
          VAR(w->token) = POP()),                      // update value
     CODE("is",                                        // w -- 
          DICT_PUSH(new Code(word(), false));          // create word
