@@ -53,7 +53,7 @@ void _event_loop(int rank) {
 
         VM_LOG(vm, ">> started on T%d", rank);
         vm->rs.push(DU0);          /// exit token
-        while (vm->state==HOLD) nest(*vm);
+        nest(*vm);
         VM_LOG(vm, ">> finished on T%d", rank);
         
         vm->stop();                /// * release any lock
