@@ -652,18 +652,13 @@ void forth_init() {
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                  ///< get main thread
     fout_setup(hook);
-
-    bool resume = vm.state==HOLD;        ///< check VM resume status
-    if (!resume) fin_setup(line);        /// * refresh buffer if not resuming
+    fin_setup(line);                     /// * refresh buffer if not resuming
     
     string idiom;
-    while (resume || fetch(idiom)) {     /// * parse a word
-        if (resume) nest(vm);                      /// * resume task
-        else        forth_core(vm, idiom.c_str()); /// * outer interpreter
-        resume = vm.state==HOLD;         /// * pause for IO?
-        if (resume) break;
+    while (fetch(idiom)) {               /// * parse a word
+        forth_core(vm, idiom.c_str());   /// * outer interpreter
     }
-    if (!resume && !vm.compile) ss_dump(vm);
+    if (!vm.compile) ss_dump(vm);
     
-    return resume;
+    return 0;
 }
