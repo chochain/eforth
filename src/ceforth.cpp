@@ -46,10 +46,9 @@ Code      *last;                       ///< cached dict[-1]
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  { s, #g, [](VM &vm, Code *c){ g; }, __COUNTER__ }
-#define IMMD(s, g)  { s, #g, [](VM &vm, Code *c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
+#define CODE(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ }
+#define IMMD(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
 
-void _if();
 const Code rom[] = {               ///< Forth dictionary
     CODE("bye",    t_pool_stop(); exit(0)),   // exit to OS
     ///
@@ -263,7 +262,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   dict[POP()]->nest(vm)),            // w --
+    CODE("exec",   dict[POPI()]->nest(vm)),           // w --
     CODE("create",
          DICT_PUSH(new Code(word()));
          Code *w = last->append(new Var(DU0));
@@ -273,7 +272,7 @@ const Code rom[] = {               ///< Forth dictionary
          last->append(new Bran(_does));
          last->pf[-1]->token = last->token),          // keep WP
     CODE("to",                                        // n --
-         Code *w=find(word()); if (!c) return;
+         Code *w=find(word()); if (!w) return;
          VAR(w->token) = POP()),                      // update value
     CODE("is",                                        // w -- 
          DICT_PUSH(new Code(word(), false));          // create word
@@ -368,67 +367,67 @@ Code::Code(string s, bool n) {           ///< new colon word
 ///
 void Code::nest(VM &vm) {
     vm.state = NEST;
-    if (xt) { xt(vm, this); return; }    /// * run primitive word
+    if (xt) { xt(vm, *this); return; }   /// * run primitive word
     for (Iter c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
         catch (...) { c = pf.end(); }    /// * break loop with throw 0
-        VM_LOG(&vm, "%-3x => RS=%ld, SS=%ld %s", (int)(c - pf.begin()), vm.rs.size(), vm.ss.size(), (*c)->name);
+//        VM_LOG(&vm, "%-3x => RS=%ld, SS=%ld %s", (int)(c - pf.begin()), vm.rs.size(), vm.ss.size(), (*c)->name);
     }
 }
 ///====================================================================
 ///
 ///> Primitive Functions
 ///
-void _str(VM &vm, Code *c)  {
-    if (!c->token) pstr(c->name);
-    else { PUSH(c->token); PUSH(strlen(c->name)); }
+void _str(VM &vm, Code &c)  {
+    if (!c.token) pstr(c.name);
+    else { PUSH(c.token); PUSH(strlen(c.name)); }
 }
-void _lit(VM &vm, Code *c)  { PUSH(c->q[0]);  }
-void _var(VM &vm, Code *c)  { PUSH(c->token); }
-void _tor(VM &vm, Code *c)  { RS.push(POP()); }
-void _tor2(VM &vm, Code *c) { RS.push(SS.pop()); RS.push(POP()); }
-void _if(VM &vm, Code *c)   { NEST(POP() ? c->pf : c->p1); }
-void _begin(VM &vm, Code *c){    ///> begin.while.repeat, begin.until
-    int b = c->stage;            ///< branching state
+void _lit(VM &vm, Code &c)  { PUSH(c.q[0]);  }
+void _var(VM &vm, Code &c)  { PUSH(c.token); }
+void _tor(VM &vm, Code &c)  { RS.push(POP()); }
+void _tor2(VM &vm, Code &c) { RS.push(SS.pop()); RS.push(POP()); }
+void _if(VM &vm, Code &c)   { NEST(POP() ? c.pf : c.p1); }
+void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
+    int b = c.stage;             ///< branching state
     while (true) {
-        NEST(c->pf);                           /// * begin..
+        NEST(c.pf);                            /// * begin..
         if (b==0 && POP()!=0) break;           /// * ..until
         if (b==1)             continue;        /// * ..again
         if (b==2 && POP()==0) break;           /// * ..while..repeat
-        NEST(c->p1);
+        NEST(c.p1);
     }
 }
-void _for(VM &vm, Code *c) {     ///> for..next, for..aft..then..next
-    int b = c->stage;                          /// * kept in register
+void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
+    int b = c.stage;                           /// * kept in register
     try {
         do {
-            NEST(c->pf);
+            NEST(c.pf);
         } while (b==0 && (RS[-1]-=1) >=0);     /// * for..next only
         while (b) {                            /// * aft
-            NEST(c->p2);                       /// * then..next
+            NEST(c.p2);                        /// * then..next
             if ((RS[-1]-=1) < 0) break;        /// * decrement counter
-            NEST(c->p1);                       /// * aft..then
+            NEST(c.p1);                        /// * aft..then
         }
         RS.pop();
     }
     catch (...) { RS.pop(); }                // handle EXIT
 }
-void _loop(VM &vm, Code *c) {                ///> do..loop
+void _loop(VM &vm, Code &c) {                ///> do..loop
     try { 
         do {
-            NEST(c->pf);
+            NEST(c.pf);
         } while ((RS[-1]+=1) < RS[-2]);      // increment counter
         RS.pop(); RS.pop();
     }
     catch (...) {}                           // handle LEAVE
 }
-void _does(VM &vm, Code *c) {
+void _does(VM &vm, Code &c) {
     bool hit = false;
-    for (auto w : dict[c->token]->pf) {
+    for (auto w : dict[c.token]->pf) {
         if (hit) last->append(w);           // copy rest of pf
         if (STRCMP(w->name, "does>")==0) hit = true;
     }
-    throw 0;                                // exit caller
+    UNNEST();                               // exit caller
 }
 ///====================================================================
 ///
@@ -497,17 +496,12 @@ void forth_init() {
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);               ///< main thread
     fout_setup(hook);                 /// * init output stream
-
-    bool resume = vm.state == HOLD;   /// * new or resume task
-    if (!resume) fin_setup(line);     /// * refresh buffer if not resuming
+    fin_setup(line);                  /// * refresh buffer if not resuming
     
     string idiom;
-    while (resume || fetch(idiom)) {  /// * parse a word
+    while (fetch(idiom)) {            /// * parse a word
         try {
-            if (resume) {
-                dict[vm.wp]->nest(vm);/// * resume task
-            }
-            else forth_core(vm, idiom);/// * send to Forth core
+            forth_core(vm, idiom);    /// * send to Forth core
         }
         catch (exception &e) {
             pstr(idiom.c_str());
@@ -515,10 +509,8 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             vm.compile = false;
             scan('\n');                /// * exhaust input line
         }
-        resume = vm.state==HOLD;       /// * pause for IO?
-        if (resume) break;
     }
-    if (!resume && !vm.compile) ss_dump(vm);
+    if (!vm.compile) ss_dump(vm);
     
-    return resume;
+    return 0;
 }
