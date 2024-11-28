@@ -370,7 +370,7 @@ void Code::nest(VM &vm) {
     if (xt) { xt(vm, *this); return; }   /// * run primitive word
     for (Iter c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
-        catch (...) { c = pf.end(); }    /// * break loop with throw 0
+        catch (...) { break; }
 //        VM_LOG(&vm, "%-3x => RS=%ld, SS=%ld %s", (int)(c - pf.begin()), vm.rs.size(), vm.ss.size(), (*c)->name);
     }
 }
@@ -424,10 +424,10 @@ void _loop(VM &vm, Code &c) {                ///> do..loop
 void _does(VM &vm, Code &c) {
     bool hit = false;
     for (auto w : dict[c.token]->pf) {
-        if (hit) last->append(w);           // copy rest of pf
+        if (hit) last->append(w);            // copy rest of pf
         if (STRCMP(w->name, "does>")==0) hit = true;
     }
-    UNNEST();                               // exit caller
+    UNNEST();                                // exit caller
 }
 ///====================================================================
 ///
