@@ -113,7 +113,7 @@ struct Code {
     ~Code() {}                                         ///> do nothing now
     
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-//    void nest(VM &vm);                                 ///> inner interpreter
+    void nest(VM &vm);                                 ///> inner interpreter
 };
 ///
 ///> Primitve object and function forward declarations
@@ -131,7 +131,6 @@ void   _begin(VM &vm, Code &c);      ///< ..until, ..again, ..while..repeat
 void   _for(VM &vm, Code &c);        ///< for..next, for..aft..then..next
 void   _loop(VM &vm, Code &c);       ///< do..loop
 void   _does(VM &vm, Code &c);       ///< does>
-void   _nest(VM &vm, Code &c);       ///< inner interpreter
 ///
 ///> polymorphic constructors
 ///
