@@ -14,7 +14,7 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
 > 4. A user area in RAM memory to hold all the system variables.
 > 5. A CPU to move date among stacks and memory, and to do ALU operations to parameters stored on the data stack.
 
-## eForth now - What have we done!
+## eForth now - What has been done!
 
 1. <b>100% C/C++ with multi-platform support</b>. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
 2. <b>Dictionary is just an array</b>. It's remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
@@ -22,7 +22,11 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
     + To execute become just a walk of the word pointers in the array. This is our inner interpreter.
     
 3. <b>Data and Return Stacks are also arrays</b>. With push, pop and [] methods to clarify intentions.
-4. <b>No vocabulary, multi-tasking, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
+4. <b>No vocabulary, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
+5. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel.
+    + A thread pool is built-in. Size is defaults to number of cores.
+    + Message Passing send/rec with pthread mutex waiting.
+    + IO can be synchronized with lock/unlock.
 
 ## eForth Internals
 The core of current implementation of eForth is the dictionary composed of an array of Code objects that represent each of Forth words.
@@ -47,7 +51,7 @@ The core of current implementation of eForth is the dictionary composed of an ar
 
 3. <b>Dictionary</b> - an array of *Code* objects
     <pre>
-    + primitive words - constructed by initializer_list at start up, befor main is called, degeneated lambdas becomea function pointers stored in Code.xt
+    + primitive words - constructed by initializer_list at start up, before main is called, degenerated lambdas become function pointers stored in Code.xt
         dict[0].xt ------> lambda[0]         <== These function pointers can be converted
         dict[1].xt ------> lambda[1]             into indices to a jump table
         ...                                      which is exactly what WASM does
@@ -101,6 +105,12 @@ We hope it can serve as a stepping stone for learning Forth to even building the
 
     > git clone https://github.com/chochain/eforth to your local machine
     > cd eforth
+
+There are two major versions of current eForth. v4 is single-threaded and v5 is multi-threaded.
+Checkout the version you are interested in.
+
+    > git checkout v42           # for version 4.2 (latest), or
+    > git checkout master        # for version 5 and on
     
 ### Linux or Cygwin
 
@@ -133,19 +143,10 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
     > from your browser, enter the IP address to access the ESP32 web server
 
-### Experimental multithreading eForth, Linear-memory, 32-bit subroutine-threaded
+### Experimental multi-threading eForth, Linear-memory, 32-bit subroutine-threaded
 
     > make 50x
     > ./tests/eforth50x
-
-### TODO
-    + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
-    + coding -
-        [optimizing](http://www.agner.org/optimize/optimizing_cpp.pdf)
-        [false-sharing](https://medium.com/distributed-knowledge/optimizations-for-c-multi-threaded-programs-33284dee5e9c)
-        [affinity](https://eli.thegreenplace.net/2016/c11-threads-affinity-and-hyperthreading/)
-        [occlusion](https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/)
-        [perf c2c](https://coffeebeforearch.github.io/2020/03/27/perf-c2c.html)
 
 ## Source Code Directories
 
@@ -156,14 +157,14 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     +    /ting    - ceForth source codes collaborated with Dr. Ting
     +    /esp32   - esp32forth source codes collaborated with Dr. Ting
     +    /40x     - my experiments, refactor _40 into vector-based subroutine-threaded, with 16-bit offset
-    +    /50x     - my experiments, add multithreading to _40
+    +    /50x     - my experiments, add multi-threading to _40
 
 ## Evolution - my experiments on various implementation and tuning
 
     + ~/platform/   - platform specific for C++, ESP32, WASM
     + ~/orig/40x/ceforth - array-based subroutine-threaded, with 16-bit offset enhanced (released as v4.2)
-    + ~/orig/50x/ceforth - multithreading on top of 40x
-    + ~/src/ceforth - dynamic vector-based, object threading
+    + ~/orig/50x/ceforth - add multi-threading support to 40x
+    + ~/src/eforth  - multi-threaded, dynamic vector-based, object threading
 
 ## Benchmark and Tuning
 
@@ -173,7 +174,8 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     + 1450ms: ~/orig/ting/ceForth_403, dict/pf array-based, subroutine threading
     + 1050ms: ~/orig/40x/ceforth, subroutine indirect threading, with 16-bit offset
     +  890ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
-    +  780ms: ~/src/ceforth, dynamic vector, token threading
+    +  780ms: ~/src/eforth, v4.2 dynamic vector, object threading
+    +  810ms: ~/src/eforth, v5.0 multi-threaded, dynamic vector, object threading
 
 ### ESP32 - 1K*1K cycles on 240MHz NodeMCU**
 
@@ -181,7 +183,7 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     + 1045ms: ~/orig/esp32/ceforth802, array-based, token threading
     +  990ms: ~/orig/40x/ceforth, linear-memory, subroutine threading, with 16-bit offset
     +  930ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
-    +  644ms: ~/src/ceforth dynamic vector, token threading
+    +  644ms: ~/src/eforth, v4.2 dynamic vector, token threading
 
 ### Dictionary of Pointers vs Objects
 
@@ -199,6 +201,15 @@ Though the use of C++ standard libraries helps us understanding what Forth does 
     + A vector, takes 3 pointers, is 24 bytes
 
 The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Go figure how the classic Forths needs only 2 or 4 bytes per node via linked-field and the final executable in a just a few KB. You might start to understand why the old Forth builders see C/C++ like plaque.
+
+## References
+    + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
+    + coding -
+        [optimizing](http://www.agner.org/optimize/optimizing_cpp.pdf)
+        [false-sharing](https://medium.com/distributed-knowledge/optimizations-for-c-multi-threaded-programs-33284dee5e9c)
+        [affinity](https://eli.thegreenplace.net/2016/c11-threads-affinity-and-hyperthreading/)
+        [occlusion](https://fgiesen.wordpress.com/2013/02/17/optimizing-sw-occlusion-culling-index/)
+        [perf c2c](https://coffeebeforearch.github.io/2020/03/27/perf-c2c.html)
 
 ## Revision History
 
@@ -235,3 +246,22 @@ The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 
         - add included opcode for Forth script loading
         - rename 'next_idiom' to 'word', per Forth standard
 
+* CC 20241001: Add multi-threading support
+    + Shared dictionary and code space amount threads.
+    + Refactor source into ceforth, ceforth_sys, and ceforth_task for their specific functions.
+    + Introduce VM, states
+        - local ss, rs, tos, and user area
+        - align to cache-line width
+        - pass VM& to all lambda and static functions
+    + Add thread pool and event_loop with affinity to physical cores.
+        - task, start, stop, join for thread life-cycle management
+        - add general multi-threading demo
+    + Add Inter-task communication
+        - pthread mutex and condition variables are used for synchronization
+        - rank for task id
+        - send, recv, and pull. Use local stack, as queue, for message passing.
+        - add producer/consumer demo
+    + Add IO sequencing
+        - ANSI-Color trace/logging for different cores
+        - mutex guard used
+        - lock, unlock for output stream synchronization
