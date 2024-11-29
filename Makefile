@@ -2,7 +2,7 @@ EM = em++
 CC = g++
 CC_FLAG = -std=c++17 -g -O3 -Wall \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
-		  -march=native -ffast-math -fno-finite-math-only
+		  -march=native -ffast-math -funroll-loops
 
 FLST = \
 	tests/ceforth50x  \
