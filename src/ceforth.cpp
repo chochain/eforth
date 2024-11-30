@@ -24,17 +24,19 @@ Code      *last;                       ///< cached dict[-1]
 #define PUSH(v)      (SS.push(TOS), TOS=(v))
 #define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
-#define BASE         ((U8*)&VAR(vm.id << 16))
-#define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
-#define DICT_POP()   (dict.pop(), last=dict[-1])
-#define BRAN_TGT()   (dict[-2]->pf[-1]) /* branching target */
 #define STR(i_w)     (                                  \
         EQ(i_w, UINT(-DU1))                             \
         ? vm.pad.c_str()                                \
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
-#define NEST(pf)  for (auto w : (pf)) w->nest(vm)
-#define UNNEST()  throw 0
+#define BASE         ((U8*)&VAR(vm.id << 16))
+#define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
+#define DICT_POP()   (dict.pop(), last=dict[-1])
+#define ADD_W(w)     (last->append(w))
+#define BTGT()       (dict[-2]->pf[-1])      /** branching target   */
+#define BRAN(p)      ((p).merge(last->pf))   /** add branching code */
+#define NEST(pf)     for (auto w : (pf)) w->nest(vm)
+#define UNNEST()     throw 0
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -151,7 +153,7 @@ const Code rom[] = {               ///< Forth dictionary
     IMMD("s\"",
          string s = word('"').substr(1);
          if (vm.compile) {
-             last->append(new Str(s, last->token, last->pf.size()));
+             ADD_W(new Str(s, last->token, last->pf.size()));
          }
          else {
              vm.pad = s;                             // keep string on pad
@@ -159,7 +161,7 @@ const Code rom[] = {               ///< Forth dictionary
          }),
     IMMD(".\"",
          string s = word('"').substr(1);
-         last->append(new Str(s))),
+         ADD_W(new Str(s))),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -169,21 +171,21 @@ const Code rom[] = {               ///< Forth dictionary
     ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
     IMMD("if",
-         last->append(new Bran(_if));
+         ADD_W(new Bran(_if));
          DICT_PUSH(new Tmp())),
     IMMD("else",
-         Code *b = BRAN_TGT();
-         b->pf.merge(last->pf);
+         Code *b = BTGT();
+         BRAN(b->pf);
          b->stage = 1),
     IMMD("then",
-         Code *b = BRAN_TGT();
+         Code *b = BTGT();
          int  s  = b->stage;                   ///< branching state
          if (s==0) {
-             b->pf.merge(last->pf);            /// * if.{pf}.then
+             BRAN(b->pf);                      /// * if.{pf}.then
              DICT_POP();
          }
          else {                                /// * else.{p1}.then, or
-             b->p1.merge(last->pf);            /// * then.{p1}.next
+             BRAN(b->p1);                      /// * then.{p1}.next
              if (s==1) DICT_POP();             /// * if..else..then
          }),
     /// @}
@@ -191,53 +193,52 @@ const Code rom[] = {               ///< Forth dictionary
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
     IMMD("begin",
-         last->append(new Bran(_begin));
+         ADD_W(new Bran(_begin));
          DICT_PUSH(new Tmp())),                /// as branch target
     IMMD("while",
-         Code *b = BRAN_TGT();
-         b->pf.merge(last->pf);                /// * begin.{pf}.f.while
+         Code *b = BTGT();
+         BRAN(b->pf);                          /// * begin.{pf}.f.while
          b->stage = 2),
     IMMD("repeat",
-         Code *b = BRAN_TGT();
-         b->p1.merge(last->pf); DICT_POP()),   /// * while.{p1}.repeat
+         Code *b = BTGT();
+         BRAN(b->p1); DICT_POP()),             /// * while.{p1}.repeat
     IMMD("again",
-         Code *b = BRAN_TGT();
-         b->pf.merge(last->pf); DICT_POP();    /// * begin.{pf}.again
+         Code *b = BTGT();
+         BRAN(b->pf); DICT_POP();              /// * begin.{pf}.again
          b->stage = 1),
     IMMD("until",
-         Code *b = BRAN_TGT();
-         b->pf.merge(last->pf); DICT_POP()),   /// * begin.{pf}.f.until
+         Code *b = BTGT();
+         BRAN(b->pf); DICT_POP()),             /// * begin.{pf}.f.until
     /// @}
     /// @defgrouop FOR loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
     IMMD("for",
-         last->append(new Bran(_tor));
-         last->append(new Bran(_for));
+         ADD_W(new Bran(_tor));
+         ADD_W(new Bran(_for));
          DICT_PUSH(new Tmp())),                /// as branch target
     IMMD("aft",
-         Code *b = BRAN_TGT();
-         b->pf.merge(last->pf);                /// * for.{pf}.aft
+         Code *b = BTGT();
+         BRAN(b->pf);                          /// * for.{pf}.aft
          b->stage = 3),
     IMMD("next",
-         Code *b = BRAN_TGT();
-         if (b->stage==0) b->pf.merge(last->pf);  /// * for.{pf}.next
-         else             b->p2.merge(last->pf);  /// * then.{p2}.next
-         DICT_POP()),
+         Code *b = BTGT();
+         BRAN(b->stage==0 ? b->pf : b->p2);    /// * for.{pf}.next, or
+         DICT_POP()),                          /// * then.{p2}.next
     /// @}
     /// @defgrouop DO loops
     /// @brief  - do...loop, do..leave..loop
     /// @{
     IMMD("do",
-         last->append(new Bran(_tor2)); ///< ( limit first -- )
-         last->append(new Bran(_loop));
+         ADD_W(new Bran(_tor2));               ///< ( limit first -- )
+         ADD_W(new Bran(_loop));
          DICT_PUSH(new Tmp())),
     CODE("i",      PUSH(RS[-1])),
     CODE("leave",
          RS.pop(); RS.pop(); UNNEST()), /// * exit loop
     IMMD("loop",
-         Code *b = BRAN_TGT();
-         b->pf.merge(last->pf);         /// * do.{pf}.loop
+         Code *b = BTGT();
+         BRAN(b->pf);                   /// * do.{pf}.loop
          DICT_POP()),
     /// @}
     /// @defgrouop Compiler ops
@@ -250,11 +251,11 @@ const Code rom[] = {               ///< Forth dictionary
     IMMD(";", vm.compile = false),
     CODE("constant",
          DICT_PUSH(new Code(word()));
-         Code *w = last->append(new Lit(POP()));
+         Code *w = ADD_W(new Lit(POP()));
          w->pf[0]->token = w->token),
     CODE("variable",
          DICT_PUSH(new Code(word()));
-         Code *w = last->append(new Var(DU0));
+         Code *w = ADD_W(new Var(DU0));
          w->pf[0]->token = w->token),
     CODE("immediate", last->immd = 1),
     CODE("exit",   UNNEST()),           // -- (exit from word)
@@ -265,11 +266,11 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("exec",   dict[POPI()]->nest(vm)),           // w --
     CODE("create",
          DICT_PUSH(new Code(word()));
-         Code *w = last->append(new Var(DU0));
+         Code *w = ADD_W(new Var(DU0));
          w->pf[0]->token = w->token;
          w->pf[0]->q.pop()),
     IMMD("does>",
-         last->append(new Bran(_does));
+         ADD_W(new Bran(_does));
          last->pf[-1]->token = last->token),          // keep WP
     CODE("to",                                        // n --
          Code *w=find(word()); if (!w) return;
@@ -424,7 +425,7 @@ void _loop(VM &vm, Code &c) {                ///> do..loop
 void _does(VM &vm, Code &c) {
     bool hit = false;
     for (auto w : dict[c.token]->pf) {
-        if (hit) last->append(w);            // copy rest of pf
+        if (hit) ADD_W(w);                   // copy rest of pf
         if (STRCMP(w->name, "does>")==0) hit = true;
     }
     UNNEST();                                // exit caller
@@ -465,13 +466,13 @@ void forth_core(VM &vm, string idiom) {
     Code *w = find(idiom);            /// * search through dictionary
     if (w) {                          /// * word found?
         if (vm.compile && !w->immd)   /// * are we compiling new word?
-            last->append(w);          /// * append word ptr to it
+            ADD_W(w);                 /// * append word ptr to it
         else w->nest(vm);             /// * execute forth word
         return;
     }
     DU  n = parse_number(idiom, *vm.base);  ///< try as a number
     if (vm.compile)                   /// * are we compiling new word?
-        last->append(new Lit(n));     /// * append numeric literal to it
+        ADD_W(new Lit(n));            /// * append numeric literal to it
     else PUSH(n);                     /// * add value to data stack
 }
 ///====================================================================
