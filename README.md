@@ -127,6 +127,7 @@ Checkout the version you are interested in.
     individual files (*.fs) under ~/tests/demo.
 
 ### WASM
+Note: single-threaded only i.e. v4.2, TODO: Web Worker thread
 
     > ensure you have Emscripten (WASM compiler) installed and configured
     > type> make wasm
@@ -134,6 +135,7 @@ Checkout the version you are interested in.
     > from your browser, open http://localhost:80/tests/eforth.html
 
 ### ESP32
+Note: single-threaded only i.e. v4.2, TODO: pthread
 
     > ensure your Arduino IDE have ESP32 libraries installed
     > open eforth.ino with Arduino IDE
