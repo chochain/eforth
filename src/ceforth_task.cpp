@@ -69,7 +69,13 @@ void t_pool_init() {
         _vm[i].base = (U8*)&q[i];                 /// * set base pointer
         _vm[i].id   = i;                          /// * VM id
     }
-    
+
+	/// setup thread pool and CPU affinity
+#ifdef __CYGWIN__	
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
+        _pool[i] = thread(_event_loop, i);        /// * closure with rank id
+	}
+#else // !__CYGWIN__	
     cpu_set_t set;
     CPU_ZERO(&set);                               /// * clear affinity
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
@@ -83,6 +89,7 @@ void t_pool_init() {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
     }
+#endif // __CYGWIN__
     printf("thread pool[%d] initialized\n", E4_VM_POOL_SZ);
 }
 
