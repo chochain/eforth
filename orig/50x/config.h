@@ -14,7 +14,7 @@
 #define RANGE_CHECK     0               /**< vector range check     */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
-#define DO_MULTITASK    1               /**< multitasking/pthread   */
+#define DO_MULTITASK    0               /**< multitasking/pthread   */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
 ///@name Memory block configuation
@@ -146,7 +146,7 @@ typedef int32_t         DU;
                         LOGS(dict[i].name); LOGS(" attr="); \
                         LOGX(dict[i].attr); LOGS("\n")
 #if DO_MULTITASK
-#if CC_DEBUG > 1
+#if CC_DEBUG
 #include <stdarg.h>
 #define VM_HDR(vm, fmt, ...)                  \
     printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
@@ -157,11 +157,11 @@ typedef int32_t         DU;
 #define VM_LOG(vm, fmt, ...)                  \
     VM_HDR(vm, fmt, ##__VA_ARGS__);           \
     printf("\n")
-#else
+#endif // CC_DEBUG
+#else  // !DO_MULTITASK
 #define VM_HDR(vm, fmt, ...)
 #define VM_TLR(vm, fmt, ...)
 #define VM_LOG(vm, fmt, ...)
-#endif // CC_DEBUG
 #endif // DO_MULTITASK
 ///@}
 #endif // __EFORTH_SRC_CONFIG_H
