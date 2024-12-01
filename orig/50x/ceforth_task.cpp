@@ -20,12 +20,12 @@ extern void nest(VM &vm);          ///< Forth inner loop
 ///
 ///> VM messaging and IO control variables
 ///
-int  VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
-bool VM::io_busy = false;
-mutex              VM::tsk;
-mutex              VM::io;
-condition_variable VM::cv_tsk;
-condition_variable VM::cv_io;
+int      VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
+bool     VM::io_busy = false;
+MUTEX    VM::tsk     = PTHREAD_MUTEX_INITIALIZER;
+MUTEX    VM::io      = PTHREAD_MUTEX_INITIALIZER;
+COND_VAR VM::cv_tsk  = PTHREAD_COND_INITIALIZER;
+COND_VAR VM::cv_io   = PTHREAD_COND_INITIALIZER;
 
 ///============================================================
 ///
@@ -34,16 +34,16 @@ condition_variable VM::cv_io;
 /// Note: Thread pool is universal and singleton,
 ///       so we keep them in C. Hopefully can be reused later
 bool               _done    = 0;   ///< thread pool exit flag
-List<thread, 0>    _pool;          ///< thread pool
+List<THREAD, 0>    _pool;          ///< thread pool
 List<VM*,    0>    _que;           ///< event queue
-mutex              _mtx;           ///< mutex for queue access
-condition_variable _cv_mtx;        ///< for pool exit
+MUTEX    _mtx    = PTHREAD_MUTEX_INITIALIZER; ///< mutex for queue access
+COND_VAR _cv_mtx = PTHREAD_COND_INITIALIZER;  ///< for pool exit
 
 void _event_loop(int rank) {
     VM *vm;
     while (true) {
         {
-            unique_lock<mutex> lck(_mtx);   ///< lock queue
+            unique_lock<mutex> lck(_mtx);     ///< lock queue
             _cv_mtx.wait(lck,      ///< release lock and wait
                 []{ return _que.idx > 0 || _done; });
             if (_done) return;     ///< lock reaccquired
