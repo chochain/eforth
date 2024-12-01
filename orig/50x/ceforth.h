@@ -190,9 +190,9 @@ void t_pool_stop();
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else  // !DO_MULTITASK
-void t_pool_init() {}
-void t_pool_stop() {}
-#endif // !DO_MULTITASK
+#define t_pool_init()
+#define t_pool_stop()
+#endif // DO_MULTITASK
 ///
 ///> System interface
 ///
