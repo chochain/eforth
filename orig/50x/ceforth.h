@@ -184,14 +184,16 @@ struct Code {
 ///> Multitasking support
 ///
 VM&  vm_get(int id=0);                    ///< get a VM with given id
+void uvar_init();                         ///< setup user area
+
 #if DO_MULTITASK
-void t_pool_init();
-void t_pool_stop();
+void t_pool_init();                       ///< initialize thread pool
+void t_pool_stop();                       ///< stop thread pool
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a thread with given task/VM id
-#else  // !DO_MULTITASK
-#define t_pool_init()
-#define t_pool_stop()
+#else
+#defint t_pool_init()
+#define t_pool_stop
 #endif // DO_MULTITASK
 ///
 ///> System interface
