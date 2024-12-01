@@ -221,7 +221,7 @@ void s_quote(prim_op op) {
 
 void nest() {
     VM = NEST;                                       /// * activate VM
-    while (VM==NEST && IP) {
+    while (IP) {                                     /// * recursive call (using rs)
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
 //        printf("[%4x]:%4x", IP, ix);
         IP += sizeof(IU);
@@ -286,7 +286,7 @@ void nest() {
 ///
 void CALL(IU w) {
     if (IS_UDF(w)) {                   /// colon word
-        rs.push(DU0);
+        rs.push(IP);
         IP = dict[w].pfa;              /// setup task context
         nest();
     }
@@ -614,7 +614,7 @@ void forth_core(const char *idiom) {     ///> aka QUERY
         if (compile && !IS_IMM(w)) {     /// * in compile mode?
             add_w(w);                    /// * add to colon word
         }
-        else CALL(w);                    /// * execute forth word
+        else { IP = DU0; CALL(w); }      /// * execute forth word
         return;
     }
     // try as a number
@@ -652,30 +652,16 @@ void forth_init() {
     dict_validate();                     ///< collect XT0, and check xtoff range
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
-    auto time_up = []() {                /// * time slice up
-        static long t0 = 0;              /// * real-time support, 10ms = 100Hz
-        long t1 = millis();              ///> check timing
-        return (t1 >= t0) ? (t0 = t1 + t0, 1) : 0;
-    };
     fout_setup();                        ///< serial output hook up
-
-    bool resume = (VM==HOLD || VM==IO);  ///< check VM resume status
-    if (resume) IP = UINT(rs.pop());     /// * restore context
-    else fin_setup(line);                ///> refresh buffer if not resuming
+    fin_setup(line);                     ///> refresh buffer if not resuming
     
     string idiom;
-    while (resume || fetch(idiom)) {     /// * parse a word
-        if (resume) nest();                    /// * resume task
-        else        forth_core(idiom.c_str()); /// * send to Forth core
-        resume = VM==HOLD;
-        if (resume && time_up()) break;  ///> multi-threading support
+    while (fetch(idiom)) {               /// * parse a word
+        forth_core(idiom.c_str());       /// * send to Forth core
     }
-    bool yield = VM==HOLD || VM==IO;     /// * yield to other tasks
+    if (!compile) ss_dump();             /// * optionally display stack contents
     
-    if (yield)         rs.push(IP);      /// * save context
-    else if (!compile) ss_dump();        /// * optionally display stack contents
-    
-    return yield;
+    return 0;
 }
 ///====================================================================
 ///
