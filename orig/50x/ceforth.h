@@ -228,7 +228,7 @@ void mem_stat();                          ///< display memory statistics
 ///> Javascript interface
 ///
 #if DO_WASM
-void native_api();
+void native_api(VM &vm);
 #endif // DO_WASM
 
 #endif // __EFORTH_SRC_CEFORTH_H

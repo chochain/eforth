@@ -542,9 +542,10 @@ void dict_compile() {  ///< compile built-in words into dictionary
          POP();                              // string length, not used
          load(vm, (const char*)MEM(POP()))); // include external file
 #if DO_WASM
-    CODE("JS",    call_js());                // Javascript interface
-#endif // DO_WASM
+    CODE("JS",    native_api(vm));           // Javascript interface
+#else    
     CODE("bye",   t_pool_stop(); exit(0));
+#endif // DO_WASM
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
 }
