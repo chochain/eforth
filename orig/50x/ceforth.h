@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <stdint.h>     // uintxx_t
 #include <exception>    // try...catch, throw
+#include <string>       // string class
 #include "config.h"     // configuation and cross-platform support
 
 #if DO_MULTITASK
-#include <atomic>
-#include <mutex>
-#include <condition_variable>
+#include <pthread.h>
+typedef pthread_t       THREAD;
+typedef pthread_mutex_t MUTEX;
+typedef pthread_cond_t  COND_VAR;
 #endif // DO_MULTITASK
 
 using namespace std;
@@ -72,11 +74,11 @@ struct ALIGNAS VM {
 #if DO_MULTITASK
     static int NCORE;              ///< number of hardware cores
     
-    static bool io_busy;              ///< IO locking control
-    static mutex              io;     ///< mutex for io access
-    static mutex              tsk;    ///< mutex for tasker
-    static condition_variable cv_io;  ///< io control
-    static condition_variable cv_tsk; ///< tasker control
+    static bool     io_busy;       ///< IO locking control
+    static MUTEX    io;            ///< mutex for io access
+    static MUTEX    tsk;           ///< mutex for tasker
+    static COND_VAR cv_io;         ///< io control
+    static COND_VAR cv_tsk;        ///< tasker control
     static void _ss_dup(VM &dst, VM &src, int n);
 
     void stop();                   ///< stop VM
