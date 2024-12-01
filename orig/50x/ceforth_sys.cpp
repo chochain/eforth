@@ -258,6 +258,7 @@ void dict_dump(int base) {
 ///> Javascript/WASM interface
 ///
 #if DO_WASM
+#define POP() ({ DU n=TOS; TOS=SS.pop(); n; })
 EM_JS(void, js_call, (const char *ops), {
         const req = UTF8ToString(ops).split(/\\s+/);
         const wa  = wasmExports;
@@ -290,10 +291,10 @@ EM_JS(void, js_call, (const char *ops), {
 ///    %s - string
 ///    %p - pointer (memory block)
 ///
-void native_api() {                        ///> ( n addr u -- )
+void native_api(VM &vm) {                  ///> ( n addr u -- )
     static stringstream n;                 ///< string processor
     static string       pad;               ///< tmp storage
-    auto t2s = [&n](char c) {              ///< template to string
+    auto t2s = [&vm](char c) {             ///< template to string
         n.str("");                         /// * clear stream
         switch (c) {
         case 'd': n << UINT(POP());                break;
