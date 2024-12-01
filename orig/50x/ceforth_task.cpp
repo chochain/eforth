@@ -4,9 +4,19 @@
 ///
 #include "ceforth.h"
 
+extern List<U8, 0> pmem;           ///< parameter memory block
+extern U8          *MEM0;          ///< base pointer of pmem
+
 #if !DO_MULTITASK
 VM _vm0;                           ///< singleton, no VM pooling
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
+void uvar_init() {
+    U8 *b = &pmem[pmem.idx++];     ///< *base
+    *b = 10;                       /// * default 10
+    _vm0.id   = 0;                 /// * VM id
+    _vm0.base = (IU)(b - MEM0);    /// * base idx
+    pmem.idx = DALIGN(pmem.idx);   /// DU aligned
+}
 
 #else // DO_MULTITASK
 List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
@@ -17,8 +27,6 @@ VM& vm_get(int id) {
     return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
 }
 
-extern List<U8, 0> pmem;           ///< parameter memory block
-extern U8          *MEM0;          ///< base pointer of pmem
 extern void add_du(DU v);          ///< add data unit to pmem
 extern void nest(VM &vm);          ///< Forth inner loop
 ///
@@ -77,15 +85,6 @@ void t_pool_init() {
         printf("thread_pool_init allocation failed\n");
         exit(-1);
     }
-    /// setup VMs base pointers
-    for (int i = 0; i < E4_VM_POOL_SZ; i++) {
-        U8 *b = &pmem[pmem.idx++];                ///< *base
-        *b = 10;                                  /// * default 10
-        _vm[i].id   = i;                          /// * VM id
-        _vm[i].base = (IU)(b - MEM0);             /// * base idx
-    }
-    pmem.idx = DALIGN(pmem.idx);                  /// DU aligned
-
     /// setup thread pool and CPU affinity
 #ifdef __CYGWIN__
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
@@ -127,6 +126,16 @@ void t_pool_stop() {
     _pool.clear();
 
     printf(" done!\n");
+}
+
+void uvar_init() {
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {
+        U8 *b = &pmem[pmem.idx++];                ///< *base
+        *b = 10;                                  /// * default 10
+        _vm[i].id   = i;                          /// * VM id
+        _vm[i].base = (IU)(b - MEM0);             /// * base idx
+    }
+    pmem.idx = DALIGN(pmem.idx);                  /// DU aligned
 }
 
 int task_create(IU pfa) {

@@ -209,7 +209,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        VM_HDR(&vm, ":%4x", ix);
+//        VM_HDR(&vm, ":%4x", ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -264,16 +264,15 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
+//        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
     }
-    vm.state = IP ? HOLD : STOP;
 }
 ///
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(VM& vm, IU w) {
     if (IS_UDF(w)) {                   /// colon word
-        RS.push(DU0);                  /// * terminating IP
+        RS.push(IP);                   /// * terminating IP
         IP = dict[w].pfa;              /// setup task context
         nest(vm);
     }
@@ -606,7 +605,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         if (vm.compile && !IS_IMM(w)) {  /// * in compile mode?
             add_w(w);                    /// * add to colon word
         }
-        else CALL(vm, w);                /// * execute forth word
+        else { IP = DU0; CALL(vm, w); }  /// * execute forth word
         return;
     }
     // try as a number
@@ -641,6 +640,7 @@ void forth_init() {
     MEM0  = &pmem[0];
 
     t_pool_init();                       /// * initialize thread pool
+    uvar_init();                         /// * initialize user area
     VM &vm0   = vm_get(0);               /// * initialize main vm
     vm0.state = QUERY;
     
