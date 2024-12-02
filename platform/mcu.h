@@ -10,18 +10,17 @@
 ///    1045ms orig/esp32forth8_1
 ///     999ms orig/40x/ceforth subroutine-threaded, 16-bit xt offset
 ///     940ms orig/40x/ceforth use cached xt offsets in nest()
-///     665ms src/ceforth vector-based token-threaded
+///     665ms src/ceforth vector-based, object-threaded
+///     534ms src/ceforth, multi-threading, vector-based, object-threaded (with gcc -O3)
 ///
-const char *APP_VERSION = "eForth v4.2";
+const char *APP_VERSION = "eForth v5.0";
 ///
 ///> interface to core module
 ///
 #include "../src/ceforth.h"
 extern void forth_init();
-extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
-extern DU       top;
-extern FV<Code*>dict;
-extern FV<DU>   ss;
+extern int  forth_vm(const char *cmd, void(*hook)(int, const char*));
+extern FV<Code*> dict;
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
@@ -30,7 +29,8 @@ void mem_stat()  {
     size_t  t = heap_caps_get_total_size(MALLOC_CAP_8BIT);
     size_t  f = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     int64_t p = 1000L * f / t;
-    LOGS("eForth 4.2 on Core["); LOG(xPortGetCoreID());
+    LOGS(APP_VERSION);
+    LOGS(" on core[");           LOG(xPortGetCoreID());
     LOGS("] at ");               LOG(getCpuFrequencyMhz());      
     LOGS(" MHz, RAM ");          LOG(static_cast<float>(p) * 0.1);
     LOGS("% free (");            LOG(f>>10);
@@ -39,7 +39,7 @@ void mem_stat()  {
     LOG_KV("|", OUTPUT);         LOG_KV("|", INPUT_PULLUP);
     LOG_KV("|", INPUT_PULLDOWN);
     LOG_KV(", digitalWrite HIGH|LOW=", HIGH);
-    LOG_KV("|", LOW); LOGS("\n");
+    LOG_KV("|", LOW);            LOGS("\n");
 }
 ///====================================================================
 ///
@@ -72,28 +72,28 @@ void forth_include(const char *fname) {
 ///
 ///> add ESP32 specific opcodes
 ///
-inline  DU POP() { DU n=top; top=ss.pop(); return n; }
-#define PUSH(v)  (ss.push(top), top=(v))
-#define PEEK(a)    (U32)(*(U32*)((UFP)(a)))
-#define POKE(a, c) (*(U32*)((UFP)(a))=(U32)(c))
+#define PEEK(a)      (U32)(*(U32*)((UFP)(a)))
+#define POKE(a, c)   (*(U32*)((UFP)(a))=(U32)(c))
 
-FV<Code*> ops = {
-    CODE("pinmode",DU p = POP(); pinMode(p, POP())),          // n p --
-    CODE("in",     DU p = POP(); PUSH(digitalRead(p))),       // p -- n
-    CODE("out",    DU p = POP(); digitalWrite(p, POP())),     // n p --
-    CODE("adc",    DU p = POP(); PUSH(analogRead(p))),        // p -- n
-    CODE("duty",   DU p = POP(); analogWrite(p, POP(), 255)), // n ch
-    CODE("attach", DU p = POP(); ledcAttachPin(p, POP())),    // ch p --
-    CODE("setup",  DU ch= POP(); DU freq=POP();               // res freq ch --
-                       ledcSetup(ch, freq, POP())),
-    CODE("tone",   DU ch= POP(); ledcWriteTone(ch, POP())),   // duty ch --
-    CODE("peek",   DU a = POP(); PUSH(PEEK(a))),              // a -- n
-    CODE("poke",   DU a = POP(); POKE(a, POP())),             // n a --
+const Code ops[] = {
+    CODE("pinmode",IU p = POPI(); pinMode(p, POPI())),          // n p --
+    CODE("in",     IU p = POPI(); PUSH(digitalRead(p))),        // p -- n
+    CODE("out",    IU p = POPI(); digitalWrite(p, POPI())),     // n p --
+    CODE("adc",    IU p = POPI(); PUSH(analogRead(p))),         // p -- n
+    CODE("duty",   IU p = POPI(); analogWrite(p, POPI(), 255)), // n ch
+    CODE("attach", IU p = POPI(); ledcAttachPin(p, POPI())),    // ch p --
+    CODE("setup",  IU ch= POPI(); IU freq=POPI();               // res freq ch --
+                       ledcSetup(ch, freq, POPI())),
+    CODE("tone",   IU ch= POPI(); ledcWriteTone(ch, POPI())),   // duty ch --
+    CODE("peek",   IU a = POPI(); PUSH(PEEK(a))),               // a -- n
+    CODE("poke",   IU a = POPI(); POKE(a, POPI())),             // n a --
 };
 
 void mcu_init() {
     forth_init();
-    dict.merge(ops);
+    
+    const int sz = (int)(sizeof(ops))/(sizeof(Code));
+    for (const Code &c : ops) dict.push((Code*)&c);
 }
 #endif // __EFORTH_PLATFORM_MCU_H
 
