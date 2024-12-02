@@ -28,7 +28,7 @@ VM& vm_get(int id) {
 ///
 ///> VM messaging and IO control variables
 ///
-int      VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
+int      VM::NCORE   = 1;          ///< default to 1, updated in init
 bool     VM::io_busy = false;
 MUTEX    VM::tsk     = PTHREAD_MUTEX_INITIALIZER;
 MUTEX    VM::io      = PTHREAD_MUTEX_INITIALIZER;
@@ -76,29 +76,28 @@ void *_event_loop(void *arg) {
 }
 
 void t_pool_init() {
+    VM::NCORE = sysconf(_SC_NPROCESSORS_ONLN);    ///< number of cores
 	/// setup thread pool and CPU affinity
-#ifdef __CYGWIN__	
+#if defined(__CYGWIN__) || (ARDUINO || ESP32)
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
         pthread_create(&_pool[i], NULL, _event_loop, (void*)&i);
     }
-#else // !__CYGWIN__	
+#else // !(defined(__CYGWIN__) || (ARDUINO || ESP32))
     cpu_set_t set;
     CPU_ZERO(&set);                               /// * clear affinity
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
         pthread_create(&_pool[i], NULL, _event_loop, (void*)&i);
-/*
         CPU_SET(i % VM::NCORE, &set);             /// * CPU affinity
         int rc = pthread_setaffinity_np(          /// * set core affinity
-            _pool[i].native_handle(),
+            _pool[i],
             sizeof(cpu_set_t), &set
         );
         if (rc !=0) {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
-*/
     }
-#endif // __CYGWIN__
-    printf("thread pool[%d] initialized\n", E4_VM_POOL_SZ);
+#endif // defined(__CYGWIN__) || (ARDUINO || ESP32)
+    printf("CPU cores=%d, thread pool[%d] initialized\n", VM::NCORE, E4_VM_POOL_SZ);
 }
 
 void t_pool_stop() {
