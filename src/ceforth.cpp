@@ -490,6 +490,7 @@ void forth_init() {
     }
 
     t_pool_init();                    /// * initialize thread pool
+    uvar_init();                      /// * initialize user area
     VM &vm0   = vm_get(0);            ///< main thread
     vm0.state = QUERY;
 }
