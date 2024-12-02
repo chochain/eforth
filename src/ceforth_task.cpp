@@ -4,6 +4,21 @@
 ///
 #include "ceforth.h"
 
+extern FV<Code*> dict;             ///< Forth dictionary
+
+#if !DO_MULTITASK
+VM _vm0;                           ///< singleton, no VM pooling
+
+VM& vm_get(int id) { return _vm0; }/// * return the singleton
+void uvar_init() {
+    dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
+
+    FV<DU> &q = dict[0]->pf[0]->q;
+    _vm0.base = (U8*)&q[i];        /// * set base pointer
+    _vm0.id   = 0;                 /// * VM id
+}
+
+#else // DO_MULTITASK
 VM _vm[E4_VM_POOL_SZ];             ///< VMs for multitasks
 ///
 ///> VM pool
@@ -11,18 +26,15 @@ VM _vm[E4_VM_POOL_SZ];             ///< VMs for multitasks
 VM& vm_get(int id) {
     return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
 }
-
-#if DO_MULTITASK
-extern FV<Code*> dict;             ///< Forth dictionary
 ///
 ///> VM messaging and IO control variables
 ///
-int  VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
-bool VM::io_busy = false;
-mutex              VM::tsk;
-mutex              VM::io;
-condition_variable VM::cv_tsk;
-condition_variable VM::cv_io;
+int      VM::NCORE   = thread::hardware_concurrency();  ///< number of cores
+bool     VM::io_busy = false;
+MUTEX    VM::tsk     = PTHREAD_MUTEX_INITIALIZER;
+MUTEX    VM::io      = PTHREAD_MUTEX_INITIALIZER;
+COND_VAR VM::cv_tsk  = PTHREAD_COND_INITIALIZER;
+COND_VAR VM::cv_io   = PTHREAD_COND_INITIALIZER;
 
 ///============================================================
 ///
@@ -31,35 +43,84 @@ condition_variable VM::cv_io;
 /// Note: Thread pool is universal and singleton,
 ///       so we keep them in C. Hopefully can be reused later
 #include <queue>
-thread             _pool[E4_VM_POOL_SZ]; ///< thread pool
-queue<VM*>         _que;                 ///< event queue
-mutex              _mtx;                 ///< mutex for queue access
-condition_variable _cv_mtx;              ///< for pool exit
-bool               _done    = 0;         ///< thread pool exit flag
+THREAD     _pool[E4_VM_POOL_SZ];                  ///< thread pool
+queue<VM*> _que;                                  ///< event queue
+MUTEX      _mtx     = PTHREAD_MUTEX_INITIALIZER;  ///< mutex for queue access
+COND_VAR   _cv_mtx  = PTHREAD_COND_INITIALIZER;   ///< for pool exit
+bool       _done    = 0;                          ///< thread pool exit flag
 
-void _event_loop(int rank) {
-    VM *vm;
+void *_event_loop(void *arg) {
+    int rank = *(int*)arg;                        ///< dup argument
+    VM *vm   = NULL;
     while (true) {
+        pthread_mutex_lock(&_mtx);                ///< lock queue
         {
-            unique_lock<mutex> lck(_mtx);   ///< lock queue
-            _cv_mtx.wait(lck,      ///< release lock and wait
-                []{ return _que.size() > 0 || _done; });
-            if (_done) return;     ///< lock reaccquired
-            vm = _que.front();     ///< get next event
-            _que.pop();
+            while (!_done && _que.size()==0) {    /// * condition wait
+                pthread_cond_wait(&_cv_mtx, &_mtx);
+            }
+            if (!_done) {                         ///< lock reaccquired
+                vm = _que.front();
+                _que.pop();
+            }
         }
-        _cv_mtx.notify_one();
+        pthread_cond_signal(&_cv_mtx);            /// * notify one
+        pthread_mutex_unlock(&_mtx);
+
+        if (_done) return NULL;
 
         VM_LOG(vm, ">> started on T%d", rank);
         dict[vm->wp]->nest(*vm);
         VM_LOG(vm, ">> finished on T%d", rank);
-        
-        vm->stop();                /// * release any lock
+
+        vm->stop();                               /// * release any lock
     }
 }
 
 void t_pool_init() {
-    /// setup VM and it's user area (base pointer)
+	/// setup thread pool and CPU affinity
+#ifdef __CYGWIN__	
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
+        pthread_create(&_pool[i], NULL, _event_loop, (void*)&i);
+    }
+#else // !__CYGWIN__	
+    cpu_set_t set;
+    CPU_ZERO(&set);                               /// * clear affinity
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
+        pthread_create(&_pool[i], NULL, _event_loop, (void*)&i);
+/*
+        CPU_SET(i % VM::NCORE, &set);             /// * CPU affinity
+        int rc = pthread_setaffinity_np(          /// * set core affinity
+            _pool[i].native_handle(),
+            sizeof(cpu_set_t), &set
+        );
+        if (rc !=0) {
+            printf("thread[%d] failed to set affinity: %d\n", i, rc);
+        }
+*/
+    }
+#endif // __CYGWIN__
+    printf("thread pool[%d] initialized\n", E4_VM_POOL_SZ);
+}
+
+void t_pool_stop() {
+    pthread_mutex_lock(&_mtx);
+    {
+        _done = true;                          /// * stop event queue
+    }
+    pthread_cond_signal(&_cv_mtx);
+    pthread_mutex_unlock(&_mtx);
+
+    printf("joining thread...");
+    for (int i = 0; i < E4_VM_POOL_SZ; i++) {
+        pthread_join(_pool[i], NULL);
+        printf("%d ", i);
+    }
+    printf(" done!\n");
+}
+///
+///> setup user area (base pointer)
+///
+void uvar_init() {
     dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
 
     FV<DU> &q = dict[0]->pf[0]->q;
@@ -69,55 +130,20 @@ void t_pool_init() {
         _vm[i].base = (U8*)&q[i];                 /// * set base pointer
         _vm[i].id   = i;                          /// * VM id
     }
-
-	/// setup thread pool and CPU affinity
-#ifdef __CYGWIN__	
-    for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
-        _pool[i] = thread(_event_loop, i);        /// * closure with rank id
-	}
-#else // !__CYGWIN__	
-    cpu_set_t set;
-    CPU_ZERO(&set);                               /// * clear affinity
-    for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
-        _pool[i] = thread(_event_loop, i);        /// * closure with rank id
-        CPU_SET(i % VM::NCORE, &set);             /// * CPU affinity
-        int rc = pthread_setaffinity_np(          /// * set core affinity
-            _pool[i].native_handle(),
-            sizeof(cpu_set_t), &set
-        );
-        if (rc !=0) {
-            printf("thread[%d] failed to set affinity: %d\n", i, rc);
-        }
-    }
-#endif // __CYGWIN__
-    printf("thread pool[%d] initialized\n", E4_VM_POOL_SZ);
-}
-
-void t_pool_stop() {
-    {
-        lock_guard<mutex> lck(_mtx);        ///< lock queue
-        _done = true;
-    }
-    _cv_mtx.notify_all();
-
-    printf("joining thread...");
-    for (int i = 0; i < E4_VM_POOL_SZ; i++) {
-        printf(" %d", i);
-        _pool[i].join();
-    }
-    printf(" done!\n");
 }
 
 int task_create(IU w) {
     int i = E4_VM_POOL_SZ - 1;
+    
+    pthread_mutex_lock(&VM::tsk);
     {
-        lock_guard<mutex> lck(VM::tsk);
         while (i > 0 && _vm[i].state != STOP) --i;
         if (i > 0) {
-            _vm[i].reset(w, HOLD);     /// ready to run
+            _vm[i].reset(w, HOLD);               /// ready to run
         }
     }
-    VM::cv_tsk.notify_one();
+    pthread_cond_signal(&VM::cv_tsk);
+    pthread_mutex_unlock(&VM::tsk);
     
     return i;
 }
@@ -128,11 +154,12 @@ void task_start(int tid) {
         return;
     }
     VM &vm = vm_get(tid);
+    pthread_mutex_lock(&_mtx);
     {
-        lock_guard<mutex> lck(_mtx);   ///< lock queue
-        _que.push(&vm);
+        _que.push(&vm);                          /// create event
     }
-    _cv_mtx.notify_one();
+    pthread_cond_signal(&_cv_mtx);
+    pthread_mutex_unlock(&_mtx);
 }
 ///==================================================================
 ///
@@ -141,11 +168,16 @@ void task_start(int tid) {
 void VM::join(int tid) {
     VM &vm = vm_get(tid);
     VM_LOG(this, ">> joining VM%d", vm.id);
+    
+    pthread_mutex_lock(&tsk);
     {
-        unique_lock<mutex> lck(tsk);   ///< lock tasker
-        cv_tsk.wait(lck, [&vm]{ return vm.state==STOP; });
+        while (vm.state != STOP) {
+            pthread_cond_wait(&cv_tsk, &tsk);
+        }
     }
-    cv_tsk.notify_one();
+    pthread_cond_signal(&cv_tsk);
+    pthread_mutex_unlock(&tsk);
+    
     VM_LOG(this, ">> VM%d joint", vm.id);
 }
 ///
@@ -170,52 +202,56 @@ void VM::reset(IU w, vm_state st) {
     compile    = false;
 }
 void VM::stop() {
+    pthread_mutex_lock(&tsk);       /// * lock tasker
     {
-        lock_guard<mutex> lck(tsk); /// * lock tasker
         state = STOP;
     }
-    cv_tsk.notify_one();            /// * release join lock if any
+    pthread_cond_signal(&cv_tsk);   /// * release join lock if any
+    pthread_mutex_unlock(&tsk);
 }
 ///
 ///> send to destination VM's stack (blocking)
 ///
 void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
     VM& vm = vm_get(tid);            ///< destination VM
+
+    pthread_mutex_lock(&tsk);        /// * lock tasker
     {
-        unique_lock<mutex> lck(tsk); ///< lock tasker
-        cv_tsk.wait(lck,             ///< release lock and wait
-            [&vm]{ return _done ||   /// * Forth exit, or
-                vm.state==HOLD;      /// * waiting for messaging
-            });
+        while (!_done && vm.state!=HOLD) {
+            pthread_cond_wait(&cv_tsk, &tsk);
+        }
         VM_LOG(&vm, " >> sending %d items to VM%d.%d", n, tid, vm.state);
         _ss_dup(vm, *this, n);       /// * pass n variables as a queue
-        
         vm.state = NEST;             /// * unblock target task
     }
-    cv_tsk.notify_one();
+    pthread_cond_signal(&cv_tsk);
+    pthread_mutex_unlock(&tsk);
 }
 ///
 ///> receive from source VM's stack (blocking)
 ///
 void VM::recv() {                    ///< ( -- v1 v2 .. vn )
     vm_state st = state;             ///< keep current VM state
+    
+    pthread_mutex_lock(&tsk);        /// * lock tasker
     {
-        lock_guard<mutex> lck(tsk);  ///< lock tasker
         state = HOLD;
     }
-    cv_tsk.notify_one();
+    pthread_cond_signal(&cv_tsk);
+    pthread_mutex_unlock(&tsk);
 
     VM_LOG(this, " >> waiting");
+
+    pthread_mutex_lock(&tsk);        ///< lock tasker
     {
-        unique_lock<mutex> lck(tsk); ///< lock tasker
-        cv_tsk.wait(lck,             /// * block until message arrival
-            [this]{ return _done ||  /// * wait till Forth exit, or
-                state != HOLD;       /// * message arrived
-            });
+        while (!_done && state==HOLD) {  /// * block til msg arrival
+            pthread_cond_wait(&cv_tsk, &tsk);
+        }
         VM_LOG(this, " >> received => state=%d", st);
         state = st;                  /// * restore VM state
     }
-    cv_tsk.notify_one();
+    pthread_cond_signal(&cv_tsk);
+    pthread_mutex_unlock(&tsk);
 }
 ///
 ///> broadcasting to all receving VMs
@@ -228,36 +264,42 @@ void VM::bcast(int n) {
 ///
 void VM::pull(int tid, int n) {
     VM& vm = vm_get(tid);            ///< source VM
+
+    pthread_mutex_lock(&tsk);        /// * lock tasker
     {
-        unique_lock<mutex> lck(tsk); ///< lock tasker
-        cv_tsk.wait(lck,             ///< release lock and wait
-            [&vm]{ return _done ||   /// * Forth exit
-                 vm.state==STOP;     /// * init before task start
-            });
-        if (_done) return;
-        
-        _ss_dup(*this, vm, n);       /// * retrieve from completed task
-    
-        printf(">> pulled %d items from VM%d.%d\n", n, vm.id, vm.state);
+        while (!_done && vm.state != STOP) {
+            pthread_cond_wait(&cv_tsk, &tsk);
+        }
+        if (!_done) {
+            _ss_dup(*this, vm, n);   /// * retrieve from completed task
+            printf(">> pulled %d items from VM%d.%d\n", n, vm.id, vm.state);
+        }
     }
-    cv_tsk.notify_one();
+    pthread_cond_signal(&cv_tsk);
+    pthread_mutex_unlock(&tsk);
 }
 ///
 ///> IO control (can use atomic _io after C++20)
 ///
 /// Note: after C++20, _io can be atomic.wait
 void VM::io_lock() {
-    unique_lock<mutex> lck(io);
-    cv_io.wait(lck, []{ return !io_busy; });
-    io_busy = true;                /// * lock
-    cv_io.notify_one();
+    pthread_mutex_lock(&io);
+    {
+        while (io_busy) {
+            pthread_cond_wait(&cv_io, &io);
+        }
+        io_busy = true;            /// * lock
+    }
+    pthread_cond_signal(&cv_io);
+    pthread_mutex_unlock(&io);
 }
 
 void VM::io_unlock() {
+    pthread_mutex_lock(&io);
     {
-        lock_guard<mutex> lck(io);
         io_busy = false;           /// * unlock
     }
-    cv_io.notify_one();
+    pthread_cond_signal(&cv_io);
+    pthread_mutex_unlock(&io);
 }
 #endif // DO_MULTITASK
