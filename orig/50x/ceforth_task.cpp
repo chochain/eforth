@@ -53,7 +53,7 @@ List<THREAD, 0>    _pool;          ///< thread pool
 List<VM*,    0>    _que;           ///< event queue
 
 void *_event_loop(void *arg) {
-int rank = *(int*)arg;                        ///< dup argument
+    int rank = *(int*)arg;                        ///< dup argument
     VM *vm   = NULL;
     while (true) {
         pthread_mutex_lock(&_mtx);                ///< lock queue
