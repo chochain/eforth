@@ -7,7 +7,7 @@
 #define __EFORTH_PLATFORM_SERVER_H
 #include <WiFi.h>
 
-extern void forth_vm(const char *cmd, void(*callback)(int, const char*));
+extern int forth_vm(const char *cmd, void(*callback)(int, const char*));
 
 const char *HTML_INDEX PROGMEM = R"XX(
 HTTP/1.1 200 OK
@@ -18,7 +18,7 @@ Content-type:text/html
 </head>
 <body>
     <div id='log' style='float:left;overflow:auto;height:100%;width:60%;
-         background-color:#f8f0f0;'>eForth 4.2</div>
+         background-color:#f8f0f0;'>eForth 5.0</div>
     <textarea id='tib' style='height:100%;width:40%;resize:none'
         onkeydown='if (13===event.keyCode) forth()'></textarea>
 </body>
