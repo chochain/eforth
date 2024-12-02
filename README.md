@@ -192,7 +192,7 @@ Note: Has 2 cores but core0 is dedicated to WiFi and FreeRTOS house keeping.
     +  990ms: ~/orig/40x/ceforth, linear-memory, subroutine threading, with 16-bit offset
     +  930ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
     +  644ms: ~/src/eforth, v4.2 dynamic vector, token threading
-    +  810ms: ~/src/eforth, v5.0 multi-threaded, dynamic vector, object threading
+    +  534ms: ~/src/eforth, v5.0 multi-threaded, dynamic vector, object threading (with gcc -O3)
 
 ### Dictionary of Pointers vs Objects
 
