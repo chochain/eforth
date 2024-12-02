@@ -16,13 +16,6 @@ Code      *last;                       ///< cached dict[-1]
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
-#define TOS          (vm.tos)
-#define SS           (vm.ss)
-#define RS           (vm.rs)
-#define POP()        ({ DU n=TOS; TOS=SS.pop(); n; })
-#define POPI()       (UINT(POP()))
-#define PUSH(v)      (SS.push(TOS), TOS=(v))
-#define BOOL(f)      ((f) ? -1 : 0)
 #define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
 #define STR(i_w)     (                                  \
         EQ(i_w, UINT(-DU1))                             \
@@ -43,14 +36,11 @@ Code      *last;                       ///< cached dict[-1]
 ///    1. Dictionary construction sequence
 ///       * Code rom[] in statically build in compile-time
 ///       * vector<Code*> dict is populated in forth_init, i.e. first thing in main()
-///    2. Using __COUNTER__ for array token/index can potetially
+///    2. Macro CODE/IMMD use __COUNTER__ for array token/index can potetially
 ///       make the dictionary static but need to be careful the
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-#define CODE(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ }
-#define IMMD(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
-
 const Code rom[] = {               ///< Forth dictionary
     CODE("bye",    t_pool_stop(); exit(0)),   // exit to OS
     ///

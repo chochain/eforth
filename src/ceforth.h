@@ -12,7 +12,12 @@
 #include "config.h"
 
 #if DO_MULTITASK
-#include <pthread.h>
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <pthread.h>                   /// POSIX threading
+#include <unistd.h>                    /// sysconf (# of cores)
+#include <sched.h>                     /// CPU affinity
 typedef pthread_t       THREAD;
 typedef pthread_mutex_t MUTEX;
 typedef pthread_cond_t  COND_VAR;
@@ -116,6 +121,18 @@ struct Code {
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void nest(VM &vm);                                 ///> inner interpreter
 };
+///
+///> macros to reduce verbosity (but harder to single-step debug)
+///
+#define TOS         (vm.tos)
+#define SS          (vm.ss)
+#define RS          (vm.rs)
+#define POP()       ({ DU n=TOS; TOS=SS.pop(); n; })
+#define POPI()      (UINT(POP()))
+#define PUSH(v)     (SS.push(TOS), TOS=(v))
+#define BOOL(f)     ((f) ? -1 : 0)
+#define CODE(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ }
+#define IMMD(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
 ///
 ///> Primitve object and function forward declarations
 ///
