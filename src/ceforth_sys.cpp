@@ -9,9 +9,6 @@
 using namespace std;
 
 extern FV<Code*> dict;
-
-#define TOS     (vm.tos)
-#define SS      (vm.ss)
 ///
 ///> I/O streaming interface
 ///
