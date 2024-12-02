@@ -12,9 +12,10 @@
 #include "config.h"
 
 #if DO_MULTITASK
-#include <atomic>
-#include <mutex>
-#include <condition_variable>
+#include <pthread.h>
+typedef pthread_t       THREAD;
+typedef pthread_mutex_t MUTEX;
+typedef pthread_cond_t  COND_VAR;
 #endif // DO_MULTITASK
 
 using namespace std;
@@ -56,13 +57,13 @@ struct ALIGNAS VM {
     string   pad;
     
 #if DO_MULTITASK
-    static int NCORE;                 ///< number of hardware cores
+    static int      NCORE;         ///< number of hardware cores
     
-    static bool io_busy;              ///< IO locking control
-    static mutex              io;     ///< mutex for io access
-    static mutex              tsk;    ///< messing mutex
-    static condition_variable cv_io;  ///< for io control
-    static condition_variable cv_tsk; ///< messing condition variable
+    static bool     io_busy;       ///< IO locking control
+    static MUTEX    io;            ///< mutex for io access
+    static MUTEX    tsk;           ///< mutex for tasker
+    static COND_VAR cv_io;         ///< io control
+    static COND_VAR cv_tsk;        ///< tasker control
     static void _ss_dup(VM &dst, VM &src, int n);
     ///
     /// task life cycle methods
@@ -161,6 +162,7 @@ struct Bran: Code {
 ///> Multitasking support
 ///
 VM&  vm_get(int id=0);                    ///< get a VM with given id
+void uvar_init();                         ///< initialize user area
 
 #if DO_MULTITASK
 void t_pool_init();
@@ -168,8 +170,8 @@ void t_pool_stop();
 int  task_create(IU w);                   ///< create a VM starting on dict[w]
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else  // !DO_MULTITASK
-void t_pool_init() {}
-void t_pool_stop() {}
+#define t_pool_init()
+#define t_pool_stop()
 #endif // !DO_MULTITASK
 ///
 ///> System interface
