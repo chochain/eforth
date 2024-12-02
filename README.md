@@ -139,9 +139,11 @@ Note: single-threaded only i.e. v4.2, TODO: Web Worker thread
     > from your browser, open http://localhost:80/tests/eforth.html
 
 ### ESP32
-Note: single-threaded only i.e. v4.2, TODO: pthread
+Note: Has 2 cores but core0 is dedicated to WiFi and FreeRTOS house keeping.
+      Forth tasks will be tied to core1 only. No performance gain running in parallel.
 
     > ensure your Arduino IDE have ESP32 libraries installed
+    > update ESP32 compiler.optimization flags in ~/hardware/platform.txt to -O3 (default -Os)
     > open eforth.ino with Arduino IDE
     > inside eforth.ino, modify WIFI_SSID and WIFI_PASS to point to your router
     > open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
@@ -190,6 +192,7 @@ Note: single-threaded only i.e. v4.2, TODO: pthread
     +  990ms: ~/orig/40x/ceforth, linear-memory, subroutine threading, with 16-bit offset
     +  930ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
     +  644ms: ~/src/eforth, v4.2 dynamic vector, token threading
+    +  810ms: ~/src/eforth, v5.0 multi-threaded, dynamic vector, object threading
 
 ### Dictionary of Pointers vs Objects
 
