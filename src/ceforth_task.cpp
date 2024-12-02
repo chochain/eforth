@@ -13,9 +13,8 @@ VM& vm_get(int id) { return _vm0; }/// * return the singleton
 void uvar_init() {
     dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
 
-    FV<DU> &q = dict[0]->pf[0]->q;
-    _vm0.base = (U8*)&q[i];        /// * set base pointer
-    _vm0.id   = 0;                 /// * VM id
+    _vm0.id   = 0;                           /// * VM id
+    _vm0.base = (U8*)&dict[0]->pf[0]->q[0];  /// * set base pointer
 }
 
 #else // DO_MULTITASK
