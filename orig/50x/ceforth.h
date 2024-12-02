@@ -72,7 +72,7 @@ struct ALIGNAS VM {
     IU       base    = 0;          ///< numeric radix (a pointer)
     
 #if DO_MULTITASK
-    static int NCORE;              ///< number of hardware cores
+    static int      NCORE;         ///< number of hardware cores
     
     static bool     io_busy;       ///< IO locking control
     static MUTEX    io;            ///< mutex for io access
@@ -80,14 +80,22 @@ struct ALIGNAS VM {
     static COND_VAR cv_io;         ///< io control
     static COND_VAR cv_tsk;        ///< tasker control
     static void _ss_dup(VM &dst, VM &src, int n);
-
-    void stop();                   ///< stop VM
+    ///
+    /// task life cycle methods
+    ///
     void reset(IU ip, vm_state st);///< reset a VM user variables
+    void join(int tid);            ///< wait for the given task to end
+    void stop();                   ///< stop VM
+    ///
+    /// messaging interface
+    ///
     void send(int tid, int n);     ///< send onto destination VM's stack (blocking, wait for receiver availabe)
     void recv();                   ///< receive data from any sending VM's stack (blocking, wait for sender's message)
     void bcast(int n);             ///< broadcast to all receivers
     void pull(int tid, int n);     ///< pull n items from the stack of a stopped task
-    void join(int tid);            ///< wait for the given task to end
+    ///
+    /// IO interface
+    ///
     void io_lock();                ///< lock IO
     void io_unlock();              ///< unlock IO
 #endif // DO_MULTITASK
