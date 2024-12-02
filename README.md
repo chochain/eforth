@@ -111,6 +111,10 @@ Checkout the version you are interested in.
 
     > git checkout v42           # for version 4.2 (latest), or
     > git checkout master        # for version 5 and on
+
+    To enable multi-threading, update the followings in ~/src/config.h
+    > #define DO_MULTITASK   1
+    > #define E4_VM_POOL_SZ  8
     
 ### Linux or Cygwin
 
