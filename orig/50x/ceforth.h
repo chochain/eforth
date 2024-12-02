@@ -7,7 +7,12 @@
 #include "config.h"     // configuation and cross-platform support
 
 #if DO_MULTITASK
-#include <pthread.h>
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <pthread.h>                   /// POSIX threading
+#include <unistd.h>                    /// sysconf (# of cores)
+#include <sched.h>                     /// CPU affinity
 typedef pthread_t       THREAD;
 typedef pthread_mutex_t MUTEX;
 typedef pthread_cond_t  COND_VAR;
