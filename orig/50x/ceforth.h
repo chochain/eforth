@@ -205,15 +205,15 @@ void t_pool_stop();                       ///< stop thread pool
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else
-#defint t_pool_init()
-#define t_pool_stop
+#define t_pool_init()
+#define t_pool_stop()
 #endif // DO_MULTITASK
 ///
 ///> System interface
 ///
 void forth_init();
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
-int  forth_include(const char *fn);       /// load external Forth script
+void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 ///
 ///> IO functions
