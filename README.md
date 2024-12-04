@@ -152,7 +152,85 @@ Note: Has 2 cores but core0 is dedicated to WiFi and FreeRTOS house keeping.
     > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
     > from your browser, enter the IP address to access the ESP32 web server
 
-### Experimental multi-threading eForth, Linear-memory, 32-bit subroutine-threaded
+### Multi-threading - for release v5.0 and after
+Forth has been supporting Multi-tasking since the 70's. They single-CPU round-robin/time-slicing systems mostly. Modern system has multiple cores and Forth can certainly take advantage of them. Unlike most of the matured Forth word sets, multi-threading/processing words are yet to be standardized and there are many ways to do it.
+
+I have chosen the following
+
+    > each VM has it's own private ss, rs, tos, ip, and state
+    > multi-threading (instead of multi-processing), so that dictionary and parameter memory blocks can be easily shared.
+    > pthread.h is used. It is a common POSIXish library supported by most platforms. I have only tried the handful on hands, your milage may vary.
+    > Message Passing interface for inter-task communication.
+
+Before we go to far, let's do the following before build
+
+    > Make sure pthread.h is installed. 
+    > Make sure DO_MULTITASK, E4_VM_POOL_SZ are updated in ~/src/config.h
+
+#### Design and Life-cycle
+
+    > 1. We have the VM array, sized by E4_VM_POOL_SZ, which defines the max tasks you want to have. Typically, anything more than your CPU core count does not help completing the job faster.
+    > 2. Each VM is associated with a thread, i.e. our thread-pool.
+    > 3. The event_queue, a C++ queue takes in "ready to run" tasks.
+    > 4. Lastly, event_loop picks up "ready to run" tasks and kicks start them one by one.
+
+    The following VM states manage the life-cycle of a task
+    
+    > QUERY - interpreter mode - only the main thread can do this
+    > HOLD  - ready to execute, or waiting for message to arrive
+    > NEST  - in execution
+    > STOP  - free for next task
+
+#### Built-in words (available only when DO_MULTITASK is enabled)
+    
+    |word|stack|desc|state|
+    |----|-----|----|-----|
+    |task|( xt -- t )|create a task (tid is index to thread pool entry)<br/>a free VM from pool is chosen for the task|STOP=>HOLD|
+    |rank|( -- t )|fetch current task id|NEST|
+    |start|( t -- )|start a task<br/>The VM is added to event_queue and kick started when picked up by event_loop|HOLD=>NEST|
+    |join|( t -- )|wait until the given task is completed|NEST=>STOP|
+    |lock|( -- )|lock (semaphore) IO or memory|NEST|
+    |unlock|( -- )|release IO or memory lock|NEST|
+    |send|( v1 v2 .. vn n t -- )|send n elements on current stack to designated task's stack (use stack as message queue)|sender NEST<br/>receiver HOLD|
+    |recv|( -- v1 v2 .. vn )|wait, until message to arraive|HOLD=>NEST|
+    |pull|( n t -- )|forced fetch stack elements from a completed task|current NEST<br/>target STOP|
+    |bcast|( n -- )|not implemented yet, TODO|sender NEST<br/>receivers HOLD|
+
+#### Example1 - parallel jobs
+
+    > : once 999999 for rank drop next ;      \ 1M cycles
+    > : run ms negate once ms + . ." ms" cr ; \ benchmark
+    > ' run constant xt                       \ keep the xt
+    > : jobs 1- for xt task start next ;      \ tasks in parallel
+    > 4 run
+
+#### Example2 - producer-consumer
+
+    > 0 constant pp                           \ producer task id
+    > 0 constant cc                           \ consumer task id
+    > : sndr
+        1000 delay                            \ delay to simulate some processing
+        1 2 3 4 4 cc send                     \ send 4 items from stack
+        lock ." sent " unlock ;               \ locked IO before write
+    > : rcvr
+        recv                                  \ wait for sender
+        + + +                                 \ sum received 4 items
+        lock ." sum=" . unlock ;              \ locked IO before write
+    > ' sndr task to pp
+    > ' rcvr task to cc
+    > cc start                                \ start receiver task
+    > pp start                                \ start sender task
+    > pp join cc join                         \ wait for completion
+
+#### Example3 - fetch(s) result from completed task
+
+    > : sum 0 1000000 for i + next ;          \ add 0 to 1M
+    > ' sum task constant tt                  \ create the task
+    > tt start tt join                        \ run and wait for completion
+    > 1 tt pull ." total=" .                  \ pull the sum
+
+<p/>
+### Experimental eForth - Linear-memory, 32-bit subroutine-threaded
 
     > make 50x
     > ./tests/eforth50x
