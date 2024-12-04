@@ -23,7 +23,7 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
     
 3. <b>Data and Return Stacks are also arrays</b>. With push, pop and [] methods to clarify intentions.
 4. <b>No vocabulary, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
-5. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel.
+5. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel. see the Multi-threading section below for details
     + A thread pool is built-in. Size is defaults to number of cores.
     + Message Passing send/rec with pthread mutex waiting.
     + IO can be synchronized with lock/unlock.
@@ -112,7 +112,8 @@ Checkout the version you are interested in.
     > git checkout v42           # for version 4.2 (latest), or
     > git checkout master        # for version 5 and on
 
-    To enable multi-threading, update the followings in ~/src/config.h
+To enable multi-threading, update the followings in ~/src/config.h
+    
     > #define DO_MULTITASK   1
     > #define E4_VM_POOL_SZ  8
     
@@ -183,18 +184,18 @@ Before we go to far, let's do the following before build
 
 #### Built-in words (available only when DO_MULTITASK is enabled)
     
-    |word|stack|desc|state|
-    |----|-----|----|-----|
-    |task|( xt -- t )|create a task (tid is index to thread pool entry)<br/>a free VM from pool is chosen for the task|STOP=>HOLD|
-    |rank|( -- t )|fetch current task id|NEST|
-    |start|( t -- )|start a task<br/>The VM is added to event_queue and kick started when picked up by event_loop|HOLD=>NEST|
-    |join|( t -- )|wait until the given task is completed|NEST=>STOP|
-    |lock|( -- )|lock (semaphore) IO or memory|NEST|
-    |unlock|( -- )|release IO or memory lock|NEST|
-    |send|( v1 v2 .. vn n t -- )|send n elements on current stack to designated task's stack (use stack as message queue)|sender NEST<br/>receiver HOLD|
-    |recv|( -- v1 v2 .. vn )|wait, until message to arraive|HOLD=>NEST|
-    |pull|( n t -- )|forced fetch stack elements from a completed task|current NEST<br/>target STOP|
-    |bcast|( n -- )|not implemented yet, TODO|sender NEST<br/>receivers HOLD|
+|word|stack|desc|state|
+|----|-----|----|-----|
+|task|( xt -- t )|create a task (tid is index to thread pool entry)<br/>a free VM from pool is chosen for the task|STOP=>HOLD|
+|rank|( -- t )|fetch current task id|NEST|
+|start|( t -- )|start a task<br/>The VM is added to event_queue and kick started when picked up by event_loop|HOLD=>NEST|
+|join|( t -- )|wait until the given task is completed|NEST=>STOP|
+|lock|( -- )|lock (semaphore) IO or memory|NEST|
+|unlock|( -- )|release IO or memory lock|NEST|
+|send|( v1 v2 .. vn n t -- )|send n elements on current stack to designated task's stack (use stack as message queue)|sender NEST<br/>receiver HOLD|
+|recv|( -- v1 v2 .. vn )|wait, until message to arraive|HOLD=>NEST|
+|pull|( n t -- )|forced fetch stack elements from a completed task|current NEST<br/>target STOP|
+|bcast|( n -- )|not implemented yet, TODO|sender NEST<br/>receivers HOLD|
 
 #### Example1 - parallel jobs
 
