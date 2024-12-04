@@ -153,7 +153,12 @@ Note: Has 2 cores but core0 is dedicated to WiFi and FreeRTOS house keeping.
     > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
     > from your browser, enter the IP address to access the ESP32 web server
 
-### Multi-threading - for release v5.0 and after
+### Experimental eForth - Linear-memory, 32-bit subroutine-threaded
+
+    > make 50x
+    > ./tests/eforth50x
+
+## Multi-threading - for release v5.0 and after
 Forth has been supporting Multi-tasking since the 70's. They single-CPU round-robin/time-slicing systems mostly. Modern system has multiple cores and Forth can certainly take advantage of them. Unlike most of the matured Forth word sets, multi-threading/processing words are yet to be standardized and there are many ways to do it.
 
 I have chosen the following
@@ -168,7 +173,7 @@ Before we go to far, let's do the following before build
     > Make sure pthread.h is installed. 
     > Make sure DO_MULTITASK, E4_VM_POOL_SZ are updated in ~/src/config.h
 
-#### Design and Life-cycle
+### Design and Life-cycle
 
     > 1. We have the VM array, sized by E4_VM_POOL_SZ, which defines the max tasks you want to have. Typically, anything more than your CPU core count does not help completing the job faster.
     > 2. Each VM is associated with a thread, i.e. our thread-pool.
@@ -182,7 +187,7 @@ Before we go to far, let's do the following before build
     > NEST  - in execution
     > STOP  - free for next task
 
-#### Built-in words (available only when DO_MULTITASK is enabled)
+### Built-in words (available only when DO_MULTITASK is enabled)
     
 |word|stack|desc|state|
 |----|-----|----|-----|
@@ -230,11 +235,6 @@ Before we go to far, let's do the following before build
     > tt start tt join                        \ run and wait for completion
     > 1 tt pull ." total=" .                  \ pull the sum
 
-
-### Experimental eForth - Linear-memory, 32-bit subroutine-threaded
-
-    > make 50x
-    > ./tests/eforth50x
 
 ## Source Code Directories
 
