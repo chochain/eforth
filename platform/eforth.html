@@ -1,5 +1,7 @@
 ﻿<html>
-  <head>    
+  <head>
+  <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+  <meta http-equiv="Cross-Origin-Opener-Policy"   content="same-origin">
   <title>eForth v5.0</title>
   <style>
     .cmd  { color:#48f; margin: 2px; }
@@ -17,25 +19,34 @@
       const tib = document.getElementById('tib')
       const txt = document.getElementById('txt')
       
-      function to_txt(t, br=true) {
-          txt.innerHTML += br ? t + '<br/>' : t
+      function to_txt(t, esc=true) {
+          const escape = s=>{
+              return s.replace(/\n/g,'<br/>').replace(/\s/g, '&nbsp;')+'<br/>'
+          }
+          txt.innerHTML += esc && typeof(t)=='string' ? escape(t) : t
           txt.scrollTop = txt.scrollHeight
       }
-      var Module = { print: to_txt }         ///< WASM global object
+      function show_cmd(cmd) {
+          let htm = cmd.replace(/:/g,'<br/>:')                  /// * show on a new line
+          if (htm.indexOf('<br/>')==0) htm.replace('<br/>','')  /// * remove blank lines
+          to_txt(`<pre class="cmd"><em>${htm}</em></pre>`, false)
+      }
       ///
-      /// Forth outer interpreter
+      /// Forth VM outer interpreter
       ///
+      var Module = { print: to_txt }           ///< WASM global object
       function forth_eval(echo=true) {
-          const xtib = ()=>{ tib.value=''; tib.focus() }
           let cmd = tib.value
-          if (cmd=='clear') { txt.innerHTML=''; xtib(); return }
-          if (echo) to_txt('<pre class="cmd"><em>'+cmd+'</em></pre>', false)
-          try {
-              var forth = Module.cwrap('forth', null, ['number', 'string'])
-              forth(0, cmd);                 /// * call Forth in C/C++
+          if (cmd=='clear') { txt.innerHTML='' }
+          else {
+              if (echo) show_cmd(cmd)
+              try {
+                  var forth = Module.cwrap('forth', null, ['number', 'string'])
+                  forth(0, cmd)
+              }            /// * call Forth in C/C++
+              catch (e) { console.log(e.toString()+'\n') }
           }
-          catch(e) { console.log(e.toString()+'\n') }
-          finally  { xtib(); }
+          tib.value=''; tib.focus()
       }
       window.onload = ()=>setTimeout(()=>{
           tib.value = 'mstat'; forth_eval(false)
