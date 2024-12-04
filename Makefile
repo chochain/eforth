@@ -1,5 +1,6 @@
 EM = em++
-EM_FLAG = -std=c++17 -O2
+EM_FLAG = -std=c++17 -O2 \
+          -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4
 CC = g++
 CC_FLAG = -std=c++17 -g -O3 -Wall -pthread \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
