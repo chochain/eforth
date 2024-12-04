@@ -223,14 +223,14 @@ Before we go to far, let's do the following before build
     > pp start                                \ start sender task
     > pp join cc join                         \ wait for completion
 
-#### Example3 - fetch(s) result from completed task
+#### Example3 - fetch result(s) from completed task
 
     > : sum 0 1000000 for i + next ;          \ add 0 to 1M
     > ' sum task constant tt                  \ create the task
     > tt start tt join                        \ run and wait for completion
     > 1 tt pull ." total=" .                  \ pull the sum
 
-<p/>
+
 ### Experimental eForth - Linear-memory, 32-bit subroutine-threaded
 
     > make 50x
