@@ -15,7 +15,7 @@
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
-#define DO_MULTITASK    0               /**< multitasking/pthread   */
+#define DO_MULTITASK    1               /**< multitasking/pthread   */
 #define E4_VM_POOL_SZ   8               /**< # of threads in pool   */
 //@}
 ///
@@ -144,12 +144,20 @@ typedef int32_t         DU;
 #if DO_MULTITASK
 #if CC_DEBUG
 #include <stdarg.h>
+#if DO_WASM || (ESP32 || ARDUINO)
+#define VM_LOG(vm, fmt, ...)                  \
+    printf("[%02d.%d]" fmt "\n",              \
+           (vm)->id, (vm)->state, ##__VA_ARGS__)
+#else // !(DO_WASM || (ESP32 || ARDUINO))
 #define VM_LOG(vm, fmt, ...)                  \
     printf("\e[%dm[%02d.%d]" fmt "\e[0m\n",   \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, ##__VA_ARGS__)
-#else
+#endif // DO_WASM || (ESP32 || ARDUINO)
+
+#else  // !(CC_DEBUG > 1)
+
 #define VM_LOG(vm, fmt, ...)
-#endif // CC_DEBUG
+#endif // CC_DEBUG > 1
 #endif // DO_MULTITASK
 ///@}
 #endif // __EFORTH_SRC_CONFIG_H
