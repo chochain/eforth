@@ -13,8 +13,12 @@ const char *HTML_INDEX PROGMEM = R"XX(
 HTTP/1.1 200 OK
 Content-type:text/html
 
-<html><head><meta charset='UTF-8'><title>eForth on ESP32</title>
-<style>body{font-family:'Courier New',monospace;font-size:14px;}</style>
+<html>
+<head>
+  <meta charset='UTF-8'><title>eForth on ESP32</title>
+  <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
+  <style>body{font-family:'Courier New',monospace;font-size:14px;}</style>
 </head>
 <body>
     <div id='log' style='float:left;overflow:auto;height:100%;width:60%;
