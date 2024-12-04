@@ -131,11 +131,12 @@ Checkout the version you are interested in.
     individual files (*.fs) under ~/tests/demo.
 
 ### WASM
-Note: single-threaded only i.e. v4.2, TODO: Web Worker thread
+Note1: join waiting for long-running thread can block the main web browser causing it to stop responding.
+Note2: Browser needs to receive Cross-Origin policies in resonse headerto support multi-threading, ./tests/cors.py is provided to solve the issue.
 
     > ensure you have Emscripten (WASM compiler) installed and configured
     > type> make wasm
-    > type> python3 -m http.server
+    > type> python3 tests/cors.py
     > from your browser, open http://localhost:80/tests/eforth.html
 
 ### ESP32
