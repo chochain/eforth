@@ -479,8 +479,8 @@ void forth_init() {
         DICT_PUSH(&c);
     }
 
-    t_pool_init();                    /// * initialize thread pool
     uvar_init();                      /// * initialize user area
+    t_pool_init();                    /// * initialize thread pool
     VM &vm0   = vm_get(0);            ///< main thread
     vm0.state = QUERY;
 }

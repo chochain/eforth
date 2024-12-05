@@ -639,8 +639,8 @@ void forth_init() {
     }
     MEM0  = &pmem[0];
 
-    t_pool_init();                       /// * initialize thread pool
     uvar_init();                         /// * initialize user area
+    t_pool_init();                       /// * initialize thread pool
     VM &vm0   = vm_get(0);               /// * initialize main vm
     vm0.state = QUERY;
     
