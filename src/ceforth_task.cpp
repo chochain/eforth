@@ -77,26 +77,23 @@ void *_event_loop(void *arg) {
 
 void t_pool_init() {
     VM::NCORE = sysconf(_SC_NPROCESSORS_ONLN);    ///< number of cores
-	/// setup thread pool and CPU affinity
-#if defined(__CYGWIN__) || (ARDUINO || ESP32) || DO_WASM
+    
+    /// setup thread pool and CPU affinity
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
-        pthread_create(&_pool[i], NULL, _event_loop, (void*)&i);
-    }
-#else // !(defined(__CYGWIN__) || (ARDUINO || ESP32) || DO_WASM)
-    cpu_set_t set;
-    CPU_ZERO(&set);                               /// * clear affinity
-    for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
-        pthread_create(&_pool[i], NULL, _event_loop, (void*)&i);
-        CPU_SET(i % VM::NCORE, &set);             /// * CPU affinity
+        pthread_create(&_pool[i], NULL, _event_loop, (void*)&_vm[i].id);
+        
+#if !(defined(__CYGWIN__) || (ARDUINO || ESP32) || DO_WASM)
+        cpu_set_t set;
+        CPU_ZERO(&set);                           /// * clear affinity
+        CPU_SET(i % VM::NCORE, &set);             /// * set CPU affinity
         int rc = pthread_setaffinity_np(          /// * set core affinity
-            _pool[i],
-            sizeof(cpu_set_t), &set
+            _pool[i], sizeof(cpu_set_t), &set
         );
         if (rc !=0) {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
-    }
 #endif // defined(__CYGWIN__) || (ARDUINO || ESP32) || DO_WASM
+    }
     printf("CPU cores=%d, thread pool[%d] initialized\n", VM::NCORE, E4_VM_POOL_SZ);
 }
 
