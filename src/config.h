@@ -15,8 +15,8 @@
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
-#define DO_MULTITASK    1               /**< multitasking/pthread   */
-#define E4_VM_POOL_SZ   8               /**< # of threads in pool   */
+#define DO_MULTITASK    0               /**< multitasking/pthread   */
+#define E4_VM_POOL_SZ   4               /**< # of threads in pool   */
 //@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
@@ -103,7 +103,10 @@ typedef int32_t         DU;
 #elif  DO_WASM
     #include <emscripten.h>
     #define millis()        EM_ASM_INT({ return Date.now(); })
-    #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
+    #define delay(ms)       EM_ASM({                                      \
+                                const t1 = Date.now() + $0;               \
+                                while(Date.now() < t1);                   \
+                            }, ms)
     #define yield()         /* JS is async */
     #define DALIGN(sz)      ALIGN4(sz)
 
