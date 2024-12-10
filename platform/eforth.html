@@ -34,24 +34,22 @@
       ///
       /// Forth VM outer interpreter
       ///
-      var Module = { print: to_txt }           ///< WASM global object
+      navigator.serviceWorker.register('./eforth_sleep.js')     /// * eForth sleep support
+      const vm0 = new Worker('eforth_vm0.js')
+      vm0.onmessage = e=>to_txt(e.data)                         /// * handle response from worker
+
       function forth_eval(echo=true) {
           let cmd = tib.value
           if (cmd=='clear') { txt.innerHTML='' }
           else {
               if (echo) show_cmd(cmd)
-              try {
-                  var forth = Module.cwrap('forth', null, ['number', 'string'])
-                  forth(0, cmd)
-              }            /// * call Forth in C/C++
-              catch (e) { console.log(e.toString()+'\n') }
+              vm0.postMessage(cmd)                              /// * send request to worker
           }
           tib.value=''; tib.focus()
       }
-      window.onload = ()=>setTimeout(()=>{
-          tib.value = 'mstat'; forth_eval(false)
-      }, 1000)
+//      window.onload = ()=>setTimeout(()=>{
+//          tib.value = 'mstat'; forth_eval(false)
+//      }, 1000)
     </script>
-    {{{ SCRIPT }}}
   </body>
 </html>

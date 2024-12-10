@@ -15,8 +15,8 @@
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
-#define DO_MULTITASK    0               /**< multitasking/pthread   */
-#define E4_VM_POOL_SZ   4               /**< # of threads in pool   */
+#define DO_MULTITASK    1               /**< multitasking/pthread   */
+#define E4_VM_POOL_SZ   1               /**< # of threads in pool   */
 //@}
 ///
 ///@name Logical units (instead of physical) for type check and portability

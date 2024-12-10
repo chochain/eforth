@@ -12,12 +12,11 @@ importScripts('eforth.js')                ///> load js emscripten created
 ///        so prebuild a transferable object is much faster (~5ms)
 ///
 const forth = Module.cwrap('forth', null, ['number', 'string'])
-
+    
 self.onmessage = function(e) {            ///> worker input message queue
     console.log("<<" + JSON.stringify(e.data))
-    if (typeof e.data == 'object') return
-    
-    let rst = forth(0, e.data)            /// * Forth outer interpreter
+    var rst = (typeof e.data == 'object') ?
+        JSON.stringify(e.data) : forth(0, e.data)
     console.log(">>" + rst)
     
     if (rst) postMessage(rst)             /// * send back response from Forth outer interpreter
