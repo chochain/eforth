@@ -20,13 +20,15 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
 2. <b>Dictionary is just an array</b>. It's remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
     + To search for a word, simply scan the name string of dictionary entries. So, to define a new word during compile time is just to append those found word pointers to the its parameter array one by one.
     + To execute become just a walk of the word pointers in the array. This is our inner interpreter.
+    + Hashtables might go even faster but we'll try that later.
     
 3. <b>Data and Return Stacks are also arrays</b>. With push, pop and [] methods to clarify intentions.
-4. <b>No vocabulary, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
-5. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel. see the Multi-threading section below for details
+4. <b>Parameter fields are all arrays</b>. Why not! They can be dymatically expanded while compiling. Or changed on the fly in runtime i.e. self-morphing code. This can be a "scrary" feature for future Forth.
+5. <b>No vocabulary, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
+6. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel. see the multi-threading section below for details
     + A thread pool is built-in. Size is defaults to number of cores.
     + Message Passing send/rec with pthread mutex waiting.
-    + IO can be synchronized with lock/unlock.
+    + IO and memory update can be synchronized with lock/unlock.
 
 ## eForth Internals
 The core of current implementation of eForth is the dictionary composed of an array of Code objects that represent each of Forth words.
@@ -40,7 +42,7 @@ The core of current implementation of eForth is the dictionary composed of an ar
     + q    - holds the literal value which classic FORTH keep on parameter memory
     </pre>
 
-2. <b>Lit, Var, Str, Bran, Tmp</b> - the polymorphic classes extended from the base class Code.
+2. <b>Lit, Var, Str, Bran, Tmp</b> - the polymorphic classes extended from the base class Code which serve the functionalities of primitive words of classic Forth.
     <pre>
     + Lit  - numeric literals
     + Var  - variable or constant
@@ -51,11 +53,11 @@ The core of current implementation of eForth is the dictionary composed of an ar
 
 3. <b>Dictionary</b> - an array of *Code* objects
     <pre>
-    + primitive words - constructed by initializer_list at start up, before main is called, degenerated lambdas become function pointers stored in Code.xt
+    + build-it words - constructed by initializer_list at start up, before main is called, degenerated lambdas become function pointers stored in Code.xt
         dict[0].xt ------> lambda[0]         <== These function pointers can be converted
         dict[1].xt ------> lambda[1]             into indices to a jump table
         ...                                      which is exactly what WASM does
-        dict[N-1].xt ----> lambda[N-1]       <== N is number of primitive words
+        dict[N-1].xt ----> lambda[N-1]       <== N is number of built-in words
         
     + colon (user defined) words - collection of word pointers during compile time
         dict[N].pf   = [ *Code, *Code, ... ] <== These are called the 'threads' in Forth's term
@@ -74,7 +76,7 @@ The core of current implementation of eForth is the dictionary composed of an ar
     }
     ```
     
-    i.e. either we call a primitive word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
+    i.e. either we call a built-in word's lambda function or walk the Code.pf array recursively like a depth-first tree search.
     
 5. <b>Outer Interpreter</b> - *forth_core()* is self-explanatory
     ```C
@@ -106,18 +108,19 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > git clone https://github.com/chochain/eforth to your local machine
     > cd eforth
 
-There are two major versions of current eForth. v4 is single-threaded and v5 is multi-threaded.
+There are two major versions current. eForth. v4 is single-threaded only and v5 default single-threaded but also supports multi-threaded.
+
 Checkout the version you are interested in.
 
     > git checkout v42           # for version 4.2 (latest), or
     > git checkout master        # for version 5 and on
 
-To enable multi-threading, update the followings in ~/src/config.h
+To enable multi-threading, of v5, update the followings in ~/src/config.h
     
     > #define DO_MULTITASK   1
     > #define E4_VM_POOL_SZ  8
     
-### Linux or Cygwin
+### Linux, Cygwin, or Raspberry Pi
 
     > make
     > ./tests/eforth             # to bring up the Forth interpreter
@@ -132,8 +135,9 @@ To enable multi-threading, update the followings in ~/src/config.h
     individual files (*.fs) under ~/tests/demo.
 
 ### WASM
-Note1: join waiting for long-running thread can block the main web browser causing it to stop responding.
-Note2: Browser needs to receive Cross-Origin policies in resonse headerto support multi-threading, ./tests/cors.py is provided to solve the issue.
+
+* Note1: join waiting for long-running thread can block the main web browser causing it to stop responding.
+* Note2: Browser needs to receive Cross-Origin policies in resonse headerto support multi-threading, *./tests/cors.py* is provided to solve the issue.
 
     > ensure you have Emscripten (WASM compiler) installed and configured
     > type> make wasm
@@ -141,8 +145,7 @@ Note2: Browser needs to receive Cross-Origin policies in resonse headerto suppor
     > from your browser, open http://localhost:80/tests/eforth.html
 
 ### ESP32
-Note: Has 2 cores but core0 is dedicated to WiFi and FreeRTOS house keeping.
-      Forth tasks will be tied to core1 only. No performance gain running in parallel.
+* Note: Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house keeping. Forth tasks will be tied to core1 only. No performance gain running in parallel. So, singled-threaded does better.
 
     > ensure your Arduino IDE have ESP32 libraries installed
     > update ESP32 compiler.optimization flags in ~/hardware/platform.txt to -O3 (default -Os)
@@ -153,27 +156,22 @@ Note: Has 2 cores but core0 is dedicated to WiFi and FreeRTOS house keeping.
     > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
     > from your browser, enter the IP address to access the ESP32 web server
 
-### Experimental eForth - Linear-memory, 32-bit subroutine-threaded
+### Experimental eForth - Linear-memory, 32-bit, subroutine-threaded
 
     > make 50x
     > ./tests/eforth50x
 
 ## Multi-threading - for release v5.0 and after
-Forth has been supporting Multi-tasking since the 70's. They single-CPU round-robin/time-slicing systems mostly. Modern system has multiple cores and Forth can certainly take advantage of them. Unlike most of the matured Forth word sets, multi-threading/processing words are yet to be standardized and there are many ways to do it.
+Forth has been supporting multi-tasking since the 70's. They are single-CPU round-robin/time-slicing systems mostly. Modern system has multiple cores and Forth can certainly take advantage of them. However, unlike most of the matured Forth word sets, multi-threading/processing words are yet to be standardized and there are many ways to do it.
 
-I have chosen the following
+### Design & Implementation
 
     > each VM has it's own private ss, rs, tos, ip, and state
-    > multi-threading (instead of multi-processing), so that dictionary and parameter memory blocks can be easily shared.
+    > multi-threading, instead of multi-processing, with shared dictionary and parameter memory blocks.
     > pthread.h is used. It is a common POSIXish library supported by most platforms. I have only tried the handful on hands, your milage may vary.
     > Message Passing interface for inter-task communication.
 
-Before we go to far, let's do the following before build
-
-    > Make sure pthread.h is installed. 
-    > Make sure DO_MULTITASK, E4_VM_POOL_SZ are updated in ~/src/config.h
-
-### Design and Life-cycle
+### Life-cycle
 
     > 1. We have the VM array, sized by E4_VM_POOL_SZ, which defines the max tasks you want to have. Typically, anything more than your CPU core count does not help completing the job faster.
     > 2. Each VM is associated with a thread, i.e. our thread-pool.
@@ -186,6 +184,11 @@ Before we go to far, let's do the following before build
     > HOLD  - ready to execute, or waiting for message to arrive
     > NEST  - in execution
     > STOP  - free for next task
+
+Before we go too far, make sure the following are updated before your build
+
+    > pthread.h is installed. 
+    > DO_MULTITASK, E4_VM_POOL_SZ are updated in ~/src/config.h
 
 ### Built-in words (available only when DO_MULTITASK is enabled)
     
@@ -208,7 +211,21 @@ Before we go to far, let's do the following before build
     > : run ms negate once ms + . ." ms" cr ; \ benchmark
     > ' run constant xt                       \ keep the xt
     > : jobs 1- for xt task start next ;      \ tasks in parallel
-    > 4 run
+    > 4 jobs
+
+<pre><font color="#4E9A06">[06.1]&gt;&gt; started on T2</font>
+<font color="#C4A000">[05.1]&gt;&gt; started on T4</font>
+<font color="#3465A4">[04.1]&gt;&gt; started on T6</font>
+<font color="#CC0000">[07.1]&gt;&gt; started on T0</font>
+18 ms
+<font color="#4E9A06">[06.3]&gt;&gt; finished on T2</font>
+18 ms
+<font color="#C4A000">[05.3]&gt;&gt; finished on T4</font>
+18 ms
+<font color="#3465A4">[04.3]&gt;&gt; finished on T6</font>
+18 ms
+<font color="#CC0000">[07.3]&gt;&gt; finished on T0</font>
+</pre>
 
 #### Example2 - producer-consumer
 
