@@ -30,6 +30,12 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
     + Message Passing send/rec with pthread mutex waiting.
     + IO and memory update can be synchronized with lock/unlock.
 
+## Rolling your own C-based Forth?
+
+If you are fluent in C/C++ and in the process of building your own Forth, skipping the verbage, the easiest path to gain understanding of how things work together is go straight to ~/orig/40x.
+
+A heavily commented [ceforth.cpp](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.cpp) and the companion [ceforth.h](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.h) are all you need. Check them out!
+
 ## eForth Internals
 The core of current implementation of eForth is the dictionary composed of an array of Code objects that represent each of Forth words.
 
@@ -102,12 +108,6 @@ Utilizing modern OS and tool chains, a new generation of Forths implemented in j
 In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the university when I attended. He, as the usual kind and generous him, included me in his last projects all the way till his passing. I am honored that he considered me one of the frogs living in the bottom of the deep well with him looking up to the small opening of the sky together. With cross-platform portability as our guild-line, we built ooeForth in Java, jeForth in Javascript, wineForth for Windows, and esp32forth for ESP micro-controllers using the same code-base. With his last breath in the hospital, he attempted to build it onto an FPGA using Verilog. see [ceForth_403](https://chochain.github.io/eforth/docs/ceforth_403.pdf) and [eJsv32](https://github.com/chochain/eJsv32) for details.
 
 We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
-
-## Rolling your own C-based Forth?
-
-If you are fluent in C and considering building your own Forth, the easiest path to gain understanding of how things work together is kept under ~/orig/40x.
-
-A heavily commented [ceforth.cpp](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.cpp) and the companion [ceforth.h](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.h) are all you need. Check them out!
 
 ## How To Build and Run
 
