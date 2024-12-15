@@ -33,8 +33,8 @@ typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
 typedef uint16_t        IU;    ///< instruction pointer unit
 
-#if USE_FLOAT
 #include <cmath>
+#if USE_FLOAT
 typedef double          DU2;
 typedef float           DU;
 #define DU0             0.0f
