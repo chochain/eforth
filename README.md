@@ -103,6 +103,12 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 
 We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
 
+## Rolling your own C-based Forth?
+
+If you are fluent in C and considering building your own Forth, the easiest path to gain understanding of how things work together is probably under ~/orig/40x.
+
+A heavily commented [ceforth.cpp](https://chochain.github.io/eforth/orig/40x/ceforth.cpp) and the companion [ceforth.h]((https://chochain.github.io/eforth/orig/40x/ceforth.cpp) files are all you nee to look for. Check them out!
+
 ## How To Build and Run
 
     > git clone https://github.com/chochain/eforth to your local machine
@@ -251,7 +257,6 @@ Before we go too far, make sure the following are updated before your build
     > ' sum task constant tt                  \ create the task
     > tt start tt join                        \ run and wait for completion
     > 1 tt pull ." total=" .                  \ pull the sum
-
 
 ## Source Code Directories
 
