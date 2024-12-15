@@ -105,9 +105,9 @@ We hope it can serve as a stepping stone for learning Forth to even building the
 
 ## Rolling your own C-based Forth?
 
-If you are fluent in C and considering building your own Forth, the easiest path to gain understanding of how things work together is probably under ~/orig/40x.
+If you are fluent in C and considering building your own Forth, the easiest path to gain understanding of how things work together is kept under ~/orig/40x.
 
-A heavily commented [ceforth.cpp](https://chochain.github.io/eforth/orig/40x/ceforth.cpp) and the companion [ceforth.h]((https://chochain.github.io/eforth/orig/40x/ceforth.cpp) files are all you nee to look for. Check them out!
+A heavily commented [ceforth.cpp](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.cpp) and the companion [ceforth.h](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.h) are all you need. Check them out!
 
 ## How To Build and Run
 
