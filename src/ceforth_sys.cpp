@@ -69,7 +69,7 @@ void dotr(int w, DU v, int b, bool u) {
 }
 void pstr(const char *str, io_op op) {
     fout << str;
-    if (op==CR) fout << ENDL;
+    if (op==CR) { fout << ENDL; }
 }
 ///====================================================================
 ///
