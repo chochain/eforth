@@ -712,7 +712,7 @@ void put(io_op op, DU v, DU v2) {
 }
 void pstr(const char *str, io_op op) {
     fout << str;
-    if (op==CR) fout << ENDL;
+    if (op==CR) { fout << ENDL; }
 }
 ///@}
 ///@name Debug functions

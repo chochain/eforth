@@ -436,7 +436,7 @@ void ss_dump(DU base) {              ///> display data stack and ok promt
 void _see(Code *c, int dp) {         ///> disassemble a colon word
     auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
         int i = dp;
-        if (dp && s!="\t") fout << ENDL;           ///> newline control
+        if (dp && s!="\t") { fout << ENDL; }       ///> newline control
         while (i--) { fout << "  "; } fout << s;   ///> indentation control
         if (dp < 2) for (Code *w : v) _see(w, dp + 1);
     };
