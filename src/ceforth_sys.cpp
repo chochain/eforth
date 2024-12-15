@@ -107,7 +107,7 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
 void _see(Code *c, int dp) {         ///> disassemble a colon word
     auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
         int i = dp;
-        if (dp && s!="\t") fout << ENDL;           ///> newline control
+        if (dp && s!="\t") { fout << ENDL; }       ///> newline control
         while (i--) { fout << "  "; } fout << s;   ///> indentation control
         if (dp < 2) for (auto w : v) _see(w, dp + 1);
     };
