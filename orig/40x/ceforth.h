@@ -2,7 +2,8 @@
 #define __EFORTH_SRC_CEFORTH_H
 #include <cstdio>
 #include <cstdint>      // uintxx_t
-#include <string.h>     // string, strlen
+#include <cstring>      // char*
+#include <string>       // string, strlen
 #include "config.h"     // configuation and cross-platform support
 using namespace std;
 ///
