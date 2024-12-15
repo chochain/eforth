@@ -102,7 +102,7 @@ We hope it can serve as a stepping stone for learning Forth to even building the
     > git clone https://github.com/chochain/eforth to your local machine
     > cd eforth
     
-### Linux or Cygwin
+### Linux, Cygwin, or Raspberry Pi
 
     > make
     > ./tests/eforth             # to bring up the Forth interpreter
