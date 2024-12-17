@@ -37,9 +37,9 @@
       navigator.serviceWorker.register('./eforth_sleep.js')     /// * eForth sleep support
       const vm0 = new Worker('eforth_vm0.js');
       vm0.onmessage = e=>{
-          console.warn('main vm0.onmessage=', e.data);
+          console.warn('main: vm0.onmessage=', e.data);
           if (e.data?.cmd === 'ready') {
-              console.warn('loaded eforth.js');
+              console.warn('main: eforth1.js loaded');
           }
           else to_txt(e.data);                    /// * handle response from worker
       }
@@ -54,7 +54,7 @@
           tib.value=''; tib.focus()
       }
       window.onload = ()=>setTimeout(()=>{
-          vm0.postMessage({ 'cmd' : 'load' });
+          vm0.postMessage({ 'cmd' : 'init' });
       }, 1000)
     </script>
   </body>
