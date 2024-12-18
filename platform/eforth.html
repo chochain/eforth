@@ -39,7 +39,7 @@
       vm0.onmessage = e=>{
           console.warn('main: vm0.onmessage=', e.data);
           if (e.data?.cmd === 'ready') {
-              console.warn('main: eforth1.js loaded');
+              console.warn('main: eforth.js loaded');
           }
           else to_txt(e.data);                    /// * handle response from worker
       }

@@ -3,7 +3,7 @@
 /// @brief eForth - worker proxy to eforth.js (called by eforth.html)
 ///
 Module = {
-    mainScriptUrlOrBlob: 'eforth1.js',  ///< worker thread (emscriptened C)
+    mainScriptUrlOrBlob: 'eforth.js',                ///< worker thread (emscriptened C)
     print              : txt=>postMessage(txt)
 } ///> WASM print interface => output queue
 ///
