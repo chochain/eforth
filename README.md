@@ -32,7 +32,7 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
 
 ## Rolling your own C-based Forth?
 
-If you are fluent in C/C++ and in the process of building your own Forth, skipping the verbage, the easiest path to gain understanding of how things work together is to download [release v4.2](https://github.com/chochain/eforth/releases/tag/release_40x) and work from there.
+If you are fluent in C/C++ and in the process of building your own Forth, skipping the verbage, the easiest path to gain understanding of how things work together is to download [release v4.2](https://github.com/chochain/eforth/releases/tag/v4.2.2) and work from there.
 
 In the release, a heavily commented *ceforth.cpp*, the companion *ceforth.h*, and a *config.h*. Altogether, about 800 lines. Check them out!
 
