@@ -150,7 +150,8 @@ For multi-threading to work, browser needs to receive Cross-Origin policies [her
     > from your browser, open http://localhost:8000/tests/eforth.html
 
 ### ESP32
-* Note: Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house keeping. Forth tasks will be tied to core1 only. No performance gain running in parallel. So, singled-threaded does better.
+
+Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house keeping. Forth tasks will be tied to core1 only. So, multi-threading is possible but no performance gain. Actually, singled-threaded v4.2 does a bit better.
 
     > ensure your Arduino IDE have ESP32 libraries installed
     > update ESP32 compiler.optimization flags in ~/hardware/platform.txt to -O3 (default -Os)
