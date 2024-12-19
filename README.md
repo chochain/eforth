@@ -142,13 +142,12 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
 
 ### WASM
 
-* Note1: join waiting for long-running thread can block the main web browser causing it to stop responding.
-* Note2: Browser needs to receive Cross-Origin policies in resonse headerto support multi-threading, *./tests/cors.py* is provided to solve the issue.
+For multi-threading to work, browser needs to receive Cross-Origin policies [here for detail](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy) in the response header. A Python script *~/tests/cors.py* is provided to solve the issue. The same needed to be provided if you use other web server.
 
     > ensure you have Emscripten (WASM compiler) installed and configured
     > type> make wasm
-    > type> python3 tests/cors.py
-    > from your browser, open http://localhost:80/tests/eforth.html
+    > type> python3 tests/cors.py        # supports COOP
+    > from your browser, open http://localhost:8000/tests/eforth.html
 
 ### ESP32
 * Note: Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house keeping. Forth tasks will be tied to core1 only. No performance gain running in parallel. So, singled-threaded does better.
