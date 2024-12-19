@@ -32,9 +32,9 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
 
 ## Rolling your own C-based Forth?
 
-If you are fluent in C/C++ and in the process of building your own Forth, skipping the verbage, the easiest path to gain understanding of how things work together is go straight to ~/orig/40x.
+If you are fluent in C/C++ and in the process of building your own Forth, skipping the verbage, the easiest path to gain understanding of how things work together is to download [release v4.2](https://github.com/chochain/eforth/releases/tag/release_40x) and work from there.
 
-A heavily commented [ceforth.cpp](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.cpp) and the companion [ceforth.h](https://github.com/chochain/eforth/blob/master/orig/40x/ceforth.h) are all you need. Check them out!
+In the release, a heavily commented *ceforth.cpp*, the companion *ceforth.h*, and a *config.h*. Altogether, about 800 lines. Check them out!
 
 ## eForth Internals
 The core of current implementation of eForth is the dictionary composed of an array of Code objects that represent each of Forth words.
