@@ -37,7 +37,7 @@
       navigator.serviceWorker.register('./eforth_sleep.js')     /// * eForth sleep support
       const vm0 = new Worker('eforth_vm0.js');
       vm0.onmessage = e=>{
-          console.warn('main: vm0.onmessage=', e.data);
+//          console.warn('main: vm0.onmessage=', e.data);
           if (e.data?.cmd === 'ready') {
               console.warn('main: eforth.js loaded');
           }

@@ -12,7 +12,7 @@ Module = {
 var forth = null;
     
 onmessage = (e)=>{
-    console.warn("eforth_vm0.js: handleMessage=", e.data);
+//    console.warn("eforth_vm0.js: handleMessage=", e.data);
     if (e.data?.cmd === 'init') {
         importScripts(Module.mainScriptUrlOrBlob);  /// * load emscripten code
         forth = Module.cwrap('forth', null, ['number', 'string']);
@@ -20,7 +20,7 @@ onmessage = (e)=>{
     }
     else {
         var rst = forth(0, e.data);                 ///< process Forth command
-        console.log(">>" + rst)
+//        console.log(">>" + rst)
         if (rst) postMessage(rst)                   /// * send response to main
     }
 }
