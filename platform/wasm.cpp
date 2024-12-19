@@ -27,6 +27,8 @@ void forth_include(const char *fn) {
 /// main program
 ///
 int main(int ac, char* av[]) {
-    forth_init();
+    forth_init();                           // init thread pool and user areas
+    mem_stat();                             // display version
+    emscripten_exit_with_live_runtime();    // exit without shutdown WebAssembly
     return 0;
 }
