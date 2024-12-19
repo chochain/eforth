@@ -42,7 +42,7 @@ Code      *last;                       ///< cached dict[-1]
 ///    3. a degenerated lambda becomes a function pointer
 ///
 const Code rom[] = {               ///< Forth dictionary
-    CODE("bye",    t_pool_stop(); exit(0)),   // exit to OS
+    CODE("bye",    forth_quit()),
     ///
     /// @defgroup ALU ops
     /// @{
