@@ -243,17 +243,17 @@ Before we go too far, make sure the following are updated before your build
     > pp join cc join                         \ wait for completion
 
 <pre>
-    > [06.1]>> started on T1
-    > [06.1]>> waiting
-    > [07.1]>> started on T2
-    > [06.1]>> sending 4 items to VM6.1
-    > sent 
-    > [07.3]>> finished on T2
-    > [00.3]>> VM7 joint
-    > [06.3]>> received => state=3
-    > sum=10
-    > [06.3]>> finished on T1
-    > [00.3]>> VM6 joint
+[06.1]>> started on T1
+[06.1]>> waiting
+[07.1]>> started on T2
+[06.1]>> sending 4 items to VM6.1
+sent 
+[07.3]>> finished on T2
+[00.3]>> VM7 joint
+[06.3]>> received => state=3
+sum=10
+[06.3]>> finished on T1
+[00.3]>> VM6 joint
 </pre>
 
 #### Example3 - fetch result(s) from completed task (~/tests/demo/mpi_pull.fs)
@@ -264,12 +264,12 @@ Before we go too far, make sure the following are updated before your build
     > 1 tt pull ." total=" .                  \ pull the sum
 
 <pre>
-    > [00.3]>> joining VM7
-    > [07.1]>> started on T1
-    > [07.3]>> finished on T1
-    > [00.3]>> VM7 joint
-    > pulled 1 items from VM7.0
-    > total= 1784293664 -1 -> ok
+[00.3]>> joining VM7
+[07.1]>> started on T1
+[07.3]>> finished on T1
+[00.3]>> VM7 joint
+pulled 1 items from VM7.0
+total= 1784293664 -1 -> ok
 </pre>
 
 ## Source Code Directories
