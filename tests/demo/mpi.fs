@@ -3,14 +3,14 @@
 : xx                               \ producer method
   1 2 3 4 4 cc send                  \ send 4 items to consumer
   lock                               \ lock IO for printing
-    ." ...xx done "
+    ." ...xx done " cr
   unlock ;                           \ free IO
 : yy                               \ consumer method
   recv                               \ receiver waiting for data
   + + +                              \ got the data, sum them up
   lock                               \ lock IO for printing
     ." total=" .                     \ print the total
-    ." ...yy done "
+    ." ...yy done " cr
   unlock ;                           \ free IO
 ' xx task to pp                    \ create producer task, save handle
 ' yy task to cc                    \ create consumer task, save handle
@@ -19,6 +19,6 @@ cc start                           \ start receiver task, it will wait
 1000 delay
 pp start                           \ start producer task
 .( VM0: non-blocking on pp, needs a join, or free to do other things ) cr
-pp join
+pp join cc join
 .( VM0: finally, all done! )
 bye

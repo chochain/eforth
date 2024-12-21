@@ -202,7 +202,7 @@ Before we go too far, make sure the following are updated before your build
 |pull|( n t -- )|forced fetch stack elements from a completed task|current NEST<br/>target STOP|
 |bcast|( n -- )|not implemented yet, TODO|sender NEST<br/>receivers HOLD|
 
-#### Example1 - parallel jobs
+#### Example1 - parallel jobs (~/tests/demo/mtask.fs)
 
     > : once 999999 for rank drop next ;      \ 1M cycles
     > : run ms negate once ms + . ." ms" cr ; \ benchmark
@@ -224,7 +224,7 @@ Before we go too far, make sure the following are updated before your build
 <font color="#CC0000">[07.3]&gt;&gt; finished on T0</font>
 </pre>
 
-#### Example2 - producer-consumer
+#### Example2 - producer-consumer (~/tests/demo/mpi.fs)
 
     > 0 constant pp                           \ producer task id
     > 0 constant cc                           \ consumer task id
@@ -242,31 +242,35 @@ Before we go too far, make sure the following are updated before your build
     > pp start                                \ start sender task
     > pp join cc join                         \ wait for completion
 
+<pre>
     > [06.1]>> started on T1
-    > [06.1] >> waiting
+    > [06.1]>> waiting
     > [07.1]>> started on T2
-    > [06.1] >> sending 4 items to VM6.1
+    > [06.1]>> sending 4 items to VM6.1
     > sent 
     > [07.3]>> finished on T2
     > [00.3]>> VM7 joint
-    > [06.3] >> received => state=3
+    > [06.3]>> received => state=3
     > sum=10
     > [06.3]>> finished on T1
     > [00.3]>> VM6 joint
+</pre>
 
-#### Example3 - fetch result(s) from completed task
+#### Example3 - fetch result(s) from completed task (~/tests/demo/mpi_pull.fs)
 
     > : sum 0 1000000 for i + next ;          \ add 0 to 1M
     > ' sum task constant tt                  \ create the task
     > tt start tt join                        \ run and wait for completion
     > 1 tt pull ." total=" .                  \ pull the sum
 
+<pre>
     > [00.3]>> joining VM7
     > [07.1]>> started on T1
     > [07.3]>> finished on T1
     > [00.3]>> VM7 joint
     > pulled 1 items from VM7.0
     > total= 1784293664 -1 -> ok
+</pre>
 
 ## Source Code Directories
 
