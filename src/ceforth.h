@@ -200,7 +200,7 @@ void outer(istream &in);                  ///< Forth outer loop
 #if DO_WASM
 #define forth_quit()
 #else // !DO_WASM
-void forth_quit() { t_pool_stop(); exit(0); }  ///< exit to OS
+#define forth_quit() (t_pool_stop(), exit(0))  ///< exit to OS
 #endif // DO_WASM
 ///
 ///> IO functions
