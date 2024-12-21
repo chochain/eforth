@@ -18,7 +18,7 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
 5. <b>No vocabulary, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
 6. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel. see the multi-threading section below for details
     + A thread pool is built-in. Size is defaults to number of cores.
-    + Message Passing send/rec with pthread mutex waiting.
+    + Message Passing send/recv with pthread mutex waiting.
     + IO and memory update can be synchronized with lock/unlock.
 
 ## Rolling your own C-based Forth?
@@ -153,7 +153,7 @@ Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house 
     > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
     > from your browser, enter the IP address to access the ESP32 web server
 
-### Experimental eForth - Linear-memory, 32-bit, subroutine-threaded
+### Experimental eForth - Linear-memory, 32-bit data, subroutine (16-bit offset) threaded
 
     > make 50x
     > ./tests/eforth50x
@@ -231,16 +231,28 @@ Before we go too far, make sure the following are updated before your build
     > : sndr
         1000 delay                            \ delay to simulate some processing
         1 2 3 4 4 cc send                     \ send 4 items from stack
-        lock ." sent " unlock ;               \ locked IO before write
+        lock ." sent " cr unlock ;            \ locked IO before write
     > : rcvr
         recv                                  \ wait for sender
         + + +                                 \ sum received 4 items
-        lock ." sum=" . unlock ;              \ locked IO before write
+        lock ." sum=" . cr unlock ;           \ locked IO before write
     > ' sndr task to pp
     > ' rcvr task to cc
     > cc start                                \ start receiver task
     > pp start                                \ start sender task
     > pp join cc join                         \ wait for completion
+
+    > [06.1]>> started on T1
+    > [06.1] >> waiting
+    > [07.1]>> started on T2
+    > [06.1] >> sending 4 items to VM6.1
+    > sent 
+    > [07.3]>> finished on T2
+    > [00.3]>> VM7 joint
+    > [06.3] >> received => state=3
+    > sum=10
+    > [06.3]>> finished on T1
+    > [00.3]>> VM6 joint
 
 #### Example3 - fetch result(s) from completed task
 
@@ -248,6 +260,13 @@ Before we go too far, make sure the following are updated before your build
     > ' sum task constant tt                  \ create the task
     > tt start tt join                        \ run and wait for completion
     > 1 tt pull ." total=" .                  \ pull the sum
+
+    > [00.3]>> joining VM7
+    > [07.1]>> started on T1
+    > [07.3]>> finished on T1
+    > [00.3]>> VM7 joint
+    > pulled 1 items from VM7.0
+    > total= 1784293664 -1 -> ok
 
 ## Source Code Directories
 
