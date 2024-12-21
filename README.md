@@ -274,7 +274,7 @@ total= 1784293664 -1 -> ok
 
 ## Source Code Directories
 
-    + ~/src       - common source code for all supported platforms
+    + ~/src       - multi-threaded, dynamic vector-based, object threading
     + ~/platform  - platform specific code for C++, ESP32, Windows, and WASM
     + ~/orig      - archive from Dr. Ting and my past works
     +    /33b     - refactored ceForth_33, separate ASM from VM (used in eForth1 for Adruino UNO)
@@ -282,13 +282,6 @@ total= 1784293664 -1 -> ok
     +    /esp32   - esp32forth source codes collaborated with Dr. Ting
     +    /40x     - my experiments, refactor _40 into vector-based subroutine-threaded, with 16-bit offset
     +    /50x     - my experiments, add multi-threading to _40
-
-## Evolution - my experiments on various implementation and tuning
-
-    + ~/platform/   - platform specific for C++, ESP32, WASM
-    + ~/orig/40x/ceforth - array-based subroutine-threaded, with 16-bit offset enhanced (released as v4.2)
-    + ~/orig/50x/ceforth - add multi-threading support to 40x
-    + ~/src/eforth  - multi-threaded, dynamic vector-based, object threading
 
 ## Benchmark and Tuning
 
