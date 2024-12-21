@@ -3,18 +3,9 @@ With all the advantages, it is unfortunate that Forth lost out to C language ove
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
-Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, ported to many processors, described Forth in his well-written eForth [genesis](https://chochain.github.io/eforth/docs/eForthAndZen.pdf) and [overview](https://chochain.github.io/eforth/docs/eForthOverviewv5.pdf)
+Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, ported to many processors, described Forth in his well-written eForth [genesis](https://chochain.github.io/eforth/docs/eForthAndZen.pdf) and [overview](https://chochain.github.io/eforth/docs/eForthOverviewv5.pdf). I like the idea and decided to pick it up.
 
-> The language consists of a collection of words, which reside in the memory of a computer and can be executed by entering their names on the computer keyboard. A list of words can be compiled, given a new name and made a new word. In fact, most words in Forth are defined as lists of existing words. A small set of primitive words are defined in machine code of the native CPU. All other words are built from this primitive words and eventually refer to them when executed.
-
-> Forth is a computer model which can be implemented on any real CPU with reasonable resources. This model is often called a virtual Forth computer. The minimal components of a virtual Forth computer are:
-> 1. A dictionary in memory to hold all the execution procedures.
-> 2. A return stack to hold return addresses of procedures yet to be executed.
-> 3. A data stack to hold parameters passing between procedures.
-> 4. A user area in RAM memory to hold all the system variables.
-> 5. A CPU to move date among stacks and memory, and to do ALU operations to parameters stored on the data stack.
-
-## eForth now - What has been done!
+## eForth now - What did I change!
 
 1. <b>100% C/C++ with multi-platform support</b>. Though classic implementation of primitives in assembly language and scripted high-level words gave the power to Forth, it also became the hurtle for newbies. Because they have to learn the assembly and Forth syntax before peeking into the internal beauty of Forth.
 2. <b>Dictionary is just an array</b>. It's remodeled from linear memory linked-list to an array (or a vector in C++'s term) of words.
