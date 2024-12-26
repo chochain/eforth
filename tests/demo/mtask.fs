@@ -1,6 +1,6 @@
 : xx 9999 for 34 drop next ;
 : yy 9999 for xx next ;
-: zz ms negate yy ms +
+: zz clock negate yy clock +
   lock
     ." VM" rank .
     .
@@ -15,9 +15,9 @@
   next
   r> for join next ;               \ pop loop count and join tasks
 : bench ( fn n -- )              \ benchmark
-  ms negate >r
+  clock negate >r
   1- swap exec
-  r> ms + 
+  r> clock + 
   ." elapsed ms=" . cr ;
 .( 4 tasks run in serial ) cr
 ' ser 4 bench

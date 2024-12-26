@@ -90,16 +90,18 @@ create gold                          \ expected vt after one_block
   next
   ." done" rank . cr ;
 : bench ( -- )
-  ms negate
+  clock negate
   9999 for one_block next            \ 640KB
-  ms + lock . ." ms " cr unlock ;
+  clock + lock . ." ms " cr unlock ;
 \ multithreading
 ' bench constant xt                  \ keep thread starting point
 : run ( n -- )
-  ms negate >r
+  clock negate >r
   1- dup >r for                      \ keep loop count
     xt task dup start                \ start threads, keep thread ids
   next
   r> for join next
-  r> ms + . ." elapse ms" ;          \ waiting for threads to finish
+  r> clock + . ." elapse ms" ;       \ waiting for threads to finish
+4 run
+bye
 
