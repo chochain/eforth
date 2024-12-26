@@ -540,10 +540,10 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup OS ops
     /// @{
-    CODE("mstat", mem_stat());
-    CODE("ms",    PUSH(millis()));
+    CODE("mstat", mem_stat());              // display memory statistics
+    CODE("clock", PUSH(millis()));          // get current msec since EPOCH
     CODE("rnd",   PUSH(RND()));             // generate random number
-    CODE("delay", delay(UINT(POP())));
+    CODE("ms",    delay(UINT(POP())));      // delay n msec
     CODE("included",                        // include external file
          POP();                             // string length, not used
          load((const char*)MEM(POP())));    // include external file

@@ -317,9 +317,9 @@ const Code rom[] = {               ///< Forth dictionary
     /// @defgroup OS ops
     /// @{
     CODE("mstat",   mem_stat()),         // display memory stat
-    CODE("ms",      PUSH(millis())),     // get system clock in msec
+    CODE("clock",   PUSH(millis())),     // get msec since EPOCH
     CODE("rnd",     PUSH(RND())),        // get a random number
-    CODE("delay",   delay(UINT(POP()))), // n -- delay n msec
+    CODE("ms",      delay(UINT(POP()))), // n -- delay n msec
     CODE("included",
          POP(); U32 i_w = UINT(POP()); load(STR(i_w))),
     CODE("forget",
