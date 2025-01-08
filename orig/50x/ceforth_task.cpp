@@ -91,7 +91,7 @@ void t_pool_init() {
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
         pthread_create(&_pool[i], NULL, _event_loop, (void*)&_vm[i].id);
 
-#if !(defined(__CYGWIN__) || (ARDUINO || ESP32) || DO_WASM)
+#if !(defined(__CYGWIN__) || (ARDUINO || ESP32 || __APPLE__) || DO_WASM)
         cpu_set_t set;
         CPU_ZERO(&set);                           /// * clear affinity
         CPU_SET(i % VM::NCORE, &set);             /// * set CPU affinity
@@ -101,7 +101,7 @@ void t_pool_init() {
         if (rc !=0) {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
-#endif // !(defined(__CYGWIN__) || (ARDUINO || ESP32) || DO_WASM)
+#endif // !(defined(__CYGWIN__) || (ARDUINO || ESP32 || __APPLE__) || DO_WASM)
     }
     printf("CPU cores=%d, thread pool[%d] initialized\n", VM::NCORE, E4_VM_POOL_SZ);
 }
