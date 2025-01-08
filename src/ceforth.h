@@ -21,6 +21,10 @@
 typedef pthread_t       THREAD;
 typedef pthread_mutex_t MUTEX;
 typedef pthread_cond_t  COND_VAR;
+#define LOCK(m)         pthread_mutex_lock(m)
+#define NOTIFY(cv)      pthread_cond_signal(cv)
+#define WAIT_FOR(cv,m)  pthread_cond_wait(cv,m)
+#define UNLOCK(m)       pthread_mutex_unlock(m)
 #endif // DO_MULTITASK
 
 using namespace std;
