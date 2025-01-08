@@ -117,7 +117,7 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
     > #define DO_MULTITASK   1
     > #define E4_VM_POOL_SZ  8
     
-### Linux, Cygwin, or Raspberry Pi
+### Linux, MacOS, Cygwin, or Raspberry Pi
 
     > make
     > ./tests/eforth             # to bring up the Forth interpreter
@@ -130,6 +130,8 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
 
     Pretty amazing stuffs! To grasp how they were done, study the
     individual files (*.fs) under ~/tests/demo.
+    
+    Note: MacOS added, thanks to Kristopher Johnson's work.
 
 ### WASM
 
@@ -201,13 +203,14 @@ Before we go too far, make sure the following are updated before your build
 |recv|( -- v1 v2 .. vn )|wait, until message to arraive|HOLD=>NEST|
 |pull|( n t -- )|forced fetch stack elements from a completed task|current NEST<br/>target STOP|
 |bcast|( n -- )|not implemented yet, TODO|sender NEST<br/>receivers HOLD|
+|clock|( -- n )|fetch microsecond since Epoch, useful for timing|
 
 #### Example1 - parallel jobs (~/tests/demo/mtask.fs)
 
-    > : once 999999 for rank drop next ;      \ 1M cycles
-    > : run ms negate once ms + . ." ms" cr ; \ benchmark
-    > ' run constant xt                       \ keep the xt
-    > : jobs 1- for xt task start next ;      \ tasks in parallel
+    > : once 999999 for rank drop next ;            \ 1M cycles
+    > : run clock negate once clock + . ." ms" cr ; \ benchmark
+    > ' run constant xt                             \ keep the xt
+    > : jobs 1- for xt task start next ;            \ tasks in parallel
     > 4 jobs
 
 <pre><font color="#4E9A06">[06.1]&gt;&gt; started on T2</font>
