@@ -4,7 +4,13 @@
 ///
 #include <iostream>      // cin, cout
 #include <fstream>       // ifstream
+
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#else
 #include <sys/sysinfo.h>
+#endif
+
 using namespace std;
 
 extern void forth_init();
@@ -17,17 +23,26 @@ const char* APP_VERSION = "eForth v5.0";
 ///
 typedef uint64_t U64;
 void mem_stat() {
-	cout << APP_VERSION;
-	struct sysinfo si;
-	if (sysinfo(&si)!=-1) {
-		U64 f = (U64)si.freeram  * si.mem_unit;
-		U64 t = (U64)si.totalram * si.mem_unit;
-        U64 p = f * 1000L / t;
-		cout << ", RAM "   << static_cast<float>(p) * 0.1
-             << "% free (" << (f >> 20)
-             << " / "      << (t >> 20) << " MB)";
-	}
-	cout << endl;
+    cout << APP_VERSION;
+
+#ifdef __APPLE__
+    int64_t memsize;
+    size_t len = sizeof(memsize);
+    if (sysctlbyname("hw.memsize", &memsize, &len, NULL, 0) == 0) {
+      cout << ", RAM " << (memsize >> 20) << " MB";
+    }
+#else
+    struct sysinfo si;
+    if (sysinfo(&si) != -1) {
+      U64 f = (U64)si.freeram * si.mem_unit;
+      U64 t = (U64)si.totalram * si.mem_unit;
+      U64 p = f * 1000L / t;
+      cout << ", RAM " << static_cast<float>(p) * 0.1 << "% free (" << (f >> 20)
+           << " / " << (t >> 20) << " MB)";
+    }
+#endif
+
+    cout << endl;
 }
 ///
 ///> include external Forth script
@@ -54,7 +69,7 @@ void forth_include(const char *fn) {
 ///
 int main(int ac, char* av[]) {
     forth_init();                       ///> initialize dictionary
-	mem_stat();                         ///> show memory status
+    mem_stat();                         ///> show memory status
     srand(time(0));                     ///> seed random generator
 
     outer(cin);
