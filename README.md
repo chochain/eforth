@@ -232,7 +232,7 @@ Before we go too far, make sure the following are updated before your build
     > 0 constant pp                           \ producer task id
     > 0 constant cc                           \ consumer task id
     > : sndr
-        1000 delay                            \ delay to simulate some processing
+        1000 ms                               \ delay to simulate some processing
         1 2 3 4 4 cc send                     \ send 4 items from stack
         lock ." sent " cr unlock ;            \ locked IO before write
     > : rcvr
