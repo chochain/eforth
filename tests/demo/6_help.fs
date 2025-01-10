@@ -66,9 +66,9 @@ decimal
 
 .( type 'help' to execute the help system =>)
 help
-cr .( money  =>) money  1000 delay
-cr .( sex    =>) sex    1000 delay
-cr .( job    =>) job    1000 delay
-cr .( health =>) health 1000 delay
+cr .( money  =>) money  1000 ms
+cr .( sex    =>) sex    1000 ms
+cr .( job    =>) job    1000 ms
+cr .( health =>) health 1000 ms
 
 

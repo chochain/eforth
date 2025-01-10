@@ -40,7 +40,7 @@ variable si                             \ array index (default to 0)
   TSZ 0 do
     i s@
     included
-    2000 delay
+    500 ms
   loop ;
 st_setup
 st_lst

@@ -16,7 +16,7 @@
 ' yy task to cc                    \ create consumer task, save handle
 cc start                           \ start receiver task, it will wait
 .( VM0: non-blocking, and we have two threads now... ) cr
-1000 delay
+1000 ms
 pp start                           \ start producer task
 .( VM0: non-blocking on pp, needs a join, or free to do other things ) cr
 pp join cc join
