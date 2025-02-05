@@ -15,7 +15,7 @@ void uvar_init() {
     *b = 10;                       /// * default 10
     _vm0.id   = 0;                 /// * VM id
     _vm0.base = (IU)(b - MEM0);    /// * base idx
-    pmem.idx = DALIGN(pmem.idx);   /// DU aligned
+    pmem.idx = ALIGN(pmem.idx);    /// IU aligned
 }
 
 #else // DO_MULTITASK
@@ -131,7 +131,7 @@ void uvar_init() {
         _vm[i].id   = i;                          /// * VM id
         _vm[i].base = (IU)(b - MEM0);             /// * base idx
     }
-    pmem.idx = DALIGN(pmem.idx);                  /// DU aligned
+    pmem.idx = ALIGN(pmem.idx);                   /// IU aligned
 }
 
 int task_create(IU pfa) {
