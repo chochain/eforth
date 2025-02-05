@@ -10,7 +10,7 @@
 ///
 ///@name Conditional compililation options
 ///@}
-#define CC_DEBUG        1               /**< debug level 0|1|2      */
+#define CC_DEBUG        2               /**< debug level 0|1|2      */
 #define RANGE_CHECK     0               /**< vector range check     */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
@@ -23,7 +23,7 @@
 #define E4_SS_SZ        32
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
-#define E4_VM_POOL_SZ   8               /**< one plus # cors       */
+#define E4_VM_POOL_SZ   2               /**< one plus # cors       */
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
@@ -33,7 +33,7 @@ typedef int32_t         S32;   ///< signed 32-bit integer
 typedef uint16_t        U16;   ///< unsigned 16-bit integer
 typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
-typedef uint16_t        IU;    ///< instruction pointer unit
+typedef uint32_t        IU;    ///< instruction pointer unit
 
 #include <cmath>
 #if USE_FLOAT
@@ -86,7 +86,7 @@ typedef int32_t         DU;
 #define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
-#define ALIGN(sz)       ALIGN2(sz)
+#define ALIGN(sz)       ALIGN4(sz)
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
@@ -134,8 +134,8 @@ typedef int32_t         DU;
     #define LOGX(v)     Serial.print(v, HEX)
 #else  // !(ARDUINO || ESP32)
     #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-d", (int32_t)(v))
-    #define LOGX(v)     printf("%-x", (uint32_t)(v))
+    #define LOG(v)      printf("%-d", (S32)(v))
+    #define LOGX(v)     printf("%-x", (U32)(v))
 #endif // (ARDUINO || ESP32)
     
 #define LOG_NA()        LOGS("N/A\n")
@@ -143,8 +143,8 @@ typedef int32_t         DU;
 #define LOG_KX(k, x)    LOGS(k); LOGX(x)
 #define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
 #define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] ");  \
-                        LOGS(dict[i].name); LOGS(" attr="); \
-                        LOGX(dict[i].attr); LOGS("\n")
+                        LOGS(dict[i].name); LOGS(" pfa="); \
+                        LOGX(dict[i].pfa);  LOGS("\n")
 #if DO_MULTITASK
 #if CC_DEBUG
 #include <stdarg.h>
