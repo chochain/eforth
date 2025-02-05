@@ -28,7 +28,8 @@ extern U8         *MEM0;                   ///< base of parameter memory block
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
-#define DICT(w)   (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
+//#define DICT(w)   (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
+#define DICT(w)   (IS_PRIM(w) ? prim[w] : dict[w])
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
 
 ///====================================================================
@@ -92,23 +93,27 @@ void pstr(const char *str, io_op op) {
 ///> Debug functions
 ///
 int pfa2didx(IU ix) {                          ///> reverse lookup
+/*    
     if (IS_PRIM(ix)) return (int)ix;           ///> primitives
     IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
         Code &c = dict[i];
         if (pfa == (IS_UDF(i) ? c.pfa : c.xtoff())) return i;
     }
+*/
     return 0;                                  /// * not found
 }
 int  pfa2nvar(IU pfa) {
     IU  w  = *(IU*)MEM(pfa);
     if (w != VAR && w != VBRAN) return 0;
-    
+/*    
     IU  i0 = pfa2didx(pfa | EXT_FLAG);
     if (!i0) return 0;
     IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : pmem.idx;
     int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
     return n;
+*/
+    return 0;
 }
 void to_s(IU w, U8 *ip, int base) {
 #if CC_DEBUG
@@ -246,9 +251,8 @@ void dict_dump(int base) {
         Code &c = dict[i];
         fout << setfill('0') << setw(3) << i
              << "> name=" << setw(8) << (UFP)c.name
-             << ", xt="   << setw(8) << (UFP)c.xt
-             << ", attr=" << (c.attr & 0x3)
-             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
+             << ", xt="   << setw(8) << ((UFP)c.xt & MSK_XT)
+             << ", xtoff="<< setw(8) << (IS_UDF(i) ? c.pfa : c.xtoff())
              << " "       << c.name << ENDL;
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
