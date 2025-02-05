@@ -37,25 +37,22 @@
 ///     | strlen+1     | 2-byte | 2-byte |     |      |
 ///     +--------------+--------+--------+-----+------+---- 2-byte aligned
 ///
-///> Parameter structure - 16-bit aligned (use MSB for colon/primitive word flag)
-///   * primitive word
-///     16-bit xt offset with MSB set to 1, where opcode < MAX_OP
-///     +-+--------------+
-///     |1|   opcode     |   call exec_prim(opcode)
-///     +-+--------------+
-///
-///   * colon word (user defined)
-///     16-bit pmem offset with MSB set to 1, where dict.pfa >= MAX_OP
-///     +--------------+-+
-///     |1|   dict.pfa   |   IP = dict.pfa
-///     +--------------+-+
-///
-///   * built-in word
-///     16-bit xt offset with MSB set to 0 (1 less mem lookup for xt)
-///     +-+--------------+
-///     |0| dict.xtoff() |   call (XT0 + *IP)() to execute
-///     +-+--------------+
-///
+struct Param {
+    union {
+        IU pack;                   ///> collective
+        struct {
+            U32 ioff : 24;         ///> pfa, xtoff, or short int
+            U32 op   : 4;          ///> opcode (1111 = colon word)
+            U32 xx1  : 2;          ///> reserved;
+            U32 vx   : 1;          ///> extended number (56-bit)
+            U32 exit : 1;          ///> word exit flag
+        };
+    };
+    Param(IU p, prim_op o, bool u=false) : pack(p) { op = o; vx = u; exit=false; }
+    
+    void set_exit(bool f=true) { exit = f; }
+};
+
 List<Code, 0> dict;                ///< dictionary
 List<U8,   0> pmem;                ///< parameter memory (for colon definitions)
 U8  *MEM0;                         ///< base of parameter memory block
@@ -75,9 +72,9 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define BASE      (MEM(vm.base))           /**< pointer to base in VM user area         */
-#define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
+#define IGET(ip)  (*(Param*)MEM(ip))       /**< instruction fetch from pmem+ip offset   */
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
-#define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
+#define SETJMP(a) ((*(Param*)&pmem[a]).ioff = HERE)  /**< address offset for branching  */
 ///@}
 ///@name Primitive words (to simplify compiler), see nest() for details
 ///@{
@@ -87,7 +84,7 @@ Code prim[] = {
     Code("bran",BRAN), Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),
     Code("for", FOR),  Code("do",   DO),    Code("key",  KEY)
 };
-#define DICT(w) (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
+#define DICT(w) (IS_PRIM(w) ? prim[w] : dict[w])
 ///
 ///====================================================================
 ///@}
@@ -113,13 +110,13 @@ IU find(const char *s) {
 ///    * with an addition link field added.
 ///@{
 void colon(const char *name) {
+    printf("colon %s HERE=%x\n", name, HERE);
     char *nfa = (char*)&pmem[HERE]; ///> current pmem pointer
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
 
     Code c(nfa, (FPTR)0, false);    ///> create a local blank word
-    c.attr = UDF_ATTR;              ///> specify a colon (user defined) word
-    c.pfa  = HERE;                  ///> capture code field index
+    c.pfa = HERE | UDF_ATTR;        ///> capture code field index
 
     dict.push(c);                   ///> deep copy Code struct into dictionary
 }
@@ -130,24 +127,23 @@ int  add_str(const char *s) {       ///< add a string to pmem
     pmem.push((U8*)s,  sz);         /// * add string terminated with zero
     return sz;
 }
+void add_p(prim_op op, IU ip=0) {
+    Param p(ip, op, false);
+    add_iu(p.pack);
+};
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code &c = DICT(w);              /// * code ref to primitive or dictionary entry
-    IU   ip = (w & EXT_FLAG)        /// * is primitive?
-        ? (UFP)c.xt                 /// * get primitive/built-in token
-        : (IS_UDF(w)                /// * colon word?
-           ? (c.pfa | EXT_FLAG)     /// * pfa with colon word flag
-           : c.xtoff());            /// * XT offset of built-in
-    add_iu(ip);
+    Code &c = dict[w];              ///< code ref to primitive or dictionary entry
+    bool u  = IS_UDF(w);            ///< user defined (i.e. colon word)
+    IU   ip = u ? c.pfa & MSK_ATTR : c.xtoff();
+    Param p(ip, MAX_OP, u);
+    add_iu(p.pack);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-void add_var(IU op, DU v=DU0) {     ///< add a varirable header
-    add_w(op);                      /// * VAR or VBRAN
-    if (op==VBRAN) add_iu(0);       /// * pad offset field
-    pmem.idx = DALIGN(pmem.idx);    /// * data alignment (WASM 4, other 2)
-    if (op!=VBRAN) add_du(v);       /// * default variable = 0
+void add_var(prim_op op, DU v=DU0) {///< add a varirable header
+    add_p(op, op==VBRAN ? DU0 : v); /// * VAR or VBRAN
 }
 ///====================================================================
 ///
@@ -170,7 +166,7 @@ int def_word(const char* name) {    ///< display if redefined
 void s_quote(VM &vm, prim_op op) {
     const char *s = scan('"')+1;    ///> string skip first blank
     if (vm.compile) {
-        add_w(op);                  ///> dostr, (+parameter field)
+        add_p(op, STRLEN(s));       ///> dostr, (+parameter field)
         add_str(s);                 ///> byte0, byte1, byte2, ..., byteN
     }
     else {                          ///> use PAD ad TEMP storage
@@ -208,15 +204,15 @@ void s_quote(VM &vm, prim_op op) {
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
-        IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-//        VM_HDR(&vm, ":%4x", ix);
+        Param ix = IGET(IP);                         ///< fetched opcode, hopefully in register
+        VM_HDR(&vm, ":%6x", ix.op);
         IP += sizeof(IU);
-        DISPATCH(ix) {                               /// * opcode dispatcher
+        DISPATCH(ix.op) {                            /// * opcode dispatcher
         CASE(EXIT, UNNEST());
         CASE(NOP,  { /* do nothing */});
         CASE(NEXT,
              if (GT(RS[-1] -= DU1, -DU1)) {          ///> loop done?
-                 IP = IGET(IP);                      /// * no, loop back
+                 ix = IGET(IP);                      /// * no, loop back
              }
              else {                                  /// * yes, loop done!
                  RS.pop();                           /// * pop off loop counter
@@ -224,47 +220,40 @@ void nest(VM& vm) {
              });
         CASE(LOOP,
              if (GT(RS[-2], RS[-1] += DU1)) {        ///> loop done?
-                 IP = IGET(IP);                      /// * no, loop back
+                 ix = IGET(IP);                      /// * no, loop back
              }
              else {                                  /// * yes, done
                  RS.pop(); RS.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
              });
-        CASE(LIT,
-             SS.push(TOS);
-             IP  = DALIGN(IP);                       /// * 32-bit data align (WASM only)
-             TOS = *(DU*)MEM(IP);                    ///> from hot cache, hopefully
-             IP += sizeof(DU));                      /// * hop over the stored value
+        CASE(LIT, SS.push(TOS); TOS = ix.ioff);      ///> get short lit
         CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr
         CASE(STR,
-             const char *s = (const char*)MEM(IP);   ///< get string pointer
-             IU    len = STRLEN(s);
-             PUSH(IP); PUSH(len); IP += len);
+             PUSH(IP); PUSH(ix.ioff); IP += ix.ioff);
         CASE(DOTQ,                                   /// ." ..."
              const char *s = (const char*)MEM(IP);   ///< get string pointer
-             pstr(s); IP += STRLEN(s));              /// * send to output console
-        CASE(BRAN, IP = IGET(IP));                   /// * unconditional branch
+             pstr(s); IP += ix.ioff);                /// * send to output console
+        CASE(BRAN, ix = IGET(IP));                   /// * unconditional branch
         CASE(ZBRAN,                                  /// * conditional branch
-             IP = POP() ? IP+sizeof(IU) : IGET(IP));
+             IP = POP() ? IP+sizeof(IU) : IGET(IP).ioff);
         CASE(VBRAN,
              PUSH(DALIGN(IP + sizeof(IU)));          /// * put param addr on tos
-             if ((IP = IGET(IP))==0) UNNEST());      /// * jump target of does> if given
+             if ((IP = IGET(IP).ioff)==0) UNNEST()); /// * jump target of does> if given
         CASE(DOES,
              IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
-        CASE(FOR,  RS.push(POP()));                  /// * setup FOR..NEXT call frame
-        CASE(DO,                                     /// * setup DO..LOOP call frame
-             RS.push(SS.pop()); RS.push(POP()));
-        CASE(KEY,  PUSH(key()); UNNEST());           /// * fetch single keypress
+        CASE(FOR, RS.push(ix.ioff));                 /// * setup FOR..NEXT call frame
+        CASE(DO,  RS.push(POP()); RS.push(ix.ioff)); /// * setup DO..LOOP call frame
+        CASE(KEY, PUSH(key()); UNNEST());            /// * fetch single keypress
         OTHER(
-            if (ix & EXT_FLAG) {                     /// * colon word?
+            if (ix.op==MAX_OP) {                     /// * colon word?
                 RS.push(IP);                         /// * setup call frame
-                IP = ix & ~EXT_FLAG;                 /// * IP = word.pfa
+                IP = ix.ioff;                        /// * IP = word.pfa
             }
-            else Code::exec(vm, ix));               ///> execute built-in word
+            else Code::exec(vm, ix.ioff));           ///> execute built-in word
         }
-//        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
+        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
     }
 }
 ///
@@ -368,7 +357,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE(".r",      IU w = POPI(); dotr(w, POP(), *BASE));
     CODE("u.r",     IU w = POPI(); dotr(w, POP(), *BASE, true));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));     // pass string pointer
-    IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key()));
+    IMMD("key",     if (vm.compile) add_p(KEY); else PUSH(key()));
     CODE("emit",    dot(EMIT, POP()));
     CODE("space",   dot(SPCS, DU1));
     CODE("spaces",  dot(SPCS, POP()));
@@ -384,38 +373,36 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
     /// @{
-    IMMD("if",      add_w(ZBRAN); PUSH(HERE); add_iu(0));       // if    ( -- here )
-    IMMD("else",                                                // else ( here -- there )
-         add_w(BRAN);
-         IU h=HERE; add_iu(0); SETJMP(POP()); PUSH(h));
-    IMMD("then",    SETJMP(POP()));                             // backfill jump address
+    IMMD("if",      PUSH(HERE); add_p(ZBRAN));                  // if    ( -- here )
+    IMMD("else",    IU h=HERE;  add_p(BRAN);                    // else ( here -- there )
+                    SETJMP(POPI()); PUSH(h));
+    IMMD("then",    SETJMP(POPI()));                            // backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
     IMMD("begin",   PUSH(HERE));
-    IMMD("again",   add_w(BRAN);  add_iu(POP()));               // again    ( there -- )
-    IMMD("until",   add_w(ZBRAN); add_iu(POP()));               // until    ( there -- )
-    IMMD("while",   add_w(ZBRAN); PUSH(HERE); add_iu(0));       // while    ( there -- there here )
-    IMMD("repeat",  add_w(BRAN);                                // repeat    ( there1 there2 -- )
-         IU t=POP(); add_iu(POP()); SETJMP(t));                 // set forward and loop back address
+    IMMD("again",   add_p(BRAN, POPI()));                       // again    ( there -- )
+    IMMD("until",   add_p(ZBRAN, POPI()));                      // until    ( there -- )
+    IMMD("while",   PUSH(HERE); add_p(ZBRAN));                  // while    ( there -- there here )
+    IMMD("repeat",                                              // repeat    ( there1 there2 -- )
+         IU t=POPI(); add_p(BRAN, POPI()); SETJMP(t));          // set forward and loop back address
     /// @}
     /// @defgrouop FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_w(FOR); PUSH(HERE));                    // for ( -- here )
-    IMMD("next",    add_w(NEXT); add_iu(POP()));                // next ( here -- )
+    IMMD("for" ,    add_p(FOR, POPI()); PUSH(HERE));            // for ( -- here )
+    IMMD("next",    add_p(NEXT, POPI()));                       // next ( here -- )
     IMMD("aft",                                                 // aft ( here -- here there )
-         POP(); add_w(BRAN);
-         IU h=HERE; add_iu(0); PUSH(HERE); PUSH(h));
+         POP(); IU h=HERE; add_p(BRAN); PUSH(h); PUSH(h));
     /// @}
     /// @}
     /// @defgrouop DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_w(DO); PUSH(HERE));                     // for ( -- here )
+    IMMD("do" ,     add_p(DO, POPI()); PUSH(HERE));             // for ( -- here )
     CODE("i",       PUSH(RS[-1]));
     CODE("leave",   RS.pop(); RS.pop(); UNNEST());              // quit DO..LOOP
-    IMMD("loop",    add_w(LOOP); add_iu(POP()));                // next ( here -- )
+    IMMD("loop",    add_p(LOOP, POPI()));                       // next ( here -- )
     /// @}
     /// @defgrouop return stack ops
     /// @{
@@ -428,13 +415,13 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("[",       vm.compile = false);
     CODE("]",       vm.compile = true);
     CODE(":",       vm.compile = def_word(word()));
-    IMMD(";",       add_w(EXIT); vm.compile = false);
+    IMMD(";",       add_p(EXIT); vm.compile = false);
     CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
          add_var(LIT, POP());                                   // dovar (+parameter field)
-         add_w(EXIT));
-    IMMD("immediate", dict[-1].attr |= IMM_ATTR);
+         add_p(EXIT));
+    IMMD("immediate", dict[-1].pfa |= IMM_ATTR);
     CODE("exit",    UNNEST());                                  // early exit the colon word
     /// @}
     /// @defgroup metacompiler
@@ -442,7 +429,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE("exec",   IU w = POP(); CALL(vm, w));                  // execute word
     CODE("create", def_word(word()); add_var(VBRAN));           // bran + offset field
-    IMMD("does>",  add_w(DOES));
+    IMMD("does>",  add_p(DOES));
     IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
          IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
          if (!w) return;
@@ -470,7 +457,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     ///
     CODE("@",                                                   // w -- n
          IU w = POPI();
-         PUSH(w < USER_AREA ? (DU)IGET(w) : CELL(w)));          // check user area
+         PUSH(w < USER_AREA ? (DU)IGET(w).ioff : CELL(w)));     // check user area
     CODE("!",     IU w = POPI(); CELL(w) = POP(););             // n w --
     CODE("+!",    IU w = POPI(); CELL(w) += POP());             // n w --
     CODE("?",     IU w = POPI(); dot(DOT, CELL(w)));            // w --
@@ -478,7 +465,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("cells", IU i = POPI(); PUSH(i * sizeof(DU)));         // n -- n'
     CODE("allot",                                               // n --
          IU n = POPI();                                         // number of bytes
-         for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0));    // zero padding
+         for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0));     // zero padding
     CODE("th",    IU i = POPI(); TOS += i * sizeof(DU));        // w i -- w'
     /// @}
 #if DO_MULTITASK    
@@ -568,7 +555,7 @@ void dict_validate() {
     }
     /// check xtoff range
     max -= Code::XT0;
-    if (max & EXT_FLAG) {                   // range check
+    if (max & MSK_XT) {                      /// range check
         LOG_KX("*** Init ERROR *** xtoff overflow max = 0x", max);
         LOGS("\nEnter 'dict' to verify, and please contact author!\n");
     }
@@ -645,7 +632,7 @@ void forth_init() {
     vm0.state = QUERY;
     
     for (int i = pmem.idx; i < USER_AREA; i+=sizeof(IU)) {
-        add_iu(0xffff);                  /// * reserved user area
+        add_iu(~0);                      /// * reserved user area
     }
     dict_compile();                      ///> compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
