@@ -112,27 +112,23 @@ struct ALIGNAS VM {
 ///
 ///@name Code flag masking options
 ///@{
-#define UDF_ATTR   0x0001   /** user defined word    */
-#define IMM_ATTR   0x0002   /** immediate word       */
-#define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
-#if DO_WASM
-#define MSK_ATTR   ~0x0     /** no masking needed    */
-#else  // !DO_WASM
-#define MSK_ATTR   ~0x3     /** mask udf,imm bits    */
-#endif // DO_WASM
+constexpr IU  UDF_ATTR = 0x80000000;         /** user defined word    */
+constexpr IU  IMM_ATTR = 0x40000000;         /** immediate word       */
+constexpr IU  MSK_ATTR = 0x3fffffff;         /** attribute mask       */
+constexpr UFP MSK_XT   = (UFP)~0>>2;         /** XT pointer mask      */
 
-#define IS_UDF(w) (dict[w].attr & UDF_ATTR)
-#define IS_IMM(w) (dict[w].attr & IMM_ATTR)
+#define IS_UDF(w) (dict[w].pfa & UDF_ATTR)
+#define IS_IMM(w) (dict[w].pfa & IMM_ATTR)
 ///}
 ///@name primitive opcode
 ///{
 typedef enum {
-    EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
+    EXIT=0, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
     VBRAN, DOES, FOR, DO, KEY, MAX_OP
 } prim_op;
 
-#define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
-#define IS_PRIM(w) ((w & EXT_FLAG) && (w < MAX_OP))
+#define USER_AREA  (ALIGN16(MAX_OP))
+#define IS_PRIM(w) (!IS_UDF(w) && (w < MAX_OP))
 ///@}
 ///
 ///> Universal functor (no STL) and Code class
@@ -161,31 +157,29 @@ typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
-#if DO_WASM
     union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< vtable index
-        IU   pfa;           ///< offset to pmem space (16-bit for 64K range)
-    };
-    IU attr;                ///< xt is vtable index so attrs need to be separated
-#else // !DO_WASM
-    union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
+        FPTR xt = 0;        ///< lambda pointer (32 or 64-bit depends)
         struct {
-            IU attr;        ///< steal 2 LSBs because xt is 4-byte aligned on 32-bit CPU
-            IU pfa;         ///< offset to pmem space (16-bit for 64K range)
+#if (__x86_64__ || __ppc64__)
+            IU   xxx;       ///< padding to 64-bit
+#endif // (__x86_64__ || __ppc64__)
+            IU   pfa;       ///< offset to pmem space (30-bit for 1G range)
         };
     };
-#endif // DO_WASM
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
+    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_XT)); }
     static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
 
     Code() {}               ///< blank struct (for initilization)
     Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
-        attr |= im ? IMM_ATTR : 0;
+        pfa |= im ? IMM_ATTR : 0;
+#if CC_DEBUG
+        printf("Code xt=%p, pfa=0x%08x%c %s\n",
+               (FPTR*)((UFP)xt & MSK_XT), pfa, (pfa & ~MSK_ATTR) ? '*' : ' ', name);
+#endif //         
     }
-    IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
-    void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
+    IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_XT); }  ///< xt offset in code space
+    void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_XT))(vm); }
 };
 ///
 ///> Add a Word to dictionary
