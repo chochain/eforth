@@ -8,6 +8,10 @@ CC_FLAG = -std=c++17 -g -O3 -Wall -pthread \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
+HLST50 = orig/50x/ceforth.h
+
+HLST = src/ceforth.h
+
 FLST = \
 	tests/ceforth50x  \
 	tests/eforth      \
@@ -26,10 +30,10 @@ all: exe 50x wasm
 %.o: %.cpp
 	$(CC) $(CC_FLAG) -Isrc -c -o $@ $<
 
-tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o src/ceforth_task.o
+tests/eforth: platform/main.o $(HLST) src/ceforth.o src/ceforth_sys.o src/ceforth_task.o
 	$(CC) $(CC_FLAG) -o $@ $^
 
-tests/ceforth50x: platform/main.o orig/50x/ceforth.o orig/50x/ceforth_sys.o orig/50x/ceforth_task.o
+tests/ceforth50x: platform/main.o $(HLST50) orig/50x/ceforth.o orig/50x/ceforth_sys.o orig/50x/ceforth_task.o
 	$(CC) $(CC_FLAG) -o $@ $^
 
 tests/eforth.js: platform/wasm.cpp src/ceforth.cpp src/ceforth_sys.cpp src/ceforth_task.cpp
