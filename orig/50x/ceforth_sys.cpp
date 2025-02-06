@@ -18,8 +18,16 @@ istringstream     fin;                     ///< forth_in
 ostringstream     fout;                    ///< forth_out
 void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
 int    load_dp    = 0;
-
-extern Code       prim[];                  ///< primitives
+///
+///@name Primitive words to help printing
+///@{
+Code prim[] = {
+    Code(";",   EXIT),   Code("next", NEXT),  Code("loop", LOOP),  Code("lit", LIT),
+    Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),  Code("bran",BRAN),
+    Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),  Code("for", FOR),
+    Code("do",   DO),    Code("key",  KEY),   Code("nop",  NOP)
+};
+///@}
 extern List<Code> dict;                    ///< dictionary
 extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
 extern U8         *MEM0;                   ///< base of parameter memory block
@@ -28,6 +36,7 @@ extern U8         *MEM0;                   ///< base of parameter memory block
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
+#define IS_PRIM(w) (!IS_UDF(w) && (w < MAX_OP))
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
 
 ///====================================================================
@@ -123,7 +132,7 @@ void to_s(IU w, U8 *ip, int base) {
     
     ip += sizeof(IU);                   ///> calculate next ip
     switch (w) {
-    case LIT:  fout << *(DU*)ip << " ( lit )";      break;
+    case LIT:  fout << ip  << " ( lit )";      break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     case VAR:
