@@ -34,25 +34,9 @@
 ///     | str nameN \0 |  parm1 |  parm2 | ... | ffff | str nameN+1 \0 | ...
 ///     +--------------+--------+--------+-----+------+----------------+-----
 ///     ^              ^        ^        ^     ^      ^
-///     | strlen+1     | 2-byte | 2-byte |     |      |
-///     +--------------+--------+--------+-----+------+---- 2-byte aligned
+///     | strlen+1     | 4-byte | 4-byte |     |      |
+///     +--------------+--------+--------+-----+------+---- 4-byte aligned
 ///
-struct Param {
-    union {
-        IU pack;                   ///> collective
-        struct {
-            U32 ioff : 24;         ///> pfa, xtoff, or short int
-            U32 op   : 4;          ///> opcode (1111 = colon word)
-            U32 xx1  : 2;          ///> reserved;
-            U32 vx   : 1;          ///> extended number (56-bit)
-            U32 exit : 1;          ///> word exit flag
-        };
-    };
-    Param(IU p, prim_op o, bool u=false) : pack(p) { op = o; vx = u; exit=false; }
-    
-    void set_exit(bool f=true) { exit = f; }
-};
-
 List<Code, 0> dict;                ///< dictionary
 List<U8,   0> pmem;                ///< parameter memory (for colon definitions)
 U8  *MEM0;                         ///< base of parameter memory block
@@ -115,7 +99,7 @@ void colon(const char *name) {
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
 
-    Code c(nfa, (FPTR)0, false);    ///> create a local blank word
+    Code c(nfa, NULL, false);       ///> create a local blank word
     c.pfa = HERE | UDF_ATTR;        ///> capture code field index
 
     dict.push(c);                   ///> deep copy Code struct into dictionary
@@ -132,18 +116,18 @@ void add_p(prim_op op, IU ip=0) {
     add_iu(p.pack);
 };
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code &c = dict[w];              ///< code ref to primitive or dictionary entry
-    bool u  = IS_UDF(w);            ///< user defined (i.e. colon word)
-    IU   ip = u ? c.pfa & MSK_ATTR : c.xtoff();
-    Param p(ip, MAX_OP, u);
+    Param p(dict[w].ip(), MAX_OP, IS_UDF(w));
     add_iu(p.pack);
 #if CC_DEBUG > 1
-    LOG_KV("add_w(", w); LOG_KX(") => ", ip);
+    Code &c = dict[w];
+    LOG_KV("add_w(", w); LOG_KX(") => ", c.ip());
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-void add_var(prim_op op, DU v=DU0) {///< add a varirable header
-    add_p(op, op==VBRAN ? DU0 : v); /// * VAR or VBRAN
+void add_var(prim_op op, DU v=DU0) {  ///< add a literal/varirable
+    bool neg = op==LIT && LT(v, DU0); ///> negative number
+//    add_p(neg ? NLIT : op, (IU)v);
+    add_p(op, static_cast<IU>(v));
 }
 ///====================================================================
 ///
@@ -205,7 +189,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
         Param ix = IGET(IP);                         ///< fetched opcode, hopefully in register
-        VM_HDR(&vm, ":%6x", ix.op);
+        VM_HDR(&vm, ":%x", ix.op);
         IP += sizeof(IU);
         DISPATCH(ix.op) {                            /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -226,7 +210,7 @@ void nest(VM& vm) {
                  RS.pop(); RS.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
              });
-        CASE(LIT, SS.push(TOS); TOS = ix.ioff);      ///> get short lit
+        CASE(LIT, SS.push(TOS); TOS = ix.lit());     ///> get short lit
         CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr
         CASE(STR,
              PUSH(IP); PUSH(ix.ioff); IP += ix.ioff);
@@ -262,7 +246,7 @@ void nest(VM& vm) {
 void CALL(VM& vm, IU w) {
     if (IS_UDF(w)) {                   /// colon word
         RS.push(IP);                   /// * terminating IP
-        IP = dict[w].pfa;              /// setup task context
+        IP = dict[w].ip();             /// setup task context
         nest(vm);
     }
     else dict[w].call(vm);             /// built-in word
@@ -540,26 +524,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
 ///
 #if DO_WASM
 UFP Code::XT0 = 0;       ///< WASM xt is vtable index (0 is min)
-void dict_validate() {}  ///> no need to adjust xt offset base
-
 #else // !DO_WASM
 UFP Code::XT0 = ~0;      ///< init to max value
-
-void dict_validate() {
-    /// collect Code::XT0 i.e. xt base pointer
-    UFP max = (UFP)0;
-    for (int i=0; i < dict.idx; i++) {
-        Code &c = dict[i];
-        if ((UFP)c.xt < Code::XT0) Code::XT0 = (UFP)c.xt;
-        if ((UFP)c.xt > max)       max       = (UFP)c.xt;
-    }
-    /// check xtoff range
-    max -= Code::XT0;
-    if (max & MSK_XT) {                      /// range check
-        LOG_KX("*** Init ERROR *** xtoff overflow max = 0x", max);
-        LOGS("\nEnter 'dict' to verify, and please contact author!\n");
-    }
-}
 #endif // DO_WASM
 ///====================================================================
 ///
@@ -635,7 +601,6 @@ void forth_init() {
         add_iu(~0);                      /// * reserved user area
     }
     dict_compile();                      ///> compile dictionary
-    dict_validate();                     ///< collect XT0, and check xtoff range
 }
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                  ///< get main thread
