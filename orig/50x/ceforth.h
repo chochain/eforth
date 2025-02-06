@@ -123,7 +123,7 @@ constexpr UFP MSK_XT   = (UFP)~0>>2;         /** XT pointer mask      */
 ///@name primitive opcode
 ///{
 typedef enum {
-    EXIT=0, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
+    EXIT=0, NEXT, LOOP, LIT, XLIT, VAR, STR, DOTQ, BRAN, ZBRAN,
     VBRAN, DOES, FOR, DO, KEY, MAX_OP
 } prim_op;
 
@@ -197,46 +197,39 @@ struct Code {
 #define IMMD(n, g) ADD_CODE(n, g, true)
 ///
 ///> Parameter structure - 32-bit aligned (use most significan 8-bit attributes)
-///   * primitive word
-///     24-bit short int, where dict.pfa < MAX_OP
-///     +-+--------------+
-///     |  |op|  i24     |   exec_prim(opcode) with i24 (branch, lit, strlen)
-///     +-+--------------+
+///   * primitive word, 24-bit short int
+///     +-----+----------+
+///     | 0|op|   ioff   |   exec_prim(opcode) with int24 (branch, lit, strlen)
+///     +-----+----------+
 ///
-///   * colon word (user defined)
-///     24-bit pmem offset, where dict.pfa >= MAX_OP
-///     +--------------+-+
-///     |  |f |   pfa    |   IP = dict.pfa
-///     +--------------+-+
+///   * built-in word,  24-bit xt offset
+///     +-----+----------+
+///     | 0|f |   xtoff  |   call *(XT0 + xtoff)()
+///     +-----+----------+
 ///
-///   * built-in word
-///     16-bit xt offset with MSB set to 0 (1 less mem lookup for xt)
-///     +-+--------------+
-///     |  |f |   xtoff  |   call *(XT0 + xtoff)()
-///     +-+--------------+
+///   * colon word, 24-bit pfa => pmem offset
+///     +-----+----------+
+///     | 1|f |   pfa    |   IP = dict.pfa
+///     +-----+----------+
 ///
-#define MSK_NEG 0xff000000         /** 24-bit negative mask */
 struct Param {
     union {
         IU pack;                   ///> collective
         struct {
             U32 ioff : 24;         ///> pfa, xtoff, or short int
             U32 op   : 4;          ///> opcode (1111 = colon word)
-            U32 neg  : 1;          ///> ioff is negative
-            U32 xx1  : 1;          ///> reserved
-            U32 vx   : 1;          ///> extended number (56-bit)
+            U32 udf  : 1;          ///> user defined word
             U32 exit : 1;          ///> word exit flag
+            U32 xx1  : 2;          ///> reserved
         };
     };
-    Param(IU p, prim_op o, bool u=false) : pack(p) {
-        op = o; vx = u; exit=false;
-        neg = (op==LIT) && (p & MSK_NEG);
+    Param(IU p, prim_op o, bool u, bool exit=false) : pack(p) {
+        op = o; udf=u; exit=false;
 #if CC_DEBUG > 1
         LOG_KX("Param p=", p); LOG_KX(", op=", op);
         LOG_KX(" => ioff=", ioff);  LOGS("\n");
 #endif // CC_DEBUG > 1
     }
-    DU   lit() INLINE { return static_cast<DU>(ioff | (neg ? MSK_NEG : 0)); }
     void set_exit(bool f=true) INLINE { exit = f; }
 };
 ///
