@@ -31,10 +31,10 @@
 ///                    |                                               |
 ///     +--MEM0        v                                               v
 ///     +--------------+--------+--------+-----+------+----------------+-----
-///     | str nameN \0 |  parm1 |  parm2 | ... | ffff | str nameN+1 \0 | ...
+///     | str nameN \0 |  parm1 |  parm2 | ... | EXIT | str nameN+1 \0 | ...
 ///     +--------------+--------+--------+-----+------+----------------+-----
 ///     ^              ^        ^        ^     ^      ^
-///     | strlen+1     | 4-byte | 4-byte |     |      |
+///     | strlen+1     | 4-byte | 4-byte |     | 0000 |
 ///     +--------------+--------+--------+-----+------+---- 4-byte aligned
 ///
 List<Code, 0> dict;                ///< dictionary
@@ -63,8 +63,8 @@ U8  *MEM0;                         ///< base of parameter memory block
 ///@name Primitive words (to simplify compiler), see nest() for details
 ///@{
 Code prim[] = {
-    Code(";",   EXIT), Code("nop",  NOP),   Code("next", NEXT),  Code("loop", LOOP),
-    Code("lit", LIT),  Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),
+    Code(";",   EXIT), Code("next", NEXT),  Code("loop", LOOP),  Code("lit", LIT),
+    Code("xlit",XLIT), Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),
     Code("bran",BRAN), Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),
     Code("for", FOR),  Code("do",   DO),    Code("key",  KEY)
 };
@@ -106,16 +106,16 @@ void colon(const char *name) {
 }
 void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU)); }  ///< add an instruction into pmem
 void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)); }  ///< add a cell into pmem
-int  add_str(const char *s) {       ///< add a string to pmem
+int  add_str(const char *s) {       ///> add a string to pmem
     int sz = STRLEN(s);
     pmem.push((U8*)s,  sz);         /// * add string terminated with zero
     return sz;
 }
-void add_p(prim_op op, IU ip=0) {
+void add_p(prim_op op, IU ip=0) {   ///> add primitive word
     Param p(ip, op, false);
     add_iu(p.pack);
 };
-void add_w(IU w) {                  ///< add a word index into pmem
+void add_w(IU w) {                  ///> add a word index into pmem
     Param p(dict[w].ip(), MAX_OP, IS_UDF(w));
     add_iu(p.pack);
 #if CC_DEBUG > 1
@@ -124,10 +124,13 @@ void add_w(IU w) {                  ///< add a word index into pmem
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
+#define MSK_NEG 0xFF800000            /** negative or extended literal */
 void add_var(prim_op op, DU v=DU0) {  ///< add a literal/varirable
-    bool neg = op==LIT && LT(v, DU0); ///> negative number
-//    add_p(neg ? NLIT : op, (IU)v);
-    add_p(op, static_cast<IU>(v));
+    bool ext = LT(v, DU0) || ((IU)v & MSK_NEG);     ///< extended literal
+    if (op==LIT && ext) {             /// * extended literal
+        add_p(XLIT, 1); add_du(v);    /// * takes extra IU, CC: can push to 56-bit
+    }
+    else add_p(op, static_cast<IU>(v));
 }
 ///====================================================================
 ///
@@ -188,15 +191,14 @@ void s_quote(VM &vm, prim_op op) {
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
-        Param ix = IGET(IP);                         ///< fetched opcode, hopefully in register
+        Param ix = IGET(IP);                         ///< fetched opcode, hopefully in cache
         VM_HDR(&vm, ":%x", ix.op);
         IP += sizeof(IU);
         DISPATCH(ix.op) {                            /// * opcode dispatcher
         CASE(EXIT, UNNEST());
-        CASE(NOP,  { /* do nothing */});
         CASE(NEXT,
-             if (GT(RS[-1] -= DU1, -DU1)) {          ///> loop done?
-                 ix = IGET(IP);                      /// * no, loop back
+             if (GT(RS[-1]-=DU1, -DU1)) {            ///> loop done?
+                 IP = ix.ioff;                       /// * no, loop back
              }
              else {                                  /// * yes, loop done!
                  RS.pop();                           /// * pop off loop counter
@@ -204,34 +206,36 @@ void nest(VM& vm) {
              });
         CASE(LOOP,
              if (GT(RS[-2], RS[-1] += DU1)) {        ///> loop done?
-                 ix = IGET(IP);                      /// * no, loop back
+                 IP = ix.ioff;                       /// * no, loop back
              }
              else {                                  /// * yes, done
                  RS.pop(); RS.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
              });
-        CASE(LIT, SS.push(TOS); TOS = ix.lit());     ///> get short lit
+        CASE(LIT,  SS.push(TOS); TOS = ix.ioff);     ///> get short lit
+        CASE(XLIT,
+             SS.push(TOS); TOS = *(DU*)MEM(IP);      ///> get extended lit
+             IP += sizeof(IU));
         CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr
         CASE(STR,
              PUSH(IP); PUSH(ix.ioff); IP += ix.ioff);
         CASE(DOTQ,                                   /// ." ..."
              const char *s = (const char*)MEM(IP);   ///< get string pointer
              pstr(s); IP += ix.ioff);                /// * send to output console
-        CASE(BRAN, ix = IGET(IP));                   /// * unconditional branch
-        CASE(ZBRAN,                                  /// * conditional branch
-             IP = POP() ? IP+sizeof(IU) : IGET(IP).ioff);
+        CASE(BRAN,  IP = ix.ioff);                   /// * unconditional branch
+        CASE(ZBRAN, if (ZEQ(POP())) IP = ix.ioff);   /// * conditional branch
         CASE(VBRAN,
              PUSH(DALIGN(IP + sizeof(IU)));          /// * put param addr on tos
-             if ((IP = IGET(IP).ioff)==0) UNNEST()); /// * jump target of does> if given
+             if ((IP = ix.ioff)==0) UNNEST());       /// * jump target of does> if given
         CASE(DOES,
              IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
-        CASE(FOR, RS.push(ix.ioff));                 /// * setup FOR..NEXT call frame
+        CASE(FOR, RS.push(POPI()));                  /// * setup FOR..NEXT call frame
         CASE(DO,  RS.push(POP()); RS.push(ix.ioff)); /// * setup DO..LOOP call frame
         CASE(KEY, PUSH(key()); UNNEST());            /// * fetch single keypress
         OTHER(
-            if (ix.op==MAX_OP) {                     /// * colon word?
+            if (ix.udf) {                            /// * user defined word?
                 RS.push(IP);                         /// * setup call frame
                 IP = ix.ioff;                        /// * IP = word.pfa
             }
@@ -258,6 +262,7 @@ void CALL(VM& vm, IU w) {
 ///
 void dict_compile() {  ///< compile built-in words into dictionary
     CODE("nul ",    {});               /// dict[0], not used, simplify find()
+    CODE("nop",     {});               /// do nothing
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -375,7 +380,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @defgrouop FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_p(FOR, POPI()); PUSH(HERE));            // for ( -- here )
+    IMMD("for" ,    add_p(FOR); PUSH(HERE));                    // for ( -- here )
     IMMD("next",    add_p(NEXT, POPI()));                       // next ( here -- )
     IMMD("aft",                                                 // aft ( here -- here there )
          POP(); IU h=HERE; add_p(BRAN); PUSH(h); PUSH(h));
