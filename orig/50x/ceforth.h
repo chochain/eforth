@@ -110,6 +110,8 @@ struct ALIGNAS VM {
 #endif // DO_MULTITASK
 };
 ///
+///> Universal functor (no STL) and Code class ========================
+///
 ///@name Code flag masking options
 ///@{
 constexpr IU  UDF_ATTR = 0x80000000;         /** user defined word    */
@@ -119,40 +121,31 @@ constexpr UFP MSK_XT   = (UFP)~0>>2;         /** XT pointer mask      */
 
 #define IS_UDF(w) (dict[w].pfa & UDF_ATTR)
 #define IS_IMM(w) (dict[w].pfa & IMM_ATTR)
-///}
-///@name primitive opcode
-///{
-typedef enum {
-    EXIT=0, NEXT, LOOP, LIT, XLIT, VAR, STR, DOTQ, BRAN, ZBRAN,
-    VBRAN, DOES, FOR, DO, KEY, MAX_OP
-} prim_op;
-
-#define USER_AREA  (ALIGN16(MAX_OP))
-#define IS_PRIM(w) (!IS_UDF(w) && (w < MAX_OP))
 ///@}
+///@name Code class
+///@brief - basic struct of dictionary entries
 ///
-///> Universal functor (no STL) and Code class
-///  Code class on 64-bit systems (expand pfa to 32-bit possible)
+///  1. name is the pointer to word name string
+///  2. xt   is the pointer to lambda function
+///  3. pfa  takes 30-bit, max 1G range
+///  4. MSB-1: immediate flag
+///  5. MSB  : user defined flag (i.e. colon word)
+///
+///  Code class on 64-bit systems (expand pfa to 62-bit possible)
 ///  +-------------------+-------------------+
-///  |    *name          |       xt          |
-///  +-------------------+----+----+---------+
-///                      |attr|pfa |xxxxxxxxx|
-///                      +----+----+---------+
+///  |    *name          |       *xt         |
+///  +-------------------+---------+---------+
+///                      |   xxx   |  pfa |IU|
+///                      +---------+---------+
 ///
-///  Code class on 32-bit systems (memory best utilized)
+///  Code class on 32-bit/WASM systems
 ///  +---------+---------+
-///  |  *name  |   xt    |
-///  +---------+----+----+
-///            |attr|pfa |
-///            +----+----+
+///  |  *name  |   *xt   |
+///  +---------+---------+
+///            |  pfa |IU|
+///            +---------+
 ///
-///  Code class on WASM systems (a bit wasteful but faster)
-///  +---------+---------+----+
-///  |  *name  |   xt    |attr|
-///  +---------+----+----+----+
-///            |pfa |xxxx|
-///            +----+----+
-///
+///@{
 typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
@@ -185,46 +178,42 @@ struct Code {
     }
     void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_XT))(vm); }
 };
-///
-///> Add a Word to dictionary
-/// Note:
-///    a lambda without capture can degenerate into a function pointer
+///@}
+///@name Dictionary Compiler macros
+///@note - a lambda without capture can degenerate into a function pointer
+///@{
 #define ADD_CODE(n, g, im) {         \
     Code c(n, [](VM& vm){ g; }, im); \
     dict.push(c);                    \
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
-///
-///> Parameter structure - 32-bit aligned (use most significan 8-bit attributes)
-///   * primitive word, 24-bit short int
-///     +-----+----------+
-///     | 0|op|   ioff   |   exec_prim(opcode) with int24 (branch, lit, strlen)
-///     +-----+----------+
-///
-///   * built-in word,  24-bit xt offset
-///     +-----+----------+
-///     | 0|f |   xtoff  |   call *(XT0 + xtoff)()
-///     +-----+----------+
-///
-///   * colon word, 24-bit pfa => pmem offset
-///     +-----+----------+
-///     | 1|f |   pfa    |   IP = dict.pfa
-///     +-----+----------+
-///
+///@}
+///@name primitive opcode
+///{@
+typedef enum {
+    EXIT=0, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
+    VBRAN, DOES, FOR, DO, KEY, NOP, MAX_OP
+} prim_op;
+
+#define USER_AREA  (ALIGN16(MAX_OP))
+///@}
+///@name Parameter Structure
+///@{
 struct Param {
     union {
-        IU pack;                   ///> collective
+        IU pack;                   ///< collective
         struct {
-            U32 ioff : 24;         ///> pfa, xtoff, or short int
-            U32 op   : 4;          ///> opcode (1111 = colon word)
-            U32 udf  : 1;          ///> user defined word
-            U32 exit : 1;          ///> word exit flag
-            U32 xx1  : 2;          ///> reserved
+            U32 ioff : 24;         ///< pfa, xtoff, or short int
+            U32 op   : 4;          ///< opcode (1111 = colon word or built-in)
+            U32 udf  : 1;          ///< user defined word
+            U32 ext  : 1;          ///< extended literal
+            U32 xx1  : 1;          ///< reserved
+            U32 exit : 1;          ///< word exit flag
         };
     };
-    Param(IU p, prim_op o, bool u, bool exit=false) : pack(p) {
-        op = o; udf=u; exit=false;
+    Param(IU p, prim_op o, bool u, bool e=false, bool x=false) : pack(p) {
+        op = o; udf=u; ext=e; exit=x;
 #if CC_DEBUG > 1
         LOG_KX("Param p=", p); LOG_KX(", op=", op);
         LOG_KX(" => ioff=", ioff);  LOGS("\n");
@@ -232,9 +221,9 @@ struct Param {
     }
     void set_exit(bool f=true) INLINE { exit = f; }
 };
-///
-///> Multitasking support
-///
+///@}
+///@name Multitasking support
+///@{
 VM&  vm_get(int id=0);                    ///< get a VM with given id
 void uvar_init();                         ///< setup user area
 
@@ -247,16 +236,16 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 #define t_pool_init()
 #define t_pool_stop()
 #endif // DO_MULTITASK
-///
-///> System interface
-///
+///@}
+///@name System interface
+///@{
 void forth_init();
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
-///
-///> IO functions
-///
+///@}
+///@name IO functions
+///{@
 typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 
 void fin_setup(const char *line);
@@ -271,20 +260,20 @@ void spaces(int n);                       ///< show spaces
 void dot(io_op op, DU v=DU0);             ///< print literals
 void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
 void pstr(const char *str, io_op op=SPCS);///< print string
-///
-///> Debug functions
-///
+///@}
+///@name Debug functions
+///@{
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
 void words(int base);                     ///< list dictionary words
 void dict_dump(int base);                 ///< dump dictionary
 void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
-///
-///> Javascript interface
-///
+///@}
+///@name Javascript interface
+///@{
 #if DO_WASM
 void native_api(VM &vm);
 #endif // DO_WASM
-
+///@}
 #endif // __EFORTH_SRC_CEFORTH_H
