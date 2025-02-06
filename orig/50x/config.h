@@ -143,8 +143,8 @@ typedef int32_t         DU;
 #define LOG_KX(k, x)    LOGS(k); LOGX(x)
 #define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
 #define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] ");  \
-                        LOGS(dict[i].name); LOGS(" pfa="); \
-                        LOGX(dict[i].pfa);  LOGS("\n")
+                        LOGS(dict[i].name); LOGS(" ip="); \
+                        LOGX(dict[i].ip());  LOGS("\n")
 #if DO_MULTITASK
 #if CC_DEBUG
 #include <stdarg.h>
