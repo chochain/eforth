@@ -166,19 +166,23 @@ struct Code {
             IU   pfa;       ///< offset to pmem space (30-bit for 1G range)
         };
     };
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_XT)); }
+    static FPTR XT(IU ix) INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
     static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
 
     Code() {}               ///< blank struct (for initilization)
     Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
+        if (fp && (UFP)xt < XT0) XT0 = (UFP)xt;                ///< capture pointer base
         pfa |= im ? IMM_ATTR : 0;
-#if CC_DEBUG
-        printf("Code xt=%p, pfa=0x%08x%c %s\n",
-               (FPTR*)((UFP)xt & MSK_XT), pfa, (pfa & ~MSK_ATTR) ? '*' : ' ', name);
-#endif //         
+#if CC_DEBUG > 1
+        printf("Code XT0=%p, xt=%p, pfa=0x%8x%c %s\n",
+               (FPTR)XT0, (FPTR*)((UFP)xt & MSK_XT), pfa, (pfa & ~MSK_ATTR) ? '*' : ' ', name);
+#endif // CC_DEBUG > 1
     }
-    IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_XT); }  ///< xt offset in code space
+    IU   ip() INLINE { return (pfa & UDF_ATTR)
+            ? (IU)(pfa & MSK_ATTR)                            ///< memory index
+            : (IU)(((UFP)xt & MSK_XT) - XT0);                 ///< lambda memory offset
+    }
     void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_XT))(vm); }
 };
 ///
@@ -191,6 +195,50 @@ struct Code {
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
+///
+///> Parameter structure - 32-bit aligned (use most significan 8-bit attributes)
+///   * primitive word
+///     24-bit short int, where dict.pfa < MAX_OP
+///     +-+--------------+
+///     |  |op|  i24     |   exec_prim(opcode) with i24 (branch, lit, strlen)
+///     +-+--------------+
+///
+///   * colon word (user defined)
+///     24-bit pmem offset, where dict.pfa >= MAX_OP
+///     +--------------+-+
+///     |  |f |   pfa    |   IP = dict.pfa
+///     +--------------+-+
+///
+///   * built-in word
+///     16-bit xt offset with MSB set to 0 (1 less mem lookup for xt)
+///     +-+--------------+
+///     |  |f |   xtoff  |   call *(XT0 + xtoff)()
+///     +-+--------------+
+///
+#define MSK_NEG 0xff000000         /** 24-bit negative mask */
+struct Param {
+    union {
+        IU pack;                   ///> collective
+        struct {
+            U32 ioff : 24;         ///> pfa, xtoff, or short int
+            U32 op   : 4;          ///> opcode (1111 = colon word)
+            U32 neg  : 1;          ///> ioff is negative
+            U32 xx1  : 1;          ///> reserved
+            U32 vx   : 1;          ///> extended number (56-bit)
+            U32 exit : 1;          ///> word exit flag
+        };
+    };
+    Param(IU p, prim_op o, bool u=false) : pack(p) {
+        op = o; vx = u; exit=false;
+        neg = (op==LIT) && (p & MSK_NEG);
+#if CC_DEBUG > 1
+        LOG_KX("Param p=", p); LOG_KX(", op=", op);
+        LOG_KX(" => ioff=", ioff);  LOGS("\n");
+#endif // CC_DEBUG > 1
+    }
+    DU   lit() INLINE { return static_cast<DU>(ioff | (neg ? MSK_NEG : 0)); }
+    void set_exit(bool f=true) INLINE { exit = f; }
+};
 ///
 ///> Multitasking support
 ///
