@@ -28,8 +28,6 @@ extern U8         *MEM0;                   ///< base of parameter memory block
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
-//#define DICT(w)   (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
-#define DICT(w)   (IS_PRIM(w) ? prim[w] : dict[w])
 #define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
 
 ///====================================================================
@@ -137,7 +135,7 @@ void to_s(IU w, U8 *ip, int base) {
         }
     }                                   /// no break, fall through
     default:
-        Code &c = DICT(w);
+        Code &c = IS_PRIM(w) ? prim[w] : dict[w];
         fout << c.name; break;
     }
     switch (w) {
@@ -250,10 +248,13 @@ void dict_dump(int base) {
     for (int i=0; i<dict.idx; i++) {
         Code &c = dict[i];
         fout << setfill('0') << setw(3) << i
-             << "> name=" << setw(8) << (UFP)c.name
-             << ", xt="   << setw(8) << ((UFP)c.xt & MSK_XT)
-             << ", xtoff="<< setw(8) << (IS_UDF(i) ? c.pfa : c.xtoff())
-             << " "       << c.name << ENDL;
+             << (IS_UDF(i) ? " U" : "  ")
+			 << (IS_IMM(i) ? "I " : "  ")
+#if CC_DEBUG > 1            
+             << setw(8) << ((UFP)c.xt & MSK_XT)
+#endif // CC_DEBUG > 1            
+             << ":" << setw(6) << c.ip()
+             << " " << c.name << ENDL;
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
 }
