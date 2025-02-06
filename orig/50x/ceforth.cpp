@@ -37,6 +37,22 @@
 ///     | strlen+1     | 4-byte | 4-byte |     | 0000 |
 ///     +--------------+--------+--------+-----+------+---- 4-byte aligned
 ///
+///> Parameter struct
+///   * primitive word, 24-bit short int
+///     +-----+----------+
+///     | 0|op|   ioff   |   exec_prim(opcode) with int24 (branch, lit, strlen)
+///     +-----+----------+
+///
+///   * built-in word,  24-bit xt offset
+///     +-----+----------+
+///     | 0|f |   xtoff  |   call *(XT0 + xtoff)()
+///     +-----+----------+
+///
+///   * colon word, 24-bit pfa => pmem offset
+///     +-----+----------+
+///     | 1|f |   pfa    |   IP = dict.pfa
+///     +-----+----------+
+///
 List<Code, 0> dict;                ///< dictionary
 List<U8,   0> pmem;                ///< parameter memory (for colon definitions)
 U8  *MEM0;                         ///< base of parameter memory block
@@ -60,18 +76,7 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) ((*(Param*)&pmem[a]).ioff = HERE)  /**< address offset for branching  */
 ///@}
-///@name Primitive words (to simplify compiler), see nest() for details
-///@{
-Code prim[] = {
-    Code(";",   EXIT), Code("next", NEXT),  Code("loop", LOOP),  Code("lit", LIT),
-    Code("xlit",XLIT), Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),
-    Code("bran",BRAN), Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),
-    Code("for", FOR),  Code("do",   DO),    Code("key",  KEY)
-};
-#define DICT(w) (IS_PRIM(w) ? prim[w] : dict[w])
-///
 ///====================================================================
-///@}
 ///@name Dictionary search functions - can be adapted for ROM+RAM
 ///@{
 ///
@@ -111,8 +116,8 @@ int  add_str(const char *s) {       ///> add a string to pmem
     pmem.push((U8*)s,  sz);         /// * add string terminated with zero
     return sz;
 }
-void add_p(prim_op op, IU ip=0) {   ///> add primitive word
-    Param p(ip, op, false);
+void add_p(prim_op op, IU ip=0, bool ext=false) {   ///> add primitive word
+    Param p(ip, op, false, ext);
     add_iu(p.pack);
 };
 void add_w(IU w) {                  ///> add a word index into pmem
@@ -124,13 +129,14 @@ void add_w(IU w) {                  ///> add a word index into pmem
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-#define MSK_NEG 0xFF800000            /** negative or extended literal */
-void add_var(prim_op op, DU v=DU0) {  ///< add a literal/varirable
-    bool ext = LT(v, DU0) || ((IU)v & MSK_NEG);     ///< extended literal
-    if (op==LIT && ext) {             /// * extended literal
-        add_p(XLIT, 1); add_du(v);    /// * takes extra IU, CC: can push to 56-bit
+#define MSK_NEG 0xFF800000            /**< negative or extended literal */
+void add_var(prim_op op, DU v=DU0, bool ext=false) {  ///< add a literal/varirable
+    ext |= LT(v, DU0) || ((IU)v & MSK_NEG);           /// * forced extended literal
+    if (op==LIT && ext) {                             /// * extended literal?
+        add_p(LIT, 1, true);                          /// * set ext flag
+        add_du(v);                                    /// * store in the extra IU
     }
-    else add_p(op, static_cast<IU>(v));
+    else add_p(op, static_cast<IU>(v));               /// * stored in ioff (24-bit)
 }
 ///====================================================================
 ///
@@ -212,10 +218,13 @@ void nest(VM& vm) {
                  RS.pop(); RS.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
              });
-        CASE(LIT,  SS.push(TOS); TOS = ix.ioff);     ///> get short lit
-        CASE(XLIT,
-             SS.push(TOS); TOS = *(DU*)MEM(IP);      ///> get extended lit
-             IP += sizeof(IU));
+        CASE(LIT,
+             SS.push(TOS);                           ///> push current TOS
+             if (ix.ext) {                           ///> extended liternal?
+                 TOS = *(DU*)MEM(IP);                /// * fetch from next IU
+                 IP += sizeof(IU);                   /// * advance IP
+             }
+             else TOS = ix.ioff);                    ///> get short lit
         CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr
         CASE(STR,
              PUSH(IP); PUSH(ix.ioff); IP += ix.ioff);
@@ -232,8 +241,10 @@ void nest(VM& vm) {
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
         CASE(FOR, RS.push(POPI()));                  /// * setup FOR..NEXT call frame
-        CASE(DO,  RS.push(POP()); RS.push(ix.ioff)); /// * setup DO..LOOP call frame
+        CASE(DO,                                     /// * setup DO..LOOP call frame
+             RS.push(SS.pop()); RS.push(POPI())); 
         CASE(KEY, PUSH(key()); UNNEST());            /// * fetch single keypress
+        CASE(NOP, {});                               /// * do nothing
         OTHER(
             if (ix.udf) {                            /// * user defined word?
                 RS.push(IP);                         /// * setup call frame
@@ -379,16 +390,17 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgrouop FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
+    ///    3 for ." f" aft ." a" then i . next  ==> f3 a2 a1 a0 i.e. f once only
     /// @{
     IMMD("for" ,    add_p(FOR); PUSH(HERE));                    // for ( -- here )
     IMMD("next",    add_p(NEXT, POPI()));                       // next ( here -- )
     IMMD("aft",                                                 // aft ( here -- here there )
-         POP(); IU h=HERE; add_p(BRAN); PUSH(h); PUSH(h));
+         POP(); IU h=HERE; add_p(BRAN); PUSH(HERE); PUSH(h));
     /// @}
     /// @}
     /// @defgrouop DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_p(DO, POPI()); PUSH(HERE));             // for ( -- here )
+    IMMD("do" ,     add_p(DO); PUSH(HERE));                     // for ( -- here )
     CODE("i",       PUSH(RS[-1]));
     CODE("leave",   RS.pop(); RS.pop(); UNNEST());              // quit DO..LOOP
     IMMD("loop",    add_p(LOOP, POPI()));                       // next ( here -- )
@@ -408,7 +420,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("variable",def_word(word()); add_var(VAR));            // create a variable
     CODE("constant",                                            // create a constant
          def_word(word());                                      // create a new word on dictionary
-         add_var(LIT, POP());                                   // dovar (+parameter field)
+         add_var(LIT, POP(), true);                             // dovar (+parameter field)
          add_p(EXIT));
     IMMD("immediate", dict[-1].pfa |= IMM_ATTR);
     CODE("exit",    UNNEST());                                  // early exit the colon word
