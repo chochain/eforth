@@ -192,8 +192,8 @@ struct Code {
 ///@name primitive opcode
 ///{@
 typedef enum {
-    EXIT=0, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
-    VBRAN, DOES, FOR, DO, KEY, NOP, MAX_OP
+    EXIT=0, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN, FOR,
+    DO, KEY, MAX_OP=0xf
 } prim_op;
 
 #define USER_AREA  (ALIGN16(MAX_OP))
