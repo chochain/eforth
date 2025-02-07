@@ -22,10 +22,9 @@ int    load_dp    = 0;
 ///@name Primitive words to help printing
 ///@{
 Code prim[] = {
-    Code(";",   EXIT),   Code("next", NEXT),  Code("loop", LOOP),  Code("lit", LIT),
+    Code(";",    EXIT),  Code("next", NEXT),  Code("loop", LOOP),  Code("lit", LIT),
     Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),  Code("bran",BRAN),
-    Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),  Code("for", FOR),
-    Code("do",   DO),    Code("key",  KEY),   Code("nop",  NOP)
+    Code("0bran",ZBRAN), Code("for",  FOR),   Code("do",   DO),    Code("key", KEY)
 };
 ///@}
 extern List<Code> dict;                    ///< dictionary
@@ -112,7 +111,7 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
 }
 int  pfa2nvar(IU pfa) {
     IU  w  = *(IU*)MEM(pfa);
-    if (w != VAR && w != VBRAN) return 0;
+    if (w != VAR) return 0;
 /*    
     IU  i0 = pfa2didx(pfa | EXT_FLAG);
     if (!i0) return 0;
@@ -135,8 +134,7 @@ void to_s(IU w, U8 *ip, int base) {
     case LIT:  fout << ip  << " ( lit )";      break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
-    case VAR:
-    case VBRAN: {
+    case VAR: {
         int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
         IU  ix = (IU)(ip - MEM0 + (w==VAR ? 0 : sizeof(IU)));
         for (int i = 0, a=DALIGN(ix); i < n; i+=sizeof(DU)) {
@@ -149,7 +147,7 @@ void to_s(IU w, U8 *ip, int base) {
     }
     switch (w) {
     case NEXT: case LOOP:
-    case BRAN: case ZBRAN: case VBRAN:  ///> display jmp target
+    case BRAN: case ZBRAN:              ///> display jmp target
         fout << " $" << setbase(16)
              << setfill('0') << setw(4) << *(IU*)ip;
         break;
@@ -173,7 +171,6 @@ void see(IU pfa, int base) {
         case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
         case BRAN:  case ZBRAN:
         case NEXT:  case LOOP:  ip += sizeof(IU);        break;
-        case VBRAN: ip = MEM(*(IU*)ip);                  break;
         }
     }
 }
@@ -259,9 +256,7 @@ void dict_dump(int base) {
         fout << setfill('0') << setw(3) << i
              << (IS_UDF(i) ? " U" : "  ")
 			 << (IS_IMM(i) ? "I " : "  ")
-#if CC_DEBUG > 1            
              << setw(8) << ((UFP)c.xt & MSK_XT)
-#endif // CC_DEBUG > 1            
              << ":" << setw(6) << c.ip()
              << " " << c.name << ENDL;
     }
