@@ -98,82 +98,94 @@ void pstr(const char *str, io_op op) {
 ///
 ///> Debug functions
 ///
-int pfa2didx(IU ix) {                          ///> reverse lookup
-/*    
-    if (IS_PRIM(ix)) return (int)ix;           ///> primitives
-    IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
-    for (int i = dict.idx - 1; i > 0; --i) {
-        Code &c = dict[i];
-        if (pfa == (IS_UDF(i) ? c.pfa : c.xtoff())) return i;
+int pfa2didx(IU pfa) {                             ///< reverse lookup
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (pfa == dict[i].ip()) return i;
     }
-*/
-    return 0;                                  /// * not found
+    return -1;                                     /// * not found
 }
-int  pfa2nvar(IU pfa) {
-    IU  w  = *(IU*)MEM(pfa);
-    if (w != VAR) return 0;
-/*    
-    IU  i0 = pfa2didx(pfa | EXT_FLAG);
-    if (!i0) return 0;
-    IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : pmem.idx;
-    int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
-    return n;
-*/
-    return 0;
-}
-void to_s(IU w, U8 *ip, int base) {
-#if CC_DEBUG
-    fout << setbase(16) << "( ";
-    fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
-    fout << '[' << setfill(' ') << setw(4) << w << ']';   ///> word ref
-    fout << " ) " << setbase(base);
-#endif // CC_DEBUG
+int pfa2nvar(IU pfa) {                             /// * calculate # of elements
+    Param &p = *(Param*)MEM(pfa);
+    if (p.op != VAR) return 0;
+
+    IU  i0 = pfa2didx(pfa);                        ///< current word idx
+    if (i0 < 0) return 0;
     
-    ip += sizeof(IU);                   ///> calculate next ip
+    IU  p1 = (i0+1) < (IU)dict.idx ? TONAME(i0+1) : pmem.idx;
+    return (p1 - pfa - sizeof(IU));                ///> calc # of elements
+}
+int to_s(Param &p, U8 *ip, int base) {
+    auto hdr = [ip, base](int w) {
+        fout << ENDL; fout << "  ";                /// * indent
+#if CC_DEBUG
+        fout << setbase(16) << "( ";
+        fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
+        fout << '[' << setfill(' ') << setw(4) << w << ']';   ///> word ref
+        fout << " ) " << setbase(base);
+#endif // CC_DEBUG
+    };
+    auto tlr = []() {
+        fout << setfill(' ') << setw(-1);          ///> restore format
+    };
+    bool pm = p.op < MAX_OP;                       ///< is prim
+    int  w  = pm ? p.op : pfa2didx(p.ioff);        ///< fetch word index by pfa
+    if (w < 0) return -1;                          ///> loop guard
+    
+    hdr(w);                                        ///> indent and header
+    if (!pm) {
+        fout << dict[w].name; tlr();               ///> built-in 
+        return 0;                                  ///> bail 
+    }
+
+    ip += sizeof(IU);                              ///> pointer to data
     switch (w) {
-    case LIT:  fout << ip  << " ( lit )";      break;
+    case LIT:  fout << (p.ext ? *(DU*)ip : (DU)p.ioff) << " ( lit )"; break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     case VAR: {
-        int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
-        IU  ix = (IU)(ip - MEM0 + (w==VAR ? 0 : sizeof(IU)));
-        for (int i = 0, a=DALIGN(ix); i < n; i+=sizeof(DU)) {
-            fout << *(DU*)MEM(a + i) << ' ';
+        int n = p.ioff                             ///< number of elements
+            ? (MEM(p.ioff) - ip)
+            : pfa2nvar((IU)(ip - MEM0 - sizeof(IU)));
+        printf("VAR n=%d\n", n);
+        for (int i=0; i < n; i+=sizeof(DU)) {
+            fout << *(DU*)(ip + i) << ' ';
         }
-    }                                   /// no break, fall through
-    default:
-        Code &c = IS_PRIM(w) ? prim[w] : dict[w];
-        fout << c.name; break;
+    } /* no break, continue */
+    default: fout << prim[w].name;
     }
     switch (w) {
     case NEXT: case LOOP:
     case BRAN: case ZBRAN:              ///> display jmp target
         fout << " $" << setbase(16)
-             << setfill('0') << setw(4) << *(IU*)ip;
+             << setfill('0') << setw(4) << p.ioff;
         break;
-    default: /* do nothing */ break;
+    default: tlr();
     }
-    fout << setfill(' ') << setw(-1);   ///> restore output format settings
+    return w==EXIT || (w==VAR && p.ioff==0);  /// * end of word
 }
-void see(IU pfa, int base) {
-    U8 *ip = MEM(pfa);                  ///< memory pointer
+
+void see(IU w, int base) {
+    pstr(": "); pstr(dict[w].name);
+    if (!IS_UDF(w)) {
+        pstr(" ( built-ins ) ;", CR);
+        return;
+    }
+    U8 *ip = MEM(dict[w].ip());              ///< memory pointer
     while (1) {
-        IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
-        if (!w) break;                  ///> loop guard
-        
-        fout << ENDL; fout << "  ";     /// * indent
-        to_s(w, ip, base);              /// * display opcode
-        if (w==EXIT || w==VAR) return;  /// * end of word
-        
-        ip += sizeof(IU);               ///> advance ip (next opcode)
-        switch (w) {                    ///> extra bytes to skip
-        case LIT:   ip += sizeof(DU);                    break; /// alignment?
-        case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
-        case BRAN:  case ZBRAN:
-        case NEXT:  case LOOP:  ip += sizeof(IU);        break;
+        Param &p = *(Param*)ip;
+        if (to_s(p, ip, base)) break;        ///< display Parameter
+        ///
+        /// advance ip to next Param
+        ///
+        ip += sizeof(IU);
+        switch (p.op) {                      ///> extra bytes to skip
+        case LIT: if (p.ext) ip += sizeof(DU); break;
+        case STR: case DOTQ: ip += p.ioff;     break;
         }
     }
+    dot(CR);
 }
+
 void words(int base) {
     const int WIDTH = 60;
     int sz = 0;
