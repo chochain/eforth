@@ -265,7 +265,7 @@ void nest(VM& vm) {
              SS.push(TOS);                           ///> push current TOS
              if (ix.ext) {                           ///> extended literal?
                  TOS = *(DU*)MEM(IP);                /// * fetch from next IU
-                 IP += sizeof(IU);                   /// * advance IP
+                 IP += sizeof(DU);                   /// * advance IP
              }
              else TOS = ix.ioff);                    ///> get short lit
         CASE(VAR,
@@ -525,10 +525,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("dict",  dict_dump(*BASE));
     CODE("see",
          IU w = find(word()); if (!w) return;
-         pstr(": "); pstr(dict[w].name);
-         if (IS_UDF(w)) see(dict[w].pfa, *BASE);
-         else           pstr(" ( built-ins ) ;");
-         dot(CR));
+         see(w, *BASE));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
     CODE("r",     PUSH(RS.idx));
     CODE("dump",
