@@ -99,7 +99,6 @@ IU find(const char *s) {
 ///    * with an addition link field added.
 ///@{
 void colon(const char *name) {
-    printf("colon %s HERE=%x\n", name, HERE);
     char *nfa = (char*)&pmem[HERE]; ///> current pmem pointer
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
@@ -129,14 +128,14 @@ void add_w(IU w) {                  ///> add a word index into pmem
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-#define MSK_NEG 0xFF800000            /**< negative or extended literal */
-void add_var(prim_op op, DU v=DU0, bool ext=false) {  ///< add a literal/varirable
-    ext |= LT(v, DU0) || ((IU)v & MSK_NEG);           /// * forced extended literal
-    if (op==LIT && ext) {                             /// * extended literal?
-        add_p(LIT, 1, true);                          /// * set ext flag
-        add_du(v);                                    /// * store in the extra IU
+#define MSK_NEG 0xFF800000          /**< negative or extended literal */
+void add_lit(DU v=-DU1) {                       ///< add a literal/varirable
+    bool ext = USE_FLOAT || ((IU)v & MSK_NEG);  ///< forced extended literal
+    if (ext) {                                  /// * extended literal?
+        add_p(LIT, 1, true);                    /// * set ext flag
+        add_du(v);                              /// * store in the extra IU
     }
-    else add_p(op, static_cast<IU>(v));               /// * stored in ioff (24-bit)
+    else add_p(LIT, static_cast<IU>(v));        /// * stored in ioff (24-bit)
 }
 ///====================================================================
 ///
@@ -220,12 +219,15 @@ void nest(VM& vm) {
              });
         CASE(LIT,
              SS.push(TOS);                           ///> push current TOS
-             if (ix.ext) {                           ///> extended liternal?
+             if (ix.ext) {                           ///> extended literal?
                  TOS = *(DU*)MEM(IP);                /// * fetch from next IU
                  IP += sizeof(IU);                   /// * advance IP
              }
              else TOS = ix.ioff);                    ///> get short lit
-        CASE(VAR, PUSH(DALIGN(IP)); UNNEST());       ///> get var addr
+        CASE(VAR,
+             PUSH(DALIGN(IP));                       ///> get var addr
+             if (ix.ioff) IP = ix.ioff;              /// * jmp to does>
+             else UNNEST());                         /// * 0: variable
         CASE(STR,
              PUSH(IP); PUSH(ix.ioff); IP += ix.ioff);
         CASE(DOTQ,                                   /// ." ..."
@@ -233,18 +235,10 @@ void nest(VM& vm) {
              pstr(s); IP += ix.ioff);                /// * send to output console
         CASE(BRAN,  IP = ix.ioff);                   /// * unconditional branch
         CASE(ZBRAN, if (ZEQ(POP())) IP = ix.ioff);   /// * conditional branch
-        CASE(VBRAN,
-             PUSH(DALIGN(IP + sizeof(IU)));          /// * put param addr on tos
-             if ((IP = ix.ioff)==0) UNNEST());       /// * jump target of does> if given
-        CASE(DOES,
-             IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
-             *(p+1) = IP;                            /// * encode current IP, and bail
-             UNNEST());
         CASE(FOR, RS.push(POPI()));                  /// * setup FOR..NEXT call frame
         CASE(DO,                                     /// * setup DO..LOOP call frame
              RS.push(SS.pop()); RS.push(POPI())); 
         CASE(KEY, PUSH(key()); UNNEST());            /// * fetch single keypress
-        CASE(NOP, {});                               /// * do nothing
         OTHER(
             if (ix.udf) {                            /// * user defined word?
                 RS.push(IP);                         /// * setup call frame
@@ -400,7 +394,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgrouop DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_p(DO); PUSH(HERE));                     // for ( -- here )
+    IMMD("do" ,     add_p(DO); PUSH(HERE));                     // do ( -- here )
     CODE("i",       PUSH(RS[-1]));
     CODE("leave",   RS.pop(); RS.pop(); UNNEST());              // quit DO..LOOP
     IMMD("loop",    add_p(LOOP, POPI()));                       // next ( here -- )
@@ -417,10 +411,15 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("]",       vm.compile = true);
     CODE(":",       vm.compile = def_word(word()));
     IMMD(";",       add_p(EXIT); vm.compile = false);
-    CODE("variable",def_word(word()); add_var(VAR));            // create a variable
+    CODE("variable",                                            // create a variable
+         if (!def_word(word())) return;
+         add_p(VAR, 0, true); add_du(DU0));                     // default DU0
     CODE("constant",                                            // create a constant
-         def_word(word());                                      // create a new word on dictionary
-         add_var(LIT, POP(), true);                             // dovar (+parameter field)
+         if (!def_word(word())) return;
+         add_lit(POP()); add_p(EXIT));
+    CODE("value",   
+         if (!def_word(word())) return;
+         add_p(LIT, 0, true); add_du(POP());                    // forced extended, TO can update
          add_p(EXIT));
     IMMD("immediate", dict[-1].pfa |= IMM_ATTR);
     CODE("exit",    UNNEST());                                  // early exit the colon word
@@ -429,13 +428,17 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",   IU w = POP(); CALL(vm, w));                  // execute word
-    CODE("create", def_word(word()); add_var(VBRAN));           // bran + offset field
-    IMMD("does>",  add_p(DOES));
+    CODE("create",
+         if (!def_word(word())) return;
+         add_p(VAR, 0));
+    CODE("does>",                                               
+         SETJMP(LAST.ip());   /* only the 1st op, for now */    // set jmp target
+         add_p(BRAN, IP); UNNEST());                            // jmp to next IP
     IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
          IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
          if (!w) return;
          if (vm.compile) {
-             add_var(LIT, (DU)w);                               // save addr on stack
+             add_lit((DU)w);                                    // save addr on stack
              add_w(find("to"));                                 // encode to opcode
          }
          else {
@@ -446,7 +449,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = vm.state==QUERY ? find(word()) : POP();         // word addr
          if (!w) return;
          if (vm.compile) {
-             add_var(LIT, (DU)w);                               // save addr on stack
+             add_lit((DU)w);                                    // save addr on stack
              add_w(find("is"));
          }
          else {
@@ -494,6 +497,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     IMMD("'",     IU w = find(word()); if (w) PUSH(w));
     CODE(".s",    ss_dump(vm, true));
     CODE("words", words(*BASE));
+    CODE("dict",  dict_dump(*BASE));
     CODE("see",
          IU w = find(word()); if (!w) return;
          pstr(": "); pstr(dict[w].name);
@@ -505,7 +509,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("dump",
          U32 n = POPI();
          mem_dump(POPI(), n, *BASE));
-    CODE("dict",  dict_dump(*BASE));
     CODE("forget",
          IU w = find(word()); if (!w) return;                  // bail, if not found
          IU b = find("boot")+1;
@@ -589,7 +592,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     }
     // is a number
     if (vm.compile) {                    /// * a number in compile mode?
-        add_var(LIT, n);                 ///> add to current word
+        add_lit(n);                      ///> add to current word
     }
     else PUSH(n);                        ///> or, add value onto data stack
 }
