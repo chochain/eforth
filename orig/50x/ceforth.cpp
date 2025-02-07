@@ -173,6 +173,50 @@ void s_quote(VM &vm, prim_op op) {
     }
 }
 ///@}
+///@name misc eForth functions (in Standard::Core section)
+///@{
+void _to_value(VM &vm) {                                   //> update a constant/value
+    IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
+    if (!w) return;
+    if (vm.compile) {
+        add_lit((DU)w);                                    // save addr on stack
+        add_w(find("to"));                                 // encode to opcode
+    }
+    else {
+        U8 *pfa  = MEM(dict[w].ip());                      // fetch constant pointer
+        Param &p = *(Param*)(pfa);
+        if (p.op==LIT) {
+            DU v = POP();                                  // pop TOS
+            if (p.ext) *(DU*)(pfa + sizeof(IU)) = v;       // update constant value
+            else if ((IU)v & MSK_NEG) {                    // make sure it's updatable
+                pstr(" ioff out of range? ", CR);
+            }
+            else p.ioff = v;                               // update short constant value
+        }
+    }
+}
+void _is_alias(VM &vm) {                                   // create alias function
+    IU w = vm.state==QUERY ? find(word()) : POP();         // word addr
+    if (!w) return;
+    if (vm.compile) {
+        add_lit((DU)w);                                    // save addr on stack
+        add_w(find("is"));
+    }
+    else dict[POP()].xt = dict[w].xt;
+}
+void _forget(const char *name) {
+    IU w = find(name); if (!w) return;                    // bail, if not found
+    IU b = find("boot")+1;
+    if (w > b) {                                          // clear to specified word
+        pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
+        dict.clear(w);
+    }
+    else {                                                // clear to 'boot'
+        pmem.clear(USER_AREA);
+        dict.clear(b);
+    }
+}
+///@}
 ///====================================================================
 ///
 ///> Forth inner interpreter (handles a colon word)
@@ -432,29 +476,10 @@ void dict_compile() {  ///< compile built-in words into dictionary
          if (!def_word(word())) return;
          add_p(VAR, 0));
     CODE("does>",                                               
-         SETJMP(LAST.ip());   /* only the 1st op, for now */    // set jmp target
+         SETJMP(LAST.ip());    /* only the 1st op, for now */   // set jmp target
          add_p(BRAN, IP); UNNEST());                            // jmp to next IP
-    IMMD("to",                                                  // alter the value of a constant, i.e. 3 to x
-         IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
-         if (!w) return;
-         if (vm.compile) {
-             add_lit((DU)w);                                    // save addr on stack
-             add_w(find("to"));                                 // encode to opcode
-         }
-         else {
-             w = dict[w].pfa + sizeof(IU);                      // calculate address to memory
-             *(DU*)MEM(DALIGN(w)) = POP();                      // update constant
-         });
-    IMMD("is",              // ' y is x                         // alias a word, i.e. ' y is x
-         IU w = vm.state==QUERY ? find(word()) : POP();         // word addr
-         if (!w) return;
-         if (vm.compile) {
-             add_lit((DU)w);                                    // save addr on stack
-             add_w(find("is"));
-         }
-         else {
-             dict[POP()].xt = dict[w].xt;
-         });
+    IMMD("to", _to_value(vm));                                  // alter the value of a constant, i.e. 3 to x
+    IMMD("is", _is_alias(vm));                                  // alias a word, i.e. ' y is x
     ///
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
@@ -509,18 +534,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("dump",
          U32 n = POPI();
          mem_dump(POPI(), n, *BASE));
-    CODE("forget",
-         IU w = find(word()); if (!w) return;                  // bail, if not found
-         IU b = find("boot")+1;
-         if (w > b) {                                          // clear to specified word
-             pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
-             dict.clear(w);
-         }
-         else {                                                // clear to 'boot'
-             pmem.clear(USER_AREA);
-             dict.clear(b);
-         }
-    );
+    CODE("forget", _forget(word()));                           // clear to specificed word
     /// @}
     /// @defgroup OS ops
     /// @{
