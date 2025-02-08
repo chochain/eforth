@@ -1,6 +1,7 @@
 cr .( example 15. ascii character table )
 
 variable t15
+: octal 8 base ! ;
 : character ( n -- )
         dup emit hex dup 3 .r
         octal dup 4 .r
