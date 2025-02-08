@@ -240,7 +240,7 @@ void _forget(const char *name) {
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
-        Param ix = IGET(IP);                         ///< fetched opcode, hopefully in cache
+        Param ix   = IGET(IP);                       ///< fetched opcode, hopefully in cache
         VM_HDR(&vm, ":%x", ix.op);
         IP += sizeof(IU);
         DISPATCH(ix.op) {                            /// * opcode dispatcher
@@ -249,18 +249,12 @@ void nest(VM& vm) {
              if (GT(RS[-1]-=DU1, -DU1)) {            ///> loop done?
                  IP = ix.ioff;                       /// * no, loop back
              }
-             else {                                  /// * yes, loop done!
-                 RS.pop();                           /// * pop off loop counter
-                 IP += sizeof(IU);                   /// * next instr.
-             });
+             else RS.pop());                         /// * yes, loop done!
         CASE(LOOP,
              if (GT(RS[-2], RS[-1] += DU1)) {        ///> loop done?
                  IP = ix.ioff;                       /// * no, loop back
              }
-             else {                                  /// * yes, done
-                 RS.pop(); RS.pop();                 /// * pop off counters
-                 IP += sizeof(IU);                   /// * next instr.
-             });
+             else { RS.pop(); RS.pop(); });          /// * yes, done, pop off counters
         CASE(LIT,
              SS.push(TOS);                           ///> push current TOS
              if (ix.ext) {                           ///> extended literal?
