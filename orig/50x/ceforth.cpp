@@ -220,17 +220,21 @@ void _forget(const char *name) {
 ///====================================================================
 ///
 ///> Forth inner interpreter (handles a colon word)
-///  Note:
-///  * overhead here in C call/return vs NEXT threading (in assembly)
-///  * use of dp (iterative depth control) instead of WP by Dr. Ting
-///    speeds up 8% vs recursive calls but loose the flexibity of Forth
-///  * computed-goto entire dict runs 15% faster, but needs long macros (for enum) and extra memory
-///  * use of cached _NXT address speeds up 10% on AMD but
-///    5% slower on ESP32 probably due to shallow pipeline
-///  * separate primitive opcodes into nest() with 'switch' speeds up 15%.
-///  * separate nest() with computed-goto slows 2% (lost the gain above).
-///  * use local stack speeds up 10%, but allot 4*64 bytes extra
-///  * extra vm& passing performs about the same (via EAX on x86).
+///  Note: on performance
+///  1. C call/return carry stackframe overhead vs NEXT threading in assembly
+///  2. Use of IP=0 for depth control, instead of WP by Dr. Ting,
+///     speeds up 8% vs recursive calls.
+///  3. Computed-goto entire dict runs 15% faster, but
+///     needs long macros (for enum) and extra memory.
+///     3.1 Use of just one cached _NXT address for loop speeds up 10% on AMD but
+///         5% slower on ESP32. Probably due to shallow pipeline.
+///     3.2 Elect 16 primitive opcodes for nest() switch dispatch speeds up 15%.
+///         About 60% total time spent in nest() loop, now.
+///     3.3 Computed-goto 16 elected opcode slows about 2% (lost the gain of 3.2).
+///  4. Use local stack speeds up 10%, but needs allot 4*64 bytes extra
+///  5. Extra vm& passing for multitasking performs about the same. x86 uses EAX.
+///  6. Param struct simplify bit masking. Using ref is 25% slower than
+///     getting the 32-bit struct hardcopied so no deref read.
 ///
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
@@ -240,7 +244,7 @@ void _forget(const char *name) {
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
-        Param ix   = IGET(IP);                       ///< fetched opcode, hopefully in cache
+        Param ix = IGET(IP);                         ///< fetched opcode, hopefully in cache
         VM_HDR(&vm, ":%x", ix.op);
         IP += sizeof(IU);
         DISPATCH(ix.op) {                            /// * opcode dispatcher
