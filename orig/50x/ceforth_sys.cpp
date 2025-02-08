@@ -146,7 +146,6 @@ int to_s(Param &p, U8 *ip, int base) {
         int n = p.ioff                             ///< number of elements
             ? (MEM(p.ioff) - ip)
             : pfa2nvar((IU)(ip - MEM0 - sizeof(IU)));
-        printf("VAR n=%d\n", n);
         for (int i=0; i < n; i+=sizeof(DU)) {
             fout << *(DU*)(ip + i) << ' ';
         }
