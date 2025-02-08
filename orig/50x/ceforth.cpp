@@ -208,7 +208,7 @@ void _forget(const char *name) {
     IU w = find(name); if (!w) return;                    // bail, if not found
     IU b = find("boot")+1;
     if (w > b) {                                          // clear to specified word
-        pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
+        pmem.clear(dict[w].ip() - STRLEN(dict[w].name));
         dict.clear(w);
     }
     else {                                                // clear to 'boot'
@@ -500,9 +500,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("task",                                                // w -- task_id
          IU w = POPI();                                         ///< dictionary index
-         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));         /// create a task starting on pfa
+         if (IS_UDF(w)) PUSH(task_create(dict[w].ip()));        /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
-    CODE("rank",  PUSH(vm.id));                                 /// ( -- n ) thread id
+    CODE("rank",  PUSH(vm.id));                                 /// ( -- task_id ) used insided a task
     CODE("start", task_start(POPI()));                          /// ( task_id -- )
     CODE("join",  vm.join(POPI()));                             /// ( task_id -- )
     CODE("lock",  vm.io_lock());                                /// wait for IO semaphore
@@ -510,7 +510,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("send",  IU t = POPI(); vm.send(t, POPI()));           /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
     CODE("recv",  vm.recv());                                   /// ( -- v1 v2 .. vn ) waiting for values passed by sender
     CODE("bcast", vm.bcast(POPI()));                            /// ( v1 v2 .. vn -- )
-    CODE("pull",  IU t = POPI(); vm.pull(t, POPI()));           /// ( tid n -- v1 v2 .. vn )
+    CODE("pull",  IU t = POPI(); vm.pull(t, POPI()));           /// ( n task_id -- v1 v2 .. vn )
     /// @}
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
