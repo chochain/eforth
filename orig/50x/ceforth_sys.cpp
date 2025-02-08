@@ -98,23 +98,23 @@ void pstr(const char *str, io_op op) {
 ///
 ///> Debug functions
 ///
-int pfa2didx(IU pfa) {                             ///< reverse lookup
+int p2didx(Param p) {                  ///< reverse lookup
     for (int i = dict.idx - 1; i >= 0; --i) {
-        if (pfa == dict[i].ip()) return i;
+        bool ud = IS_UDF(i);
+        if (ud==p.udf && p.ioff==dict[i].ip()) return i;
     }
     return -1;                                     /// * not found
 }
-int pfa2nvar(IU pfa) {                             /// * calculate # of elements
-    Param &p = *(Param*)MEM(pfa);
+int p2nvar(Param p) {                              /// * calculate # of elements
     if (p.op != VAR) return 0;
 
-    IU  i0 = pfa2didx(pfa);                        ///< current word idx
+    IU  i0 = p2didx(p);                            ///< current word idx
     if (i0 < 0) return 0;
     
     IU  p1 = (i0+1) < (IU)dict.idx ? TONAME(i0+1) : pmem.idx;
-    return (p1 - pfa - sizeof(IU));                ///> calc # of elements
+    return (p1 - p.ioff - sizeof(IU));             ///> calc # of elements
 }
-int to_s(Param &p, U8 *ip, int base) {
+int to_s(Param p, U8 *ip, int base) {
     auto hdr = [ip, base](int w) {
         fout << ENDL; fout << "  ";                /// * indent
 #if CC_DEBUG
@@ -128,7 +128,7 @@ int to_s(Param &p, U8 *ip, int base) {
         fout << setfill(' ') << setw(-1);          ///> restore format
     };
     bool pm = p.op < MAX_OP;                       ///< is prim
-    int  w  = pm ? p.op : pfa2didx(p.ioff);        ///< fetch word index by pfa
+    int  w  = pm ? p.op : p2didx(p);               ///< fetch word index by pfa
     if (w < 0) return -1;                          ///> loop guard
     
     hdr(w);                                        ///> indent and header
@@ -145,7 +145,7 @@ int to_s(Param &p, U8 *ip, int base) {
     case VAR: {
         int n = p.ioff                             ///< number of elements
             ? (MEM(p.ioff) - ip)
-            : pfa2nvar((IU)(ip - MEM0 - sizeof(IU)));
+            : p2nvar(*(Param*)(ip - sizeof(IU)));
         for (int i=0; i < n; i+=sizeof(DU)) {
             fout << *(DU*)(ip + i) << ' ';
         }
@@ -171,7 +171,7 @@ void see(IU w, int base) {
     }
     U8 *ip = MEM(dict[w].ip());              ///< memory pointer
     while (1) {
-        Param &p = *(Param*)ip;
+        Param p = *(Param*)ip;
         if (to_s(p, ip, base)) break;        ///< display Parameter
         ///
         /// advance ip to next Param
