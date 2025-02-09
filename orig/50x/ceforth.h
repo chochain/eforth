@@ -222,14 +222,13 @@ struct Param {
             U32 exit : 1;          ///< word exit flag
         };
     };
-    Param(IU p, prim_op o, bool u, bool e=false, bool x=false) : pack(p) {
-        op = o; udf=u; ext=e; exit=x;
+    Param(prim_op o, IU ip, bool u, bool e=false, bool x=false) : pack(ip) {
+        op=o; udf=u; ext=e; exit=x;
 #if CC_DEBUG > 1
-        LOG_KX("Param p=", p); LOG_KX(", op=", op);
+        LOG_KX("Param p=", ip); LOG_KX(", op=", op);
         LOG_KX(" => ioff=", ioff);  LOGS("\n");
 #endif // CC_DEBUG > 1
     }
-    void set_exit(bool f=true) INLINE { exit = f; }
 };
 ///@}
 ///@name Multitasking support
