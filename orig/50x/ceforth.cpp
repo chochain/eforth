@@ -115,12 +115,12 @@ int  add_str(const char *s) {       ///> add a string to pmem
     pmem.push((U8*)s,  sz);         /// * add string terminated with zero
     return sz;
 }
-void add_p(prim_op op, IU ip=0, bool ext=false) {   ///> add primitive word
-    Param p(ip, op, false, ext);
+void add_p(prim_op op, IU ip=0, bool ext=false, bool exit=false) {   ///> add primitive word
+    Param p(op, ip, false, ext, exit);
     add_iu(p.pack);
 };
 void add_w(IU w) {                  ///> add a word index into pmem
-    Param p(dict[w].ip(), MAX_OP, IS_UDF(w));
+    Param p(MAX_OP, dict[w].ip(), IS_UDF(w));
     add_iu(p.pack);
 #if CC_DEBUG > 1
     Code &c = dict[w];
@@ -129,13 +129,13 @@ void add_w(IU w) {                  ///> add a word index into pmem
 #endif // CC_DEBUG > 1
 }
 #define MSK_NEG 0xFF800000          /**< negative or extended literal */
-void add_lit(DU v=-DU1) {                       ///< add a literal/varirable
+void add_lit(DU v, bool exit=false) {           ///< add a literal/varirable
     bool ext = USE_FLOAT || ((IU)v & MSK_NEG);  ///< forced extended literal
     if (ext) {                                  /// * extended literal?
-        add_p(LIT, 1, true);                    /// * set ext flag
-        add_du(v);                              /// * store in the extra IU
+        add_p(LIT, 1, true, exit);                    /// * set ext flag
+        add_du(v);                                    /// * store in extended IU
     }
-    else add_p(LIT, static_cast<IU>(v));        /// * stored in ioff (24-bit)
+    else add_p(LIT, static_cast<IU>(v), false, exit); /// * stored in ioff (24-bit)
 }
 ///====================================================================
 ///
@@ -183,8 +183,8 @@ void _to_value(VM &vm) {                                   //> update a constant
         add_w(find("to"));                                 // encode to opcode
     }
     else {
-        U8 *pfa  = MEM(dict[w].ip());                      // fetch constant pointer
-        Param &p = *(Param*)(pfa);
+        U8 *pfa = MEM(dict[w].ip());                       // fetch constant pointer
+        Param p = *(Param*)(pfa);
         if (p.op==LIT) {
             DU v = POP();                                  // pop TOS
             if (p.ext) *(DU*)(pfa + sizeof(IU)) = v;       // update constant value
@@ -265,7 +265,8 @@ void nest(VM& vm) {
                  TOS = *(DU*)MEM(IP);                /// * fetch from next IU
                  IP += sizeof(DU);                   /// * advance IP
              }
-             else TOS = ix.ioff);                    ///> get short lit
+             else TOS = ix.ioff;                     ///> get short lit (inline, one less read)
+             if (ix.exit) UNNEST());                 ///> constant/value
         CASE(VAR,
              PUSH(DALIGN(IP));                       ///> get var addr
              if (ix.ioff) IP = ix.ioff;              /// * jmp to does>
@@ -458,11 +459,10 @@ void dict_compile() {  ///< compile built-in words into dictionary
          add_p(VAR, 0, true); add_du(DU0));                     // default DU0
     CODE("constant",                                            // create a constant
          if (!def_word(word())) return;
-         add_lit(POP()); add_p(EXIT));
+         add_lit(POP(), true));
     CODE("value",   
          if (!def_word(word())) return;
-         add_p(LIT, 0, true); add_du(POP());                    // forced extended, TO can update
-         add_p(EXIT));
+         add_p(LIT, 0, true, true); add_du(POP()));             // forced extended, TO can update
     IMMD("immediate", dict[-1].pfa |= IMM_ATTR);
     CODE("exit",    UNNEST());                                  // early exit the colon word
     /// @}
@@ -473,8 +473,12 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("create",
          if (!def_word(word())) return;
          add_p(VAR, 0));
-    CODE("does>",                                               
-         SETJMP(LAST.ip());    /* only the 1st op, for now */   // set jmp target
+    CODE("does>",
+         IU pfa = LAST.ip();
+         while (((Param*)MEM(pfa))->op != VAR && (pfa < (IU)HERE)) {  // find that VAR
+             pfa += sizeof(IU);
+         }
+         SETJMP(pfa);                                           // set jmp target
          add_p(BRAN, IP); UNNEST());                            // jmp to next IP
     IMMD("to", _to_value(vm));                                  // alter the value of a constant, i.e. 3 to x
     IMMD("is", _is_alias(vm));                                  // alias a word, i.e. ' y is x
