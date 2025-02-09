@@ -36,7 +36,7 @@ extern U8         *MEM0;                   ///< base of parameter memory block
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define IS_PRIM(w) (!IS_UDF(w) && (w < MAX_OP))
-#define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
+#define NFA(w)     (dict[w].ip() - STRLEN(dict[w].name))
 
 ///====================================================================
 ///
@@ -98,28 +98,19 @@ void pstr(const char *str, io_op op) {
 ///
 ///> Debug functions
 ///
-int p2didx(Param p) {                  ///< reverse lookup
+int p2didx(Param *p) {                              ///< reverse lookup
     for (int i = dict.idx - 1; i >= 0; --i) {
         bool ud = IS_UDF(i);
-        if (ud==p.udf && p.ioff==dict[i].ip()) return i;
+        if (ud==p->udf && p->ioff==dict[i].ip()) return i;
     }
-    return -1;                                     /// * not found
+    return -1;                                      /// * not found
 }
-int p2nvar(Param p) {                              /// * calculate # of elements
-    if (p.op != VAR) return 0;
-
-    IU  i0 = p2didx(p);                            ///< current word idx
-    if (i0 < 0) return 0;
-    
-    IU  p1 = (i0+1) < (IU)dict.idx ? TONAME(i0+1) : pmem.idx;
-    return (p1 - p.ioff - sizeof(IU));             ///> calc # of elements
-}
-int to_s(Param p, U8 *ip, int base) {
-    auto hdr = [ip, base](int w) {
+int to_s(Param *p, int nv, int base) {
+    auto hdr = [p, base](int w) {
         fout << ENDL; fout << "  ";                /// * indent
 #if CC_DEBUG
         fout << setbase(16) << "( ";
-        fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
+        fout << setfill('0') << setw(4) << ((U8*)p - MEM0);   ///> addr
         fout << '[' << setfill(' ') << setw(4) << w << ']';   ///> word ref
         fout << " ) " << setbase(base);
 #endif // CC_DEBUG
@@ -127,40 +118,38 @@ int to_s(Param p, U8 *ip, int base) {
     auto tlr = []() {
         fout << setfill(' ') << setw(-1);          ///> restore format
     };
-    bool pm = p.op < MAX_OP;                       ///< is prim
-    int  w  = pm ? p.op : p2didx(p);               ///< fetch word index by pfa
+    bool pm = p->op != MAX_OP;                     ///< is prim
+    int  w  = pm ? p->op : p2didx(p);              ///< fetch word index by pfa
     if (w < 0) return -1;                          ///> loop guard
     
     hdr(w);                                        ///> indent and header
-    if (!pm) {
-        fout << dict[w].name; tlr();               ///> built-in 
-        return 0;                                  ///> bail 
-    }
+    if (!pm) { fout << dict[w].name; return 0; }   ///> built-in 
 
-    ip += sizeof(IU);                              ///> pointer to data
+    U8 *ip = (U8*)(p+1);                           ///> pointer to data
     switch (w) {
-    case LIT:  fout << (p.ext ? *(DU*)ip : (DU)p.ioff) << " ( lit )"; break;
+    case LIT:  fout << (p->ext ? *(DU*)ip : (DU)p->ioff)
+                    << (p->exit ? " ( value )" : "( lit )"); break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
-    case VAR: {
-        int n = p.ioff                             ///< number of elements
-            ? (MEM(p.ioff) - ip)
-            : p2nvar(*(Param*)(ip - sizeof(IU)));
-        for (int i=0; i < n; i+=sizeof(DU)) {
+    case VAR:
+        for (int i=0; i < nv; i+=sizeof(DU)) {
             fout << *(DU*)(ip + i) << ' ';
         }
-    } /* no break, continue */
+        /* no break */
     default: fout << prim[w].name;
     }
     switch (w) {
     case NEXT: case LOOP:
-    case BRAN: case ZBRAN:              ///> display jmp target
+    case BRAN: case ZBRAN:                   ///> display jmp target
         fout << " $" << setbase(16)
-             << setfill('0') << setw(4) << p.ioff;
+             << setfill('0') << setw(4) << p->ioff;
         break;
     default: tlr();
     }
-    return w==EXIT || (w==VAR && p.ioff==0);  /// * end of word
+    return
+        w==EXIT ||              /// * end of word
+        (w==LIT && p->exit) ||  /// * constant
+        (w==VAR && !p->ioff);   /// * variable
 }
 
 void see(IU w, int base) {
@@ -169,17 +158,25 @@ void see(IU w, int base) {
         pstr(" ( built-ins ) ;", CR);
         return;
     }
-    U8 *ip = MEM(dict[w].ip());              ///< memory pointer
+    auto nvar = [](IU i0, IU ioff, U8 *ip) { /// * calculate # of elements
+        if (ioff) return MEM(ioff) - ip - sizeof(IU);  /// create...does>
+        IU pfa0 = dict[i0].ip();
+        IU nfa1 = (i0+1) < (IU)dict.idx ? NFA(i0+1) : pmem.idx;
+        return (nfa1 - pfa0 - sizeof(IU));             ///> variable, create ,
+    };
+    U8 *ip = MEM(dict[w].ip());                        ///< PFA pointer
     while (1) {
-        Param p = *(Param*)ip;
-        if (to_s(p, ip, base)) break;        ///< display Parameter
+        Param *p = (Param*)ip;
+        int   nv = p->op==VAR ? nvar(w, p->ioff, ip) : 0;  ///< VAR number of elements
+        if (to_s(p, nv, base)) break;                      ///< display Parameter
         ///
         /// advance ip to next Param
         ///
         ip += sizeof(IU);
-        switch (p.op) {                      ///> extra bytes to skip
-        case LIT: if (p.ext) ip += sizeof(DU); break;
-        case STR: case DOTQ: ip += p.ioff;     break;
+        switch (p->op) {                     ///> extra bytes to skip
+        case LIT: if (p->ext) ip += sizeof(DU); break;
+        case VAR: ip = MEM(p->ioff);            break;  ///> create/does
+        case STR: case DOTQ: ip += p->ioff;     break;
         }
     }
     dot(CR);
