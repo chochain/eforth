@@ -3,9 +3,10 @@ EM_FLAG = -std=c++17 -O2 \
           -pthread -s USE_PTHREADS=1 \
           -s PTHREAD_POOL_SIZE='navigator.hardwareConcurrency'
 
-CC = g++
+#CC = g++ -pg       # for gprof
+CC = g++ -fomit-frame-pointer 
 CC_FLAG = -std=c++17 -g -O3 -Wall -pthread \
-          -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
+          -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
 HLST50 = orig/50x/ceforth.h
