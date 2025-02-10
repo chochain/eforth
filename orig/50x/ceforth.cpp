@@ -366,6 +366,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
 #if USE_FLOAT
     CODE("int",
          TOS = TOS < DU0 ? -DU1 * UINT(-TOS) : UINT(TOS)); // float => integer
+#else
+    CODE("int"      /* do nothing */);
 #endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
