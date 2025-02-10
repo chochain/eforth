@@ -472,7 +472,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("exec",   IU w = POP(); CALL(vm, w));                  // execute word
     CODE("create",
          if (!def_word(word())) return;
-         add_p(VAR, 0));
+         add_p(VAR, 0, true));
     CODE("does>",
          IU pfa = LAST.ip();
          while (((Param*)MEM(pfa))->op != VAR && (pfa < (IU)HERE)) {  // find that VAR
