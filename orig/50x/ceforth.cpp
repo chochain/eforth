@@ -72,7 +72,6 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define BASE      (MEM(vm.base))           /**< pointer to base in VM user area         */
-#define IGET(ip)  (*(Param*)MEM(ip))       /**< instruction fetch from pmem+ip offset   */
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) ((*(Param*)&pmem[a]).ioff = HERE)  /**< address offset for branching  */
 ///@}
@@ -128,11 +127,11 @@ void add_w(IU w) {                  ///> add a word index into pmem
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-#define MSK_NEG 0xFF800000          /**< negative or extended literal */
+#define MSK_NEG 0xFF000000          /**< negative or extended literal */
 void add_lit(DU v, bool exit=false) {           ///< add a literal/varirable
     bool ext = USE_FLOAT || ((IU)v & MSK_NEG);  ///< forced extended literal
     if (ext) {                                  /// * extended literal?
-        add_p(LIT, 1, true, exit);                    /// * set ext flag
+        add_p(LIT, 0, true, exit);                    /// * set ext flag
         add_du(v);                                    /// * store in extended IU
     }
     else add_p(LIT, static_cast<IU>(v), false, exit); /// * stored in ioff (24-bit)
@@ -176,19 +175,19 @@ void s_quote(VM &vm, prim_op op) {
 ///@name misc eForth functions (in Standard::Core section)
 ///@{
 void _to_value(VM &vm) {                                   //> update a constant/value
-    IU w = vm.state==QUERY ? find(word()) : POP();         // constant addr
+    IU w = vm.state==QUERY ? find(word()) : POPI();        // constant addr
     if (!w) return;
     if (vm.compile) {
         add_lit((DU)w);                                    // save addr on stack
         add_w(find("to"));                                 // encode to opcode
     }
     else {
-        U8 *pfa = MEM(dict[w].ip());                       // fetch constant pointer
-        Param p = *(Param*)(pfa);
+        U8    *pfa = MEM(dict[w].ip());                       // fetch constant pointer
+        Param &p   = *(Param*)(pfa);
         if (p.op==LIT) {
             DU v = POP();                                  // pop TOS
             if (p.ext) *(DU*)(pfa + sizeof(IU)) = v;       // update constant value
-            else if ((IU)v & MSK_NEG) {                    // make sure it's updatable
+            else if (USE_FLOAT || ((IU)v & MSK_NEG)) {     // make sure enough space
                 pstr(" ioff out of range? ", CR);
             }
             else p.ioff = v;                               // update short constant value
@@ -196,13 +195,13 @@ void _to_value(VM &vm) {                                   //> update a constant
     }
 }
 void _is_alias(VM &vm) {                                   // create alias function
-    IU w = vm.state==QUERY ? find(word()) : POP();         // word addr
+    IU w = vm.state==QUERY ? find(word()) : POPI();        // word addr
     if (!w) return;
     if (vm.compile) {
         add_lit((DU)w);                                    // save addr on stack
         add_w(find("is"));
     }
-    else dict[POP()].xt = dict[w].xt;
+    else dict[POPI()].xt = dict[w].xt;
 }
 void _forget(const char *name) {
     IU w = find(name); if (!w) return;                    // bail, if not found
@@ -244,7 +243,7 @@ void _forget(const char *name) {
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
-        Param ix = IGET(IP);                         ///< fetched opcode, hopefully in cache
+        Param ix = *(Param*)MEM(IP);                 ///< fetched opcode, hopefully in cache
         VM_HDR(&vm, ":%x", ix.op);
         IP += sizeof(IU);
         DISPATCH(ix.op) {                            /// * opcode dispatcher
@@ -488,9 +487,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
     ///
-    CODE("@",                                                   // w -- n
-         IU w = POPI();
-         PUSH(w < USER_AREA ? (DU)IGET(w).ioff : CELL(w)));     // check user area
+    CODE("@",     PUSH(CELL(POPI())));                          // w -- n
     CODE("!",     IU w = POPI(); CELL(w) = POP(););             // n w --
     CODE("+!",    IU w = POPI(); CELL(w) += POP());             // n w --
     CODE("?",     IU w = POPI(); dot(DOT, CELL(w)));            // w --
@@ -523,13 +520,11 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());          // clear ss, rs
     CODE("here",  PUSH(HERE));
-    IMMD("'",     IU w = find(word()); if (w) PUSH(w));
+    IMMD("'",     IU w = find(word()); PUSH(w));
     CODE(".s",    ss_dump(vm, true));
     CODE("words", words(*BASE));
     CODE("dict",  dict_dump(*BASE));
-    CODE("see",
-         IU w = find(word()); if (!w) return;
-         see(w, *BASE));
+    CODE("see",   IU w = find(word()); see(w, *BASE));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
     CODE("r",     PUSH(RS.idx));
     CODE("dump",
