@@ -232,8 +232,11 @@ void _forget(const char *name) {
 ///     3.3 Computed-goto 16 elected opcode slows about 2% (lost the gain of 3.2).
 ///  4. Use local stack speeds up 10%, but needs allot 4*64 bytes extra
 ///  5. Extra vm& passing for multitasking performs about the same. x86 uses EAX.
-///  6. Param struct simplify bit masking. Using ref is 25% slower than
-///     getting the 32-bit struct hardcopied so no deref read.
+///  6. 32-bit Param struct simplify bit masking.
+///     6.1. However, nesting 32-bit is 25% slower than the 16-bit version.
+///          Hotspot on Param* fetch. (Ir/Dr 6/3=>24/9 with valgrind).
+///          Other being about the same.
+///     6.2  Using pointer is 25% slower than struct ref or 32-bit hardcopied.
 ///
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
