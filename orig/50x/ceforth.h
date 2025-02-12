@@ -92,6 +92,7 @@ struct ALIGNAS VM {
     ///
     /// task life cycle methods
     ///
+    void set_state(vm_state st);   ///< set VM state (synchronized)
     void reset(IU ip, vm_state st);///< reset a VM user variables
     void join(int tid);            ///< wait for the given task to end
     void stop();                   ///< stop VM
@@ -107,6 +108,9 @@ struct ALIGNAS VM {
     ///
     void io_lock();                ///< lock IO
     void io_unlock();              ///< unlock IO
+#else  // DO_MULTITASK
+    
+    void set_state(vm_state st) { state = st; }
 #endif // DO_MULTITASK
 };
 ///
