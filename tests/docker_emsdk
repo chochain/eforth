@@ -7,5 +7,6 @@ docker run -it --rm --user $(id -u):$(id -g) \
        -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
        -v /tmp/.X11-unix:/tmp/.X11-unix \
        -v /u01:/u01 \
+       -v /u01/src/emsdk/upstream/emscripten/cache:/emsdk/upstream/emscripten/cache \
        -v $HOME:$HOME -w $(pwd) \
        emscripten/emsdk:latest $@
