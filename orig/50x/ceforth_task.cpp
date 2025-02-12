@@ -167,6 +167,14 @@ void task_start(int tid) {
 ///
 ///> VM methods
 ///
+void VM::set_state(vm_state st) {
+    LOCK(&tsk);
+    {
+        state = st;
+    }
+    NOTIFY(&cv_tsk);
+    UNLOCK(&tsk);
+}
 void VM::join(int tid) {
     VM &vm = vm_get(tid);
     VM_LOG(this, ">> joining VM%d", vm.id);

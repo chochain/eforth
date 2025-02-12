@@ -245,7 +245,7 @@ void _forget(const char *name) {
 #define UNNEST()     (IP=UINT(RS.pop()))
 
 void nest(VM& vm) {
-    vm.state = NEST;                                 /// * activate VM
+    vm.set_state(NEST);                              /// * activate VM
     while (IP) {
         Param &ix = *(Param*)MEM(IP);                ///< fetched opcode, hopefully in cache
         VM_HDR(&vm, ":%x", ix.op);
@@ -586,7 +586,7 @@ DU2 parse_number(const char *idiom, int base, int *err) {
 }
 
 void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
-    vm.state = QUERY;
+    vm.set_state(QUERY);
     IU w = find(idiom);                  ///> * get token by searching through dict
     if (w) {                             ///> * word found?
         if (vm.compile && !IS_IMM(w)) {  /// * in compile mode?
@@ -602,7 +602,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
         pstr(strerror(err), CR);         ///> and error description
         vm.compile = false;              ///> reset to interpreter mode
-        vm.state   = STOP;               ///> skip the entire input buffer
+        vm.set_state(STOP);              ///> skip the entire input buffer
     }
     // is a number
     if (vm.compile) {                    /// * a number in compile mode?
