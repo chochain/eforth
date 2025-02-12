@@ -5,7 +5,7 @@ EM_FLAG = -std=c++17 -O2 \
 
 #CC = g++ -pg       # for gprof
 CC = g++ -fomit-frame-pointer 
-CC_FLAG = -std=c++17 -g -O3 -Wall -pthread \
+CC_FLAG = -std=c++17 -g -O2 -Wall -pthread \
           -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
