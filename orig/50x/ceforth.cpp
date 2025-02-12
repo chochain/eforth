@@ -236,7 +236,8 @@ void _forget(const char *name) {
 ///     6.1. However, nesting 32-bit is 25% slower than the 16-bit version.
 ///          Hotspot on Param* fetch. (Ir/Dr 6/3=>24/9 with valgrind).
 ///          Other being about the same.
-///     6.2  Using pointer is 25% slower than struct ref or 32-bit hardcopied.
+///     6.2  benchmark 32-bit nest() on Param ix <= MEM(IP)
+///          * hardcopied ix 986ms, struct ref ix 926ms, struct pointer *ix is 929ms
 ///
 #define DISPATCH(op) switch(op)
 #define CASE(op, g)  case op : { g; } break
@@ -246,7 +247,7 @@ void _forget(const char *name) {
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
-        Param ix = *(Param*)MEM(IP);                 ///< fetched opcode, hopefully in cache
+        Param &ix = *(Param*)MEM(IP);                ///< fetched opcode, hopefully in cache
         VM_HDR(&vm, ":%x", ix.op);
         IP += sizeof(IU);
         DISPATCH(ix.op) {                            /// * opcode dispatcher
