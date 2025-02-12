@@ -67,9 +67,9 @@ void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter
     RS.push(vm.ip);                      /// * save context
     RS.push(vm.state);
-    vm.state = NEST;                     /// * +recursive
+    vm.set_state(NEST);                  /// * +recursive
     forth_include(fn);                   /// * include file
-    vm.state = static_cast<vm_state>(RS.pop());
+    vm.set_state(static_cast<vm_state>(RS.pop()));
     vm.ip   = UINT(RS.pop());            /// * context restored
     --load_dp;                           /// * decrement depth counter
 }
