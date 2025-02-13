@@ -204,16 +204,6 @@ typedef enum {
 ///@}
 ///@name Parameter Structure
 ///@{
-constexpr IU P_IOFF = 0x00ffffff;
-constexpr IU P_OP   = 0x0f000000;
-constexpr IU P_UDF  = 0x10000000;
-constexpr IU P_EXT  = 0x20000000;
-constexpr IU P_EXIT = 0x80000000;
-#define IOFF(p)  (p & P_IOFF)
-#define OP(p)    (p & P_OP)
-#define UDF(p)   (p & P_UDF)
-#define EXT(p)   (p & p_EXT)
-
 struct Param {
     union {
         IU pack;                   ///< collective
