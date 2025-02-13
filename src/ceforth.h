@@ -191,8 +191,8 @@ void t_pool_stop();
 int  task_create(IU w);                   ///< create a VM starting on dict[w]
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else  // !DO_MULTITASK
-#define t_pool_init()
-#define t_pool_stop()
+#define t_pool_init() {}
+#define t_pool_stop() {}
 #endif // !DO_MULTITASK
 ///
 ///> System interface
@@ -204,7 +204,7 @@ void outer(istream &in);                  ///< Forth outer loop
 #if DO_WASM
 #define forth_quit()
 #else // !DO_WASM
-#define forth_quit() (t_pool_stop(), exit(0))  ///< exit to OS
+#define forth_quit() { t_pool_stop(); exit(0); }  ///< exit to OS
 #endif // DO_WASM
 ///
 ///> IO functions
