@@ -14,8 +14,9 @@
 #define RANGE_CHECK     0               /**< vector range check     */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
-#define DO_MULTITASK    1               /**< multitasking/pthread   */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
+#define DO_MULTITASK    1               /**< multitasking/pthread   */
+#define E4_VM_POOL_SZ   8               /**< one plus # cors       */
 ///@}
 ///@name Memory block configuation
 ///@{
@@ -23,7 +24,6 @@
 #define E4_SS_SZ        32
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
-#define E4_VM_POOL_SZ   8               /**< one plus # cors       */
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
