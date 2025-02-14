@@ -230,8 +230,8 @@ void ss_dump(VM &vm, bool forced) {
         return &buf[i];
     };
     SS.push(TOS);
-    for (int i=0; i<SS.idx; i++) {
-        fout << rdx(SS[i], *MEM(vm.base)) << ' ';
+    for (int i=0, b=(int)*MEM(vm.base); i<SS.idx; i++) {
+        fout << rdx(SS[i], b) << ' ';
     }
     TOS = SS.pop();
     fout << "-> ok" << ENDL;
