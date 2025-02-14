@@ -44,8 +44,11 @@ void load(VM &vm, const char *fn) {    ///> include script from stream
     void (*cb)(int, const char*) = fout_cb;  ///< keep output function
     string in; getline(fin, in);             ///< keep input buffers
     fout << ENDL;                      /// * flush output
-    
+
+    vm.rs.push(vm.state);              /// * save context
+    vm.set_state(NEST);
     forth_include(fn);                 /// * send script to VM
+    vm.set_state(static_cast<vm_state>(vm.rs.pop()));
     
     fout_cb = cb;                      /// * restore output cb
     fin.clear(); fin.str(in);          /// * restore input
