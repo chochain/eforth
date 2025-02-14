@@ -210,14 +210,7 @@ void VM::reset(IU cfa, vm_state st) {
     compile    = false;
     *(MEM0 + base) = 10;             /// * default radix = 10
 }
-void VM::stop() {
-    LOCK(&tsk);                      /// * lock tasker
-    {
-        state = STOP;
-    }
-    NOTIFY(&cv_tsk);                 /// * release join lock if any
-    UNLOCK(&tsk);
-}
+void VM::stop() { set_state(STOP); } ///< and release lock
 ///
 ///> send to destination VM's stack (blocking)
 ///
