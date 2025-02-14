@@ -22,9 +22,9 @@ int    load_dp    = 0;
 ///@name Primitive words to help printing
 ///@{
 Code prim[] = {
-    Code(";",    EXIT),  Code("next", NEXT),  Code("loop", LOOP),  Code("lit", LIT),
-    Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),  Code("bran",BRAN),
-    Code("0bran",ZBRAN), Code("for",  FOR),   Code("do",   DO),    Code("key", KEY)
+    Code(";",    EXIT),  Code("next ", NEXT), Code("loop ", LOOP), Code("lit",  LIT),
+    Code("var",  VAR),   Code("str",   STR),  Code("dotq",  DOTQ), Code("bran ",BRAN),
+    Code("0bran",ZBRAN), Code("for  ", FOR),  Code("do   ", DO),   Code("key",  KEY)
 };
 ///@}
 extern List<Code> dict;                    ///< dictionary
@@ -128,7 +128,7 @@ int to_s(Param *p, int nv, int base) {
     U8 *ip = (U8*)(p+1);                           ///> pointer to data
     switch (w) {
     case LIT:  fout << (p->ext ? *(DU*)ip : (DU)p->ioff)
-                    << (p->exit ? " ( value )" : "( lit )"); break;
+                    << (p->exit ? " ( value )" : " ( lit )"); break;
     case STR:  fout << "s\" " << (char*)ip << '"';  break;
     case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
     case VAR:
