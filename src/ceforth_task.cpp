@@ -14,9 +14,9 @@ void uvar_init() {
     dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
 
     _vm0.id    = 0;                           /// * VM id
+    _vm0.state = HOLD;                        /// * VM ready to run
     _vm0.base  = (U8*)&dict[0]->pf[0]->q[0];  /// * set base pointer
     *_vm0.base = 10;
-    _vm0.state = HOLD;
 }
 
 #else // DO_MULTITASK
@@ -164,6 +164,14 @@ void task_start(int tid) {
 ///
 ///> VM methods
 ///
+void VM::set_state(vm_state st) {
+    LOCK(&tsk);
+    {
+        state = st;
+    }
+    NOTIFY(&cv_tsk);
+    UNLOCK(&tsk);
+}
 void VM::join(int tid) {
     VM &vm = vm_get(tid);
     VM_LOG(this, ">> joining VM%d", vm.id);
@@ -200,14 +208,7 @@ void VM::reset(IU w, vm_state st) {
     state      = st;
     compile    = false;
 }
-void VM::stop() {
-    LOCK(&tsk);                     /// * lock tasker
-    {
-        state = STOP;
-    }
-    NOTIFY(&cv_tsk);                /// * release join lock if any
-    UNLOCK(&tsk);
-}
+void VM::stop() { set_state(STOP); }/// * and release lock
 ///
 ///> send to destination VM's stack (blocking)
 ///

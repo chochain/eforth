@@ -64,7 +64,6 @@ struct ALIGNAS VM {
     bool     compile = false;      ///< compiler flag
 
     string   pad;
-    
 #if DO_MULTITASK
     static int      NCORE;         ///< number of hardware cores
     
@@ -77,27 +76,31 @@ struct ALIGNAS VM {
     ///
     /// task life cycle methods
     ///
-    void reset(IU w, vm_state st);    ///< reset a VM user variables
-    void join(int tid);               ///< wait for the given task to end
-    void stop();                      ///< stop VM
+    void set_state(vm_state st);   ///< set VM state (synchronized)
+    void reset(IU w, vm_state st); ///< reset a VM user variables
+    void join(int tid);            ///< wait for the given task to end
+    void stop();                   ///< stop VM
     ///
     /// messaging interface
     ///
-    void send(int tid, int n);        ///< send onto destination VM's stack (blocking, wait for receiver availabe)
-    void recv();                      ///< receive data from any sending VM's stack (blocking, wait for sender's message)
-    void bcast(int n);                ///< broadcast to all receivers
-    void pull(int tid, int n);        ///< pull n items from the stack of a stopped task
+    void send(int tid, int n);     ///< send onto destination VM's stack (blocking, wait for receiver availabe)
+    void recv();                   ///< receive data from any sending VM's stack (blocking, wait for sender's message)
+    void bcast(int n);             ///< broadcast to all receivers
+    void pull(int tid, int n);     ///< pull n items from the stack of a stopped task
     ///
     /// IO interface
     ///
-    void io_lock();                   ///< lock IO
-    void io_unlock();                 ///< unlock IO
+    void io_lock();                ///< lock IO
+    void io_unlock();              ///< unlock IO
+#else  // DO_MULTITASK
+    
+    void set_state(vm_state st) INLINE { state = st; }
 #endif // DO_MULTITASK
 };
 ///
 ///> data structure for dictionary entry
 ///
-typedef void (*XT)(VM &vm, Code&);    ///< function pointer
+typedef void (*XT)(VM &vm, Code&); ///< function pointer
 
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
@@ -202,9 +205,9 @@ int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 #if DO_WASM
-#define forth_quit()
+#define forth_quit() {}
 #else // !DO_WASM
-#define forth_quit() { t_pool_stop(); exit(0); }  ///< exit to OS
+#define forth_quit() { t_pool_stop(); exit(0); } ///< exit to OS
 #endif // DO_WASM
 ///
 ///> IO functions
