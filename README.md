@@ -138,6 +138,7 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
 For multi-threading to work, browser needs to receive Cross-Origin policies [here for detail](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy) in the response header. A Python script *~/tests/cors.py* is provided to solve the issue. The same needed to be provided if you use other web server.
 
     > ensure you have Emscripten (WASM compiler) installed and configured
+    > or, alternatively, you can utilize docker image from emscripten/emsdk
     > type> make wasm
     > type> python3 tests/cors.py        # supports COOP
     > from your browser, open http://localhost:8000/tests/eforth.html
@@ -289,14 +290,29 @@ total= 1784293664 -1 -> ok
 ## Benchmark and Tuning
 
 ### Desktop PC - 10K*10K cycles on 3.2GHz AMD**
-
+#### v4.x single-threaded
     + 4452ms: ~/orig/ting/ceforth_36b, linear memory, 32-bit, token threading
     + 1450ms: ~/orig/ting/ceForth_403, dict/pf array-based, subroutine threading
     + 1050ms: ~/orig/40x/ceforth, subroutine indirect threading, with 16-bit offset
-    +  890ms: ~/orig/40x/ceforth, inner interpreter with cached xt offsets
-    +  780ms: ~/src/eforth, v4.2 dynamic vector, object threading
-    +  810ms: ~/src/eforth, v5.0 multi-threaded, dynamic vector, object threading
-
+    +  890ms: ~/orig/40x/ceforth, inner interpreter with cached xt 16-bit offsets
+    +  780ms: ~/src/eforth, v4.2 dynamic vector, object threading (gcc -O2)
+    
+#### v5.x ~/src/ceforth, multi-threading capable, dynamic vector, object threading
+    +  812ms: v5.0, multi-threaded (gcc -O2)
+    +  732ms: v5.0, multi-threaded (gcc -O3)
+    +  731ms: v5.0, single-threaded (gcc -O3) => not much overhead with MT
+    
+#### experimental ~/orig/50x/ceforth multi-threading capable, linear-memory, 32-bit IU
+    +  843ms: v5.0 50x32 branch (gcc -O2)
+       * program spent >50% in nest() - gprof/valgrind/cachegrind
+       * 16-bit IU fetch + dispatch: Ir/Dr = 2.3M/0.5M (810ms)
+       * 32-bit Param hardcopy     : Ir/Dr = 3.8M/1.1M (930ms)
+       * 32-bit Param reference    : Ir/Dr = 3.1M/0.8M (843ms) <== 32-bit best
+       * 32-bit Param pointer      : Ir/Dr = 3.2M/0.9M (899ms)
+    +  873ms: v5.0 50x32 branch (gcc -O3)
+       * slower, due to inline find() into forth_core() which crowded cache.
+         Note: this doesn't seem to bother WASM.
+                
 ### ESP32 - 1K*1K cycles on 240MHz NodeMCU**
 
     + 1440ms: Dr. Ting's ~/esp32forth/orig/esp32forth_82
