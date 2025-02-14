@@ -357,7 +357,8 @@ Code::Code(string s, bool n) {           ///< new colon word
 ///> Forth inner interpreter
 ///
 void Code::nest(VM &vm) {
-    vm.state = NEST;
+//    vm.set_state(NEST);                /// * this => lock, major slow down
+    vm.state = NEST;                     /// * racing? No, helgrind says so
     if (xt) { xt(vm, *this); return; }   /// * run primitive word
     for (Iter c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
@@ -482,7 +483,7 @@ void forth_init() {
     uvar_init();                      /// * initialize user area
     t_pool_init();                    /// * initialize thread pool
     VM &vm0   = vm_get(0);            ///< main thread
-    vm0.state = QUERY;
+    vm0.state = HOLD;
 }
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
@@ -493,6 +494,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     string idiom;
     while (fetch(idiom)) {            /// * parse a word
         try {
+            vm.set_state(QUERY);
             forth_core(vm, idiom);    /// * send to Forth core
         }
         catch (exception &e) {
@@ -500,6 +502,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             pstr("?"); pstr(e.what(), CR);
             vm.compile = false;
             scan('\n');                /// * exhaust input line
+            vm.set_state(STOP);
         }
     }
     if (!vm.compile) ss_dump(vm);
