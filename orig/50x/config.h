@@ -13,7 +13,7 @@
 #define CC_DEBUG        1               /**< debug level 0|1|2      */
 #define RANGE_CHECK     0               /**< vector range check     */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
-#define USE_FLOAT       0               /**< support floating point */
+#define USE_FLOAT       1               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 #define DO_MULTITASK    1               /**< multitasking/pthread   */
 #define E4_VM_POOL_SZ   8               /**< one plus # cors       */
@@ -42,6 +42,7 @@ typedef float           DU;
 #define DU0             0.0f
 #define DU1             1.0f
 #define DU_EPS          0.00001f
+#define INT(v)          (static_cast<S32>(v))
 #define UINT(v)         (static_cast<U32>(v))
 #define MOD(m,n)        (fmodf(m,n))
 #define ABS(v)          (fabsf(v))
@@ -57,6 +58,7 @@ typedef int32_t         DU;
 #define DU0             0
 #define DU1             1
 #define DU_EPS          0
+#define INT(v)          (static_cast<S32>(v))
 #define UINT(v)         (static_cast<U32>(v))
 #define MOD(m,n)        ((m) % (n))
 #define ABS(v)          (abs(v))
