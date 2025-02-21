@@ -25,8 +25,8 @@ variable leap           ( 1 for a leap year, 0 otherwise. )
             else dup 3 =
                 if drop 59 leap @ + 
             else
-                    4 - 30624 1000 */
-                    90 + leap @ +       ( apr. 1 to dec. 1 )
+                4 - 30624 1000 */ f>s
+                90 + leap @ +       ( apr. 1 to dec. 1 )
             then   ( 59/60 for mar. 1 )
         then       ( 31 for feb. 1 )
     then           ( 0 for jan. 1 )
@@ -42,7 +42,7 @@ variable leap           ( 1 for a leap year, 0 otherwise. )
 
 : blanks ( month -- )            ( skip days not in this month )
         first julian @ +         ( julian date of 1st of month )
-        7 mod int 8 * spaces ;   ( skip colums if not sunday   )
+        7 mod 8 * spaces ;       ( skip colums if not sunday   )
 
 : days ( month -- )              ( print days in a month )
         dup first                ( days of 1st this month )
@@ -50,11 +50,10 @@ variable leap           ( 1 for a leap year, 0 otherwise. )
         over - 1 -               ( loop to print the days )
         1 swap                   ( first day count -- )
         for  2dup + 1 -
-                julian @ + 7 mod ( which day in the week? )
-                int
-                if else cr then  ( start a new line if sunday )
-                dup  8 u.r       ( print day in 8 column field )
-                1 +
+            julian @ + 7 mod     ( which day in the week? )
+            if else cr then      ( start a new line if sunday )
+            dup  8 u.r           ( print day in 8 column field )
+            1 +
         next
         2drop ;                  ( discard 1st day in this month )
 
