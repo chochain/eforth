@@ -344,16 +344,16 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("*",       TOS *= SS.pop());
     CODE("-",       TOS =  SS.pop() - TOS);
     CODE("/",       TOS =  SS.pop() / TOS);
-    CODE("mod",     TOS =  MOD(SS.pop(), TOS));
-    CODE("*/",      TOS =  (DU2)SS.pop() * SS.pop() / TOS);
-    CODE("/mod",    DU  n = SS.pop();
+    CODE("mod",     TOS =  INT(MOD(SS.pop(), TOS)));          // ( a b -- c ) c integer, see fmod
+    CODE("*/",      TOS =  (DU2)SS.pop() * SS.pop() / TOS);   // ( a b c -- d ) d=a*b / c (float)
+    CODE("/mod",    DU  n = SS.pop();                         // ( a b -- c d ) c=a%b, d=int(a/b)
                     DU  t = TOS;
                     DU  m = MOD(n, t);
-                    SS.push(m); TOS = UINT(n / t));
-    CODE("*/mod",   DU2 n = (DU2)SS.pop() * SS.pop();
+                    SS.push(m); TOS = INT(n / t));
+    CODE("*/mod",   DU2 n = (DU2)SS.pop() * SS.pop();         // ( a b c -- d e ) d=(a*b)%c, e=(a*b)/c
                     DU2 t = TOS;
                     DU  m = MOD(n, t);
-                    SS.push(m); TOS = UINT(n / t));
+                    SS.push(m); TOS = INT(n / t));
     CODE("and",     TOS = UINT(TOS) & UINT(SS.pop()));
     CODE("or",      TOS = UINT(TOS) | UINT(SS.pop()));
     CODE("xor",     TOS = UINT(TOS) ^ UINT(SS.pop()));
@@ -369,10 +369,10 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("1+",      TOS += 1);
     CODE("1-",      TOS -= 1);
 #if USE_FLOAT
-    CODE("int",
-         TOS = TOS < DU0 ? -DU1 * UINT(-TOS) : UINT(TOS)); // float => integer
+    CODE("fmod",    TOS = MOD(SS.pop(), TOS));             // -3.5 2 fmod => -1.5 -1
+    CODE("f>s",     TOS = INT(TOS));                       // 1.9 => 1, -1.9 => -1
 #else
-    CODE("int",     /* do nothing */);
+    CODE("f>s",     /* do nothing */);
 #endif // USE_FLOAT
     /// @}
     /// @defgroup Logic ops
