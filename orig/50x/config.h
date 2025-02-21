@@ -58,7 +58,7 @@ typedef int32_t         DU;
 #define DU0             0
 #define DU1             1
 #define DU_EPS          0
-#define INT(v)          (static_cast<S32)(v))
+#define INT(v)          (static_cast<S32>(v))
 #define UINT(v)         (static_cast<U32>(v))
 #define MOD(m,n)        ((m) % (n))
 #define ABS(v)          (abs(v))

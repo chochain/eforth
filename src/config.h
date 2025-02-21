@@ -34,6 +34,7 @@ typedef float           DU;
 #define DU0             0.0f
 #define DU1             1.0f
 #define DU_EPS          0.00001f
+#define INT(v)          (static_cast<S32>(v))
 #define UINT(v)         (static_cast<U32>(v))
 #define MOD(m,n)        (fmodf(m,n))
 #define ABS(v)          (fabsf(v))
@@ -49,6 +50,7 @@ typedef int32_t         DU;
 #define DU0             0
 #define DU1             1
 #define DU_EPS          0
+#define INT(v)          (static_cast<S32>(v))
 #define UINT(v)         (static_cast<U32>(v))
 #define MOD(m,n)        ((m) % (n))
 #define ABS(v)          (abs(v))
