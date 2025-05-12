@@ -50,13 +50,13 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("-",      TOS =  SS.pop() - TOS),
     CODE("*",      TOS *= SS.pop()),
     CODE("/",      TOS =  SS.pop() / TOS),
-    CODE("mod",    TOS =  INT(MOD(SS.pop(), TOS))),          // ( a b -- c ) c integer, see fmod
-    CODE("*/",     TOS =  (DU2)SS.pop() * SS.pop() / TOS),   // ( a b c -- d ) d=a*b / c (float)
-    CODE("/mod",   DU  n = SS.pop();                         // ( a b -- c d ) c=a%b, d=int(a/b)
+    CODE("mod",    TOS =  INT(MOD(SS.pop(), TOS))),          /// ( a b -- c ) c integer, see fmod
+    CODE("*/",     TOS =  (DU2)SS.pop() * SS.pop() / TOS),   /// ( a b c -- d ) d=a*b / c (float)
+    CODE("/mod",   DU  n = SS.pop();                         /// ( a b -- c d ) c=a%b, d=int(a/b)
                    DU  t = TOS;
                    DU  m = MOD(n, t);
                    SS.push(m); TOS = INT(n / t)),
-    CODE("*/mod",  DU2 n = (DU2)SS.pop() * SS.pop();         // ( a b c -- d e ) d=(a*b)%c, e=(a*b)/c
+    CODE("*/mod",  DU2 n = (DU2)SS.pop() * SS.pop();         /// ( a b c -- d e ) d=(a*b)%c, e=(a*b)/c
                    DU2 t = TOS;
                    DU  m = MOD(n, t);
                    SS.push(m); TOS = INT(n / t)),
@@ -75,8 +75,8 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("1+",     TOS += 1),
     CODE("1-",     TOS -= 1),
 #if USE_FLOAT
-    CODE("fmod",   TOS = MOD(SS.pop(), TOS)),             // -3.5 2 fmod => -1.5
-    CODE("f>s",    TOS = INT(TOS)),                       // 1.9 => 1, -1.9 => -1
+    CODE("fmod",   TOS = MOD(SS.pop(), TOS)),             /// -3.5 2 fmod => -1.5
+    CODE("f>s",    TOS = INT(TOS)),                       /// 1.9 => 1, -1.9 => -1
 #else
     CODE("f>s",     /* do nothing */),
 #endif // USE_FLOAT
@@ -99,7 +99,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @brief - opcode sequence can be changed below this line
     /// @{
     CODE("dup",    PUSH(TOS)),
-    CODE("drop",   TOS=SS.pop()),  // note: SS.pop() != POP()
+    CODE("drop",   TOS=SS.pop()),  /// note: SS.pop() != POP()
     CODE("swap",   DU n = SS.pop(); PUSH(n)),
     CODE("over",   PUSH(SS[-2])),
     CODE("rot",    DU n = SS.pop(); DU m = SS.pop(); SS.push(n); PUSH(m)),
@@ -124,7 +124,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base",   PUSH(vm.id << 16)),   // dict[0]->pf[0]->q[id] used for base
+    CODE("base",   PUSH(vm.id << 16)),   /// dict[0]->pf[0]->q[id] used for base
     CODE("decimal",dot(RDX, *BASE=10)),
     CODE("hex",    dot(RDX, *BASE=16)),
     CODE("bl",     PUSH(0x20)),
@@ -150,8 +150,8 @@ const Code rom[] = {               ///< Forth dictionary
              ADD_W(new Str(s, last->token, last->pf.size()));
          }
          else {
-             vm.pad = s;                             // keep string on pad
-             PUSH(-DU1); PUSH(s.length());           // -1 = pad, len
+             vm.pad = s;                             /// keep string on pad
+             PUSH(-DU1); PUSH(s.length());           /// -1 = pad, len
          }),
     IMMD(".\"",
          string s = word('"').substr(1);
@@ -240,7 +240,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
-         DICT_PUSH(new Code(word()));   // create new word
+         DICT_PUSH(new Code(word()));   /// create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
     CODE("constant",
@@ -252,12 +252,12 @@ const Code rom[] = {               ///< Forth dictionary
          Code *w = ADD_W(new Var(DU0));
          w->pf[0]->token = w->token),
     CODE("immediate", last->immd = 1),
-    CODE("exit",   UNNEST()),           // -- (exit from word)
+    CODE("exit",   UNNEST()),           /// -- (exit from word)
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   dict[POPI()]->nest(vm)),           // w --
+    CODE("exec",   dict[POPI()]->nest(vm)),           /// w --
     CODE("create",
          DICT_PUSH(new Code(word()));
          Code *w = ADD_W(new Var(DU0));
@@ -265,25 +265,25 @@ const Code rom[] = {               ///< Forth dictionary
          w->pf[0]->q.pop()),
     IMMD("does>",
          ADD_W(new Bran(_does));
-         last->pf[-1]->token = last->token),          // keep WP
-    CODE("to",                                        // n --
+         last->pf[-1]->token = last->token),          /// keep WP
+    CODE("to",                                        /// n --
          Code *w=find(word()); if (!w) return;
-         VAR(w->token) = POP()),                      // update value
-    CODE("is",                                        // w -- 
-         DICT_PUSH(new Code(word(), false));          // create word
-         int w = POP();                               // like this word
-         last->xt = dict[w]->xt;                      // if primitive
-         last->pf = dict[w]->pf),                     // or colon word
+         VAR(w->token) = POP()),                      /// update value
+    CODE("is",                                        /// w -- 
+         DICT_PUSH(new Code(word(), false));          /// create word
+         int w = POP();                               /// like this word
+         last->xt = dict[w]->xt;                      /// if primitive
+         last->pf = dict[w]->pf),                     /// or colon word
     /// @}
     /// @defgroup Memory Access ops
     /// @{
-    CODE("@",       U32 i_w = POPI(); PUSH(VAR(i_w))),           // a -- n
-    CODE("!",       U32 i_w = POPI(); VAR(i_w) = POP()),         // n a -- 
+    CODE("@",       U32 i_w = POPI(); PUSH(VAR(i_w))),           /// a -- n
+    CODE("!",       U32 i_w = POPI(); VAR(i_w) = POP()),         /// n a -- 
     CODE("+!",      U32 i_w = POPI(); VAR(i_w) += POP()),
     CODE("?",       U32 i_w = POPI(); dot(DOT, VAR(i_w))),
     CODE(",",       last->pf[0]->q.push(POP())),
-    CODE("cells",   { /* for backward compatible */ }),           // array index, inc by 1
-    CODE("allot",   U32 n = POPI();                              // n --
+    CODE("cells",   { /* for backward compatible */ }),          /// array index, inc by 1
+    CODE("allot",   U32 n = POPI();                              /// n --
                     for (U32 i=0; i<n; i++) last->pf[0]->q.push(DU0)),
     ///> Note:
     ///>   allot allocate elements in a word's q[] array
@@ -292,12 +292,12 @@ const Code rom[] = {               ///< Forth dictionary
     ///>   serves as the q index and lower 16 lower bit as word index
     ///>   so a variable (array with 1 element) can be access as usual
     ///>
-    CODE("th",      U32 i = POPI() << 16; TOS = UINT(TOS) | i),  // w i -- i_w
+    CODE("th",      U32 i = POPI() << 16; TOS = UINT(TOS) | i),  /// w i -- i_w
     /// @}
 #if DO_MULTITASK
     /// @defgroup Multitasking ops
     /// @}
-    CODE("task",                                                // w -- task_id
+    CODE("task",                                                /// w -- task_id
          IU w = POPI();                                         ///< dictionary index
          if (dict[w]->xt) pstr("  ?colon word only\n");
          else PUSH(task_create(w))),                            /// create a task starting on pfa
@@ -314,27 +314,28 @@ const Code rom[] = {               ///< Forth dictionary
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
     /// @{
-    CODE("abort",   TOS = -DU1; SS.clear(); RS.clear()),        // clear ss, rs
+    CODE("abort",   TOS = -DU1; SS.clear(); RS.clear()),        /// clear ss, rs
     CODE("here",    PUSH(last->token)),
     CODE("'",       Code *w = find(word()); if (w) PUSH(w->token)),
-    CODE(".s",      ss_dump(vm, true)),  // dump parameter stack
-    CODE("words",   words(*vm.base)),    // display word lists
+    CODE(".s",      ss_dump(vm, true)),                         /// dump parameter stack
+    CODE("words",   words(*vm.base)),                           /// display word lists
     CODE("see",
          Code *w = find(word());
          if (w) see(w, *vm.base);
          dot(CR)),
-    CODE("dict",    dict_dump(*vm.base)),// display dictionary
+    CODE("dict",    dict_dump(*vm.base)),                       /// display dictionary
     CODE("dump",    IU w1 = POPI(); mem_dump(POPI(), w1, *vm.base)),
-    CODE("depth",   PUSH(SS.size())),    // data stack depth
+    CODE("depth",   PUSH(SS.size())),                           /// data stack depth
     /// @}
     /// @defgroup OS ops
     /// @{
-    CODE("mstat",   mem_stat()),         // display memory stat
-    CODE("clock",   PUSH(millis())),     // get system clock in msec
-    CODE("rnd",     PUSH(RND())),        // get a random number
-    CODE("ms",      delay(POPI())),      // n -- delay n msec
-    CODE("included",
+    IMMD("include", load(vm, word().c_str())),                  /// include an OS file
+    CODE("included",                                            /// include a file (programmable)
          POP(); U32 i_w = POPI(); load(vm, STR(i_w))),
+    CODE("mstat",   mem_stat()),                                /// display memory stat
+    CODE("clock",   PUSH(millis())),                            /// get system clock in msec
+    CODE("rnd",     PUSH(RND())),                               /// get a random number
+    CODE("ms",      delay(POPI())),                             /// n -- delay n msec
     CODE("forget",
          Code *w = find(word()); if (!w) return;
          int   t = max((int)w->token, find("boot")->token + 1);
@@ -406,24 +407,24 @@ void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
         }
         RS.pop();
     }
-    catch (...) { RS.pop(); }                // handle EXIT
+    catch (...) { RS.pop(); }                  /// handle EXIT
 }
-void _loop(VM &vm, Code &c) {                ///> do..loop
+void _loop(VM &vm, Code &c) {                  ///> do..loop
     try { 
         do {
             NEST(c.pf);
-        } while ((RS[-1]+=1) < RS[-2]);      // increment counter
+        } while ((RS[-1]+=1) < RS[-2]);        /// increment counter
         RS.pop(); RS.pop();
     }
-    catch (...) {}                           // handle LEAVE
+    catch (...) {}                             /// handle LEAVE
 }
 void _does(VM &vm, Code &c) {
     bool hit = false;
     for (auto w : dict[c.token]->pf) {
-        if (hit) ADD_W(w);                   // copy rest of pf
+        if (hit) ADD_W(w);                     /// copy rest of pf
         if (STRCMP(w->name, "does>")==0) hit = true;
     }
-    UNNEST();                                // exit caller
+    UNNEST();                                  /// exit caller
 }
 ///====================================================================
 ///
