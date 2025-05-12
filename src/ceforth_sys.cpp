@@ -36,7 +36,9 @@ char *scan(char c) {
 }
 int  fetch(string &idiom) { return !(fin >> idiom)==0; }
 string word(char delim) {              ///> read next idiom form input stream
-    string s; delim ? getline(fin, s, delim) : fin >> s; return s;
+    string s;                          /// * TODO: no dynamic realloc, use pool
+    delim ? getline(fin, s, delim) : fin >> s;
+    return s;
 }
 char key() { return word()[0]; }
 void load(VM &vm, const char *fn) {    ///> include script from stream

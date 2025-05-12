@@ -48,7 +48,7 @@ void mem_stat() {
 ///> include external Forth script
 ///
 void outer(istream &in) {
-    string cmd;
+    string cmd;                         ///< input command; TODO: static pool
     while (getline(in, cmd)) {          ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
         while (forth_vm(cmd.c_str()));  ///> run outer interpreter (single task)
