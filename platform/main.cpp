@@ -4,6 +4,7 @@
 ///
 #include <iostream>      // cin, cout
 #include <fstream>       // ifstream
+#include <cstdint>
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
