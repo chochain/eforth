@@ -43,6 +43,7 @@ typedef float           DU;
 #define LT(a,b)         (((a) - (b)) < -DU_EPS)
 #define GT(a,b)         (((a) - (b)) > DU_EPS)
 #define RND()           (static_cast<float>(rand()) / static_cast<float>(RAND_MAX))
+#define MAX(a,b)        (fmaxf(a,b))
 
 #else // !USE_FLOAT
 typedef int64_t         DU2;
@@ -52,13 +53,14 @@ typedef int32_t         DU;
 #define DU_EPS          0
 #define INT(v)          (static_cast<S32>(v))
 #define UINT(v)         (static_cast<U32>(v))
-#define MOD(m,n)        ((m) % (n))
+#define MOD(m,n)        ((DU)((m) % (n)))
 #define ABS(v)          (abs(v))
 #define ZEQ(v)          ((v)==DU0)
 #define EQ(a,b)         ((a)==(b))
 #define LT(a,b)         ((a) < (b))
 #define GT(a,b)         ((a) > (b))
 #define RND()           (rand())
+#define MAX(a,b)        (std::max(a,b))
 
 #endif // USE_FLOAT
 ///@}
@@ -74,8 +76,7 @@ typedef int32_t         DU;
 ///@name Inline & Alignment macros
 ///@{
 #include <cstring>
-#pragma GCC optimize("align-functions=4")    // we need fn alignment
-#define INLINE          __attribute__((always_inline))
+//#pragma GCC optimize("align-functions=4")    // we need fn alignment
 #define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
 #define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
@@ -84,19 +85,14 @@ typedef int32_t         DU;
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
+#define ENDL            endl; fout_cb((int)fout.str().length(), fout.str().c_str()); fout.str("")
 ///@}
 ///@name Multi-platform support
 ///@{
-#if    _WIN32 || _WIN64
-    #define ENDL "\r\n"
-#else  // !(_WIN32 || _WIN64)
-    #define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
-#endif // _WIN32 || _WIN64
-
 #if (ARDUINO || ESP32)
     #include <Arduino.h>
     #define to_string(i)    string(String(i).c_str())
-    #if    ESP32
+    #if ESP32
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
     #endif // ESP32
     #define DALIGN(sz)      (sz)
@@ -123,7 +119,7 @@ typedef int32_t         DU;
 
 #endif // (ARDUINO || ESP32)
 ///@}
-///@name Logging support
+///@name Logging supporting macros
 ///@{
 #if (ARDUINO || ESP32)
     #define LOGS(s)     Serial.print(F(s))
