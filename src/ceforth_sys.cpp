@@ -90,7 +90,7 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
 #if USE_FLOAT
         DU t, f = modf(v, &t);            ///< integral, fraction
         if (ABS(f) > DU_EPS) {
-            sprintf(buf, "%0.6g", v);
+		    snprintf(buf, 32, "%0.6g", v);
             return buf;
         }
 #endif // USE_FLOAT
@@ -168,7 +168,7 @@ void words(int base) {                    ///> display word list
              << w->name << "  " << ENDL;
 #else // !CC_DEBUG
         fout << "  " << w->name;
-        x += (strlen(w->name) + 2);
+        x += ((int)strlen(w->name) + 2);
         if (x > WIDTH) { fout << ENDL; x = 0; }
 #endif // CC_DEBUG
     }
