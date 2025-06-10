@@ -133,6 +133,20 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
     
     Note: MacOS added, thanks to Kristopher Johnson's work.
 
+### Windows  (Single-threaded Console App only for now)
+
+I haven't develop anything useful on Windows for a long time. Just bearly got this compiled on an 2007 Windows7 box. So, take it with a grain of salt. I'm hoping someone can make it more streamlined.
+
+    > install and run Visual Studio on your box
+    > under the root directory, open the solution file eforth.sln (which points to project platform/eforth.vcxproj)
+    > Menu bar -> Biuld -> Build Solution   (default to Debug/64-bit)
+    > in a Command window, find and run eforth.exe under tests subdirectory
+    > type> words⏎               \ to see available Forth words
+    > type> 1 2 +⏎               \ see Forth in action
+    > type> bye⏎  or Ctrl-C      \ to exit eForth
+
+    Note: Neva made me do Windows!
+    
 ### WASM
 
 For multi-threading to work, browser needs to receive Cross-Origin policies [here for detail](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy) in the response header. A Python script *~/tests/cors.py* is provided to solve the issue. The same needed to be provided if you use other web server.
