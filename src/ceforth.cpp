@@ -147,7 +147,7 @@ const Code rom[] = {               ///< Forth dictionary
     IMMD("s\"",
          string s = word('"').substr(1);
          if (vm.compile) {
-             ADD_W(new Str(s, last->token, last->pf.size()));
+             ADD_W(new Str(s, last->token, (int)last->pf.size()));
          }
          else {
              vm.pad = s;                             /// keep string on pad
@@ -338,11 +338,11 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("ms",      delay(POPI())),                             /// n -- delay n msec
     CODE("forget",
          Code *w = find(word()); if (!w) return;
-         int   t = max((int)w->token, find("boot")->token + 1);
-         for (int i=dict.size(); i>t; i--) DICT_POP()),
+         int   t = MAX((int)w->token, (int)find("boot")->token + 1);
+         for (int i=(int)dict.size(); i>t; i--) DICT_POP()),
     CODE("boot",
          int t = find("boot")->token + 1;
-         for (int i=dict.size(); i>t; i--) DICT_POP())
+         for (int i=(int)dict.size(); i>t; i--) DICT_POP())
 };
 ///====================================================================
 ///
@@ -368,7 +368,7 @@ void Code::nest(VM &vm) {
     for (Iter c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
         catch (...) { break; }
-//        VM_LOG(&vm, "%-3x => RS=%ld, SS=%ld %s", (int)(c - pf.begin()), vm.rs.size(), vm.ss.size(), (*c)->name);
+        // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
     }
 }
 ///====================================================================
@@ -431,7 +431,7 @@ void _does(VM &vm, Code &c) {
 ///> Forth outer interpreter
 ///
 Code *find(string s) {      ///> scan dictionary, last to first
-    for (int i = dict.size() - 1; i >= 0; --i) {
+    for (int i = (int)dict.size() - 1; i >= 0; --i) {
         if (STRCMP(s.c_str(), dict[i]->name)==0) return dict[i];
     }
     return NULL;            /// * word not found
@@ -441,13 +441,13 @@ DU parse_number(string idiom, int b) {
     const char *cs = idiom.c_str();
     switch (*cs) {                    ///> base override
     case '%': b = 2;  cs++; break;
-    case '&':
+    case '&':   
     case '#': b = 10; cs++; break;
     case '$': b = 16; cs++; break;
     }
     char *p;
     errno = 0;                       ///> clear overflow flag
-#if DU==float
+#if USE_FLOAT
     DU n = (b==10)
         ? static_cast<DU>(strtof(cs, &p))
         : static_cast<DU>(strtol(cs, &p, b));
