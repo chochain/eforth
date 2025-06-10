@@ -8,7 +8,10 @@
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
-#else
+#elif _WIN32 || _WIN64
+#include <windows.h>
+#include <string>
+#else // Linux || Cygwin
 #include <sys/sysinfo.h>
 #endif
 
@@ -32,7 +35,19 @@ void mem_stat() {
     if (sysctlbyname("hw.memsize", &memsize, &len, NULL, 0) == 0) {
       cout << ", RAM " << (memsize >> 20) << " MB";
     }
-#else
+#elif _WIN32 || _WIN64
+	MEMORYSTATUSEX si;                        ///< Windows Memory Status
+    si.dwLength = sizeof(si);                 /// * Initialize the structure
+
+    if (GlobalMemoryStatusEx(&si)) {          /// * fetch from system
+	    int p = si.dwMemoryLoad;              /// * percentage of memory in use
+		U64 f = (U64)si.ullAvailPhys;         /// * available physical memory
+		U64 t = (U64)si.ullTotalPhys;         /// * total physical memory
+        cout << ", RAM " << (100 - p) << "% free (" << (f >> 20)
+  			 << " / " << (t >> 20) << " MB)";
+    }
+	else cerr << "ERR: Windows memory status fetch failed!";
+#else // Linux, Cygwin
     struct sysinfo si;
     if (sysinfo(&si) != -1) {
       U64 f = (U64)si.freeram * si.mem_unit;
@@ -71,7 +86,7 @@ void forth_include(const char *fn) {
 int main(int ac, char* av[]) {
     forth_init();                       ///> initialize dictionary
     mem_stat();                         ///> show memory status
-    srand(time(0));                     ///> seed random generator
+    srand((int)time(0));                ///> seed random generator
 
     outer(cin);
     cout << "Done!" << endl;
