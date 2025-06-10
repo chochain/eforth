@@ -94,7 +94,7 @@ struct ALIGNAS VM {
     void io_unlock();              ///< unlock IO
 #else  // DO_MULTITASK
     
-    void set_state(vm_state st) INLINE { state = st; }
+    void set_state(vm_state st) { state = st; }
 #endif // DO_MULTITASK
 };
 ///
@@ -134,12 +134,12 @@ struct Code {
 #define TOS         (vm.tos)
 #define SS          (vm.ss)
 #define RS          (vm.rs)
-#define POP()       ({ DU n=TOS; TOS=SS.pop(); n; })
-#define POPI()      (UINT(POP()))
-#define PUSH(v)     (SS.push(TOS), TOS=(v))
 #define BOOL(f)     ((f) ? -1 : 0)
 #define CODE(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ }
 #define IMMD(s, g)  { s, #g, [](VM &vm, Code &c){ g; }, __COUNTER__ | Code::IMMD_FLAG }
+#define PUSH(v)     (SS.push(TOS), TOS=((DU)(v)))
+#define POP()       ([&vm](){ DU n = TOS; TOS = SS.pop(); return n; }())
+#define POPI()      UINT(POP())
 ///
 ///> Primitve object and function forward declarations
 ///
