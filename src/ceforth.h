@@ -58,6 +58,7 @@ struct ALIGNAS VM {
     DU       tos     = -DU1;       ///< cached top of stack
     IU       id      = 0;          ///< vm id
     IU       wp      = 0;          ///< word pointer
+    Iter     iter;
     
     U8       *base   = 0;          ///< numeric radix (a pointer)
     vm_state state   = STOP;       ///< VM status
@@ -152,6 +153,7 @@ void   _var(VM &vm, Code &c);        ///< variable and constant
 void   _tor(VM &vm, Code &c);        ///< >r (for..next)
 void   _tor2(VM &vm, Code &c);       ///< swap >r >r (do..loop)
 void   _if(VM &vm, Code &c);         ///< if..then, if..else..then
+void   _endif(VM &vm, Code &c);
 void   _begin(VM &vm, Code &c);      ///< ..until, ..again, ..while..repeat
 void   _for(VM &vm, Code &c);        ///< for..next, for..aft..then..next
 void   _loop(VM &vm, Code &c);       ///< do..loop
@@ -169,12 +171,13 @@ struct Str : Code {
         is_str= 1;
     }
 };
+
 struct Bran: Code {
     Bran(XT fp) : Code(fp) {
         const char *nm[] = {
-            "if", "begin", "\t", "for", "\t", "do", "does>"
+            "if", "endif", "begin", "\t", "for", "\t", "do", "does>"
         };
-        XT xt[] = { _if, _begin, _tor, _for, _tor2, _loop, _does };
+        XT xt[] = { _if, _endif, _begin, _tor, _for, _tor2, _loop, _does };
     
         for (int i=0; i < (int)(sizeof(nm)/sizeof(const char*)); i++) {
             if ((uintptr_t)xt[i]==(uintptr_t)fp) name = nm[i];
