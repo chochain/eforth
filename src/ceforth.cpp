@@ -23,11 +23,12 @@ Code      *last;                       ///< cached dict[-1]
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
 #define BASE         ((U8*)&VAR(vm.id << 16))
+#define HERE         ((IU)last->pf.size())       /** current pf index   */
 #define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
 #define ADD_W(w)     (last->append(w))
-#define BTGT()       (dict[-2]->pf[-1])      /** branching target   */
-#define BRAN(p)      ((p).merge(last->pf))   /** add branching code */
+#define BTGT()       (dict[-2]->pf[-1])          /** branching target   */
+#define BRAN(p)      ((p).merge(last->pf))       /** add branching code */
 #define NEST(pf)     for (auto w : (pf)) w->nest(vm)
 #define UNNEST()     throw 0
 ///
@@ -41,6 +42,26 @@ Code      *last;                       ///< cached dict[-1]
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
+void z_if(VM &vm) {
+	PUSH(HERE);
+	ADD_W(new Bran(_if));
+}
+void z_else(VM &vm) {
+	Code *c = last->pf[POPI()];
+	ADD_W(new Bran(_endif));
+	PUSH(HERE);
+	ADD_W(new Bran(_if));
+	c->token = dict.size();
+	c->q.push(HERE);
+	c->stage = 0;
+}
+void z_then(VM &vm) {
+	ADD_W(new Bran(_endif));
+	Code *c = last->pf[POPI()];
+	c->token = dict.size();
+	c->q.push(HERE);
+	c->stage = 1;
+}
 const Code rom[] = {               ///< Forth dictionary
     CODE("bye",    forth_quit()),
     ///
@@ -147,7 +168,7 @@ const Code rom[] = {               ///< Forth dictionary
     IMMD("s\"",
          string s = word('"').substr(1);
          if (vm.compile) {
-             ADD_W(new Str(s, last->token, (int)last->pf.size()));
+             ADD_W(new Str(s, last->token, HERE));
          }
          else {
              vm.pad = s;                             /// keep string on pad
@@ -164,24 +185,18 @@ const Code rom[] = {               ///< Forth dictionary
     ///                               \-->p1[...] else   |
     ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
-    IMMD("if",
+    IMMD("if", z_if(vm)),
+	//         PUSH(HERE);
+	//         ADD_W(new Bran(_if))),
+    IMMD("else", z_else(vm)),
+/*       Code *b = last->pf[POP()];
+         PUSH(HERE);
          ADD_W(new Bran(_if));
-         DICT_PUSH(new Tmp())),
-    IMMD("else",
-         Code *b = BTGT();
-         BRAN(b->pf);
-         b->stage = 1),
-    IMMD("then",
-         Code *b = BTGT();
-         int  s  = b->stage;                   ///< branching state
-         if (s==0) {
-             BRAN(b->pf);                      /// * if.{pf}.then
-             DICT_POP();
-         }
-         else {                                /// * else.{p1}.then, or
-             BRAN(b->p1);                      /// * then.{p1}.next
-             if (s==1) DICT_POP();             /// * if..else..then
-         }),
+         b->token = HERE),
+*/
+    IMMD("then", z_then(vm)),
+//         Code *b = last->pf[POP()];
+//         b->token = POP()),
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
@@ -365,10 +380,10 @@ void Code::nest(VM &vm) {
 //    vm.set_state(NEST);                /// * this => lock, major slow down
     vm.state = NEST;                     /// * racing? No, helgrind says so
     if (xt) { xt(vm, *this); return; }   /// * run primitive word
-    for (Iter c = pf.begin(); c != pf.end(); c++) {
-        try         { (*c)->nest(vm); }  /// * execute recursively
+    for (vm.iter = pf.begin(); vm.iter != pf.end(); vm.iter++) {
+        try         { (*vm.iter)->nest(vm); }  /// * execute recursively
         catch (...) { break; }
-        // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
+        printf("%-3x => RS=%d, SS=%d %s", (int)(vm.iter - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*vm.iter)->name);
     }
 }
 ///====================================================================
@@ -383,7 +398,12 @@ void _lit(VM &vm, Code &c)  { PUSH(c.q[0]);  }
 void _var(VM &vm, Code &c)  { PUSH(c.token); }
 void _tor(VM &vm, Code &c)  { RS.push(POP()); }
 void _tor2(VM &vm, Code &c) { RS.push(SS.pop()); RS.push(POP()); }
-void _if(VM &vm, Code &c)   { NEST(POP() ? c.pf : c.p1); }
+//void _if(VM &vm, Code &c)   { NEST(POP() ? c.pf : c.p1); }
+void _if(VM &vm, Code &c) {
+
+}
+void _endif(VM &vm, Code &c) {
+}
 void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
     int b = c.stage;             ///< branching state
     while (true) {
