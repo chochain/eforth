@@ -11,23 +11,26 @@
 #include <chrono>
 #include "config.h"
 
+using namespace std;
+
 #if DO_MULTITASK
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+typedef  thread             THREAD;
+typedef  mutex              MUTEX;
+typedef  condition_variable COND_VAR;
+#define  GUARD(m)           lock_guard<mutex>  _grd_(m)
+#define  UNILOCK(m)         unique_lock<mutex> _ulck_(m)
+#define  WAIT(cv,g)         (cv).wait(_ulck_, g)
+#define  NOTIFY(cv)         (cv).notify_one()
+
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include <pthread.h>                   /// POSIX threading
 #include <unistd.h>                    /// sysconf (# of cores)
 #include <sched.h>                     /// CPU affinity
-typedef pthread_t       THREAD;
-typedef pthread_mutex_t MUTEX;
-typedef pthread_cond_t  COND_VAR;
-#define LOCK(m)         pthread_mutex_lock(m)
-#define NOTIFY(cv)      pthread_cond_signal(cv)
-#define WAIT_FOR(cv,m)  pthread_cond_wait(cv,m)
-#define UNLOCK(m)       pthread_mutex_unlock(m)
 #endif // DO_MULTITASK
-
-using namespace std;
 
 template<typename T>
 struct FV : public vector<T> {         ///< our super-vector class
