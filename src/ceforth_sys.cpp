@@ -110,11 +110,12 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
     fout << "-> ok" << ENDL;
 }
 void _see(Code *c, int dp) {         ///> disassemble a colon word
+	if (dp > 2) return;                            /// * depth control
     auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
         int i = dp;
         if (dp && s!="\t") { fout << ENDL; }       ///> newline control
         while (i--) { fout << "  "; } fout << s;   ///> indentation control
-        if (dp < 2) for (auto w : v) _see(w, dp + 1);
+        for (auto w : v) _see(w, dp + 1);
     };
     auto pq = [](FV<DU> q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
@@ -124,8 +125,10 @@ void _see(Code *c, int dp) {         ///> disassemble a colon word
     if (c->is_str) sn = (c->token ? "s\" " : ".\" ") + sn + "\"";
     pp(sn, c->pf, dp);
     if (sn=="if")    {
-        if (c->stage==1) pp("else", c->p1, dp);
-        pp("then", zz, dp);
+    	printf("%s -> %d[%d]", c->stage ? "bran" : "0bran", c->token, c->q[0]);
+    	return;
+//        if (c->stage==1) pp("else", c->p1, dp);
+//        pp("then", zz, dp);
     }
     else if (sn=="begin") {
         switch (c->stage) {
@@ -180,12 +183,12 @@ void words(int base) {                    ///> display word list
 ///
 void dict_dump(int base) {
     fout << setbase(16) << ENDL;
-    for (Iter c = dict.begin(); c != dict.end(); c++) {
-        fout << setfill('0') << setw(3) << (int)(c - dict.begin())
-             << "> name=" << setw(8) << (UFP)(*c)->name
-             << ", xt="   << setw(8) << (UFP)(*c)->xt
-             << ", attr=" << setw(8) << (*c)->attr
-             << " "       << (*c)->name << ENDL;
+    for (Iter i = dict.begin(); i != dict.end(); i++) {
+        fout << setfill('0') << setw(3) << (int)(i - dict.begin())
+             << "> name=" << setw(8) << (UFP)(*i)->name
+             << ", xt="   << setw(8) << (UFP)(*i)->xt
+             << ", attr=" << setw(8) << (*i)->attr
+             << " "       << (*i)->name << ENDL;
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
 }
@@ -198,9 +201,9 @@ void mem_dump(IU w0, IU w1, int base) {
     };
     fout << setbase(16) << setfill('0');
     Iter cx = dict.begin() + w1 + 1;
-    for (Iter c = dict.begin() + w0; c != cx; c++) {
-        fout << setw(4) << (int)(c - dict.begin()) << ": ";
-        Code *w = *c;
+    for (Iter i = dict.begin() + w0; i != cx; i++) {
+        fout << setw(4) << (int)(i - dict.begin()) << ": ";
+        Code *w = *i;
         if (w->xt) { fout << "built-in" << ENDL; continue; }
         
         fout << w->name << ENDL;
