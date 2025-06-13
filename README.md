@@ -133,7 +133,7 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
     
     Note: MacOS added, thanks to Kristopher Johnson's work.
 
-### Windows  (Single-threaded Console App only for now)
+### Windows  (Console App)
 
 I haven't develop anything useful on Windows for a long time. Just bearly got this compiled on an 2007 Windows7 box. So, take it with a grain of salt. I'm hoping someone can make it more streamlined.
 
@@ -145,7 +145,9 @@ I haven't develop anything useful on Windows for a long time. Just bearly got th
     > type> 1 2 +⏎               \ see Forth in action
     > type> bye⏎  or Ctrl-C      \ to exit eForth
 
-    Note: Neva made me do Windows!
+    Note: Windows multi-threading seems to work but 2x slower. 
+        * I only have a 2-core Win box. Do let me know if it goes further. 8-)
+        * No CPU affinity. The code might need to be namespaced to avoid conflicts with Windows include files.
     
 ### WASM
 
