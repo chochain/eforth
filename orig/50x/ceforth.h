@@ -6,23 +6,28 @@
 #include <string>       // string class
 #include "config.h"     // configuation and cross-platform support
 
-#if DO_MULTITASK
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#include <pthread.h>                   /// POSIX threading
-#include <unistd.h>                    /// sysconf (# of cores)
-#include <sched.h>                     /// CPU affinity
-typedef pthread_t       THREAD;
-typedef pthread_mutex_t MUTEX;
-typedef pthread_cond_t  COND_VAR;
-#define LOCK(m)         pthread_mutex_lock(m)
-#define NOTIFY(cv)      pthread_cond_signal(cv)
-#define WAIT_FOR(cv,m)  pthread_cond_wait(cv,m)
-#define UNLOCK(m)       pthread_mutex_unlock(m)
-#endif // DO_MULTITASK
-
 using namespace std;
+
+#if DO_MULTITASK
+#include <mutex>
+#include <condition_variable>
+typedef  thread             THREAD;
+typedef  mutex              MUTEX;
+typedef  condition_variable COND_VAR;
+#define  GUARD(m)           lock_guard<mutex>  _grd_(m)
+#define  XLOCK(m)           unique_lock<mutex> _xlck_(m)   /** exclusive lock     */
+#define  WAIT(cv,g)         (cv).wait(_xlck_, g)           /** wait for condition */
+#define  NOTIFY(cv)         (cv).notify_one()              /** wake up one task   */
+#define  NOTIFY_ALL(cv)     (cv).notify_all();
+
+#ifdef _POSIX_VERSION
+#include <sched.h>                    /// CPU affinity
+#endif // _POSIX_VERSION
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE                    /** Emscripten needs this */
+#endif
+#endif // DO_MULTITASK
 ///
 /// array class template (so we don't have dependency on C++ STL)
 /// Note:
