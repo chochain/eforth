@@ -14,7 +14,6 @@
 using namespace std;
 
 #if DO_MULTITASK
-#include <thread>
 #include <mutex>
 #include <condition_variable>
 typedef  thread             THREAD;
@@ -29,7 +28,9 @@ typedef  condition_variable COND_VAR;
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#ifdef _POSIX_VERSION
 #include <sched.h>                     /// CPU affinity
+#endif // _POSIX_VERSION
 #endif // DO_MULTITASK
 
 template<typename T>
