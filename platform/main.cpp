@@ -88,7 +88,12 @@ int main(int ac, char* av[]) {
     mem_stat();                         ///> show memory status
     srand((int)time(0));                ///> seed random generator
 
-    outer(cin);
+	try {
+		outer(cin);
+	}
+	catch (exception &e) {
+		cerr << "err:" << e.what() << endl;
+	}
     cout << "Done!" << endl;
     return 0;
 }
