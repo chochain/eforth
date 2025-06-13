@@ -4,10 +4,6 @@
 #ifndef __EFORTH_SRC_CONFIG_H
 #define __EFORTH_SRC_CONFIG_H
 ///
-/// Benchmark: 10K*10K cycles on desktop (3.2G AMD)
-///    RANGE_CHECK     0 cut 100ms
-///    INLINE            cut 545ms
-///
 ///@name Conditional compililation options
 ///@}
 #define CC_DEBUG        1               /**< debug level 0|1|2      */

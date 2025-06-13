@@ -48,20 +48,20 @@ vector<THREAD> _pool;                             ///< thread pool
 queue<VM*>     _que;                              ///< event queue, thread-safe?
 MUTEX          _evt;                              ///< mutex for queue access
 COND_VAR       _cv_evt;                           ///< for pool exit
-bool           _done = 0;                         ///< thread pool exit flag
+bool           _quit = 0;                         ///< thread pool exit flag
 
 void _event_loop(int rank) {
     VM *vm = NULL;
     while (true) {
         {
             XLOCK(_evt);                          ///< lock queue
-            WAIT(_cv_evt, []{ return !_que.empty() || _done; });
+            WAIT(_cv_evt, []{ return !_que.empty() || _quit; });
             
             if (!_que.empty()) {                  ///< lock reaccquired
                 vm = _que.front();
                 _que.pop();
             }
-            else if (_done) break;                /// * bail
+            else if (_quit) break;                /// * bail
             
             NOTIFY(_cv_evt);                      /// * notify one
         }
@@ -99,7 +99,7 @@ void t_pool_init() {
 void t_pool_stop() {
     {
         GUARD(_evt);
-        _done = true;                             /// * stop event queue
+        _quit = true;                             /// * stop event queue
         NOTIFY_ALL(_cv_evt);
     }
     printf("joining thread ");
@@ -200,9 +200,9 @@ void VM::send(int tid, int n) {                   ///< ( v1 v2 .. vn -- )
     VM& vm = vm_get(tid);                         ///< destination VM
     
     XLOCK(tsk);
-    WAIT(cv_tsk, [vm]{ return vm.state==HOLD || _done; });
+    WAIT(cv_tsk, [vm]{ return vm.state==HOLD || _quit; });
 
-    if (_done) return;                            /// * nothing to do, bail
+    if (_quit) return;                            /// * nothing to do, bail
 
     VM_LOG(&vm, ">> sending %d items to VM%d.%d", n, tid, vm.state);
     _ss_dup(vm, *this, n);                        /// * pass n params as a msg queue
@@ -223,7 +223,7 @@ void VM::recv() {                                 ///< ( -- v1 v2 .. vn )
     VM_LOG(this, ">> waiting");
     {
         XLOCK(tsk);
-        WAIT(cv_tsk, [this]{ return state!=HOLD || _done; }); /// * block until msg arrive
+        WAIT(cv_tsk, [this]{ return state!=HOLD || _quit; }); /// * block until msg arrive
         state = st;                                /// * restore VM state
     
         NOTIFY(cv_tsk);
@@ -243,9 +243,9 @@ void VM::pull(int tid, int n) {
     VM& vm = vm_get(tid);                         ///< source VM
     
     XLOCK(tsk);
-    WAIT(cv_tsk, [vm]{ return vm.state==STOP || _done; });
+    WAIT(cv_tsk, [vm]{ return vm.state==STOP || _quit; });
     
-    if (!_done) {
+    if (!_quit) {
         _ss_dup(*this, vm, n);                    /// * retrieve from completed task
         printf(">> pulled %d items from VM%d.%d\n", n, vm.id, vm.state);
     }
