@@ -29,7 +29,6 @@ typedef  condition_variable COND_VAR;
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include <unistd.h>                    /// sysconf (# of cores)
 #include <sched.h>                     /// CPU affinity
 #endif // DO_MULTITASK
 
