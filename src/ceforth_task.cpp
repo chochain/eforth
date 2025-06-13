@@ -80,24 +80,18 @@ void t_pool_init() {
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
         _pool.emplace_back(_event_loop, (int)_vm[i].id);
 
-        int rc = 0;
-#if _WIN32 || _WIN64
-        HANDLE    t   = _pool.back().native_handle();
-        DWORD_PTR msk = 1ULL << (i % VM::NCORE);
-        DWORD_PTR rst = SetThreadAffinityMask(t, msk);
-        rc = rst==0;
-#elif defined(__linux__)
+#if __has_include(<sched.h>)
         pthread_t t   = _pool.back().native_handle();
         cpu_set_t set;
         CPU_ZERO(&set);                           /// * clear affinity
         CPU_SET(i % VM::NCORE, &set);             /// * set CPU affinity
-        rc = pthread_setaffinity_np(          /// * set core affinity
+        int rc = pthread_setaffinity_np(          /// * set core affinity
             t, sizeof(cpu_set_t), &set
         );
-#endif // defined(__linux__)
-        if (rc !=0) {
+        if (rc != 0) {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
+#endif // __has_include(<sched.h>)
     }
     printf("CPU cores=%d, thread pool[%d] initialized\n", VM::NCORE, E4_VM_POOL_SZ);
 }
@@ -109,7 +103,7 @@ void t_pool_stop() {
         NOTIFY_ALL(_cv_evt);
     }
     printf("joining thread ");
-    int i = _pool.size();
+    int i = (int)_pool.size();
     for (auto &t : _pool) {
         printf("%d ", --i);
         t.join();
@@ -210,7 +204,7 @@ void VM::send(int tid, int n) {                   ///< ( v1 v2 .. vn -- )
 
     if (_done) return;                            /// * nothing to do, bail
 
-    VM_LOG(&vm, " >> sending %d items to VM%d.%d", n, tid, vm.state);
+    VM_LOG(&vm, ">> sending %d items to VM%d.%d", n, tid, vm.state);
     _ss_dup(vm, *this, n);                        /// * pass n params as a msg queue
     vm.state = NEST;                              /// * unblock target task
 
@@ -226,7 +220,7 @@ void VM::recv() {                                 ///< ( -- v1 v2 .. vn )
         state = HOLD;                             /// * pending state for message
         NOTIFY(cv_tsk);
     }
-    VM_LOG(this, " >> waiting");
+    VM_LOG(this, ">> waiting");
     {
         XLOCK(tsk);
         WAIT(cv_tsk, [this]{ return state!=HOLD || _done; }); /// * block until msg arrive
@@ -234,7 +228,7 @@ void VM::recv() {                                 ///< ( -- v1 v2 .. vn )
     
         NOTIFY(cv_tsk);
     }
-    VM_LOG(this, " >> received => state=%d", st);
+    VM_LOG(this, ">> received => state=%d", st);
 }
 ///
 ///> broadcasting to all receving VMs
