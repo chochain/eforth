@@ -199,7 +199,7 @@ void VM::send(int tid, int n) {                   ///< ( v1 v2 .. vn -- )
     VM& vm = vm_get(tid);                         ///< destination VM
     
     XLOCK(tsk);
-    WAIT(cv_tsk, [this]{ return state==HOLD || _done; });
+    WAIT(cv_tsk, [vm]{ return vm.state==HOLD || _done; });
 
     if (_done) return;                            /// * nothing to do, bail
 
