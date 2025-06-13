@@ -4,14 +4,9 @@
 #ifndef __EFORTH_SRC_CONFIG_H
 #define __EFORTH_SRC_CONFIG_H
 ///
-/// Benchmark: 10K*10K cycles on desktop (3.2G AMD)
-///    RANGE_CHECK     0 cut 100ms
-///    INLINE            cut 545ms
-///
 ///@name Conditional compililation options
 ///@}
 #define CC_DEBUG        1               /**< debug level 0|1|2      */
-#define RANGE_CHECK     0               /**< vector range check     */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    1               /**< multitasking/pthread   */
@@ -44,13 +39,14 @@ typedef float           DU;
 #define DU_EPS          0.00001f
 #define INT(v)          (static_cast<S32)(v))
 #define UINT(v)         (static_cast<U32>(v))
-#define MOD(m,n)        (fmodf(m,n))
+#define MOD(m,n)        ((DU)fmodf(m,n))
 #define ABS(v)          (fabsf(v))
 #define ZEQ(v)          (ABS(v) < DU_EPS)
 #define EQ(a,b)         (ZEQ((a) - (b)))
 #define LT(a,b)         (((a) - (b)) < -DU_EPS)
 #define GT(a,b)         (((a) - (b)) > DU_EPS)
 #define RND()           (static_cast<float>(rand()) / static_cast<float>(RAND_MAX))
+#define MAX(a,b)        (fmaxf(a,b))
 
 #else // !USE_FLOAT
 typedef int64_t         DU2;
@@ -67,6 +63,7 @@ typedef int32_t         DU;
 #define LT(a,b)         ((a) < (b))
 #define GT(a,b)         ((a) > (b))
 #define RND()           (rand())
+#define MAX(a,b)        (std::max(a,b))
 
 #endif // USE_FLOAT
 ///@}
@@ -92,15 +89,10 @@ typedef int32_t         DU;
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
+#define ENDL            endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
 ///@}
 ///@name Multi-platform support
 ///@{
-#if    _WIN32 || _WIN64
-    #define ENDL "\r\n"
-#else  // !(_WIN32 || _WIN64)
-    #define ENDL endl; fout_cb(fout.str().length(), fout.str().c_str()); fout.str("")
-#endif // _WIN32 || _WIN64
-
 #if (ARDUINO || ESP32)
     #include <Arduino.h>
     #define DALIGN(sz)      (sz)
@@ -136,8 +128,8 @@ typedef int32_t         DU;
     #define LOGX(v)     Serial.print(v, HEX)
 #else  // !(ARDUINO || ESP32)
     #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-d", (int32_t)(v))
-    #define LOGX(v)     printf("%-x", (uint32_t)(v))
+    #define LOG(v)      printf("%-ld", (int64_t)(v))
+    #define LOGX(v)     printf("%-lx", (uint64_t)(v))
 #endif // (ARDUINO || ESP32)
     
 #define LOG_NA()        LOGS("N/A\n")
@@ -150,15 +142,26 @@ typedef int32_t         DU;
 #if DO_MULTITASK
 #if CC_DEBUG
 #include <stdarg.h>
+    
+#if DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64)
+#define VM_HDR(vm, fmt, ...)                                \
+    printf("[%02d.%d]%-4x" fmt,                             \
+           (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
+#define VM_TLR(vm, fmt, ...)                                \
+    printf(fmt, ##__VA_ARGS__)
+    
+#else // !(DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64))
 #define VM_HDR(vm, fmt, ...)                  \
     printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                  \
     printf("\e[%dm" fmt "\e[0m\n",            \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
+#endif // DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64)    
 #define VM_LOG(vm, fmt, ...)                  \
     VM_HDR(vm, fmt, ##__VA_ARGS__);           \
     printf("\n")
+
 #endif // CC_DEBUG
 #else  // !DO_MULTITASK
 #define VM_HDR(vm, fmt, ...)
