@@ -24,6 +24,7 @@ typedef  condition_variable COND_VAR;
 #define  XLOCK(m)           unique_lock<mutex> _xlck_(m)   /** exclusive lock     */
 #define  WAIT(cv,g)         (cv).wait(_xlck_, g)           /** wait for condition */
 #define  NOTIFY(cv)         (cv).notify_one()              /** wake up one task   */
+#define  NOTIFY_ALL(cv)     (cv).notify_all();
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
