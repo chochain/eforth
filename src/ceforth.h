@@ -21,9 +21,9 @@ typedef  thread             THREAD;
 typedef  mutex              MUTEX;
 typedef  condition_variable COND_VAR;
 #define  GUARD(m)           lock_guard<mutex>  _grd_(m)
-#define  UNILOCK(m)         unique_lock<mutex> _ulck_(m)
-#define  WAIT(cv,g)         (cv).wait(_ulck_, g)
-#define  NOTIFY(cv)         (cv).notify_one()
+#define  XLOCK(m)           unique_lock<mutex> _xlck_(m)   /** exclusive lock     */
+#define  WAIT(cv,g)         (cv).wait(_xlck_, g)           /** wait for condition */
+#define  NOTIFY(cv)         (cv).notify_one()              /** wake up one task   */
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE

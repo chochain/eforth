@@ -54,7 +54,7 @@ void _event_loop(int rank) {
     VM *vm = NULL;
     while (true) {
         {
-            UNILOCK(_evt);                        ///< lock queue
+            XLOCK(_evt);                          ///< lock queue
             WAIT(_cv_evt, []{ return !_que.empty() || _done; });
             
             if (!_que.empty()) {                  ///< lock reaccquired
@@ -164,7 +164,7 @@ void VM::join(int tid) {
     VM &vm = vm_get(tid);
     VM_LOG(this, ">> joining VM%d", vm.id);
     {
-        UNILOCK(tsk);
+        XLOCK(tsk);
         WAIT(cv_tsk, [&vm]{ return vm.state==STOP; });
         NOTIFY(cv_tsk);
     }
@@ -198,7 +198,7 @@ void VM::stop() { set_state(STOP); }              /// * and release lock
 void VM::send(int tid, int n) {                   ///< ( v1 v2 .. vn -- )
     VM& vm = vm_get(tid);                         ///< destination VM
     
-    UNILOCK(tsk);
+    XLOCK(tsk);
     WAIT(cv_tsk, [this]{ return state==HOLD || _done; });
 
     if (_done) return;                            /// * nothing to do, bail
@@ -221,7 +221,7 @@ void VM::recv() {                                 ///< ( -- v1 v2 .. vn )
     }
     VM_LOG(this, " >> waiting");
     {
-        UNILOCK(tsk);
+        XLOCK(tsk);
         WAIT(cv_tsk, [this]{ return state!=HOLD || _done; }); /// * block until msg arrive
         state = st;                                /// * restore VM state
     
@@ -241,7 +241,7 @@ void VM::bcast(int n) {
 void VM::pull(int tid, int n) {
     VM& vm = vm_get(tid);                         ///< source VM
     
-    UNILOCK(tsk);
+    XLOCK(tsk);
     WAIT(cv_tsk, [vm]{ return vm.state==STOP || _done; });
     
     if (!_done) {
@@ -256,7 +256,7 @@ void VM::pull(int tid, int n) {
 ///
 /// Note: after C++20, _io can be atomic.wait
 void VM::io_lock() {
-    UNILOCK(io);                                  ///< wait for IO
+    XLOCK(io);                                    ///< wait for IO
     WAIT(cv_io, []{ return !io_busy; });
     
     io_busy = true;                               /// * lock
