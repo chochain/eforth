@@ -74,25 +74,30 @@ void _event_loop(int rank) {
 }
 
 void t_pool_init() {
-    VM::NCORE = sysconf(_SC_NPROCESSORS_ONLN);    ///< number of cores
+    VM::NCORE = thread::hardware_concurrency();   ///< number of cores
     
     /// setup thread pool and CPU affinity
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
         _pool.emplace_back(_event_loop, (int)_vm[i].id);
 
-    
-#if defined(__linux__)
-        pthread_t t = _pool.back().native_handle();
+        int rc = 0;
+#if _WIN32 || _WIN64
+        HANDLE    t   = _pool.back().native_handle();
+        DWORD_PTR msk = 1ULL << (i % VM::NCORE);
+        DWORD_PTR rst = SetThreadAffinityMask(t, msk);
+        rc = rst==0;
+#elif defined(__linux__)
+        pthread_t t   = _pool.back().native_handle();
         cpu_set_t set;
         CPU_ZERO(&set);                           /// * clear affinity
         CPU_SET(i % VM::NCORE, &set);             /// * set CPU affinity
-        int rc = pthread_setaffinity_np(          /// * set core affinity
+        rc = pthread_setaffinity_np(          /// * set core affinity
             t, sizeof(cpu_set_t), &set
         );
+#endif // defined(__linux__)
         if (rc !=0) {
             printf("thread[%d] failed to set affinity: %d\n", i, rc);
         }
-#endif // defined(__linux__)
     }
     printf("CPU cores=%d, thread pool[%d] initialized\n", VM::NCORE, E4_VM_POOL_SZ);
 }
