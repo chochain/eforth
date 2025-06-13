@@ -101,13 +101,15 @@ void t_pool_stop() {
     {
         GUARD(_evt);
         _done = true;                             /// * stop event queue
-        NOTIFY(_cv_evt);
+        NOTIFY_ALL(_cv_evt);
     }
-    printf("joining thread...");
+    printf("joining thread ");
+    int i = _pool.size();
     for (auto &t : _pool) {
+        printf("%d ", --i);
         t.join();
     }
-    printf(" done!\n");
+    printf("done!\n");
 }
 ///
 ///> setup user area (base pointer)
