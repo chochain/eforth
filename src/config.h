@@ -14,7 +14,7 @@
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
-#define DO_MULTITASK    0               /**< multitasking/pthread   */
+#define DO_MULTITASK    1               /**< multitasking/pthread   */
 #define E4_VM_POOL_SZ   8               /**< # of threads in pool   */
 //@}
 ///
@@ -104,16 +104,14 @@ typedef int32_t         DU;
                                 const t1 = Date.now() + $0;               \
                                 while(Date.now() < t1);                   \
                             }, ms)
-    #define yield()         /* JS is async */
     #define DALIGN(sz)      ALIGN4(sz)
 
-#else  // !(ARDUINO || ESP32) && !DO_WASM
+#else  // !((ARDUINO || ESP32) || DO_WASM)
     #include <chrono>
     #include <thread>
     #define millis()        chrono::duration_cast<chrono::milliseconds>( \
                             chrono::steady_clock::now().time_since_epoch()).count()
     #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
-    #define yield()         this_thread::yield()
     #define PROGMEM
     #define DALIGN(sz)      (sz)
 
@@ -144,15 +142,15 @@ typedef int32_t         DU;
 #if DO_MULTITASK
 #if CC_DEBUG
 #include <stdarg.h>
-#if DO_WASM || (ESP32 || ARDUINO)
-#define VM_LOG(vm, fmt, ...)                  \
-    printf("[%02d.%d]" fmt "\n",              \
+#if DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64)
+#define VM_LOG(vm, fmt, ...)                   \
+    printf("[%02d.%d] " fmt "\n",              \
            (vm)->id, (vm)->state, ##__VA_ARGS__)
-#else // !(DO_WASM || (ESP32 || ARDUINO))
-#define VM_LOG(vm, fmt, ...)                  \
-    printf("\e[%dm[%02d.%d]" fmt "\e[0m\n",   \
+#else // !(DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64))
+#define VM_LOG(vm, fmt, ...)                   \
+    printf("\e[%dm[%02d.%d] " fmt "\e[0m\n",   \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, ##__VA_ARGS__)
-#endif // DO_WASM || (ESP32 || ARDUINO)
+#endif // DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64)
 
 #else  // !(CC_DEBUG > 1)
 
