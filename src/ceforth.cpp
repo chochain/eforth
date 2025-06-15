@@ -25,7 +25,7 @@ Code      *last;                       ///< cached dict[-1]
 #define BASE         ((U8*)&VAR(vm.id << 16))
 #define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
-#define ADD_W(w)     (last->append(w))
+#define ADD_W(w)     (last->append((Code*)(w)))
 #define BTGT()       (dict[-2]->pf[-1])      /** branching target   */
 #define BRAN(p)      ((p).merge(last->pf))   /** add branching code */
 #define NEST(pf)     for (auto w : (pf)) w->nest(vm)
@@ -41,7 +41,7 @@ Code      *last;                       ///< cached dict[-1]
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-const Code rom[] = {               ///< Forth dictionary
+const Code rom[] {               ///< Forth dictionary
     CODE("bye",    forth_quit()),
     ///
     /// @defgroup ALU ops
@@ -145,16 +145,16 @@ const Code rom[] = {               ///< Forth dictionary
     IMMD(".(",     pstr(scan(')'))),
     IMMD("\\",     scan('\n')),
     IMMD("s\"",
-         string s = word('"').substr(1);
+         const char *s = word('"'); if (!s) return;
          if (vm.compile) {
-             ADD_W(new Str(s, last->token, (int)last->pf.size()));
+             ADD_W(new Str(s+1, last->token, (int)last->pf.size()));
          }
          else {
              vm.pad = s;                             /// keep string on pad
-             PUSH(-DU1); PUSH(s.length());           /// -1 = pad, len
+             PUSH(-DU1); PUSH(STRLEN(s));            /// -1 = pad, len
          }),
     IMMD(".\"",
-         string s = word('"').substr(1);
+         const char *s = word('"'); if (!s) return;
          ADD_W(new Str(s))),
     /// @}
     /// @defgroup Branching ops
@@ -240,7 +240,9 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
-         DICT_PUSH(new Code(word()));   /// create new word
+         const char *s = word();
+         DICT_PUSH(new Code(s));   /// create new word
+         printf(" word() << %s[%x]\n", s, (int)dict.size());
          vm.compile = true),
     IMMD(";", vm.compile = false),
     CODE("constant",
@@ -267,7 +269,7 @@ const Code rom[] = {               ///< Forth dictionary
          ADD_W(new Bran(_does));
          last->pf[-1]->token = last->token),          /// keep WP
     CODE("to",                                        /// n --
-         Code *w=find(word()); if (!w) return;
+         const Code *w = find(word()); if (!w) return;
          VAR(w->token) = POP()),                      /// update value
     CODE("is",                                        /// w -- 
          DICT_PUSH(new Code(word(), false));          /// create word
@@ -316,12 +318,13 @@ const Code rom[] = {               ///< Forth dictionary
     /// @{
     CODE("abort",   TOS = -DU1; SS.clear(); RS.clear()),        /// clear ss, rs
     CODE("here",    PUSH(last->token)),
-    CODE("'",       Code *w = find(word()); if (w) PUSH(w->token)),
+    CODE("'",
+         const Code *w = find(word()); if (w) PUSH(w->token)),
     CODE(".s",      ss_dump(vm, true)),                         /// dump parameter stack
     CODE("words",   words(*vm.base)),                           /// display word lists
     CODE("see",
-         Code *w = find(word());
-         if (w) see(w, *vm.base);
+         const Code *w = find(word());
+         if (w) see(*w, *vm.base);
          dot(CR)),
     CODE("dict",    dict_dump(*vm.base)),                       /// display dictionary
     CODE("dump",    IU w1 = POPI(); mem_dump(POPI(), w1, *vm.base)),
@@ -329,7 +332,7 @@ const Code rom[] = {               ///< Forth dictionary
     /// @}
     /// @defgroup OS ops
     /// @{
-    IMMD("include", load(vm, word().c_str())),                  /// include an OS file
+    IMMD("include", load(vm, word())),                          /// include an OS file
     CODE("included",                                            /// include a file (programmable)
          POP(); U32 i_w = POPI(); load(vm, STR(i_w))),
     CODE("mstat",   mem_stat()),                                /// display memory stat
@@ -337,7 +340,7 @@ const Code rom[] = {               ///< Forth dictionary
     CODE("rnd",     PUSH(RND())),                               /// get a random number
     CODE("ms",      delay(POPI())),                             /// n -- delay n msec
     CODE("forget",
-         Code *w = find(word()); if (!w) return;
+         const Code *w = find(word()); if (!w) return;
          int   t = MAX((int)w->token, (int)find("boot")->token + 1);
          for (int i=(int)dict.size(); i>t; i--) DICT_POP()),
     CODE("boot",
@@ -350,9 +353,9 @@ const Code rom[] = {               ///< Forth dictionary
 ///
 Code::Code(const char *s, const char *d, XT fp, U32 a)  ///> primitive word
     : name(s), desc(d), xt(fp), attr(a) {}
-Code::Code(string s, bool n) {           ///< new colon word
-    Code *w = find(s);                   /// * scan the dictionary
-    name  = (new string(s))->c_str();
+Code::Code(const char *s, bool n) {      ///< new colon word
+    const Code *w = find(s);             /// * scan the dictionary
+    name  = s;                           /// * copy the name
     desc  = "";
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
@@ -368,7 +371,7 @@ void Code::nest(VM &vm) {
     for (Iter c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
         catch (...) { break; }
-        // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
+        printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
     }
 }
 ///====================================================================
@@ -430,43 +433,56 @@ void _does(VM &vm, Code &c) {
 ///
 ///> Forth outer interpreter
 ///
-Code *find(string s) {      ///> scan dictionary, last to first
+const Code *find(const char *s) {             ///> scan dictionary, last to first
+    printf(" find(%s) from %x", s, (int)dict.size());
+    if (!s || !*s) return NULL;
     for (int i = (int)dict.size() - 1; i >= 0; --i) {
-        if (STRCMP(s.c_str(), dict[i]->name)==0) return dict[i];
+        if (STRCMP(s, dict[i]->name)==0) {
+            printf(" found(%s[%x])\n", s, i);
+            return dict[i];
+        }
     }
-    return NULL;            /// * word not found
+    printf(" not found\n");
+    return NULL;                               /// * word not found
 }
 
-DU parse_number(string idiom, int b) {
-    const char *cs = idiom.c_str();
-    switch (*cs) {                    ///> base override
-    case '%': b = 2;  cs++; break;
+DU parse_number(const char *s, int b) {
+    switch (*s) {                              ///> base override
+    case '%': b = 2;  s++; break;
     case '&':   
-    case '#': b = 10; cs++; break;
-    case '$': b = 16; cs++; break;
+    case '#': b = 10; s++; break;
+    case '$': b = 16; s++; break;
     }
     char *p;
-    errno = 0;                       ///> clear overflow flag
+    errno = 0;                                 ///> clear overflow flag
 #if USE_FLOAT
     DU n = (b==10)
-        ? static_cast<DU>(strtof(cs, &p))
-        : static_cast<DU>(strtol(cs, &p, b));
+        ? static_cast<DU>(strtof(s, &p))
+        : static_cast<DU>(strtol(s, &p, b));
 #else
-    DU n = static_cast<DU>(strtol(cs, &p, b));
+    DU n = static_cast<DU>(strtol(s, &p, b));
 #endif
-    if (errno || *p != '\0') throw runtime_error("");
+    if (errno || *p != '\0') {
+        printf(" => N/A");
+        throw runtime_error("");
+    }
     return n;
 }
 
-void forth_core(VM &vm, string idiom) {
-    Code *w = find(idiom);            /// * search through dictionary
+void forth_core(VM &vm, const char *idiom) {
+    printf(">> %s", idiom);
+    Code *w = (Code*)find(idiom);
     if (w) {                          /// * word found?
-        if (vm.compile && !w->immd)   /// * are we compiling new word?
+        printf(" => '%s'\n", w->name);
+        if (vm.compile && !w->immd) { /// * are we compiling new word?
+            printf("ADD_W(%s)\n", w->name);
             ADD_W(w);                 /// * append word ptr to it
+        }
         else w->nest(vm);             /// * execute forth word
         return;
     }
-    DU  n = parse_number(idiom, *vm.base);  ///< try as a number
+    DU  n = parse_number(idiom, *vm.base);  ///< try as a number, throw exception
+    printf(" => %d\n", n);
     if (vm.compile)                   /// * are we compiling new word?
         ADD_W(new Lit(n));            /// * append numeric literal to it
     else PUSH(n);                     /// * add value to data stack
@@ -491,24 +507,30 @@ void forth_init() {
     vm0.state = HOLD;
 }
 
+void forth_teardown() {
+    t_pool_stop();
+}
+
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);               ///< main thread
     fout_setup(hook);                 /// * init output stream
     fin_setup(line);                  /// * refresh buffer if not resuming
-    
+
     string idiom;
-    while (fetch(idiom)) {            /// * parse a word
+    while (fetch(idiom)) {            /// * read a word from line
+        const char *s = idiom.c_str();
+        printf("idiom=%s { st=%d compile=%d\n", s, vm.state, vm.compile);
         try {
             vm.set_state(QUERY);
-            forth_core(vm, idiom);    /// * send to Forth core
+            forth_core(vm, s);        /// * send to Forth core
         }
         catch (exception &e) {
-            pstr(idiom.c_str());
-            pstr("?"); pstr(e.what(), CR);
+            pstr(s); pstr("?"); pstr(e.what(), CR);
             vm.compile = false;
-            scan('\n');                /// * exhaust input line
+            scan('\n');               /// * exhaust input line
             vm.set_state(STOP);
         }
+        printf("} idiom=%s st=%d compile=%d\n\n", s, vm.state, vm.compile);
     }
     if (!vm.compile) ss_dump(vm);
     
