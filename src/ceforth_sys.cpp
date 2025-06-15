@@ -29,16 +29,24 @@ void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;        ///< serial output hook up
 }
-char *scan(char c) {
-    static string pad;                 ///< temp storage
-    getline(fin, pad, c);              ///< scan fin for char c
-    return (char*)pad.c_str();         ///< return found string
+const char *scan(char c) {
+    static string s;                   ///< temp str, static prevents reclaim
+    getline(fin, s, c);                ///< scan fin for char c
+    return s.c_str();                  ///< return found string
 }
-int  fetch(string &idiom) { return !(fin >> idiom)==0; }
-string word(char delim) {              ///> read next idiom form input stream
-    string s;                          /// * TODO: no dynamic realloc, use pool
-    delim ? getline(fin, s, delim) : fin >> s;
-    return s;
+const char *word(char delim) {         ///> read next idiom form input stream
+    static string s;                   ///< temp str, static prevents reclaim
+    delim ? getline(fin, s, delim) : (fin >> s);
+
+    printf(" word() >> %s size=%d", s.c_str(), (int)s.size());
+    
+    if (s.size()) return s.c_str();
+    
+    fout << "?str" << ENDL;
+    return NULL;
+}
+int fetch(string &idiom) {             ///> read an idiom from input stream
+    return !(fin >> idiom)==0;
 }
 char key() { return word()[0]; }
 void load(VM &vm, const char *fn) {    ///> include script from stream
@@ -109,48 +117,49 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
     TOS = SS.pop();
     fout << "-> ok" << ENDL;
 }
-void _see(Code *c, int dp) {         ///> disassemble a colon word
-    auto pp = [](string s, FV<Code*> v, int dp) {  ///> recursive dump with indent
+void _see(const Code &c, int dp) {       ///> disassemble a colon word
+    if (dp > 2) return;
+    auto pp = [](const string &s, FV<Code*> pf, int dp) { ///> recursive dump with indent
         int i = dp;
-        if (dp && s!="\t") { fout << ENDL; }       ///> newline control
-        while (i--) { fout << "  "; } fout << s;   ///> indentation control
-        if (dp < 2) for (auto w : v) _see(w, dp + 1);
+        if (dp && s != "\t") { fout << ENDL; }          ///> newline control
+        while (i--) { fout << "  "; } fout << s;        ///> indentation control
+        for (auto w : pf) _see(*w, dp + 1);
     };
     auto pq = [](FV<DU> q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
     };
-    const FV<Code*> zz = {};
-    string sn(c->name);
-    if (c->is_str) sn = (c->token ? "s\" " : ".\" ") + sn + "\"";
-    pp(sn, c->pf, dp);
+    const FV<Code*> nil = {};
+    string sn(c.name);
+    if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
+    pp(sn, c.pf, dp);
     if (sn=="if")    {
-        if (c->stage==1) pp("else", c->p1, dp);
-        pp("then", zz, dp);
+        if (c.stage==1) pp("else", c.p1, dp);
+        pp("then", nil, dp);
     }
     else if (sn=="begin") {
-        switch (c->stage) {
-        case 0: pp("until", zz, dp); break;
-        case 1: pp("again", zz, dp); break;
+        switch (c.stage) {
+        case 0: pp("until", nil, dp); break;
+        case 1: pp("again", nil, dp); break;
         case 2:
-            pp("while",  c->p1, dp);
-            pp("repeat", zz,    dp);
+            pp("while",  c.p1, dp);
+            pp("repeat", nil,    dp);
             break;
         }
     }
     else if (sn=="for") {
-        if (c->stage==3) {
-            pp("aft",  c->p1, dp);
-            pp("then", c->p2, dp);
+        if (c.stage==3) {
+            pp("aft",  c.p1, dp);
+            pp("then", c.p2, dp);
         }
-        pp("next", zz, dp);
+        pp("next", nil, dp);
     }
     else if (sn=="do") {
-        pp("loop", zz, dp);
+        pp("loop", nil, dp);
     }
-    else pq(c->q);
+    else pq(c.q);
 }
-void see(Code *c, int base) {
-    if (c->xt) fout << "  ->{ " << c->desc << "; }";
+void see(const Code &c, int base) {
+    if (c.xt) fout << "  ->{ " << c.desc << "; }";
     else {
         fout << ": "; _see(c, 0); fout << " ;";
     }
