@@ -108,10 +108,12 @@ void t_pool_stop() {
         printf("%d ", --i);
         t.join();
     }
+    _pool.clear();
+    
     printf("done!\n");
 }
 ///
-///> setup user area (base pointer)
+///> setup/teardown user area (base pointer)
 ///
 void uvar_init() {
     dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
