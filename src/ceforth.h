@@ -38,6 +38,15 @@ struct FV : public vector<T> {         ///< our super-vector class
     FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
+#if 0    
+    ~FV() {
+        if constexpr(is_pointer<T>::value) {
+            for (T t : *this) {
+                if (t != nullptr) { delete t; t = nullptr; }
+            }
+        }
+    }
+#endif    
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
     T    &operator[](int i) {
@@ -125,11 +134,12 @@ struct Code {
         };
     };
     Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
-    Code(const string s, bool n=true);                 ///> colon, n=new word
-    Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
-    ~Code() {}                                         ///> do nothing now
-    
-    Code *append(Code *w) { pf.push(w); return this; } ///> add token
+    Code(const char *s, bool n=true);                  ///> colon, n=new word
+    Code(XT fp) : name(" _v"), xt(fp), attr(0) {}      ///> sub-classes
+    ~Code() { printf("%s\n", name); }                  ///> clean up
+    Code *append(Code *w) {
+        printf(" pf.push(%s)\n", w->name);
+        pf.push(w); return this; } ///> add token
     void nest(VM &vm);                                 ///> inner interpreter
 };
 ///
@@ -163,12 +173,12 @@ void   _does(VM &vm, Code &c);       ///< does>
 ///
 ///> polymorphic constructors
 ///
-struct Tmp : Code { Tmp() : Code(NULL) {} };
+struct Tmp : Code { Tmp()     : Code((XT)NULL) {} };
 struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
 struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
-    Str(string s, int tok=0, int len=0) : Code(_str) {
-        name  = (new string(s))->c_str();
+    Str(const char *s, int tok=0, int len=0) : Code(_str) {
+        name  = s;
         token = (len << 16) | tok;   /// * encode word index and string length
         is_str= 1;
     }
@@ -198,20 +208,19 @@ void t_pool_stop();
 int  task_create(IU w);                   ///< create a VM starting on dict[w]
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else  // !DO_MULTITASK
-#define t_pool_init() {}
-#define t_pool_stop() {}
+#define t_pool_init()  {}
+#define t_pool_stop()  {}
 #endif // !DO_MULTITASK
 ///
 ///> System interface
 ///
 void forth_init();
-int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 #if DO_WASM
 #define forth_quit() {}
 #else // !DO_WASM
-#define forth_quit() { t_pool_stop(); exit(0); } ///< exit to OS
+#define forth_quit() { vm.state=STOP; }   ///< exit to OS
 #endif // DO_WASM
 ///
 ///> IO functions
@@ -221,12 +230,12 @@ typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
 
-Code *find(string s);                     ///< dictionary scanner forward declare
-char *scan(char c);                       ///< scan input stream for a given char
+const Code *find(const char *s);          ///< dictionary scanner forward declare
+const char *scan(char c);                 ///< scan input stream for a given char
+const char *word(char delim=0);           ///< read next idiom from input stream
 int  fetch(string &idiom);                ///< read input stream into string
-string word(char delim=0);                ///< read next idiom from input stream
 char key();                               ///< read key from console
-void load(VM &vm, const char* fn);        ///< load external Forth script
+void load(VM &vm, const char *fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
 void dot(io_op op, DU v=DU0);             ///< print literals
 void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
@@ -235,7 +244,7 @@ void pstr(const char *str, io_op op=SPCS);///< print string
 ///> Debug functions
 ///
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
-void see(Code *c, int base);              ///< disassemble user defined word
+void see(const Code &c, int base);        ///< disassemble user defined word
 void words(int base);                     ///< list dictionary words
 void dict_dump(int base);                 ///< dump dictionary
 void mem_dump(IU w0, IU w1, int base);    ///< dump memory for a given wordrm addr...addr+sz
