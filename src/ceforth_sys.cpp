@@ -32,17 +32,15 @@ void fout_setup(void (*hook)(int, const char*)) {
 const char *scan(char c) {
     static string s;                   ///< temp str, static prevents reclaim
     getline(fin, s, c);                ///< scan fin for char c
-    return s.c_str();                  ///< return found string
+    return s.c_str();                  ///< return the reference
 }
 const char *word(char delim) {         ///> read next idiom form input stream
     static string s;                   ///< temp str, static prevents reclaim
     delim ? getline(fin, s, delim) : (fin >> s);
 
-    printf(" word() >> %s size=%d", s.c_str(), (int)s.size());
-    
-    if (s.size()) return s.c_str();
-    
-    fout << "?str" << ENDL;
+    if (s.size()) return s.c_str();    ///< return a new copy of string
+
+    pstr(" ?str");
     return NULL;
 }
 int fetch(string &idiom) {             ///> read an idiom from input stream
