@@ -41,9 +41,7 @@ struct FV : public vector<T> {         ///< our super-vector class
 #if 0    
     ~FV() {
         if constexpr(is_pointer<T>::value) {
-            for (T t : *this) {
-                if (t != nullptr) { delete t; t = nullptr; }
-            }
+            for (T t : *this) if (t != nullptr) { delete t; t = nullptr; }
         }
     }
 #endif    
@@ -118,7 +116,7 @@ typedef void (*XT)(VM &vm, Code&); ///< function pointer
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
     const char *name;        ///< name of word
-    const char *desc;
+    const char *desc;        ///< reserved
     XT         xt = NULL;    ///< execution token
     FV<Code*>  pf;           ///< parameter field
     FV<Code*>  p1;           ///< parameter field - if..else, aft..then
@@ -135,11 +133,8 @@ struct Code {
     };
     Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
     Code(const char *s, bool n=true);                  ///> colon, n=new word
-    Code(XT fp) : name(" _v"), xt(fp), attr(0) {}      ///> sub-classes
-    ~Code() { printf("%s\n", name); }                  ///> clean up
-    Code *append(Code *w) {
-        printf(" pf.push(%s)\n", w->name);
-        pf.push(w); return this; } ///> add token
+    Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
+    Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void nest(VM &vm);                                 ///> inner interpreter
 };
 ///
@@ -178,7 +173,7 @@ struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
 struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0) : Code(_str) {
-        name  = s;
+        name  = (new string(s))->c_str();
         token = (len << 16) | tok;   /// * encode word index and string length
         is_str= 1;
     }
