@@ -459,7 +459,7 @@ DU parse_number(const char *s, int b) {
 }
 
 void forth_core(VM &vm, const char *idiom) {
-    Code *w = (Code*)find(idiom);
+    Code *w = (Code*)find(idiom);     ///< find the word named idiom in dict
     if (w) {                          /// * word found?
         if (vm.compile && !w->immd)   /// * are we compiling new word?
             ADD_W(w);                 /// * append word ptr to it
