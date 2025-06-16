@@ -117,13 +117,13 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
 }
 void _see(const Code &c, int dp) {       ///> disassemble a colon word
     if (dp > 2) return;
-    auto pp = [](const string &s, FV<Code*> pf, int dp) { ///> recursive dump with indent
+    auto pp = [](const string &s, const FV<Code*> &pf, int dp) { ///> recursive dump with indent
         int i = dp;
         if (dp && s != "\t") { fout << ENDL; }          ///> newline control
         while (i--) { fout << "  "; } fout << s;        ///> indentation control
         for (auto w : pf) _see(*w, dp + 1);
     };
-    auto pq = [](FV<DU> q) {
+    auto pq = [](const FV<DU> &q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
     };
     const FV<Code*> nil = {};
