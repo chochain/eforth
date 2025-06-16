@@ -150,7 +150,7 @@ const Code rom[] {               ///< Forth dictionary
              ADD_W(new Str(s+1, last->token, (int)last->pf.size()));
          }
          else {
-             vm.pad = s;                             /// keep string on pad
+             vm.pad = s;                             /// copy string onto pad
              PUSH(-DU1); PUSH(STRLEN(s));            /// -1 = pad, len
          }),
     IMMD(".\"",
@@ -240,9 +240,7 @@ const Code rom[] {               ///< Forth dictionary
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
-         const char *s = word();
-         DICT_PUSH(new Code(s));   /// create new word
-         printf(" word() << %s[%x]\n", s, (int)dict.size());
+         DICT_PUSH(new Code(word()));   /// create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
     CODE("constant",
@@ -355,7 +353,7 @@ Code::Code(const char *s, const char *d, XT fp, U32 a)  ///> primitive word
     : name(s), desc(d), xt(fp), attr(a) {}
 Code::Code(const char *s, bool n) {      ///< new colon word
     const Code *w = find(s);             /// * scan the dictionary
-    name  = s;                           /// * copy the name
+    name  = (new string(s))->c_str();    /// * copy the name
     desc  = "";
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
@@ -371,7 +369,7 @@ void Code::nest(VM &vm) {
     for (Iter c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
         catch (...) { break; }
-        printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
+        // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
     }
 }
 ///====================================================================
@@ -433,16 +431,12 @@ void _does(VM &vm, Code &c) {
 ///
 ///> Forth outer interpreter
 ///
-const Code *find(const char *s) {             ///> scan dictionary, last to first
-    printf(" find(%s) from %x", s, (int)dict.size());
-    if (!s || !*s) return NULL;
+const Code *find(const char *s) {              ///> scan dictionary, last to first
     for (int i = (int)dict.size() - 1; i >= 0; --i) {
         if (STRCMP(s, dict[i]->name)==0) {
-            printf(" found(%s[%x])\n", s, i);
             return dict[i];
         }
     }
-    printf(" not found\n");
     return NULL;                               /// * word not found
 }
 
@@ -462,27 +456,19 @@ DU parse_number(const char *s, int b) {
 #else
     DU n = static_cast<DU>(strtol(s, &p, b));
 #endif
-    if (errno || *p != '\0') {
-        printf(" => N/A");
-        throw runtime_error("");
-    }
+    if (errno || *p != '\0') throw runtime_error("");
     return n;
 }
 
 void forth_core(VM &vm, const char *idiom) {
-    printf(">> %s", idiom);
     Code *w = (Code*)find(idiom);
     if (w) {                          /// * word found?
-        printf(" => '%s'\n", w->name);
-        if (vm.compile && !w->immd) { /// * are we compiling new word?
-            printf("ADD_W(%s)\n", w->name);
+        if (vm.compile && !w->immd)   /// * are we compiling new word?
             ADD_W(w);                 /// * append word ptr to it
-        }
         else w->nest(vm);             /// * execute forth word
         return;
     }
     DU  n = parse_number(idiom, *vm.base);  ///< try as a number, throw exception
-    printf(" => %d\n", n);
     if (vm.compile)                   /// * are we compiling new word?
         ADD_W(new Lit(n));            /// * append numeric literal to it
     else PUSH(n);                     /// * add value to data stack
@@ -509,6 +495,7 @@ void forth_init() {
 
 void forth_teardown() {
     t_pool_stop();
+    dict.clear();
 }
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
@@ -519,7 +506,6 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     string idiom;
     while (fetch(idiom)) {            /// * read a word from line
         const char *s = idiom.c_str();
-        printf("idiom=%s { st=%d compile=%d\n", s, vm.state, vm.compile);
         try {
             vm.set_state(QUERY);
             forth_core(vm, s);        /// * send to Forth core
@@ -530,9 +516,8 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             scan('\n');               /// * exhaust input line
             vm.set_state(STOP);
         }
-        printf("} idiom=%s st=%d compile=%d\n\n", s, vm.state, vm.compile);
     }
     if (!vm.compile) ss_dump(vm);
     
-    return 0;
+    return vm.state==STOP;
 }
