@@ -38,13 +38,11 @@ struct FV : public vector<T> {         ///< our super-vector class
     FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
-#if 0    
     ~FV() {
         if constexpr(is_pointer<T>::value) {
             for (T t : *this) if (t != nullptr) { delete t; t = nullptr; }
         }
     }
-#endif    
     void push(T n) { this->push_back(n); }
     T    pop()     { T n = this->back(); this->pop_back(); return n; }
     T    &operator[](int i) {
@@ -134,6 +132,7 @@ struct Code {
     Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
     Code(const char *s, bool n=true);                  ///> colon, n=new word
     Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
+    ~Code() { if (!xt) delete name; }                  ///> delete name of colon word
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void nest(VM &vm);                                 ///> inner interpreter
 };
@@ -173,7 +172,7 @@ struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
 struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0) : Code(_str) {
-        name  = (new string(s))->c_str();
+        name  = (new string(s))->c_str();   /// * hardcopy the string
         token = (len << 16) | tok;   /// * encode word index and string length
         is_str= 1;
     }
