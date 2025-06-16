@@ -86,16 +86,12 @@ void forth_include(const char *fn) {
 ///
 int main(int ac, char* av[]) {
     forth_init();                             ///> initialize dictionary
+    
     mem_stat();                               ///> show memory status
     srand((int)time(0));                      ///> seed random generator
-
-	try {
-		outer(cin);
-        forth_teardown();
-	}
-	catch (exception &e) {
-		cerr << "err:" << e.what() << endl;
-	}
+    outer(cin);                               ///> Forth outer interpreter
+    
+    forth_teardown();                         ///> clean up before we go
     cout << APP_VERSION << " Done!" << endl;
     return 0;
 }
