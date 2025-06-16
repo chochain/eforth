@@ -31,11 +31,11 @@ variable width                  ( number of asterisks to print )
         ;
 
 .( try the following instructions: )
-cr .( 3 10 rectangle)
+.( 3 10 rectangle) cr
 3 10 rectangle
 
-cr .( 5 18 parallelogram)
+.( 5 18 parallelogram) cr
 5 18 parallelogram
 
-cr .( 12 triangle)
+.( 12 triangle) cr
 12 triangle  

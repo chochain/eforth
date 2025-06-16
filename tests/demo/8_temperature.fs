@@ -11,6 +11,6 @@ variable t8
         32 +
         ;
 
-cr .( 90 f>c . => ) 90 f>c .
-cr .( 0  c>f . => ) 0  c>f . cr
+.( 90 f>c . => ) 90 f>c . cr
+.( 0  c>f . => ) 0  c>f . cr
 

@@ -18,7 +18,7 @@ decimal
         r> drop
         ;
 
-cr .( to test the routines, type: )
-cr .( 16    sqrt . => ) 16    sqrt .
-cr .( 625   sqrt . => ) 625   sqrt .
-cr .( 10000 sqrt . => ) 10000 sqrt . cr
+.( to test the routines, type: ) cr
+.( 16    sqrt . => ) 16    sqrt . cr
+.( 625   sqrt . => ) 625   sqrt . cr
+.( 10000 sqrt . => ) 10000 sqrt . cr cr

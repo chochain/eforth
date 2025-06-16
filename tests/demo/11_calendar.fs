@@ -74,6 +74,6 @@ variable leap           ( 1 for a leap year, 0 otherwise. )
 : november      year 11 month ;
 : december      year 12 month ;
 
-cr .( to print the calender of may 2021, type: )
-cr .( 2024 may =>)
+.( to print the calender of may 2021, type: ) cr
+.( 2024 may =>) cr
 2024 may

@@ -60,7 +60,7 @@ variable yourNumber
     guess
   next ;
 
-cr .( type 'greet' for a number guessing game )
-greet
-cr .( 3 limit ) 3 limit
+.( type 'greet' for a number guessing game ) cr
+greet cr
+.( 3 limit ) 3 limit cr
 n-guess
