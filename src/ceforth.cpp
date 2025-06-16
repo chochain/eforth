@@ -433,9 +433,7 @@ void _does(VM &vm, Code &c) {
 ///
 const Code *find(const char *s) {              ///> scan dictionary, last to first
     for (int i = (int)dict.size() - 1; i >= 0; --i) {
-        if (STRCMP(s, dict[i]->name)==0) {
-            return dict[i];
-        }
+        if (STRCMP(s, dict[i]->name)==0) return dict[i];
     }
     return NULL;                               /// * word not found
 }
