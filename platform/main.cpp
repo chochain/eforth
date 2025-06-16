@@ -67,7 +67,7 @@ void mem_stat() {
 void outer(istream &in) {
     string cmd;                               ///< input command; TODO: static pool
     while (getline(in, cmd)) {                ///> fetch user input
-        printf("cmd=<%s>\n", cmd.c_str());
+        // printf("cmd=<%s>\n", cmd.c_str());
         if (forth_vm(cmd.c_str())) break;     ///> run outer interpreter (single task)
     }
 }
