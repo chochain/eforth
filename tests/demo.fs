@@ -36,10 +36,11 @@ variable si                             \ array index (default to 0)
     i 1+ 3 .r ." : "
     i s@ type cr
   loop ;
+: stars 60 for 61 emit next cr ;
 : st_exe
   TSZ 0 do
-    i s@
-    included
+    i s@ 2dup
+    cr type stars included
     500 ms
   loop ;
 st_setup
