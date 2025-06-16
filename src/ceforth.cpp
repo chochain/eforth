@@ -351,9 +351,9 @@ const Code rom[] {               ///< Forth dictionary
 ///
 Code::Code(const char *s, const char *d, XT fp, U32 a)  ///> primitive word
     : name(s), desc(d), xt(fp), attr(a) {}
-Code::Code(const char *s, bool n) {      ///< new colon word
-    const Code *w = find(s);             /// * scan the dictionary
-    name  = (new string(s))->c_str();    /// * copy the name
+Code::Code(const char *s, bool n) {                     ///< new colon word
+    const Code *w = find(s);                            /// * scan the dictionary
+    name  = w ? w->name : (new string(s))->c_str();     /// * copy the name
     desc  = "";
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
