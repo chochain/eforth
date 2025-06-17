@@ -355,6 +355,8 @@ Though the use of C++ standard libraries helps us understanding what Forth does 
 
 The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Go figure how the classic Forths needs only 2 or 4 bytes per node via linked-field and the final executable in a just a few KB. You might start to understand why the old Forth builders see C/C++ like plaque.
 
+I try to release allocated blocks before exiting, however due to the dynamic alloc and resizing of std::vector, eForth dictionary hold on to many Code objects and the names string generated with them, valgrind (or similar tool) could reports lost (or leak). Though these memory blocks should all be reclaimed by the OS, it is something to be mindful of.
+
 ## References
     + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
     + coding -
