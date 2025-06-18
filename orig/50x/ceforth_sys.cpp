@@ -44,17 +44,17 @@ void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;          ///< serial output hook up
 }
-char *scan(char c) {
+const char *scan(char c) {
     static string pad;                   ///< temp storage
     getline(fin, pad, c);                ///< scan fin for char c
-    return (char*)pad.c_str();           ///< return found string
+    return pad.c_str();                  ///< return found string
 }
-int  fetch(string &idiom) { return !(fin >> idiom)==0; }
-char *word() {                           ///< get next idiom
+const char *word() {                     ///< get next idiom
     static string tmp;                   ///< temp string holder
     if (!fetch(tmp)) tmp.clear();        /// * input buffer exhausted?
-    return (char*)tmp.c_str();
+    return tmp.c_str();
 }
+int  fetch(string &idiom) { return !(fin >> idiom)==0; }
 char key() { return word()[0]; }
 void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter

@@ -14,7 +14,7 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
     + Hashtables might go even faster but we'll try that later.
     
 3. <b>Data and Return Stacks are also arrays</b>. With push, pop and [] methods to clarify intentions.
-4. <b>Parameter fields are all arrays</b>. Why not! They can be dymatically expanded while compiling. Or changed on the fly in runtime i.e. self-morphing code. This can be a "scrary" feature for future Forth.
+4. <b>Parameter fields are all arrays</b>. Why not! They can be dynamically expanded while compiling. Or changed on the fly in runtime i.e. self-morphing code. This can be a "scary" feature for future Forth.
 5. <b>No vocabulary, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
 6. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel. see the multi-threading section below for details
     + A thread pool is built-in. Size is defaults to number of cores.
@@ -133,19 +133,21 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
     
     Note: MacOS added, thanks to Kristopher Johnson's work.
 
-### Windows  (Single-threaded Console App only for now)
+### Windows  (Console App)
 
 I haven't develop anything useful on Windows for a long time. Just bearly got this compiled on an 2007 Windows7 box. So, take it with a grain of salt. I'm hoping someone can make it more streamlined.
 
     > install and run Visual Studio on your box
     > under the root directory, open the solution file eforth.sln (which points to project platform/eforth.vcxproj)
-    > Menu bar -> Biuld -> Build Solution   (default to Debug/64-bit)
-    > in a Command window, find and run eforth.exe under tests subdirectory
+    > Menu bar -> Build -> Build Solution   (default to Debug/64-bit)
+    > in a Command window, find and run eforth.exe under tests sub-directory
     > type> words⏎               \ to see available Forth words
     > type> 1 2 +⏎               \ see Forth in action
     > type> bye⏎  or Ctrl-C      \ to exit eForth
 
-    Note: Neva made me do Windows!
+    Note: Windows multi-threading seems to work but 2x slower. 
+        * I only have a 2-core Win box. Do let me know if it goes further. 8-)
+        * No CPU affinity. The code might need to be namespaced to avoid conflicts with Windows include files.
     
 ### WASM
 
@@ -182,7 +184,7 @@ Forth has been supporting multi-tasking since the 70's. They are single-CPU roun
 
     > each VM has it's own private ss, rs, tos, ip, and state
     > multi-threading, instead of multi-processing, with shared dictionary and parameter memory blocks.
-    > pthread.h is used. It is a common POSIXish library supported by most platforms. I have only tried the handful on hands, your milage may vary.
+    > pthread.h is used. It is a common POSIXish library supported by most platforms. I have only tried the handful on hands, your mileage may vary.
     > Message Passing interface for inter-task communication.
 
 ### Life-cycle
@@ -215,7 +217,7 @@ Before we go too far, make sure the following are updated before your build
 |lock|( -- )|lock (semaphore) IO or memory|NEST|
 |unlock|( -- )|release IO or memory lock|NEST|
 |send|( v1 v2 .. vn n t -- )|send n elements on current stack to designated task's stack (use stack as message queue)|sender NEST<br/>receiver HOLD|
-|recv|( -- v1 v2 .. vn )|wait, until message to arraive|HOLD=>NEST|
+|recv|( -- v1 v2 .. vn )|wait, until message to arrive|HOLD=>NEST|
 |pull|( n t -- )|forced fetch stack elements from a completed task|current NEST<br/>target STOP|
 |bcast|( n -- )|not implemented yet, TODO|sender NEST<br/>receivers HOLD|
 |clock|( -- n )|fetch microsecond since Epoch, useful for timing|
@@ -353,6 +355,8 @@ Though the use of C++ standard libraries helps us understanding what Forth does 
 
 The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 64-bit machine. On the other extreme, my ~/orig/40x experimental version, a vector linear-memory hybrid, takes only 16 bytes [here](https://chochain.github.com/eforth/orig/40x/ceforth.h). Go figure how the classic Forths needs only 2 or 4 bytes per node via linked-field and the final executable in a just a few KB. You might start to understand why the old Forth builders see C/C++ like plaque.
 
+I try to release allocated blocks before exiting, however due to the dynamic alloc and resizing of std::vector, eForth dictionary hold on to many Code objects and the names string generated with them, valgrind (or similar tool) could reports lost (or leak). Though these memory blocks should all be reclaimed by the OS, it is something to be mindful of.
+
 ## References
     + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
     + coding -
@@ -377,7 +381,7 @@ The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 
     + Targeting multi-platform. Common source by consolidating ceForth, wineForth, ESP32forth (kept in ~/orig/*). Officially version 8.0
     
 * CC 20220512: Refactor
-    +  Though the goal of Dr. Ting's is to demonstrate how a Forth can be easily understood and cleanly constructed. However, the token threading method used is costly (slow) because each call needs 2 indirect lookups (token->dict, dict->xt). On top of that, C/C++ callframe needs to be setup/teardown. It is worsen by the branch prediction missing every call stalling the CPU pipeline. Bad stuffs!
+    +  Though the goal of Dr. Ting's is to demonstrate how a Forth can be easily understood and cleanly constructed. However, the token threading method used is costly (slow) because each call needs 2 indirect lookups (token->dict, dict->xt). On top of that, C/C++ call-frame needs to be setup/teardown. It is worsen by the branch prediction missing every call stalling the CPU pipeline. Bad stuffs!
     + Refactor to subroutine indirect threading. It's not portable but does speed up 25% (see benchmark above).
     + Using 16-bit offsets for pointer arithmetic which speed up another 5% while maintaining 16-bit parameter space consumption.
     + Since C++ code is at least 4-byte aligned and parameter is 2-byte aligned, the LSB of a given parameter is utilized for colon word identification.
@@ -416,3 +420,18 @@ The current implementation of ~/src/ceforth.h, a Code node takes 144 bytes on a 
         - ANSI-Color trace/logging for different cores
         - mutex guard used
         - lock, unlock for output stream synchronization
+* CC: 20250610: maintenance and memory leak check
+    + Refactor
+        - Macros to reduce verbosity i.e. VM referenced TOS, SS, RS, BRAN, BTGT
+        - Group IO functions to forth_sys module
+        - Macros to clarify intention, i.e. NEST, BASE, ADD_W
+        - Code references replace Code pointers
+        - Rename ms=>clock, delay=>ms (adhere to Forth Standard)
+        - Add destructors to deallocate (reduce valgrind's complaints)
+    + Enhance multi-threading
+        - Use std::thread instead of pthread (except device specific CPU affinity)
+        - Handle recursive include - Save/Restore WP
+        - Refined forth_vm state machine transition (QUERY, HOLD, NEST, STOP)
+    + Enhance debugging
+        - Add dict() to detail dictionary entries
+        - Add dump() to show memory/parameter field's content

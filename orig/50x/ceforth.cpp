@@ -546,7 +546,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
 #if DO_WASM
     CODE("JS",    native_api(vm));                          /// Javascript interface
 #else    
-    CODE("bye",   t_pool_stop(); exit(0));
+    CODE("bye",   vm.state=STOP);
 #endif // DO_WASM
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
@@ -653,16 +653,21 @@ void forth_init() {
     dict_compile();                      ///> compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
 }
+
+void forth_teardown() {
+    t_pool_stop();
+}
+
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
-    VM &vm = vm_get(0);                  ///< get main thread
+    VM &vm = vm_get(0);                                     ///< get main thread
     fout_setup(hook);
-    fin_setup(line);                     /// * refresh buffer if not resuming
+    fin_setup(line);                                        /// * refresh buffer if not resuming
     
     string idiom;
-    while (fetch(idiom)) {               /// * parse a word
-        forth_core(vm, idiom.c_str());   /// * outer interpreter
+    while (fetch(idiom)) {                                  /// * parse a word
+        forth_core(vm, idiom.c_str());                      /// * outer interpreter
     }
     if (!vm.compile) ss_dump(vm);
     
-    return 0;
+    return vm.state==STOP;
 }

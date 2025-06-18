@@ -19,6 +19,7 @@ using namespace std;
 
 extern void forth_init();
 extern int  forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
+extern void forth_teardown();
 
 const char* APP_VERSION = "eForth v5.0";
 ///====================================================================
@@ -64,14 +65,14 @@ void mem_stat() {
 ///> include external Forth script
 ///
 void outer(istream &in) {
-    string cmd;                         ///< input command; TODO: static pool
-    while (getline(in, cmd)) {          ///> fetch user input
+    string cmd;                               ///< input command; TODO: static pool
+    while (getline(in, cmd)) {                ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
-        while (forth_vm(cmd.c_str()));  ///> run outer interpreter (single task)
+        if (forth_vm(cmd.c_str())) break;     ///> run outer interpreter (single task)
     }
 }
 void forth_include(const char *fn) {
-    ifstream ifile(fn);                 ///< open input stream
+    ifstream ifile(fn);                       ///< open input stream
     if (ifile.is_open()) {
         outer(ifile);
     }
@@ -84,12 +85,14 @@ void forth_include(const char *fn) {
 /// main program - Note: Arduino and ESP32 have their own main-loop
 ///
 int main(int ac, char* av[]) {
-    forth_init();                       ///> initialize dictionary
-    mem_stat();                         ///> show memory status
-    srand((int)time(0));                ///> seed random generator
-
-    outer(cin);
-    cout << "Done!" << endl;
+    forth_init();                             ///> initialize dictionary
+    
+    mem_stat();                               ///> show memory status
+    srand((int)time(0));                      ///> seed random generator
+    outer(cin);                               ///> Forth outer interpreter
+    
+    forth_teardown();                         ///> clean up before we go
+    cout << APP_VERSION << " Done!" << endl;
     return 0;
 }
 ///====================================================================
