@@ -53,8 +53,6 @@ struct FV : public vector<T> {         ///< our super-vector class
 #endif // CC_DEBUG
     }
 };
-struct Code;                       ///< Code class forward declaration
-using Iter = FV<Code*>::iterator;  ///< shrothand for vector iterator
 ///====================================================================
 ///
 ///> VM context (single task)
@@ -67,7 +65,6 @@ struct ALIGNAS VM {
     DU       tos     = -DU1;       ///< cached top of stack
     IU       id      = 0;          ///< vm id
     IU       wp      = 0;          ///< word pointer
-    Iter     iter;
     
     U8       *base   = 0;          ///< numeric radix (a pointer)
     vm_state state   = STOP;       ///< VM status
@@ -110,7 +107,9 @@ struct ALIGNAS VM {
 ///
 ///> data structure for dictionary entry
 ///
-typedef void (*XT)(VM &vm, Code&); ///< function pointer
+struct  Code;                       ///< Code class forward declaration
+typedef void (*XT)(VM &vm, Code&);  ///< function pointer
+using   Iter = FV<Code*>::iterator; ///< shrothand for vector iterator
 
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
@@ -135,7 +134,7 @@ struct Code {
     Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
     ~Code() { if (!xt) delete name; }                  ///> delete name of colon word
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-    void nest(VM &vm);                                 ///> inner interpreter
+    int  nest(VM &vm);                                 ///> inner interpreter
 };
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
@@ -152,9 +151,6 @@ struct Code {
 ///
 ///> Primitve object and function forward declarations
 ///
-struct Code;                         ///< Code class forward declaration
-typedef void (*XT)(VM&, Code&);      ///< function pointer
-
 void   _str(VM &vm, Code &c);        ///< dotstr, dostr
 void   _lit(VM &vm, Code &c);        ///< numeric liternal
 void   _var(VM &vm, Code &c);        ///< variable and constant
@@ -179,13 +175,12 @@ struct Str : Code {
         is_str= 1;
     }
 };
-
 struct Bran: Code {
     Bran(XT fp) : Code(fp) {
         const char *nm[] = {
-            "if", "endif", "begin", "\t", "for", "\t", "do", "does>"
+            "if", "else", "begin", "\t", "for", "\t", "do", "does>"
         };
-        XT xt[] = { _if, _endif, _begin, _tor, _for, _tor2, _loop, _does };
+        XT xt[] = { _if, _else, _begin, _tor, _for, _tor2, _loop, _does };
     
         for (int i=0; i < (int)(sizeof(nm)/sizeof(const char*)); i++) {
             if ((uintptr_t)xt[i]==(uintptr_t)fp) name = nm[i];
