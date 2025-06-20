@@ -23,14 +23,15 @@ Code      *last;                       ///< cached dict[-1]
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
 #define BASE         ((U8*)&VAR(vm.id << 16))
-#define HERE         ((IU)last->pf.size())       /** current pf index   */
+#define HERE         ((IU)last->pf.size())         /** current pf index   */
 #define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
 #define ADD_W(w)     (last->append((Code*)(w)))
-#define BTGT()       (dict[-2]->pf[-1])      /** branching target   */
-#define BRAN(p)      ((p).merge(last->pf))   /** add branching code */
 #define NEST(pf)     for (auto w : (pf)) w->nest(vm)
 #define UNNEST()     throw 0
+#define BTGT()       (dict[-2]->pf[-1])            /** branching target    */
+#define BRAN(p)      ((p).merge(last->pf))         /** add branching code  */
+#define SETJMP(b)    ((b)->token = HERE)           /** set bran jmp target */
 ///
 ///> Forth Dictionary Assembler
 /// @note:
@@ -42,21 +43,6 @@ Code      *last;                       ///< cached dict[-1]
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-void z_if(VM &vm) {
-    PUSH(HERE);
-    ADD_W(new Bran(_if));
-}
-void z_else(VM &vm) {
-    Code *b = last->pf[POPI()];
-    PUSH(HERE);
-    ADD_W(new Bran(_else));
-    b->token = HERE;                  ///< _if.stage = 1;
-}
-void z_then(VM &vm) {
-    Code *b = last->pf[POPI()];
-    b->token = HERE;
-    b->stage = 1;
-}
 const Code rom[] {                    ///< Forth dictionary
     CODE("bye",    forth_quit()),
     ///
@@ -180,39 +166,31 @@ const Code rom[] {                    ///< Forth dictionary
     ///                               \-->p1[...] else   |
     ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
-    IMMD("if", z_if(vm)),
-	//         PUSH(HERE);
-	//         ADD_W(new Bran(_if))),
-    IMMD("else", z_else(vm)),
-/*       Code *b = last->pf[POP()];
+    IMMD("if",
          PUSH(HERE);
-         ADD_W(new Bran(_if));
-         b->token = HERE),
-*/
-    IMMD("then", z_then(vm)),
-//         Code *b = last->pf[POP()];
-//         b->token = POP()),
+         ADD_W(new ZBran())),
+    IMMD("else",
+         Code *b = last->pf[POPI()];
+         PUSH(HERE);
+         ADD_W(new Bran());
+         b->token = HERE),                     /// * jmp HERE else { ... }
+    IMMD("then",
+         last->pf[POPI()]->token = HERE),      /// * if {... jmp HERE }
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
-    IMMD("begin",
-         ADD_W(new Bran(_begin));
-         DICT_PUSH(new Tmp())),                /// as branch target
-    IMMD("while",
-         Code *b = BTGT();
-         BRAN(b->pf);                          /// * begin.{pf}.f.while
-         b->stage = 2),
-    IMMD("repeat",
-         Code *b = BTGT();
-         BRAN(b->p1); DICT_POP()),             /// * while.{p1}.repeat
-    IMMD("again",
-         Code *b = BTGT();
-         BRAN(b->pf); DICT_POP();              /// * begin.{pf}.again
-         b->stage = 1),
-    IMMD("until",
-         Code *b = BTGT();
-         BRAN(b->pf); DICT_POP()),             /// * begin.{pf}.f.until
+    IMMD("begin",  PUSH(HERE)),
+    IMMD("again",  ADD_W(new Bran(POPI()))),   ///> begin...again
+    IMMD("until",  ADD_W(new ZBran(POPI()))),  ///> begin...f until
+    IMMD("while",                              ///> begin...f while
+         PUSH(HERE);
+         ADD_W(new ZBran())),
+    IMMD("repeat",                             ///> begin...repeat
+         Code *b = last->pf[POPI()];           /// * while
+         ADD_W(new Bran(POPI()));              /// jmp to begin
+         b->token = HERE),                     /// * while exit here
+#if 0         
     /// @}
     /// @defgrouop FOR loops
     /// @brief  - for...next, for...aft...then...next
@@ -244,6 +222,7 @@ const Code rom[] {                    ///< Forth dictionary
          Code *b = BTGT();
          BRAN(b->pf);                   /// * do.{pf}.loop
          DICT_POP()),
+#endif    
     /// @}
     /// @defgrouop Compiler ops
     /// @{
@@ -273,9 +252,11 @@ const Code rom[] {                    ///< Forth dictionary
          Code *w = ADD_W(new Var(DU0));
          w->pf[0]->token = w->token;
          w->pf[0]->q.pop()),
+#if 0    
     IMMD("does>",
          ADD_W(new Bran(_does));
          last->pf[-1]->token = last->token),          /// keep WP
+#endif    
     CODE("to",                                        /// n --
          const Code *w = find(word()); if (!w) return;
          VAR(w->token) = POP()),                      /// update value
@@ -377,16 +358,17 @@ int Code::nest(VM &vm) {
     vm.state = NEST;                                    /// * racing? No, helgrind says so
     if (xt) {                                           /// * run primitive word
         xt(vm, *this);
-        return this->stage ? this->token : 1;
+        return stage ? token : 1;
     }
     for (Iter it = pf.begin(); it != pf.end(); ) {
         Code *c = *it;
         try {                                           /// * execute recursively
-        	if (c->stage) it = pf.begin() + c->nest(vm);/// *    branching
-        	else          it += c->nest(vm);            /// *    sequential
+            int off = c->nest(vm);
+            printf("%03x[%3x].%x RS=%d, SS=%d %s\n", (int)(it - pf.begin()), c->token, c->stage, (int)RS.size(), (int)SS.size(), c->name);
+        	if (c->stage) it = pf.begin() + off;        /// *    branching
+        	else          it += off;                    /// *    sequential
         }
         catch (...) { break; }
-        printf("%03x RS=%d, SS=%d stage=%x token=%x %s\n", (int)(it - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), c->stage, c->token, c->name);
     }
     return 1;
 }
@@ -398,12 +380,12 @@ void _str(VM &vm, Code &c)  {
     if (!c.token) pstr(c.name);
     else { PUSH(c.token); PUSH(strlen(c.name)); }
 }
-void _lit(VM &vm, Code &c)  { PUSH(c.q[0]);  }
-void _var(VM &vm, Code &c)  { PUSH(c.token); }
-void _tor(VM &vm, Code &c)  { RS.push(POP()); }
-void _tor2(VM &vm, Code &c) { RS.push(SS.pop()); RS.push(POP()); }
-void _if(VM &vm,  Code &c)  { c.stage = ZEQ(POP()); }
-void _else(VM &vm, Code &c) {}
+void _lit(VM &vm,   Code &c) { PUSH(c.q[0]);  }
+void _var(VM &vm,   Code &c) { PUSH(c.token); }
+void _tor(VM &vm,   Code &c) { RS.push(POP()); }
+void _tor2(VM &vm,  Code &c) { RS.push(SS.pop()); RS.push(POP()); }
+void _zbran(VM &vm, Code &c) { c.stage = ZEQ(POP()) ? 1 : 0; }
+void _bran(VM &vm,  Code &c) {}
 void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
     int b = c.stage;             ///< branching state
     while (true) {
