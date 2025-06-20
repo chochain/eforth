@@ -151,23 +151,27 @@ struct Code {
 ///
 ///> Primitve object and function forward declarations
 ///
-void   _str(VM &vm, Code &c);        ///< dotstr, dostr
-void   _lit(VM &vm, Code &c);        ///< numeric liternal
-void   _var(VM &vm, Code &c);        ///< variable and constant
-void   _tor(VM &vm, Code &c);        ///< >r (for..next)
-void   _tor2(VM &vm, Code &c);       ///< swap >r >r (do..loop)
-void   _if(VM &vm, Code &c);         ///< if..then, if..else..then
-void   _endif(VM &vm, Code &c);
+void   _str(VM &vm,   Code &c);      ///< dotstr, dostr
+void   _lit(VM &vm,   Code &c);      ///< numeric liternal
+void   _var(VM &vm,   Code &c);      ///< variable and constant
+void   _tor(VM &vm,   Code &c);      ///< >r (for..next)
+void   _tor2(VM &vm,  Code &c);      ///< swap >r >r (do..loop)
+void   _zbran(VM &vm, Code &c);      ///< conditional branching
+void   _bran(VM &vm,  Code &c);      ///< unconditional branching
+#if 0
+void   _if(VM &vm,    Code &c);         ///< if..then, if..else..then
+void   _else(VM &vm, Code &c);
 void   _begin(VM &vm, Code &c);      ///< ..until, ..again, ..while..repeat
 void   _for(VM &vm, Code &c);        ///< for..next, for..aft..then..next
 void   _loop(VM &vm, Code &c);       ///< do..loop
 void   _does(VM &vm, Code &c);       ///< does>
+#endif
 ///
 ///> polymorphic constructors
 ///
 struct Tmp : Code { Tmp()     : Code((XT)NULL) {} };
 struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
-struct Var : Code { Var(DU d) : Code(_var) { q.push(d); } };
+struct Var : Code { Var(DU d) : Code(_var) { name="var "; q.push(d); } };
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0) : Code(_str) {
         name  = (new string(s))->c_str();   /// * hardcopy the string
@@ -175,6 +179,13 @@ struct Str : Code {
         is_str= 1;
     }
 };
+struct ZBran : Code {
+    ZBran(IU t=0) : Code(_zbran) { name="zbran"; token=t; stage=0; }
+};
+struct Bran  : Code {
+    Bran(IU t=0)  : Code(_bran)  { name="bran";  token=t; stage=1; }
+};
+#if 0
 struct Bran: Code {
     Bran(XT fp) : Code(fp) {
         const char *nm[] = {
@@ -188,6 +199,7 @@ struct Bran: Code {
         is_str = 0;
     }
 };
+#endif 
 ///
 ///> Multitasking support
 ///
