@@ -116,52 +116,31 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
     fout << "-> ok" << ENDL;
 }
 void _see(const Code &c, int dp) {       ///> disassemble a colon word
-    if (dp > 2) return;
-    auto pp = [](const string &s, const FV<Code*> &pf, int dp) { ///> recursive dump with indent
-        int i = dp;
-        if (dp && s != "\t") { fout << ENDL; }          ///> newline control
-        while (i--) { fout << "  "; } fout << s;        ///> indentation control
-        for (auto w : pf) _see(*w, dp + 1);
-    };
-    auto pq = [](const FV<DU> &q) {
-        for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
-    };
-    const FV<Code*> nil = {};
     string sn(c.name);
     if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
-    pp(sn, c.pf, dp);
-    if (sn=="if")    {
-    	printf("%s -> %d[%d]", c.stage ? "bran" : "0bran", c.token, c.q.at(0));
-    	return;
-//        if (c->stage==1) pp("else", c->p1, dp);
-//        pp("then", zz, dp);
+    else if (sn=="zbran" || sn=="bran") sn += " j" + to_string(c.token);
+    
+    fout << " " << sn;                   ///> print name
+    for (DU i : c.q) fout << i << " ";   ///> print if value
+    fout << ENDL;
+    if (dp > 1) return;                  /// * depth control
+    
+    int j = 0;
+    for (auto w : c.pf) {
+        int i=dp;
+        while (i--) fout << "  ";        ///> indent control
+        fout << "( " << setfill('0')
+             << setw(3) << j++
+             << '['
+             << setw(3) << w->token
+             << "] )";
+        _see(*w, dp + 1);                ///> walk recursively
     }
-    else if (sn=="begin") {
-        switch (c.stage) {
-        case 0: pp("until", nil, dp); break;
-        case 1: pp("again", nil, dp); break;
-        case 2:
-            pp("while",  c.p1, dp);
-            pp("repeat", nil,    dp);
-            break;
-        }
-    }
-    else if (sn=="for") {
-        if (c.stage==3) {
-            pp("aft",  c.p1, dp);
-            pp("then", c.p2, dp);
-        }
-        pp("next", nil, dp);
-    }
-    else if (sn=="do") {
-        pp("loop", nil, dp);
-    }
-    else pq(c.q);
 }
 void see(const Code &c, int base) {
-    if (c.xt) fout << "  ->{ " << c.desc << "; }";
+    if (c.xt) fout << c.name << " ->{ " << c.desc << "; }";
     else {
-        fout << ": "; _see(c, 0); fout << " ;";
+        fout << ":"; _see(c, 0); fout << ";";
     }
 }
 void words(int base) {                    ///> display word list
