@@ -43,26 +43,21 @@ Code      *last;                       ///< cached dict[-1]
 ///    3. a degenerated lambda becomes a function pointer
 ///
 void z_if(VM &vm) {
-	PUSH(HERE);
-	ADD_W(new Bran(_if));
+    PUSH(HERE);
+    ADD_W(new Bran(_if));
 }
 void z_else(VM &vm) {
-	Code *c = last->pf[POPI()];
-	ADD_W(new Bran(_endif));
-	PUSH(HERE);
-	ADD_W(new Bran(_if));
-	c->token = dict.size();
-	c->q.push(HERE);
-	c->stage = 0;
+    Code *b = last->pf[POPI()];
+    PUSH(HERE);
+    ADD_W(new Bran(_else));
+    b->token = HERE;                  ///< _if.stage = 1;
 }
 void z_then(VM &vm) {
-	ADD_W(new Bran(_endif));
-	Code *c = last->pf[POPI()];
-	c->token = dict.size();
-	c->q.push(HERE);
-	c->stage = 1;
+    Code *b = last->pf[POPI()];
+    b->token = HERE;
+    b->stage = 1;
 }
-const Code rom[] {               ///< Forth dictionary
+const Code rom[] {                    ///< Forth dictionary
     CODE("bye",    forth_quit()),
     ///
     /// @defgroup ALU ops
@@ -372,20 +367,28 @@ Code::Code(const char *s, bool n) {                     ///< new colon word
     desc  = "";
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
-    if (n && w) pstr("reDef?");          /// * warn word redefined
+    if (n && w) pstr("reDef?");                         /// * warn word redefined
 }
 ///
 ///> Forth inner interpreter
 ///
-void Code::nest(VM &vm) {
-//    vm.set_state(NEST);                /// * this => lock, major slow down
-    vm.state = NEST;                     /// * racing? No, helgrind says so
-    if (xt) { xt(vm, *this); return; }   /// * run primitive word
-    for (vm.iter = pf.begin(); vm.iter != pf.end(); vm.iter++) {
-        try         { (*vm.iter)->nest(vm); }  /// * execute recursively
-        catch (...) { break; }
-        printf("%-3x => RS=%d, SS=%d %s", (int)(vm.iter - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*vm.iter)->name);
+int Code::nest(VM &vm) {
+//    vm.set_state(NEST);                               /// * this => lock, major slow down
+    vm.state = NEST;                                    /// * racing? No, helgrind says so
+    if (xt) {                                           /// * run primitive word
+        xt(vm, *this);
+        return this->stage ? this->token : 1;
     }
+    for (Iter it = pf.begin(); it != pf.end(); ) {
+        Code *c = *it;
+        try {                                           /// * execute recursively
+        	if (c->stage) it = pf.begin() + c->nest(vm);/// *    branching
+        	else          it += c->nest(vm);            /// *    sequential
+        }
+        catch (...) { break; }
+        printf("%03x RS=%d, SS=%d stage=%x token=%x %s\n", (int)(it - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), c->stage, c->token, c->name);
+    }
+    return 1;
 }
 ///====================================================================
 ///
@@ -399,12 +402,8 @@ void _lit(VM &vm, Code &c)  { PUSH(c.q[0]);  }
 void _var(VM &vm, Code &c)  { PUSH(c.token); }
 void _tor(VM &vm, Code &c)  { RS.push(POP()); }
 void _tor2(VM &vm, Code &c) { RS.push(SS.pop()); RS.push(POP()); }
-//void _if(VM &vm, Code &c)   { NEST(POP() ? c.pf : c.p1); }
-void _if(VM &vm, Code &c) {
-
-}
-void _endif(VM &vm, Code &c) {
-}
+void _if(VM &vm,  Code &c)  { c.stage = ZEQ(POP()); }
+void _else(VM &vm, Code &c) {}
 void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
     int b = c.stage;             ///< branching state
     while (true) {
