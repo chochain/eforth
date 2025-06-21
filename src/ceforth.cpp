@@ -219,16 +219,8 @@ const Code rom[] {                    ///< Forth dictionary
          DICT_PUSH(new Colon(word()));   /// create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
-    CODE("constant",
-         DICT_PUSH(new Colon(word()));
-         Lit *w = new Lit(POP());
-         ADD_W(w);
-         last->token = w->token),
-    CODE("variable",
-         DICT_PUSH(new Colon(word()));
-         Var *w = new Var(DU0);
-         ADD_W(w);
-         last->token = w->token),
+    CODE("constant",  DICT_PUSH(new Lit(word(), POP()))),
+    CODE("variable",  DICT_PUSH(new Var(word(), DU0))),
     CODE("immediate", last->immd = 1),
     CODE("exit",   UNNEST()),           /// -- (exit from word)
     /// @}
@@ -236,11 +228,7 @@ const Code rom[] {                    ///< Forth dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",   dict[POPI()]->nest(vm)),           /// w --
-    CODE("create",
-         DICT_PUSH(new Colon(word()));
-         Var *w = new Var(DU0);
-         ADD_W(w);
-         last->token = w->token),
+    CODE("create", DICT_PUSH(new Var(word(), DU0))),
 #if 0    
     IMMD("does>",
          ADD_W(new Bran(_does));
@@ -354,7 +342,7 @@ int Colon::nest(VM &vm) {
         Code *c = *it;
         try {                                           /// * execute recursively
             int off = c->nest(vm);
-            printf("%03x[%3x].%x RS=%d, SS=%d %s\n", (int)(it - pf.begin()), c->token, c->stage, (int)RS.size(), (int)SS.size(), c->name);
+//            printf("%03x[%3x].%x RS=%d, SS=%d %s\n", (int)(it - pf.begin()), c->token, c->stage, (int)RS.size(), (int)SS.size(), c->name);
         	if (c->stage) it = pf.begin() + off;        /// *    branching
         	else          it += off;                    /// *    sequential
         }
@@ -433,7 +421,7 @@ void forth_core(VM &vm, const char *idiom) {
     }
     DU  n = parse_number(idiom, *BASE);  ///< try as a number, throw exception
     if (vm.compile)                   /// * are we compiling new word?
-        ADD_W(new Lit(n));            /// * append numeric literal to it
+        ADD_W(new Lit("", n));        /// * append numeric literal to it
     else PUSH(n);                     /// * add value to data stack
 }
 ///====================================================================
@@ -477,7 +465,6 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             pstr(s); pstr("?"); pstr(e.what(), CR);
             vm.compile = false;
             scan('\n');               /// * exhaust input line
-            vm.set_state(STOP);
         }
     }
     if (!vm.compile) ss_dump(vm);
