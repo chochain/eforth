@@ -366,11 +366,20 @@ void Code::nest(VM &vm) {
 //    vm.set_state(NEST);                /// * this => lock, major slow down
     vm.state = NEST;                     /// * racing? No, helgrind says so
     if (xt) { xt(vm, *this); return; }   /// * run primitive word
-    for (Iter c = pf.begin(); c != pf.end(); c++) {
+    
+#if 0
+    for (auto c : pf) {                  /// * CC: this is 5% slower, why?
+        try         { c->nest(vm); }     /// * execute recursively
+        catch (...) { break; }
+        // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
+    }
+#else    
+    for (FV<Code*>::iterator c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
         catch (...) { break; }
         // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
     }
+#endif    
 }
 ///====================================================================
 ///
