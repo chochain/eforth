@@ -154,18 +154,13 @@ struct Code {
 void   _str(VM &vm,   Code &c);      ///< dotstr, dostr
 void   _lit(VM &vm,   Code &c);      ///< numeric liternal
 void   _var(VM &vm,   Code &c);      ///< variable and constant
-void   _tor(VM &vm,   Code &c);      ///< >r (for..next)
-void   _tor2(VM &vm,  Code &c);      ///< swap >r >r (do..loop)
 void   _zbran(VM &vm, Code &c);      ///< conditional branching
 void   _bran(VM &vm,  Code &c);      ///< unconditional branching
-#if 0
-void   _if(VM &vm,    Code &c);         ///< if..then, if..else..then
-void   _else(VM &vm, Code &c);
-void   _begin(VM &vm, Code &c);      ///< ..until, ..again, ..while..repeat
-void   _for(VM &vm, Code &c);        ///< for..next, for..aft..then..next
-void   _loop(VM &vm, Code &c);       ///< do..loop
-void   _does(VM &vm, Code &c);       ///< does>
-#endif
+void   _for(VM &vm,   Code &c);      ///< for..next, for..aft..then..next
+void   _next(VM &vm,  Code &c);
+void   _do(VM &vm,    Code &c);      ///< do..loop
+void   _loop(VM &vm,  Code &c);       
+void   _does(VM &vm,  Code &c);      ///< does>
 ///
 ///> polymorphic constructors
 ///
@@ -174,32 +169,26 @@ struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
 struct Var : Code { Var(DU d) : Code(_var) { name="var "; q.push(d); } };
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0) : Code(_str) {
-        name  = (new string(s))->c_str();   /// * hardcopy the string
-        token = (len << 16) | tok;   /// * encode word index and string length
+        name  = (new string(s))->c_str(); /// * hardcopy the string
+        token = (len << 16) | tok;        /// * encode word index and string length
         is_str= 1;
     }
 };
-struct ZBran : Code {
-    ZBran(IU t=0) : Code(_zbran) { name="zbran"; token=t; stage=0; }
-};
-struct Bran  : Code {
-    Bran(IU t=0)  : Code(_bran)  { name="bran";  token=t; stage=1; }
-};
-#if 0
 struct Bran: Code {
-    Bran(XT fp) : Code(fp) {
+    Bran(XT fp, IU t=0) : Code(fp) {
         const char *nm[] = {
-            "if", "else", "begin", "\t", "for", "\t", "do", "does>"
+            "zbran", "bran", "for", "next", "do", "loop", "does>"
         };
-        XT xt[] = { _if, _else, _begin, _tor, _for, _tor2, _loop, _does };
+        XT xt[] = { _zbran, _bran, _for, _next, _do, _loop, _does };
     
         for (int i=0; i < (int)(sizeof(nm)/sizeof(const char*)); i++) {
             if ((uintptr_t)xt[i]==(uintptr_t)fp) name = nm[i];
         }
+        stage  = (fp==_for || fp==_do) ? 0 : 1;
+        token  = t;
         is_str = 0;
     }
 };
-#endif 
 ///
 ///> Multitasking support
 ///
