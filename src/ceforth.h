@@ -53,8 +53,6 @@ struct FV : public vector<T> {         ///< our super-vector class
 #endif // CC_DEBUG
     }
 };
-struct Code;                       ///< Code class forward declaration
-using Iter = FV<Code*>::iterator;  ///< shrothand for vector iterator
 ///====================================================================
 ///
 ///> VM context (single task)
@@ -109,6 +107,7 @@ struct ALIGNAS VM {
 ///
 ///> data structure for dictionary entry
 ///
+struct Code;                       ///< Code class forward declaration
 typedef void (*XT)(VM &vm, Code&); ///< function pointer
 
 struct Code {
