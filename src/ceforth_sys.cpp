@@ -187,12 +187,13 @@ void words(int base) {                    ///> display word list
 ///
 void dict_dump(int base) {
     fout << setbase(16) << ENDL;
-    for (Iter c = dict.begin(); c != dict.end(); c++) {
-        fout << setfill('0') << setw(3) << (int)(c - dict.begin())
-             << "> name=" << setw(8) << (UFP)(*c)->name
-             << ", xt="   << setw(8) << (UFP)(*c)->xt
-             << ", attr=" << setw(8) << (*c)->attr
-             << " "       << (*c)->name << ENDL;
+    int i=0;
+    for (auto c : dict) {
+        fout << setfill('0') << setw(3) << i++
+             << "> name=" << setw(8) << (UFP)c->name
+             << ", xt="   << setw(8) << (UFP)c->xt
+             << ", attr=" << setw(8) << c->attr
+             << " "       << c->name << ENDL;
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
 }
@@ -204,8 +205,8 @@ void mem_dump(IU w0, IU w1, int base) {
         fout << ENDL;
     };
     fout << setbase(16) << setfill('0');
-    Iter cx = dict.begin() + w1 + 1;
-    for (Iter c = dict.begin() + w0; c != cx; c++) {
+    auto cx = dict.begin() + w1 + 1;
+    for (auto c = dict.begin() + w0; c != cx; c++) {
         fout << setw(4) << (int)(c - dict.begin()) << ": ";
         Code *w = *c;
         if (w->xt) { fout << "built-in" << ENDL; continue; }
