@@ -12,25 +12,23 @@ using namespace std;
 ///> Forth VM state variables
 ///
 FV<Code*> dict;                        ///< Forth dictionary
-Code      *last;                       ///< cached dict[-1]
+Colon     *last;                       ///< cached dict[-1]
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
-#define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
-#define STR(i_w)     (                                  \
-        EQ(i_w, UINT(-DU1))                             \
-        ? vm.pad.c_str()                                \
-        : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
+#define VAR(i_w)     (*(((Var*)dict[(int)((i_w) & 0xffff)])->q.data()+((i_w) >> 16)))
+#define STR(i_w)     (                                          \
+        EQ(i_w, UINT(-DU1))                                     \
+        ? vm.pad.c_str()                                        \
+        : ((Colon*)dict[(i_w) & 0xffff])->pf[(i_w) >> 16]->name \
         )
 #define BASE         ((U8*)&VAR(vm.id << 16))
 #define HERE         ((IU)last->pf.size())         /** current pf index   */
-#define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
-#define DICT_POP()   (dict.pop(), last=dict[-1])
+#define DICT_PUSH(c) (dict.push((Code*)(last=(Colon*)(c))))
+#define DICT_POP()   (dict.pop(), last=(Colon*)dict[-1])
 #define ADD_W(w)     (last->append((Code*)(w)))
 #define NEST(pf)     for (auto w : (pf)) w->nest(vm)
 #define UNNEST()     throw 0
-#define BTGT()       (dict[-2]->pf[-1])            /** branching target    */
-#define BRAN(p)      ((p).merge(last->pf))         /** add branching code  */
 #define SETJMP(b)    ((b)->token = HERE)           /** set bran jmp target */
 ///
 ///> Forth Dictionary Assembler
@@ -126,7 +124,7 @@ const Code rom[] {                    ///< Forth dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base",   PUSH(vm.id << 16)),   /// dict[0]->pf[0]->q[id] used for base
+    CODE("base",   PUSH(vm.id << 16)),
     CODE("decimal",dot(RDX, *BASE=10)),
     CODE("hex",    dot(RDX, *BASE=16)),
     CODE("bl",     PUSH(0x20)),
@@ -160,11 +158,6 @@ const Code rom[] {                    ///< Forth dictionary
          ADD_W(new Str(s))),
     /// @}
     /// @defgroup Branching ops
-    /// @brief - if...then, if...else...then
-    ///     dict[-2]->pf[0,1,2,...,-1] as *last
-    ///                              \--->pf[...] if  <--+ merge
-    ///                               \-->p1[...] else   |
-    ///     dict[-1]->pf[...] as *tmp -------------------+
     /// @{
     IMMD("if",
          PUSH(HERE);
@@ -223,17 +216,19 @@ const Code rom[] {                    ///< Forth dictionary
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
-         DICT_PUSH(new Code(word()));   /// create new word
+         DICT_PUSH(new Colon(word()));   /// create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
     CODE("constant",
-         DICT_PUSH(new Code(word()));
-         Code *w = ADD_W(new Lit(POP()));
-         w->pf[0]->token = w->token),
+         DICT_PUSH(new Colon(word()));
+         Lit *w = new Lit(POP());
+         ADD_W(w);
+         last->token = w->token),
     CODE("variable",
-         DICT_PUSH(new Code(word()));
-         Code *w = ADD_W(new Var(DU0));
-         w->pf[0]->token = w->token),
+         DICT_PUSH(new Colon(word()));
+         Var *w = new Var(DU0);
+         ADD_W(w);
+         last->token = w->token),
     CODE("immediate", last->immd = 1),
     CODE("exit",   UNNEST()),           /// -- (exit from word)
     /// @}
@@ -242,10 +237,10 @@ const Code rom[] {                    ///< Forth dictionary
     /// @{
     CODE("exec",   dict[POPI()]->nest(vm)),           /// w --
     CODE("create",
-         DICT_PUSH(new Code(word()));
-         Code *w = ADD_W(new Var(DU0));
-         w->pf[0]->token = w->token;
-         w->pf[0]->q.pop()),
+         DICT_PUSH(new Colon(word()));
+         Var *w = new Var(DU0);
+         ADD_W(w);
+         last->token = w->token),
 #if 0    
     IMMD("does>",
          ADD_W(new Bran(_does));
@@ -255,10 +250,10 @@ const Code rom[] {                    ///< Forth dictionary
          const Code *w = find(word()); if (!w) return;
          VAR(w->token) = POP()),                      /// update value
     CODE("is",                                        /// w -- 
-         DICT_PUSH(new Code(word(), false));          /// create word
-         int w = POP();                               /// like this word
-         last->xt = dict[w]->xt;                      /// if primitive
-         last->pf = dict[w]->pf),                     /// or colon word
+         DICT_PUSH(new Colon(word(), false));         /// create word
+         Code *w = dict[POP()];                       /// like this word
+         if (w->xt) last->xt = w->xt;                 /// if primitive
+         else ((Colon*)last)->pf = ((Colon*)w)->pf),  /// or colon word
     /// @}
     /// @defgroup Memory Access ops
     /// @{
@@ -266,10 +261,10 @@ const Code rom[] {                    ///< Forth dictionary
     CODE("!",       U32 i_w = POPI(); VAR(i_w) = POP()),         /// n a -- 
     CODE("+!",      U32 i_w = POPI(); VAR(i_w) += POP()),
     CODE("?",       U32 i_w = POPI(); dot(DOT, VAR(i_w))),
-    CODE(",",       last->pf[0]->q.push(POP())),
+    CODE(",",       ((Var*)last)->q.push(POP())),
     CODE("cells",   { /* for backward compatible */ }),          /// array index, inc by 1
     CODE("allot",   U32 n = POPI();                              /// n --
-                    for (U32 i=0; i<n; i++) last->pf[0]->q.push(DU0)),
+                    for (U32 i=0; i<n; i++) ((Var*)last)->q.push(DU0)),
     ///> Note:
     ///>   allot allocate elements in a word's q[] array
     ///>   to access, both indices to word itself and to q array are needed
@@ -304,13 +299,13 @@ const Code rom[] {                    ///< Forth dictionary
     CODE("'",
          const Code *w = find(word()); if (w) PUSH(w->token)),
     CODE(".s",      ss_dump(vm, true)),                         /// dump parameter stack
-    CODE("words",   words(*vm.base)),                           /// display word lists
+    CODE("words",   words(*BASE)),                              /// display word lists
     CODE("see",
          const Code *w = find(word());
-         if (w) see(*w, *vm.base);
+         if (w) see(*w, *BASE);
          dot(CR)),
-    CODE("dict",    dict_dump(*vm.base)),                       /// display dictionary
-    CODE("dump",    IU w1 = POPI(); mem_dump(POPI(), w1, *vm.base)),
+    CODE("dict",    dict_dump(*BASE)),                          /// display dictionary
+    CODE("dump",    IU w1 = POPI(); mem_dump(POPI(), w1, *BASE)),
     CODE("depth",   PUSH(SS.size())),                           /// data stack depth
     /// @}
     /// @defgroup OS ops
@@ -336,7 +331,8 @@ const Code rom[] {                    ///< Forth dictionary
 ///
 Code::Code(const char *s, const char *d, XT fp, U32 a)  ///> primitive word
     : name(s), desc(d), xt(fp), attr(a) {}
-Code::Code(const char *s, bool n) {                     ///< new colon word
+Colon::Colon(const char *s, bool n)                     ///< new colon word
+    : Code("", "", NULL, 0) {
     const Code *w = find(s);                            /// * scan the dictionary
     name  = w ? w->name : (new string(s))->c_str();     /// * copy the name
     desc  = "";
@@ -348,12 +344,12 @@ Code::Code(const char *s, bool n) {                     ///< new colon word
 ///> Forth inner interpreter
 ///
 int Code::nest(VM &vm) {
+    xt(vm, *this);
+    return stage ? token : 1;
+}
+int Colon::nest(VM &vm) {
 //    vm.set_state(NEST);                               /// * this => lock, major slow down
     vm.state = NEST;                                    /// * racing? No, helgrind says so
-    if (xt) {                                           /// * run primitive word
-        xt(vm, *this);
-        return stage ? token : 1;
-    }
     for (Iter it = pf.begin(); it != pf.end(); ) {
         Code *c = *it;
         try {                                           /// * execute recursively
@@ -374,7 +370,7 @@ void _str(VM &vm, Code &c)  {
     if (!c.token) pstr(c.name);
     else { PUSH(c.token); PUSH(strlen(c.name)); }
 }
-void _lit(VM &vm,   Code &c) { PUSH(c.q[0]);  }
+void _lit(VM &vm,   Code &c) { PUSH(((Lit*)&c)->q[0]);  }
 void _var(VM &vm,   Code &c) { PUSH(c.token); }
 void _zbran(VM &vm, Code &c) { c.stage = ZEQ(POP()) ? 1 : 0; }
 void _bran(VM &vm,  Code &c) {}
@@ -390,7 +386,7 @@ void _loop(VM &vm,  Code &c) {                 ///> do..loop
 }
 void _does(VM &vm, Code &c) {
     bool hit = false;
-    for (auto w : dict[c.token]->pf) {
+    for (auto w : ((Colon*)dict[c.token])->pf) {
         if (hit) ADD_W(w);                     /// copy rest of pf
         if (STRCMP(w->name, "does>")==0) hit = true;
     }
@@ -435,7 +431,7 @@ void forth_core(VM &vm, const char *idiom) {
         else w->nest(vm);             /// * execute forth word
         return;
     }
-    DU  n = parse_number(idiom, *vm.base);  ///< try as a number, throw exception
+    DU  n = parse_number(idiom, *BASE);  ///< try as a number, throw exception
     if (vm.compile)                   /// * are we compiling new word?
         ADD_W(new Lit(n));            /// * append numeric literal to it
     else PUSH(n);                     /// * add value to data stack
