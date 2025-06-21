@@ -116,6 +116,7 @@ struct Code {
     const char *name;        ///< name of word
     const char *desc;        ///< reserved
     XT xt = NULL;            ///< execution token
+    FV<DU> q;                ///< literal parameter field
     
     union {                  ///< union to reduce struct size
         U32 attr = 0;        /// * zero all sub-fields
@@ -128,8 +129,8 @@ struct Code {
     };
     Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
     Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
+
     virtual ~Code() {}
-    
     virtual int nest(VM &vm);                          ///> inner interpreter
 };
 struct Colon : Code {
@@ -170,13 +171,14 @@ void   _does(VM &vm,  Code &c);      ///< does>
 ///> polymorphic constructors
 ///
 struct Lit : Code {
-    FV<DU> q;                    ///< parameter field - literal
-    Lit(DU d) : Code(_lit) { q.push(d); } };
+    Lit(const char *nm, DU d)
+        : Code(nm, "", _lit, 0) { q.push(d); } };
 struct Var : Code {
-    FV<DU> q;                             ///< parameter field - literal
-    Var(DU d) : Code(_var) { name="var "; q.push(d); } };
+    Var(const char *nm, DU d)
+        : Code(nm, "", _var, 0) { name="var "; q.push(d); } };
 struct Str : Code {
-    Str(const char *s, int tok=0, int len=0) : Code(_str) {
+    Str(const char *s, int tok=0, int len=0)
+        : Code(_str) {
         name  = (new string(s))->c_str(); /// * hardcopy the string
         token = (len << 16) | tok;        /// * encode word index and string length
         is_str= 1;
