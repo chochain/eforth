@@ -118,15 +118,17 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
 void _see(const Code &c, int dp) {       ///> disassemble a colon word
     string sn(c.name);
     if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
-    else if (sn=="zbran" || sn=="bran") sn += " j" + to_string(c.token);
+    else if (sn=="zbran" || sn=="bran" || sn=="next" || sn=="loop") {
+        sn += " ( j" + to_string(c.token) + " )";
+    }
     
     fout << " " << sn;                   ///> print name
-    for (DU i : c.q) fout << i << " ";   ///> print if value
+    for (DU i : ((Lit*)&c)->q) fout << i << " ";   ///> print if value
     fout << ENDL;
     if (dp > 1) return;                  /// * depth control
     
     int j = 0;
-    for (auto w : c.pf) {
+    for (auto w : ((Colon*)&c)->pf) {
         int i=dp;
         while (i--) fout << "  ";        ///> indent control
         fout << "( " << setfill('0')
@@ -187,19 +189,19 @@ void mem_dump(IU w0, IU w1, int base) {
     fout << setbase(16) << setfill('0');
     Iter cx = dict.begin() + w1 + 1;
     for (Iter i = dict.begin() + w0; i != cx; i++) {
+/*        
         fout << setw(4) << (int)(i - dict.begin()) << ": ";
         Code *w = *i;
         if (w->xt) { fout << "built-in" << ENDL; continue; }
         
         fout << w->name << ENDL;
         show_pf("pf", w->pf);
-        show_pf("p1", w->p1);
-        show_pf("p2", w->p2);
         
         if (w->q.size()==0) continue;
         fout << "  q:";
         for (auto v : w->q) { fout << v << " "; }
         fout << ENDL;
+*/        
     }
     fout << setbase(base) << setfill(' ');
 }
