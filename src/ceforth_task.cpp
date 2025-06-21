@@ -11,11 +11,11 @@ VM _vm0;                           ///< singleton, no VM pooling
 
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
 void uvar_init() {
-    dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
+    dict[0]->q.push(10);           /// * borrow dict[0]->q[vm.id] for VM's user area
 
     _vm0.id    = 0;                           /// * VM id
     _vm0.state = HOLD;                        /// * VM ready to run
-    _vm0.base  = (U8*)&dict[0]->pf[0]->q[0];  /// * set base pointer
+    _vm0.base  = (U8*)&dict[0]->q[0];         /// * set base pointer
     *_vm0.base = 10;
 }
 
@@ -116,9 +116,9 @@ void t_pool_stop() {
 ///> setup/teardown user area (base pointer)
 ///
 void uvar_init() {
-    dict[0]->append(new Var(10));  /// * borrow dict[0]->pf[0]->q[vm.id] for VM's user area
+    dict[0]->q.push(10);                          /// * borrow dict[0]->q[vm.id] for VM's user area
 
-    FV<DU> &q = dict[0]->pf[0]->q;
+    FV<DU> &q = dict[0]->q;
     q.reserve(E4_VM_POOL_SZ);
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {
         if (i > 0) q.push(10);                    /// * allocate next base storage
