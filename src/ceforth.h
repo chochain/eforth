@@ -115,11 +115,8 @@ struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
     const char *name;        ///< name of word
     const char *desc;        ///< reserved
-    XT         xt = NULL;    ///< execution token
-    FV<Code*>  pf;           ///< parameter field
-    FV<Code*>  p1;           ///< parameter field - if..else, aft..then
-    FV<Code*>  p2;           ///< parameter field - then..next
-    FV<DU>     q;            ///< parameter field - literal
+    XT xt = NULL;            ///< execution token
+    
     union {                  ///< union to reduce struct size
         U32 attr = 0;        /// * zero all sub-fields
         struct {
@@ -130,11 +127,19 @@ struct Code {
         };
     };
     Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
-    Code(const char *s, bool n=true);                  ///> colon, n=new word
     Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
-    ~Code() { if (!xt) delete name; }                  ///> delete name of colon word
+    virtual ~Code() {}
+    
+    virtual int nest(VM &vm);                          ///> inner interpreter
+};
+struct Colon : Code {
+    FV<Code*>  pf;           ///< parameter field
+    
+    Colon(const char *s, bool n=true);
+    ~Colon() { delete name; }                          ///> delete name of colon word
+    
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-    int  nest(VM &vm);                                 ///> inner interpreter
+    int nest(VM &vm) override;                         ///> inner interpreter
 };
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
@@ -164,9 +169,12 @@ void   _does(VM &vm,  Code &c);      ///< does>
 ///
 ///> polymorphic constructors
 ///
-struct Tmp : Code { Tmp()     : Code((XT)NULL) {} };
-struct Lit : Code { Lit(DU d) : Code(_lit) { q.push(d); } };
-struct Var : Code { Var(DU d) : Code(_var) { name="var "; q.push(d); } };
+struct Lit : Code {
+    FV<DU> q;                    ///< parameter field - literal
+    Lit(DU d) : Code(_lit) { q.push(d); } };
+struct Var : Code {
+    FV<DU> q;                             ///< parameter field - literal
+    Var(DU d) : Code(_var) { name="var "; q.push(d); } };
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0) : Code(_str) {
         name  = (new string(s))->c_str(); /// * hardcopy the string
