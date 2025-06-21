@@ -168,61 +168,55 @@ const Code rom[] {                    ///< Forth dictionary
     /// @{
     IMMD("if",
          PUSH(HERE);
-         ADD_W(new ZBran())),
+         ADD_W(new Bran(_zbran))),
     IMMD("else",
          Code *b = last->pf[POPI()];
          PUSH(HERE);
-         ADD_W(new Bran());
-         b->token = HERE),                     /// * jmp HERE else { ... }
+         ADD_W(new Bran(_bran));
+         SETJMP(b)),                           /// * jmp HERE else { ... }
     IMMD("then",
-         last->pf[POPI()]->token = HERE),      /// * if {... jmp HERE }
+         Code *b = last->pf[POPI()];           /// * if {... jmp HERE }
+         SETJMP(b)),
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
     IMMD("begin",  PUSH(HERE)),
-    IMMD("again",  ADD_W(new Bran(POPI()))),   ///> begin...again
-    IMMD("until",  ADD_W(new ZBran(POPI()))),  ///> begin...f until
+    IMMD("again",  ADD_W(new Bran(_bran, POPI()))),   ///> begin...again
+    IMMD("until",  ADD_W(new Bran(_zbran, POPI()))),  ///> begin...f until
     IMMD("while",                              ///> begin...f while
          PUSH(HERE);
-         ADD_W(new ZBran())),
+         ADD_W(new Bran(_zbran))),
     IMMD("repeat",                             ///> begin...repeat
          Code *b = last->pf[POPI()];           /// * while
-         ADD_W(new Bran(POPI()));              /// jmp to begin
-         b->token = HERE),                     /// * while exit here
-#if 0         
+         ADD_W(new Bran(_bran, POPI()));       /// jmp to begin
+         SETJMP(b)),                           /// * while exit jmp here
     /// @}
     /// @defgrouop FOR loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
     IMMD("for",
-         ADD_W(new Bran(_tor));
          ADD_W(new Bran(_for));
-         DICT_PUSH(new Tmp())),                /// as branch target
+         PUSH(HERE)),                          /// * branch target
     IMMD("aft",
-         Code *b = BTGT();
-         BRAN(b->pf);                          /// * for.{pf}.aft
-         b->stage = 3),
+         POPI();                               /// * for..aft..then..next
+         IU t = HERE;
+         ADD_W(new Bran(_bran));
+         PUSH(HERE);
+         PUSH(t)),
     IMMD("next",
-         Code *b = BTGT();
-         BRAN(b->stage==0 ? b->pf : b->p2);    /// * for.{pf}.next, or
-         DICT_POP()),                          /// * then.{p2}.next
-    /// @}
+         ADD_W(new Bran(_next, POPI()))),
+    CODE("i",      PUSH(RS[-1])),             /// * loop index
     /// @defgrouop DO loops
     /// @brief  - do...loop, do..leave..loop
     /// @{
-    IMMD("do",
-         ADD_W(new Bran(_tor2));               ///< ( limit first -- )
-         ADD_W(new Bran(_loop));
-         DICT_PUSH(new Tmp())),
-    CODE("i",      PUSH(RS[-1])),
+    IMMD("do",                                /// * do..loop
+         ADD_W(new Bran(_do));
+         PUSH(HERE)),
     CODE("leave",
-         RS.pop(); RS.pop(); UNNEST()), /// * exit loop
+         RS.pop(); RS.pop(); UNNEST()),       /// * exit loop
     IMMD("loop",
-         Code *b = BTGT();
-         BRAN(b->pf);                   /// * do.{pf}.loop
-         DICT_POP()),
-#endif    
+         ADD_W(new Bran(_loop, POP()))),
     /// @}
     /// @defgrouop Compiler ops
     /// @{
@@ -382,43 +376,17 @@ void _str(VM &vm, Code &c)  {
 }
 void _lit(VM &vm,   Code &c) { PUSH(c.q[0]);  }
 void _var(VM &vm,   Code &c) { PUSH(c.token); }
-void _tor(VM &vm,   Code &c) { RS.push(POP()); }
-void _tor2(VM &vm,  Code &c) { RS.push(SS.pop()); RS.push(POP()); }
 void _zbran(VM &vm, Code &c) { c.stage = ZEQ(POP()) ? 1 : 0; }
 void _bran(VM &vm,  Code &c) {}
-void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
-    int b = c.stage;             ///< branching state
-    while (true) {
-        NEST(c.pf);                            /// * begin..
-        if (b==0 && POP()!=0) break;           /// * ..until
-        if (b==1)             continue;        /// * ..again
-        if (b==2 && POP()==0) break;           /// * ..while..repeat
-        NEST(c.p1);
-    }
+void _for(VM &vm,   Code &c) { RS.push(POP()); }
+void _next(VM &vm,  Code &c) {
+    if (GT(RS[-1] -= DU1, -DU1)) { c.stage = 1; }
+    else { c.stage = 0; RS.pop(); }
 }
-void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
-    int b = c.stage;                           /// * kept in register
-    try {
-        do {
-            NEST(c.pf);
-        } while (b==0 && (RS[-1]-=1) >=0);     /// * for..next only
-        while (b) {                            /// * aft
-            NEST(c.p2);                        /// * then..next
-            if ((RS[-1]-=1) < 0) break;        /// * decrement counter
-            NEST(c.p1);                        /// * aft..then
-        }
-        RS.pop();
-    }
-    catch (...) { RS.pop(); }                  /// handle EXIT
-}
-void _loop(VM &vm, Code &c) {                  ///> do..loop
-    try { 
-        do {
-            NEST(c.pf);
-        } while ((RS[-1]+=1) < RS[-2]);        /// increment counter
-        RS.pop(); RS.pop();
-    }
-    catch (...) {}                             /// handle LEAVE
+void _do(VM &vm,    Code &c) { RS.push(SS.pop()); RS.push(POP()); }
+void _loop(VM &vm,  Code &c) {                 ///> do..loop
+    if (GT(RS[-2], RS[-1] += DU1)) { c.stage = 1; }
+    else { RS.pop(); RS.pop(); c.stage = 0; }
 }
 void _does(VM &vm, Code &c) {
     bool hit = false;
