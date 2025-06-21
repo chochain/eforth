@@ -89,7 +89,7 @@ void t_pool_init() {
         THREAD t(_event_loop, (int)_vm[i].id);    ///< create thread
         _pool[i] = std::move(t);                  /// * transfer thread ownership
 
-#if __has_include(<sched.h>)
+#if __has_include(<sched.h>) && !defined(__CYGWIN__)
         pthread_t pt = _pool[i].native_handle();
         cpu_set_t set;
         CPU_ZERO(&set);                           /// * clear affinity

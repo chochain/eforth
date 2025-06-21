@@ -80,7 +80,7 @@ void t_pool_init() {
     for (int i = 0; i < E4_VM_POOL_SZ; i++) {     ///< loop thru ranks
         _pool.emplace_back(_event_loop, (int)_vm[i].id);
 
-#if __has_include(<sched.h>)
+#if __has_include(<sched.h>) && !defined(__CYGWIN__)
         pthread_t t   = _pool.back().native_handle();
         cpu_set_t set;
         CPU_ZERO(&set);                           /// * clear affinity
