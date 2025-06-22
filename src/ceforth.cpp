@@ -367,19 +367,12 @@ void Code::nest(VM &vm) {
     vm.state = NEST;                     /// * racing? No, helgrind says so
     if (xt) { xt(vm, *this); return; }   /// * run primitive word
     
-#if 0
-    for (auto c : pf) {                  /// * CC: this is 5% slower, why?
-        try         { c->nest(vm); }     /// * execute recursively
-        catch (...) { break; }
-        // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
-    }
-#else    
+//  for (auto c : pf) {                  /// * CC: 5% slower (2% less I, 4% more Dr)
     for (FV<Code*>::iterator c = pf.begin(); c != pf.end(); c++) {
         try         { (*c)->nest(vm); }  /// * execute recursively
         catch (...) { break; }
         // printf("%-3x => RS=%d, SS=%d %s", (int)(c - pf.begin()), (int)vm.rs.size(), (int)vm.ss.size(), (*c)->name);
     }
-#endif    
 }
 ///====================================================================
 ///
@@ -521,7 +514,6 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             pstr(s); pstr("?"); pstr(e.what(), CR);
             vm.compile = false;
             scan('\n');               /// * exhaust input line
-            vm.set_state(STOP);
         }
     }
     if (!vm.compile) ss_dump(vm);
