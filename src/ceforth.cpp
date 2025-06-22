@@ -216,25 +216,19 @@ const Code rom[] {                    ///< Forth dictionary
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
-         DICT_PUSH(new Colon(word()));   /// create new word
+         DICT_PUSH(new Colon(word()));        /// create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
-    CODE("constant",
-         const Code *w = new Lit(word(), POP(), dict.size());
-         DICT_PUSH(w)),
-    CODE("variable",
-         const Code *w = new Var(word(), DU0, dict.size());
-         DICT_PUSH(w)),
+    CODE("constant",  DICT_PUSH(new Lit(word(), POP()))),
+    CODE("variable",  DICT_PUSH(new Var(word(), DU0))),
     CODE("immediate", last->immd = 1),
-    CODE("exit",   UNNEST()),           /// -- (exit from word)
+    CODE("exit",      UNNEST()),              /// -- (exit from word)
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   dict[POPI()]->nest(vm)),           /// w --
-    CODE("create",
-         const Code *w = new Var(word(), DU0, dict.size());
-         DICT_PUSH(w)),
+    CODE("exec",   dict[POPI()]->nest(vm)),   /// w --
+    CODE("create", DICT_PUSH(new Var(word(), DU0))),
 #if 0    
     IMMD("does>",
          ADD_W(new Bran(_does));
