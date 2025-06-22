@@ -4,8 +4,6 @@
 ///
 #include "ceforth.h"
 
-extern FV<Code*> dict;             ///< Forth dictionary
-
 #if !DO_MULTITASK
 VM _vm0;                           ///< singleton, no VM pooling
 
