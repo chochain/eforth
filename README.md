@@ -359,6 +359,7 @@ I try to release allocated blocks before exiting, however due to the dynamic all
 
 ### Multiple or Unified Parameter Field Consideration
 Current implementation utilize C++ vector as the core storage. Inside a Code object, there are pf, p1, p2 vectors to store branching words similar to that of an AST (Abstract Syntax Tree). The alternative is to stick all words into a single parameter field as done in classic Forth. I have created a branch **one_pf** doing exactly the same just to check it out. Also, tried polymorphic inner interpreter. So, are they better?
+
     + Branching microcode look cleaner. 2-bit **VM.stage** flag can be replaced by a 1-bit **VM.jmp** status. No big deal.
     + **dump** and **see** are easier to implement, but
     + It runs 4~8x slower! 
