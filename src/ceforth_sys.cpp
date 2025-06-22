@@ -123,9 +123,9 @@ void _see(const Code &c, int dp) {       ///> disassemble a colon word
     }
     
     fout << " " << sn;                   ///> print name
-    for (DU i : ((Lit*)&c)->q) fout << i << " ";   ///> print if value
+    for (DU i : c.q) fout << i << " ";   ///> print if value
     fout << ENDL;
-    if (dp > 1) return;                  /// * depth control
+    if (c.xt || dp > 1) return;          /// * depth control
     
     int j = 0;
     for (auto w : ((Colon*)&c)->pf) {
@@ -170,7 +170,7 @@ void words(int base) {                    ///> display word list
 ///
 void dict_dump(int base) {
     fout << setbase(16) << ENDL;
-    for (Iter i = dict.begin(); i != dict.end(); i++) {
+    for (auto i = dict.begin(); i != dict.end(); i++) {
         fout << setfill('0') << setw(3) << (int)(i - dict.begin())
              << "> name=" << setw(8) << (UFP)(*i)->name
              << ", xt="   << setw(8) << (UFP)(*i)->xt
@@ -187,21 +187,22 @@ void mem_dump(IU w0, IU w1, int base) {
         fout << ENDL;
     };
     fout << setbase(16) << setfill('0');
-    Iter cx = dict.begin() + w1 + 1;
-    for (Iter i = dict.begin() + w0; i != cx; i++) {
-/*        
+    auto cx = dict.begin() + w1 + 1;
+    for (auto i = dict.begin() + w0; i != cx; i++) {
+
         fout << setw(4) << (int)(i - dict.begin()) << ": ";
         Code *w = *i;
         if (w->xt) { fout << "built-in" << ENDL; continue; }
         
         fout << w->name << ENDL;
-        show_pf("pf", w->pf);
+        
+        show_pf("pf", ((Colon*)w)->pf);
         
         if (w->q.size()==0) continue;
         fout << "  q:";
         for (auto v : w->q) { fout << v << " "; }
         fout << ENDL;
-*/        
+        
     }
     fout << setbase(base) << setfill(' ');
 }
