@@ -329,21 +329,22 @@ Colon::Colon(const char *s, bool n)                     ///< new colon word
 ///> Forth inner interpreter
 ///
 int Code::nest(VM &vm) {
-    xt(vm, *this);
-    return stage ? token : 1;
-}
-int Colon::nest(VM &vm) {
 //    vm.set_state(NEST);                               /// * this => lock, major slow down
     vm.state = NEST;                                    /// * racing? No, helgrind says so
-    for (FV<Code*>::iterator it = pf.begin(); it != pf.end(); ) {
+    if (xt) {                                           /// * handle primitive words
+        xt(vm, *this);
+        return stage ? token : 1;
+    }
+    FV<Code*> &pf = ((Colon*)this)->pf;                 /// * handle Colon words
+    for (auto it = pf.begin(); it != pf.end(); ) {
         Code *c = *it;
         try {                                           /// * execute recursively
             int off = c->nest(vm);                      /// * polymorphic call
 //            printf("%03x[%3x].%x RS=%d, SS=%d %s\n", (int)(it - pf.begin()), c->token, c->stage, (int)RS.size(), (int)SS.size(), c->name);
-        	if (c->stage) it = pf.begin() + off;        /// *    branching
-        	else          it += off;                    /// *    sequential
+        	if (c->stage) it = pf.begin() + off;        /// * branching
+        	else          it += off;                    /// * sequential
         }
-        catch (...) { break; }
+        catch (...) { break; }                          /// * break, leave, IO, ...
     }
     return 1;
 }
