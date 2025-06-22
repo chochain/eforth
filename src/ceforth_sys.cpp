@@ -7,8 +7,6 @@
 #include <cstring>
 #include "ceforth.h"
 using namespace std;
-
-extern FV<Code*> dict;
 ///
 ///> I/O streaming interface
 ///
@@ -123,11 +121,10 @@ void _see(const Code &c, int dp) {       ///> disassemble a colon word
     }
     
     fout << " " << sn;
-    if (c.q.size()) {
-        fout << " ( " << c.desc;             ///> print name
-        for (DU i : c.q) fout << " " << i;   ///> print if value
-        fout << " ) " << ENDL;
-    }
+    fout << " ( " << c.desc;             ///> print name
+    for (DU i : c.q) fout << " " << i;   ///> print if value
+    fout << " ) " << ENDL;
+
     if (c.xt || dp > 1) return;          /// * depth control
     
     int j = 0;
@@ -185,29 +182,22 @@ void dict_dump(int base) {
     fout << setbase(base) << setfill(' ') << setw(-1);
 }
 void mem_dump(IU w0, IU w1, int base) {
-    auto show_pf = [](const char *nm, FV<Code*> pf) {
-        if (pf.size() == 0) return;
-        fout << "  " << nm << ": ";
-        for (auto p : pf) { fout << p->token << " "; }
-        fout << ENDL;
-    };
     fout << setbase(16) << setfill('0');
     auto cx = dict.begin() + w1 + 1;
     for (auto i = dict.begin() + w0; i != cx; i++) {
-
-        fout << setw(4) << (int)(i - dict.begin()) << ": ";
         Code *w = *i;
-        if (w->xt) { fout << "built-in" << ENDL; continue; }
+        fout << setw(4) << (int)(i - dict.begin()) << ": ";
         
-        fout << w->name << ENDL;
-        
-        show_pf("pf", ((Colon*)w)->pf);
-        
-        if (w->q.size()==0) continue;
-        fout << "  q:";
-        for (auto v : w->q) { fout << v << " "; }
-        fout << ENDL;
-        
+        if (w->xt && w->q.size()==0) {
+            fout << w->token;
+        }
+        else if (w->q.size()) {                  ///> Var/Lit
+            for (DU i : w->q) fout << i << ' ';  ///> print if value
+        }
+        else {
+            for (auto p : ((Colon*)w)->pf) fout << p->token << " ";
+        }
+        fout << "\t\\ " << w->name << ENDL;
     }
     fout << setbase(base) << setfill(' ');
 }
