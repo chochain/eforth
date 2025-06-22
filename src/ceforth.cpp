@@ -219,8 +219,12 @@ const Code rom[] {                    ///< Forth dictionary
          DICT_PUSH(new Colon(word()));   /// create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
-    CODE("constant",  DICT_PUSH(new Lit(word(), POP()))),
-    CODE("variable",  DICT_PUSH(new Var(word(), DU0))),
+    CODE("constant",
+         const Code *w = new Lit(word(), POP(), dict.size());
+         DICT_PUSH(w)),
+    CODE("variable",
+         const Code *w = new Var(word(), DU0, dict.size());
+         DICT_PUSH(w)),
     CODE("immediate", last->immd = 1),
     CODE("exit",   UNNEST()),           /// -- (exit from word)
     /// @}
@@ -228,7 +232,9 @@ const Code rom[] {                    ///< Forth dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",   dict[POPI()]->nest(vm)),           /// w --
-    CODE("create", DICT_PUSH(new Var(word(), DU0))),
+    CODE("create",
+         const Code *w = new Var(word(), DU0, dict.size());
+         DICT_PUSH(w)),
 #if 0    
     IMMD("does>",
          ADD_W(new Bran(_does));
@@ -326,6 +332,7 @@ Colon::Colon(const char *s, bool n)                     ///< new colon word
     desc  = "";
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
+    colon = 1;
     if (n && w) pstr("reDef?");                         /// * warn word redefined
 }
 ///
@@ -338,10 +345,10 @@ int Code::nest(VM &vm) {
 int Colon::nest(VM &vm) {
 //    vm.set_state(NEST);                               /// * this => lock, major slow down
     vm.state = NEST;                                    /// * racing? No, helgrind says so
-    for (Iter it = pf.begin(); it != pf.end(); ) {
+    for (FV<Code*>::iterator it = pf.begin(); it != pf.end(); ) {
         Code *c = *it;
         try {                                           /// * execute recursively
-            int off = c->nest(vm);
+            int off = c->nest(vm);                      /// * polymorphic call
 //            printf("%03x[%3x].%x RS=%d, SS=%d %s\n", (int)(it - pf.begin()), c->token, c->stage, (int)RS.size(), (int)SS.size(), c->name);
         	if (c->stage) it = pf.begin() + off;        /// *    branching
         	else          it += off;                    /// *    sequential
