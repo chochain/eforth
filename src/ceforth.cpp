@@ -329,22 +329,38 @@ Colon::Colon(const char *s, bool n)                     ///< new colon word
 ///> Forth inner interpreter
 ///
 int Code::nest(VM &vm) {
-//    vm.set_state(NEST);                               /// * this => lock, major slow down
-    vm.state = NEST;                                    /// * racing? No, helgrind says so
-    if (xt) {                                           /// * handle primitive words
-        xt(vm, *this);
-        return stage ? token : 1;
-    }
-    FV<Code*> &pf = ((Colon*)this)->pf;                 /// * handle Colon words
-    for (auto it = pf.begin(); it != pf.end(); ) {
-        Code *c = *it;
-        try {                                           /// * execute recursively
-            int off = c->nest(vm);                      /// * polymorphic call
-//            printf("%03x[%3x].%x RS=%d, SS=%d %s\n", (int)(it - pf.begin()), c->token, c->stage, (int)RS.size(), (int)SS.size(), c->name);
-        	if (c->stage) it = pf.begin() + off;        /// * branching
-        	else          it += off;                    /// * sequential
+    vm.state = NEST;                   /// * racing? No, helgrind says so
+    Code *c0 = this;                   ///< root node, for TRO
+    while (c0) {
+        if (c0->xt) {
+            c0->xt(vm, *c0);
+            return c0->stage ? c0->token : 1;
         }
-        catch (...) { break; }                          /// * break, leave, IO, ...
+        FV<Code*> &pf = ((Colon*)c0)->pf;
+        for (FV<Code*>::iterator it = pf.begin(); it != pf.end(); ) {
+            Code *c = *it;
+            if (c->xt) {
+                try {
+                    c->xt(vm, *c);
+                    it = c->stage ? pf.begin() + c->token : it + 1;
+                }
+                catch (...) { break; }
+            }
+            else if (it + 1 == pf.end()) {
+                c0 = c;
+                goto next_code;
+            }
+            else {
+                try {
+                    it = (c->stage ? pf.begin() : it) + c->nest(vm);
+                }
+                catch (...) { break; }
+            }
+        }
+        break;
+
+    next_code:
+        continue;                      ///< iterative (no recursion)
     }
     return 1;
 }
