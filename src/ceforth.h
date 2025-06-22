@@ -122,9 +122,9 @@ struct Code {
         U32 attr = 0;               /// * zero all sub-fields
         struct {
             U32 token : 28;         ///< dict index, 0=param word
-            U32 xxx   :  1;         ///< reserved
             U32 stage :  1;         ///< branching state
             U32 is_str:  1;         ///< string flag
+            U32 colon :  1;         ///< user defined word
             U32 immd  :  1;         ///< immediate flag
         };
     };
@@ -171,13 +171,15 @@ void   _does(VM &vm,  Code &c);      ///< does>
 ///
 ///> polymorphic sub-class constructors
 ///
+extern FV<Code*> dict;               ///< Forth dictionary
+
 struct Lit : Code {
-    Lit(const char *nm, DU d, U32 t=0)
-        : Code((new string(nm))->c_str(), "lit", _lit, t) { q.push(d); }
+    Lit(const char *s, DU d, U32 t=dict.size())
+        : Code((new string(s))->c_str(), "lit", _lit, t) { q.push(d); }
 };
 struct Var : Code {
-    Var(const char *nm, DU d, U32 t=0)
-        : Code((new string(nm))->c_str(), "var", _var, t) { q.push(d); }
+    Var(const char *s, DU d, U32 t=dict.size())
+        : Code((new string(s))->c_str(), "var", _var, t) { q.push(d); }
 };
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0)
