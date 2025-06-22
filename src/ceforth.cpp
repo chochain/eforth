@@ -16,7 +16,7 @@ Colon     *last;                       ///< cached dict[-1]
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
-#define VAR(i_w)     (*(((Var*)dict[(int)((i_w) & 0xffff)])->q.data()+((i_w) >> 16)))
+#define VAR(i_w)     (*((dict[(int)((i_w) & 0xffff)])->q.data()+((i_w) >> 16)))
 #define STR(i_w)     (                                          \
         EQ(i_w, UINT(-DU1))                                     \
         ? vm.pad.c_str()                                        \
@@ -228,12 +228,8 @@ const Code rom[] {                    ///< Forth dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",   dict[POPI()]->nest(vm)),   /// w --
-    CODE("create", DICT_PUSH(new Var(word(), DU0))),
-#if 0    
-    IMMD("does>",
-         ADD_W(new Bran(_does));
-         last->pf[-1]->token = last->token),          /// keep WP
-#endif    
+    CODE("create", DICT_PUSH(new Var(word(), DU0, false))),
+    IMMD("does>",  ADD_W(new Bran(_does, last->token))),
     CODE("to",                                        /// n --
          const Code *w = find(word()); if (!w) return;
          VAR(w->token) = POP()),                      /// update value
@@ -246,13 +242,13 @@ const Code rom[] {                    ///< Forth dictionary
     /// @defgroup Memory Access ops
     /// @{
     CODE("@",       U32 i_w = POPI(); PUSH(VAR(i_w))),           /// a -- n
-    CODE("!",       U32 i_w = POPI(); VAR(i_w) = POP()),         /// n a -- 
+    CODE("!",       U32 i_w = POPI(); VAR(i_w) = POP()),         /// n a --
     CODE("+!",      U32 i_w = POPI(); VAR(i_w) += POP()),
     CODE("?",       U32 i_w = POPI(); dot(DOT, VAR(i_w))),
-    CODE(",",       ((Var*)last)->q.push(POP())),
+    CODE(",",       last->q.push(POP())),
     CODE("cells",   { /* for backward compatible */ }),          /// array index, inc by 1
     CODE("allot",   U32 n = POPI();                              /// n --
-                    for (U32 i=0; i<n; i++) ((Var*)last)->q.push(DU0)),
+                    for (U32 i=0; i<n; i++) last->q.push(DU0)),
     ///> Note:
     ///>   allot allocate elements in a word's q[] array
     ///>   to access, both indices to word itself and to q array are needed
@@ -469,6 +465,6 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
         }
     }
     if (!vm.compile) ss_dump(vm);
-    
+
     return vm.state==STOP;
 }
