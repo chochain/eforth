@@ -339,23 +339,20 @@ int Code::nest(VM &vm) {
         FV<Code*> &pf = ((Colon*)c0)->pf;
         for (FV<Code*>::iterator it = pf.begin(); it != pf.end(); ) {
             Code *c = *it;
-            if (c->xt) {
-                try {
+            try {
+                if (c->xt) {
                     c->xt(vm, *c);
                     it = c->stage ? pf.begin() + c->token : it + 1;
                 }
-                catch (...) { break; }
-            }
-            else if (it + 1 == pf.end()) {
-                c0 = c;
-                goto next_code;
-            }
-            else {
-                try {
+                else if (it + 1 == pf.end()) {
+                    c0 = c;
+                    goto next_code;
+                }
+                else {
                     it = (c->stage ? pf.begin() : it) + c->nest(vm);
                 }
-                catch (...) { break; }
             }
+            catch (...) { break; }
         }
         break;
 
