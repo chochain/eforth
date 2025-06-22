@@ -109,22 +109,23 @@ struct ALIGNAS VM {
 ///
 struct  Code;                       ///< Code class forward declaration
 typedef void (*XT)(VM &vm, Code&);  ///< function pointer
-using   Iter = FV<Code*>::iterator; ///< shrothand for vector iterator
 
 struct Code {
     const static U32 IMMD_FLAG = 0x80000000;
-    const char *name;        ///< name of word
-    const char *desc;        ///< reserved
-    XT xt = NULL;            ///< execution token
-    FV<DU> q;                ///< literal parameter field
+    const char *name;               ///< name of word
+    const char *desc;               ///< reserved
     
-    union {                  ///< union to reduce struct size
-        U32 attr = 0;        /// * zero all sub-fields
+    XT     xt = NULL;               ///< execution token
+    FV<DU> q;                       ///< literal parameter field
+    
+    union {                         ///< union to reduce struct size
+        U32 attr = 0;               /// * zero all sub-fields
         struct {
-            U32 token : 28;  ///< dict index, 0=param word
-            U32 stage :  2;  ///< branching state
-            U32 is_str:  1;  ///< string flag
-            U32 immd  :  1;  ///< immediate flag
+            U32 token : 28;         ///< dict index, 0=param word
+            U32 xxx   :  1;         ///< reserved
+            U32 stage :  1;         ///< branching state
+            U32 is_str:  1;         ///< string flag
+            U32 immd  :  1;         ///< immediate flag
         };
     };
     Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
@@ -134,7 +135,7 @@ struct Code {
     virtual int nest(VM &vm);                          ///> inner interpreter
 };
 struct Colon : Code {
-    FV<Code*>  pf;           ///< parameter field
+    FV<Code*> pf;                                      ///< parameter field
     
     Colon(const char *s, bool n=true);
     ~Colon() { delete name; }                          ///> delete name of colon word
@@ -155,7 +156,7 @@ struct Colon : Code {
 #define POP()       ([&vm](){ DU n = TOS; TOS = SS.pop(); return n; }())
 #define POPI()      UINT(POP())
 ///
-///> Primitve object and function forward declarations
+///> Primitve functions
 ///
 void   _str(VM &vm,   Code &c);      ///< dotstr, dostr
 void   _lit(VM &vm,   Code &c);      ///< numeric liternal
@@ -168,19 +169,19 @@ void   _do(VM &vm,    Code &c);      ///< do..loop
 void   _loop(VM &vm,  Code &c);       
 void   _does(VM &vm,  Code &c);      ///< does>
 ///
-///> polymorphic constructors
+///> polymorphic sub-class constructors
 ///
 struct Lit : Code {
-    Lit(const char *nm, DU d)
-        : Code(nm, "", _lit, 0) { q.push(d); } };
+    Lit(const char *nm, DU d, U32 t=0)
+        : Code((new string(nm))->c_str(), "lit", _lit, t) { q.push(d); }
+};
 struct Var : Code {
-    Var(const char *nm, DU d)
-        : Code(nm, "", _var, 0) { name="var "; q.push(d); } };
+    Var(const char *nm, DU d, U32 t=0)
+        : Code((new string(nm))->c_str(), "var", _var, t) { q.push(d); }
+};
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0)
-        : Code(_str) {
-        name  = (new string(s))->c_str(); /// * hardcopy the string
-        token = (len << 16) | tok;        /// * encode word index and string length
+        : Code((new string(s))->c_str(), "str", _str, (len << 16) | tok) {
         is_str= 1;
     }
 };
