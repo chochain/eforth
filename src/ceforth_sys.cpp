@@ -122,9 +122,12 @@ void _see(const Code &c, int dp) {       ///> disassemble a colon word
         sn += " ( j" + to_string(c.token) + " )";
     }
     
-    fout << " " << sn;                   ///> print name
-    for (DU i : c.q) fout << i << " ";   ///> print if value
-    fout << ENDL;
+    fout << " " << sn;
+    if (c.q.size()) {
+        fout << " ( " << c.desc;             ///> print name
+        for (DU i : c.q) fout << " " << i;   ///> print if value
+        fout << " ) " << ENDL;
+    }
     if (c.xt || dp > 1) return;          /// * depth control
     
     int j = 0;
@@ -140,7 +143,9 @@ void _see(const Code &c, int dp) {       ///> disassemble a colon word
     }
 }
 void see(const Code &c, int base) {
-    if (c.xt) fout << c.name << " ->{ " << c.desc << "; }";
+    if (c.xt && c.q.size()==0) {
+        fout << c.name << " ->{ " << c.desc << "; }";
+    }
     else {
         fout << ":"; _see(c, 0); fout << ";";
     }
