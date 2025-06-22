@@ -178,8 +178,8 @@ struct Lit : Code {
         : Code((new string(s))->c_str(), "lit", _lit, t) { q.push(d); }
 };
 struct Var : Code {
-    Var(const char *s, DU d, U32 t=dict.size())
-        : Code((new string(s))->c_str(), "var", _var, t) { q.push(d); }
+    Var(const char *s, DU d, bool allot=true, U32 t=dict.size())
+        : Code((new string(s))->c_str(), "var", _var, t) { if (allot) q.push(d); }
 };
 struct Str : Code {
     Str(const char *s, int tok=0, int len=0)
