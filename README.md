@@ -361,20 +361,21 @@ I try to release allocated blocks before exiting, however due to the dynamic all
 Current implementation utilize C++ vector as the core storage. Inside a Code object, there are pf, p1, p2 vectors to store branching words similar to that of an AST (Abstract Syntax Tree). The alternative is to stick all words into a single parameter field as done in classic Forth. I have created a branch **one_pf** doing exactly the same just to check it out. Also, tried polymorphic inner interpreter. So, are they better?
 
     + Branching microcode look cleaner. 2-bit **VM.stage** flag can be replaced by a 1-bit **VM.jmp** status. No big deal.
-    + **dump** and **see** are easier to implement, but
-    + It runs 4~8x slower! 
+    + dump and see are easier to implement, but
+    + Runs 4~8x slower using recursive nest() i.e. Forth inner interpreter,
+    + Improved to 2x slower using iterative nest()
     + Also, polymorphic slows down additional 5%. Most likely due to extra vtable lookup.
     
 So, what **cachegrind** said for **100M loop** tight loops and **chacha.fs** a CPU intensive?
 
     | Op          | 100M loop | chacha.fs |
     |-------------|-----------|-----------|
-    | Data Read   | -3%       | +32%      |
-    | Branches    | -10%      | +30%      |
+    | Data Read   | +30%      | +32%      |
+    | Branches    | +25%      | +30%      |
     | Mispred     | similar   | similar   |
     | Instruction | +20%      | +40%      |
     
-Apparently, the culprit is we have many more instruction fetches. Most likely because having branching primitives, i.e. **_if/_else/_then**, **for/next**, in C++ reduced the extra fetch of VM branches. Sort of the difference between having hardware and software branchers. However, gut feeling is the difference shouldn't be so dramatic. More research on this...
+Apparently, grown ~30% in all aspects. I think because having branching primitives, i.e. **_if/_else/_then**, **for/next**, in C++ prevent the extra fetch of VM branches. Sort of the difference between having hardware and software branchers. However, my gut feeling is the difference shouldn't be so dramatic especially with the recursive nest(). More research on this...
 
 ## References
     + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
