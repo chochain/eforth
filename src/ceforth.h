@@ -132,7 +132,7 @@ struct Code {
     Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
 
     virtual ~Code() {}
-    virtual int nest(VM &vm);                          ///> inner interpreter
+    int nest(VM &vm);                                  ///> inner interpreter
 };
 struct Colon : Code {
     FV<Code*> pf;                                      ///< parameter field
@@ -141,7 +141,6 @@ struct Colon : Code {
     ~Colon() { delete name; }                          ///> delete name of colon word
     
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
-    int nest(VM &vm) override;                         ///> inner interpreter
 };
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
