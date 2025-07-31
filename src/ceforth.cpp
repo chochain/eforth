@@ -483,11 +483,9 @@ void forth_init() {
     const int sz = (int)(sizeof(rom))/(sizeof(Prim));
     dict.reserve(sz * 2);             /// * pre-allocate vector
 
-    printf("sz=%d, dict.sz=%ld", sz, dict.size());
-    for (const Prim &c : rom) {
-        DICT_PUSH(&c);
+    for (const Prim &c : rom) {       /// * populate the dictionary
+        DICT_PUSH(&c);                /// * ROM => RAM
     }
-    printf("=> %ld\n", dict.size());
 
     uvar_init();                      /// * initialize user area
     t_pool_init();                    /// * initialize thread pool
