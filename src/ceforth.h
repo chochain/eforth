@@ -110,15 +110,11 @@ struct ALIGNAS VM {
 struct Code;                       ///< Code class forward declaration
 typedef void (*XT)(VM &vm, Code&); ///< function pointer
 
-struct Code {
+struct Prim {
     const static U32 IMMD_FLAG = 0x80000000;
     const char *name;        ///< name of word
     const char *desc;        ///< reserved
     XT         xt = NULL;    ///< execution token
-    FV<Code*>  pf;           ///< parameter field
-    FV<Code*>  p1;           ///< parameter field - if..else, aft..then
-    FV<Code*>  p2;           ///< parameter field - then..next
-    FV<DU>     q;            ///< parameter field - literal
     union {                  ///< union to reduce struct size
         U32 attr = 0;        /// * zero all sub-fields
         struct {
@@ -128,9 +124,14 @@ struct Code {
             U32 immd  :  1;  ///< immediate flag
         };
     };
-    Code(const char *s, const char *d, XT fp, U32 a);  ///> primitive
+    Prim(const char *s, const char *d, XT fp, U32 a);  ///> primitive
+    ~Prim() { if (!xt) delete name; }                  ///> delete name of colon word
+};
+struct Code : public Prim {
+    FV<Code*>  pf;           ///< parameter field
+    FV<DU>     q;            ///< parameter field - literal
     Code(const char *s, bool n=true);                  ///> colon, n=new word
-    Code(XT fp) : name(""), xt(fp), attr(0) {}         ///> sub-classes
+    Code(XT fp) : Prim("", "", fp, 0) {}               ///> sub-classes
     ~Code() { if (!xt) delete name; }                  ///> delete name of colon word
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void nest(VM &vm);                                 ///> inner interpreter
@@ -150,15 +151,12 @@ struct Code {
 ///
 ///> Primitve object and function forward declarations
 ///
-struct Code;                         ///< Code class forward declaration
-typedef void (*XT)(VM&, Code&);      ///< function pointer
-
 void   _str(VM &vm, Code &c);        ///< dotstr, dostr
 void   _lit(VM &vm, Code &c);        ///< numeric liternal
 void   _var(VM &vm, Code &c);        ///< variable and constant
 void   _tor(VM &vm, Code &c);        ///< >r (for..next)
 void   _tor2(VM &vm, Code &c);       ///< swap >r >r (do..loop)
-void   _if(VM &vm, Code &c);         ///< if..then, if..else..then
+void   _if(VM &vm,  Code &c);        ///< if..then, if..else..then
 void   _begin(VM &vm, Code &c);      ///< ..until, ..again, ..while..repeat
 void   _for(VM &vm, Code &c);        ///< for..next, for..aft..then..next
 void   _loop(VM &vm, Code &c);       ///< do..loop
@@ -177,6 +175,8 @@ struct Str : Code {
     }
 };
 struct Bran: Code {
+    FV<Code*>  p1;                   ///< parameter field - if..else, aft..then
+    FV<Code*>  p2;                   ///< parameter field - then..next
     Bran(XT fp) : Code(fp) {
         const char *nm[] = {
             "if", "begin", "\t", "for", "\t", "do", "does>"
@@ -223,7 +223,7 @@ typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
 
-const Code *find(const char *s);          ///< dictionary scanner forward declare
+const Prim *find(const char *s);          ///< dictionary scanner forward declare
 const char *scan(char c);                 ///< scan input stream for a given char
 const char *word(char delim=0);           ///< read next idiom from input stream
 int  fetch(string &idiom);                ///< read input stream into string
@@ -237,7 +237,7 @@ void pstr(const char *str, io_op op=SPCS);///< print string
 ///> Debug functions
 ///
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
-void see(const Code &c, int base);        ///< disassemble user defined word
+void see(const Prim &c, int base);        ///< disassemble user defined word
 void words(int base);                     ///< list dictionary words
 void dict_dump(int base);                 ///< dump dictionary
 void mem_dump(IU w0, IU w1, int base);    ///< dump memory for a given wordrm addr...addr+sz
