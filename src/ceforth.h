@@ -112,27 +112,26 @@ typedef void (*XT)(VM &vm, Code&); ///< function pointer
 
 struct Prim {
     const static U32 IMMD_FLAG = 0x80000000;
-    const char *name;        ///< name of word
-    const char *desc;        ///< reserved
-    XT         xt = NULL;    ///< execution token
-    union {                  ///< union to reduce struct size
-        U32 attr = 0;        /// * zero all sub-fields
+    const char *name;              ///< name of word
+    const char *desc;              ///< reserved
+    XT         xt = NULL;          ///< execution token
+    union {                        ///< union to reduce struct size
+        U32 attr = 0;              /// * zero all sub-fields
         struct {
-            U32 token : 28;  ///< dict index, 0=param word
-            U32 stage :  2;  ///< branching state
-            U32 is_str:  1;  ///< string flag
-            U32 immd  :  1;  ///< immediate flag
+            U32 token : 28;        ///< dict index, 0=param word
+            U32 stage :  2;        ///< branching state
+            U32 is_str:  1;        ///< string flag
+            U32 immd  :  1;        ///< immediate flag
         };
     };
     Prim(const char *s, const char *d, XT fp, U32 a);  ///> primitive
     ~Prim() { if (!xt) delete name; }                  ///> delete name of colon word
 };
-struct Code : public Prim {
-    FV<Code*>  pf;           ///< parameter field
-    FV<DU>     q;            ///< parameter field - literal
+struct Code : Prim {
+    FV<Code*>  pf;                 ///< parameter field
+    FV<DU>     q;                  ///< parameter field - literal
     Code(const char *s, bool n=true);                  ///> colon, n=new word
     Code(XT fp) : Prim("", "", fp, 0) {}               ///> sub-classes
-    ~Code() { if (!xt) delete name; }                  ///> delete name of colon word
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void nest(VM &vm);                                 ///> inner interpreter
 };
@@ -174,7 +173,7 @@ struct Str : Code {
         is_str= 1;
     }
 };
-struct Bran: Code {
+struct Bran : Code {
     FV<Code*>  p1;                   ///< parameter field - if..else, aft..then
     FV<Code*>  p2;                   ///< parameter field - then..next
     Bran(XT fp) : Code(fp) {
