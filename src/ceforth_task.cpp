@@ -11,13 +11,8 @@ VM _vm0;                           ///< singleton, no VM pooling
 
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
 void uvar_init() {
-    Prim p0 = *dict[0];                       ///< hard copy dict[0]
-    Code *b = new Code(p0.name, false);       ///< borrow dict[0]->pf[0]->q[vm.id] for VM's user area
-    b->xt   = p0.xt;
-    b->desc = p0.desc;
-    b->attr = p0.attr;
-    b->append(new Var(10));
-    dict[0]= b;
+    dict[0] = new Code((Prim&)*dict[0]);      ///< borrow dict[0]->pf[0]->q[vm.id] for VM's user area
+    dict[0]->append(new Var(10));
 
     _vm0.id    = 0;                           /// * VM id
     _vm0.state = HOLD;                        /// * VM ready to run

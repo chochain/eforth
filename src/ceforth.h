@@ -130,6 +130,7 @@ struct Prim {
 struct Code : Prim {
     FV<Code*>  pf;                 ///< parameter field
     FV<DU>     q;                  ///< parameter field - literal
+    Code(Prim &p) : Prim(p.name, p.desc, p.xt, p.attr) {}
     Code(const char *s, bool n=true);                  ///> colon, n=new word
     Code(XT fp) : Prim("", "", fp, 0) {}               ///> sub-classes
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
