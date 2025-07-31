@@ -131,7 +131,7 @@ void _see(const Code &c, int dp) {       ///> disassemble a colon word
     if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
     pp(sn, c.pf, dp);
     if (sn=="if")    {
-        if (c.stage==1) pp("else", c.p1, dp);
+        if (c.stage==1) pp("else", ((Bran)c).p1, dp);
         pp("then", nil, dp);
     }
     else if (sn=="begin") {
@@ -139,15 +139,15 @@ void _see(const Code &c, int dp) {       ///> disassemble a colon word
         case 0: pp("until", nil, dp); break;
         case 1: pp("again", nil, dp); break;
         case 2:
-            pp("while",  c.p1, dp);
-            pp("repeat", nil,    dp);
+            pp("while",  ((Bran)c).p1, dp);
+            pp("repeat", nil, dp);
             break;
         }
     }
     else if (sn=="for") {
         if (c.stage==3) {
-            pp("aft",  c.p1, dp);
-            pp("then", c.p2, dp);
+            pp("aft",  ((Bran)c).p1, dp);
+            pp("then", ((Bran)c).p2, dp);
         }
         pp("next", nil, dp);
     }
@@ -213,8 +213,8 @@ void mem_dump(IU w0, IU w1, int base) {
         
         fout << w->name << ENDL;
         show_pf("pf", w->pf);
-        show_pf("p1", w->p1);
-        show_pf("p2", w->p2);
+        show_pf("p1", ((Bran)w)->p1);
+        show_pf("p2", ((Bran)w)->p2);
         
         if (w->q.size()==0) continue;
         fout << "  q:";
