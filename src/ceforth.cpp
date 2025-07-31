@@ -385,33 +385,33 @@ void _lit(VM &vm, Code &c)  { PUSH(c.q[0]);  }
 void _var(VM &vm, Code &c)  { PUSH(c.token); }
 void _tor(VM &vm, Code &c)  { RS.push(POP()); }
 void _tor2(VM &vm, Code &c) { RS.push(SS.pop()); RS.push(POP()); }
-void _if(VM &vm, Bran &c)   { NEST(POP() ? c.pf : c.p1); }
-void _begin(VM &vm, Bran &c){    ///> begin.while.repeat, begin.until
+void _if(VM &vm, Code &c)   { NEST(POP() ? c.pf : ((Bran&)c).p1); }
+void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
     int b = c.stage;             ///< branching state
     while (true) {
         NEST(c.pf);                            /// * begin..
         if (b==0 && POP()!=0) break;           /// * ..until
         if (b==1)             continue;        /// * ..again
         if (b==2 && POP()==0) break;           /// * ..while..repeat
-        NEST(c.p1);
+        NEST(((Bran&)c).p1);
     }
 }
-void _for(VM &vm, Bran &c) {     ///> for..next, for..aft..then..next
+void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
     int b = c.stage;                           /// * kept in register
     try {
         do {
             NEST(c.pf);
         } while (b==0 && (RS[-1]-=1) >=0);     /// * for..next only
         while (b) {                            /// * aft
-            NEST(c.p2);                        /// * then..next
+            NEST(((Bran&)c).p2);               /// * then..next
             if ((RS[-1]-=1) < 0) break;        /// * decrement counter
-            NEST(c.p1);                        /// * aft..then
+            NEST(((Bran&)c).p1);               /// * aft..then
         }
         RS.pop();
     }
     catch (...) { RS.pop(); }                  /// handle EXIT
 }
-void _loop(VM &vm, Bran &c) {                  ///> do..loop
+void _loop(VM &vm, Code &c) {                  ///> do..loop
     try { 
         do {
             NEST(c.pf);
@@ -420,7 +420,7 @@ void _loop(VM &vm, Bran &c) {                  ///> do..loop
     }
     catch (...) {}                             /// handle LEAVE
 }
-void _does(VM &vm, Bran &c) {
+void _does(VM &vm, Code &c) {
     bool hit = false;
     for (auto w : dict[c.token]->pf) {
         if (hit) ADD_W(w);                     /// copy rest of pf
@@ -480,11 +480,14 @@ void forth_init() {
     static bool init = false;         ///< singleton
     if (init) return;
     
-    const int sz = (int)(sizeof(rom))/(sizeof(Code));
+    const int sz = (int)(sizeof(rom))/(sizeof(Prim));
     dict.reserve(sz * 2);             /// * pre-allocate vector
+
+    printf("sz=%d, dict.sz=%ld", sz, dict.size());
     for (const Prim &c : rom) {
         DICT_PUSH(&c);
     }
+    printf("=> %ld\n", dict.size());
 
     uvar_init();                      /// * initialize user area
     t_pool_init();                    /// * initialize thread pool
