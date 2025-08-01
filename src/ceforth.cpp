@@ -25,7 +25,7 @@ Code      *last;                       ///< cached dict[-1]
 #define BASE         ((U8*)&VAR(vm.id << 16))
 #define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
-#define ADD_W(w)     (last->append(w))
+#define ADD_W(w)     (last->append((Code*)w))
 #define BTGT()       ((Bran*)dict[-2]->pf[-1])      /** branching target   */
 #define BRAN(p)      ((p).merge(last->pf))          /** add branching code */
 #define NEST(pf)     for (auto w : (pf)) w->nest(vm)
@@ -41,7 +41,7 @@ Code      *last;                       ///< cached dict[-1]
 ///       potential issue comes with it.
 ///    3. a degenerated lambda becomes a function pointer
 ///
-const Prim rom[] {               ///< Forth dictionary
+const Code rom[] {               ///< Forth dictionary
     CODE("bye",    forth_quit()),
     ///
     /// @defgroup ALU ops
@@ -267,7 +267,7 @@ const Prim rom[] {               ///< Forth dictionary
          ADD_W(new Bran(_does));
          last->pf[-1]->token = last->token),          /// keep WP
     CODE("to",                                        /// n --
-         const Prim *w = find(word()); if (!w) return;
+         const Code *w = find(word()); if (!w) return;
          VAR(w->token) = POP()),                      /// update value
     CODE("is",                                        /// w -- 
          DICT_PUSH(new Code(word(), false));          /// create word
@@ -284,7 +284,7 @@ const Prim rom[] {               ///< Forth dictionary
     CODE(",",       last->pf[0]->q.push(POP())),
     CODE("cells",   { /* for backward compatible */ }),          /// array index, inc by 1
     CODE("allot",   U32 n = POPI();                              /// n --
-                    for (U32 i=0; i<n; i++) last->pf[0]->q.push(DU0)),
+         for (U32 i=0; i<n; i++) last->pf[0]->q.push(DU0)),
     ///> Note:
     ///>   allot allocate elements in a word's q[] array
     ///>   to access, both indices to word itself and to q array are needed
@@ -317,11 +317,11 @@ const Prim rom[] {               ///< Forth dictionary
     CODE("abort",   TOS = -DU1; SS.clear(); RS.clear()),        /// clear ss, rs
     CODE("here",    PUSH(last->token)),
     CODE("'",
-         const Prim *w = find(word()); if (w) PUSH(w->token)),
+         const Code *w = find(word()); if (w) PUSH(w->token)),
     CODE(".s",      ss_dump(vm, true)),                         /// dump parameter stack
     CODE("words",   words(*vm.base)),                           /// display word lists
     CODE("see",
-         const Prim *w = find(word());
+         const Code *w = find(word());
          if (w) see(*w, *vm.base);
          dot(CR)),
     CODE("dict",    dict_dump(*vm.base)),                       /// display dictionary
@@ -338,7 +338,7 @@ const Prim rom[] {               ///< Forth dictionary
     CODE("rnd",     PUSH(RND())),                               /// get a random number
     CODE("ms",      delay(POPI())),                             /// n -- delay n msec
     CODE("forget",
-         const Prim *w = find(word()); if (!w) return;
+         const Code *w = find(word()); if (!w) return;
          int   t = MAX((int)w->token, (int)find("boot")->token + 1);
          for (int i=(int)dict.size(); i>t; i--) DICT_POP()),
     CODE("boot",
@@ -349,11 +349,12 @@ const Prim rom[] {               ///< Forth dictionary
 ///
 ///> Code Class constructors
 ///
-Prim::Prim(const char *s, const char *d, XT fp, U32 a)    ///> primitive word
+Code::Code(const char *s, const char *d, XT fp, U32 a)    ///> primitive word
     : name(s), desc(d), xt(fp), attr(a) {}
-Code::Code(const char *s, bool n) : Prim("","",NULL,0) {  ///< new colon word
-    const Prim *w = find(s);                              /// * scan the dictionary
+Code::Code(const char *s, bool n) {  ///< new colon word
+    const Code *w = find(s);                              /// * scan the dictionary
     name  = w ? w->name : (new string(s))->c_str();       /// * copy the name
+    desc  = "";
     xt    = w ? w->xt : NULL;
     token = n ? dict.size() : 0;
     if (n && w) pstr("reDef?");          /// * warn word redefined
@@ -432,7 +433,7 @@ void _does(VM &vm, Code &c) {
 ///
 ///> Forth outer interpreter
 ///
-const Prim *find(const char *s) {              ///> scan dictionary, last to first
+const Code *find(const char *s) {              ///> scan dictionary, last to first
     for (int i = (int)dict.size() - 1; i >= 0; --i) {
         if (STRCMP(s, dict[i]->name)==0) return dict[i];
     }
@@ -480,10 +481,10 @@ void forth_init() {
     static bool init = false;         ///< singleton
     if (init) return;
     
-    const int sz = (int)(sizeof(rom))/(sizeof(Prim));
+    const int sz = (int)(sizeof(rom))/(sizeof(Code));
     dict.reserve(sz * 2);             /// * pre-allocate vector
 
-    for (const Prim &c : rom) {       /// * populate the dictionary
+    for (const Code &c : rom) {       /// * populate the dictionary
         DICT_PUSH(&c);                /// * ROM => RAM
     }
 
