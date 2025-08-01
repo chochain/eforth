@@ -29,8 +29,14 @@ all: exe 50x wasm
 tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o src/ceforth_task.o
 	$(CC) $(CC_FLAG) -o $@ $^
 
+debug: tests/eforth
+	/bin/valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $^
+
 tests/ceforth50x: platform/main.o orig/50x/ceforth.o orig/50x/ceforth_sys.o orig/50x/ceforth_task.o
 	$(CC) $(CC_FLAG) -o $@ $^
+
+debug50: tests/ceforth50x
+	/bin/valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $^
 
 tests/eforth.js: platform/wasm.cpp src/ceforth.cpp src/ceforth_sys.cpp src/ceforth_task.cpp
 	cp platform/eforth_vm0.js platform/eforth.html tests
