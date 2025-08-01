@@ -199,31 +199,42 @@ void dict_dump(int base) {
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
 }
-void mem_dump(IU w0, IU w1, int base) {
-    auto show_pf = [](const char *nm, FV<Code*> &pf) {
-        if (pf.size() == 0) return;
-        fout << "  " << nm << "[" << pf.size() << "]: ";
-        for (auto p : pf) { fout << p->token << " "; }
-        fout << ENDL;
+void _dump(Code *c, int dp) {
+    auto pp = [](const char *s, FV<Code*> &pf, int dp) {
+        if (pf.size()==0) return;
+        int i = dp;
+        if (dp) { fout << ENDL; }                ///> newline control
+        while (i--) { fout << "  "; }            ///> indentation control
+        fout << s << "[" << pf.size() << "] { ";
+        for (auto w : pf) {
+            if (w->is_str) {
+                fout << (w->token ? "s\" " : ".\" ") << w->name << "\"";
+            }
+            else if (w->token) fout << w->token;
+            else if (w->q.size()) {
+                fout << "q{ ";
+                for (auto v : w->q) fout << v << " ";
+                fout << "}";
+            }
+            else fout << (w->name[0]=='\t' ? "\\t" : w->name);
+            fout << " ";
+            _dump(w, dp + 1);
+        }
+        fout << "} ";
     };
+    pp("pf", c->pf, dp);
+    if (c->is_bran) {
+        pp("p1", ((Bran*)c)->p1, dp);
+        pp("p2", ((Bran*)c)->p2, dp);
+    }
+}
+void mem_dump(IU w0, IU n, int base) {           ///> ' xx 1 dump
     fout << setbase(16) << setfill('0');
-    auto cx = dict.begin() + w1 + 1;
+    auto cx = dict.begin() + w0 + n;
     for (auto c = dict.begin() + w0; c != cx; c++) {
         fout << setw(4) << (int)(c - dict.begin()) << ": ";
-        Code *w = *c;
-        if (w->xt) { fout << "built-in" << ENDL; continue; }
-        
-        fout << w->name << ENDL;
-        
-        show_pf("pf", w->pf);
-        if (w->is_bran) {
-            show_pf("p1", ((Bran*)w)->p1);
-            show_pf("p2", ((Bran*)w)->p2);
-        }
-        
-        if (w->q.size()==0) continue;
-        fout << "  q:";
-        for (auto v : w->q) { fout << v << " "; }
+        if ((*c)->xt) fout << "built-in";        ///< primitives
+        else          _dump(*c, 1);              ///< colon wordsa
         fout << ENDL;
     }
     fout << setbase(base) << setfill(' ');
