@@ -29,16 +29,16 @@ typedef  condition_variable COND_VAR;
 #define _GNU_SOURCE
 #endif
 #ifdef _POSIX_VERSION
-#include <sched.h>                     /// CPU affinity
+#include <sched.h>                 /// CPU affinity
 #endif // _POSIX_VERSION
 #endif // DO_MULTITASK
 
 template<typename T>
-struct FV : public vector<T> {         ///< our super-vector class
+struct FV : public vector<T> {      ///< our super-vector class
     FV *merge(FV<T> &v) {
         this->insert(this->end(), v.begin(), v.end()); v.clear(); return this;
     }
-    ~FV() {
+    ~FV() {                         ///< free pointed elements
         if constexpr(is_pointer<T>::value) {
             for (T t : *this) if (t != nullptr) { delete t; t = nullptr; }
         }
@@ -110,7 +110,7 @@ struct ALIGNAS VM {
 struct Code;                       ///< Code class forward declaration
 typedef void (*XT)(VM &vm, Code&); ///< function pointer
 
-struct Prim {
+struct Prim {                      ///> Primitives
     const static U32 IMMD_FLAG = 0x80000000;
     const char *name;              ///< name of word
     const char *desc;              ///< reserved
@@ -125,14 +125,15 @@ struct Prim {
         };
     };
     Prim(const char *s, const char *d, XT fp, U32 a);  ///> primitive
-    ~Prim() { if (!xt) delete name; }                  ///> delete name of colon word
+    virtual ~Prim() = default;                         ///> to support dynamic_cast
 };
-struct Code : Prim {
-    FV<Code*>  pf;                 ///< parameter field
-    FV<DU>     q;                  ///< parameter field - literal
+struct Code : Prim {                                   ///> Colon words
+    FV<Code*>  pf;                                     ///< parameter field
+    FV<DU>     q;                                      ///< parameter field - literal
     Code(Prim &p) : Prim(p.name, p.desc, p.xt, p.attr) {}
     Code(const char *s, bool n=true);                  ///> colon, n=new word
     Code(XT fp) : Prim("", "", fp, 0) {}               ///> sub-classes
+    ~Code() { if (!xt) { delete name; delete desc; } } ///> delete name of colon word
     Code *append(Code *w) { pf.push(w); return this; } ///> add token
     void nest(VM &vm);                                 ///> inner interpreter
 };
