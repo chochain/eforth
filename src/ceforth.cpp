@@ -155,7 +155,7 @@ const Code rom[] {               ///< Forth dictionary
          }),
     IMMD(".\"",
          const char *s = word('"'); if (!s) return;
-         ADD_W(new Str(s))),
+         ADD_W(new Str(s+1))),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
