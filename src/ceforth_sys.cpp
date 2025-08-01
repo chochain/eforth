@@ -115,22 +115,23 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
     TOS = SS.pop();
     fout << "-> ok" << ENDL;
 }
-void _see(const Prim &c, int dp) {       ///> disassemble a colon word
+void _see(const Code &c, int dp) {       ///> disassemble a colon word
     if (dp > 2) return;
-    auto is_code = [&c]() { return dynamic_cast<const Code*>(&c)!=nullptr; };
     auto pp = [](const string &s, const FV<Code*> &pf, int dp) { ///> recursive dump with indent
-        if (dp && s != "\t") { fout << ENDL; }                   ///> newline control
-        for (int i=dp; i>0; --i) { fout << "  "; } fout << s;    ///> indentation control
+        int i = dp;
+        if (dp && s != "\t") { fout << ENDL; }   ///> newline control
+        while (i--) { fout << "  "; } fout << s; ///> indentation control
         for (auto w : pf) _see(*w, dp + 1);
-        return pf.size();
     };
     auto pq = [](const FV<DU> &q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
     };
     const FV<Code*> nil = {};
     string sn(c.name);
+    
     if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
-    if (!pp(sn, is_code() ? ((Code&)c).pf : nil, dp)) return;
+    pp(sn, c.pf, dp);
+    
     if (sn=="if")    {
         if (c.stage==1) pp("else", ((Bran&)c).p1, dp);
         pp("then", nil, dp);
@@ -155,9 +156,9 @@ void _see(const Prim &c, int dp) {       ///> disassemble a colon word
     else if (sn=="do") {
         pp("loop", nil, dp);
     }
-    else pq(((Code&)c).q);
+    else pq(c.q);
 }
-void see(const Prim &c, int base) {
+void see(const Code &c, int base) {
     if (c.xt) fout << "  ->{ " << c.desc << "; }";
     else {
         fout << ": "; _see(c, 0); fout << " ;";
@@ -199,9 +200,9 @@ void dict_dump(int base) {
     fout << setbase(base) << setfill(' ') << setw(-1);
 }
 void mem_dump(IU w0, IU w1, int base) {
-    auto show_pf = [](const char *nm, FV<Code*> pf) {
+    auto show_pf = [](const char *nm, FV<Code*> &pf) {
         if (pf.size() == 0) return;
-        fout << "  " << nm << ": ";
+        fout << "  " << nm << "[" << pf.size() << "]: ";
         for (auto p : pf) { fout << p->token << " "; }
         fout << ENDL;
     };
@@ -213,9 +214,12 @@ void mem_dump(IU w0, IU w1, int base) {
         if (w->xt) { fout << "built-in" << ENDL; continue; }
         
         fout << w->name << ENDL;
+        
         show_pf("pf", w->pf);
-        show_pf("p1", ((Bran*)w)->p1);
-        show_pf("p2", ((Bran*)w)->p2);
+        if (w->is_bran) {
+            show_pf("p1", ((Bran*)w)->p1);
+            show_pf("p2", ((Bran*)w)->p2);
+        }
         
         if (w->q.size()==0) continue;
         fout << "  q:";
