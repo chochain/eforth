@@ -117,11 +117,12 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
 }
 void _see(const Prim &c, int dp) {       ///> disassemble a colon word
     if (dp > 2) return;
+    auto is_code = [&c]() { return dynamic_cast<const Code*>(&c)!=nullptr; };
     auto pp = [](const string &s, const FV<Code*> &pf, int dp) { ///> recursive dump with indent
-        int i = dp;
-        if (dp && s != "\t") { fout << ENDL; }          ///> newline control
-        while (i--) { fout << "  "; } fout << s;        ///> indentation control
+        if (dp && s != "\t") { fout << ENDL; }                   ///> newline control
+        for (int i=dp; i>0; --i) { fout << "  "; } fout << s;    ///> indentation control
         for (auto w : pf) _see(*w, dp + 1);
+        return pf.size();
     };
     auto pq = [](const FV<DU> &q) {
         for (DU i : q) fout << i << (q.size() > 1 ? " " : "");
@@ -129,7 +130,7 @@ void _see(const Prim &c, int dp) {       ///> disassemble a colon word
     const FV<Code*> nil = {};
     string sn(c.name);
     if (c.is_str) sn = (c.token ? "s\" " : ".\" ") + sn + "\"";
-    pp(sn, ((Code&)c).pf, dp);
+    if (!pp(sn, is_code() ? ((Code&)c).pf : nil, dp)) return;
     if (sn=="if")    {
         if (c.stage==1) pp("else", ((Bran&)c).p1, dp);
         pp("then", nil, dp);
