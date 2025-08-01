@@ -325,7 +325,8 @@ const Code rom[] {               ///< Forth dictionary
          if (w) see(*w, *vm.base);
          dot(CR)),
     CODE("dict",    dict_dump(*vm.base)),                       /// display dictionary
-    CODE("dump",    IU w1 = POPI(); mem_dump(POPI(), w1, *vm.base)),
+    CODE("dump",                                                /// ' xx 1 dump
+         IU n = POPI(); mem_dump(POPI(), n, *vm.base)), 
     CODE("depth",   PUSH(SS.size())),                           /// data stack depth
     /// @}
     /// @defgroup OS ops
