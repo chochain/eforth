@@ -139,8 +139,15 @@ typedef enum {
 #define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
 #define IS_PRIM(w) ((w & EXT_FLAG) && (w < MAX_OP))
 ///@}
+///@name Code class
+///@brief - basic struct of dictionary entries
 ///
-///> Universal functor (no STL) and Code class
+///  1. name is the pointer to word name string
+///  2. xt   is the pointer to lambda function
+///  3. pfa  takes 16-bit, max 64K range
+///  4. attr[LSB]  : user defined flag (i.e. colon word)
+///  5. attr[LSB+1]: immediate flag
+///
 ///  Code class on 64-bit systems (expand pfa to 32-bit possible)
 ///  +-------------------+-------------------+
 ///  |    *name          |       xt          |
@@ -161,7 +168,7 @@ typedef enum {
 ///  +---------+----+----+----+
 ///            |pfa |xxxx|
 ///            +----+----+
-///
+///@{
 typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
@@ -192,19 +199,19 @@ struct Code {
     IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
     void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
 };
-///
-///> Add a Word to dictionary
-/// Note:
-///    a lambda without capture can degenerate into a function pointer
+///@}
+///@name Dictionary Compiler macros
+///@note - a lambda without capture can degenerate into a function pointer
+///@{
 #define ADD_CODE(n, g, im) {         \
     Code c(n, [](VM& vm){ g; }, im); \
     dict.push(c);                    \
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
-///
-///> Multitasking support
-///
+///@}
+///@name Multitasking support
+///@{
 VM&  vm_get(int id=0);                    ///< get a VM with given id
 void uvar_init();                         ///< setup user area
 
@@ -217,16 +224,16 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 #define t_pool_init()
 #define t_pool_stop()
 #endif // DO_MULTITASK
-///
-///> System interface
-///
+///@}
+///@name System interface
+///@{
 void forth_init();
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
-///
-///> IO functions
-///
+///@}
+///@name IO functions
+///{@
 typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 
 void fin_setup(const char *line);
@@ -241,20 +248,20 @@ void spaces(int n);                       ///< show spaces
 void dot(io_op op, DU v=DU0);             ///< print literals
 void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
 void pstr(const char *str, io_op op=SPCS);///< print string
-///
-///> Debug functions
-///
+///@}
+///@name Debug functions
+///@{
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
 void words(int base);                     ///< list dictionary words
 void dict_dump(int base);                 ///< dump dictionary
 void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
-///
-///> Javascript interface
-///
+///@}
+///@name Javascript interface
+///@{
 #if DO_WASM
 void native_api(VM &vm);
 #endif // DO_WASM
-
+///@}
 #endif // __EFORTH_SRC_CEFORTH_H
