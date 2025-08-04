@@ -1,0 +1,12 @@
+#!/bin/bash
+docker run -it --rm --user $(id -u):$(id -g) \
+       --network host --cap-add=SYS_ADMIN --security-opt seccomp=unconfined \
+       -e DOCKER_NAME=emsdk \
+       -e DISPLAY=$DISPLAY -e TERM=xterm-color \
+       -e XDG_RUNTIME_DIR="/tmp/$(id -u)" \
+       -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro \
+       -v /tmp/.X11-unix:/tmp/.X11-unix \
+       -v /u01:/u01 \
+       -v /u01/src/emsdk/upstream/emscripten/cache:/emsdk/upstream/emscripten/cache \
+       -v $HOME:$HOME -w $(pwd) \
+       emscripten/emsdk:latest $@
