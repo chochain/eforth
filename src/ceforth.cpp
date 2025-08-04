@@ -155,7 +155,8 @@ const Code rom[] {               ///< Forth dictionary
          }),
     IMMD(".\"",
          const char *s = word('"'); if (!s) return;
-         ADD_W(new Str(s+1))),
+         if (vm.compile) ADD_W(new Str(s+1));
+         else            pstr(s)),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
@@ -337,7 +338,7 @@ const Code rom[] {               ///< Forth dictionary
     CODE("mstat",   mem_stat()),                                /// display memory stat
     CODE("clock",   PUSH(millis())),                            /// get system clock in msec
     CODE("rnd",     PUSH(RND())),                               /// get a random number
-    CODE("ms",      delay(POPI())),                             /// n -- delay n msec
+    CODE("ms",      IU i = POPI(); delay(i)),                   /// n -- delay n msec
     CODE("forget",
          const Code *w = find(word()); if (!w) return;
          int   t = MAX((int)w->token, (int)find("boot")->token + 1);
