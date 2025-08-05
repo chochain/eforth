@@ -368,8 +368,8 @@ void Code::nest(VM &vm) {
 //    vm.set_state(NEST);                /// * this => lock, major slow down
     vm.state = NEST;                     /// * racing? No, helgrind says so
     if (xt) { xt(vm, *this); return; }   /// * run primitive word
-    
-    for (int i=0, n=(int)pf.size(); i < n; i++) {
+
+    for (int i=0; i < (int)pf.size(); i++) {
         try         { pf[i]->nest(vm); } /// * execute recursively
         catch (...) { break; }
         // printf("%-3x => RS=%d, SS=%d %s", i, (int)vm.rs.size(), (int)vm.ss.size(), pf[i]->name);
