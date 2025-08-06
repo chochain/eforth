@@ -72,7 +72,6 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
-#define LAST      (dict[dict.idx-1])       /**< last colon word defined                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define BASE      (MEM(vm.base))           /**< pointer to base in VM user area         */
 #define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
@@ -260,7 +259,7 @@ void nest(VM& vm) {
              PUSH(DALIGN(IP + sizeof(IU)));          /// * put param addr on tos
              if ((IP = IGET(IP))==0) UNNEST());      /// * jump target of does> if given
         CASE(DOES,
-             IU *p = (IU*)MEM(LAST->pfa);            ///< memory pointer to pfa 
+             IU *p = (IU*)MEM(dict[-1]->pfa);        ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
         CASE(FOR,  RS.push(POP()));                  /// * setup FOR..NEXT call frame
