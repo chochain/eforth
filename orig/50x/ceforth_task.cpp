@@ -15,7 +15,7 @@ void uvar_init() {
     *b = 10;                       /// * default 10
     _vm0.id   = 0;                 /// * VM id
     _vm0.base = (IU)(b - MEM0);    /// * base idx
-    pmem.idx = DALIGN(pmem.idx);   /// DU aligned
+    pmem.idx  = ALIGN16(pmem.idx); /// 16-byte aligned
 }
 
 #else // DO_MULTITASK

@@ -19,17 +19,17 @@ ostringstream     fout;                    ///< forth_out
 void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
 int    load_dp    = 0;
 
-extern Code       prim[];                  ///< primitives
-extern List<Code> dict;                    ///< dictionary
-extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
-extern U8         *MEM0;                   ///< base of parameter memory block
+extern Code        prim[];                 ///< primitives
+extern List<Code*> dict;                   ///< dictionary
+extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
+extern U8          *MEM0;                  ///< base of parameter memory block
 
 #define TOS       (vm.tos)                 /**< Top of stack                            */
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
-#define DICT(w)   (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
-#define TONAME(w) (dict[w].pfa - STRLEN(dict[w].name))
+#define DICT(w)   (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
+#define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
 
 ///====================================================================
 ///
@@ -95,8 +95,8 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     if (IS_PRIM(ix)) return (int)ix;           ///> primitives
     IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
-        Code &c = dict[i];
-        if (pfa == (IS_UDF(i) ? c.pfa : c.xtoff())) return i;
+        Code *c = dict[i];
+        if (pfa == (IS_UDF(i) ? c->pfa : c->xtoff())) return i;
     }
     return 0;                                  /// * not found
 }
@@ -132,8 +132,8 @@ void to_s(IU w, U8 *ip, int base) {
         }
     }                                   /// no break, fall through
     default:
-        Code &c = DICT(w);
-        fout << c.name; break;
+        Code *c = DICT(w);
+        fout << c->name; break;
     }
     switch (w) {
     case NEXT: case LOOP:
@@ -170,7 +170,7 @@ void words(int base) {
     int sz = 0;
     fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
-        const char *nm = dict[i].name;
+        const char *nm = dict[i]->name;
         const int  len = strlen(nm);
 #if CC_DEBUG > 1
         if (nm[0]) {
@@ -243,13 +243,13 @@ void mem_dump(U32 p0, IU sz, int base) {
 void dict_dump(int base) {
     fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
-        Code &c = dict[i];
+        Code *c = dict[i];
         fout << setfill('0') << setw(3) << i
-             << "> name=" << setw(8) << (UFP)c.name
-             << ", xt="   << setw(8) << (UFP)c.xt
-             << ", attr=" << (c.attr & 0x3)
-             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c.pfa : c.xtoff())
-             << " "       << c.name << ENDL;
+             << "> name=" << setw(8) << (UFP)c->name
+             << ", xt="   << setw(8) << (UFP)c->xt
+             << ", attr=" << (c->attr & 0x3)
+             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c->pfa : c->xtoff())
+             << " "       << c->name << ENDL;
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
 }

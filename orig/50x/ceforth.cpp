@@ -56,8 +56,8 @@
 ///     |0| dict.xtoff() |   call (XT0 + *IP)() to execute
 ///     +-+--------------+
 ///
-List<Code, 0> dict;                ///< dictionary
-List<U8,   0> pmem;                ///< parameter memory (for colon definitions)
+List<Code*, E4_DICT_SZ> dict;      ///< dictionary
+List<U8,    E4_PMEM_SZ> pmem;      ///< parameter memory (for colon definitions)
 U8  *MEM0;                         ///< base of parameter memory block
 ///
 ///> Macros to abstract dict and pmem physical implementation
@@ -87,7 +87,7 @@ Code prim[] = {
     Code("bran",BRAN), Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),
     Code("for", FOR),  Code("do",   DO),    Code("key",  KEY)
 };
-#define DICT(w) (IS_PRIM(w) ? prim[w & ~EXT_FLAG] : dict[w])
+#define DICT(w) (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
 ///
 ///====================================================================
 ///@}
@@ -97,7 +97,7 @@ Code prim[] = {
 IU find(const char *s) {
     IU v = 0;
     for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (STRCMP(s, dict[i].name)==0) v = i;
+        if (STRCMP(s, dict[i]->name)==0) v = i;
     }
 #if CC_DEBUG > 1
     LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
@@ -117,9 +117,9 @@ void colon(const char *name) {
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
 
-    Code c(nfa, (FPTR)0, false);    ///> create a local blank word
-    c.attr = UDF_ATTR;              ///> specify a colon (user defined) word
-    c.pfa  = HERE;                  ///> capture code field index
+    Code *c = new Code(nfa, (FPTR)0, false);
+    c->attr = UDF_ATTR;             ///> specify a colon (user defined) word
+    c->pfa  = HERE;                 ///> capture code field index
 
     dict.push(c);                   ///> deep copy Code struct into dictionary
 }
@@ -131,12 +131,12 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code &c = DICT(w);              /// * code ref to primitive or dictionary entry
+    Code *c = DICT(w);              /// * code ref to primitive or dictionary entry
     IU   ip = (w & EXT_FLAG)        /// * is primitive?
-        ? (UFP)c.xt                 /// * get primitive/built-in token
+        ? (UFP)c->xt                /// * get primitive/built-in token
         : (IS_UDF(w)                /// * colon word?
-           ? (c.pfa | EXT_FLAG)     /// * pfa with colon word flag
-           : c.xtoff());            /// * XT offset of built-in
+           ? (c->pfa | EXT_FLAG)    /// * pfa with colon word flag
+           : c->xtoff());           /// * XT offset of built-in
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
@@ -260,7 +260,7 @@ void nest(VM& vm) {
              PUSH(DALIGN(IP + sizeof(IU)));          /// * put param addr on tos
              if ((IP = IGET(IP))==0) UNNEST());      /// * jump target of does> if given
         CASE(DOES,
-             IU *p = (IU*)MEM(LAST.pfa);             ///< memory pointer to pfa 
+             IU *p = (IU*)MEM(LAST->pfa);            ///< memory pointer to pfa 
              *(p+1) = IP;                            /// * encode current IP, and bail
              UNNEST());
         CASE(FOR,  RS.push(POP()));                  /// * setup FOR..NEXT call frame
@@ -283,10 +283,10 @@ void nest(VM& vm) {
 void CALL(VM& vm, IU w) {
     if (IS_UDF(w)) {                   /// colon word
         RS.push(IP);                   /// * terminating IP
-        IP = dict[w].pfa;              /// setup task context
+        IP = dict[w]->pfa;             /// setup task context
         nest(vm);
     }
-    else dict[w].call(vm);             /// built-in word
+    else dict[w]->call(vm);            /// built-in word
 }
 ///====================================================================
 ///
@@ -446,7 +446,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          def_word(word());                                   /// create a new word on dictionary
          add_var(LIT, POP());                                /// dovar (+parameter field)
          add_w(EXIT));
-    IMMD("immediate", dict[-1].attr |= IMM_ATTR);
+    IMMD("immediate", dict[-1]->attr |= IMM_ATTR);
     CODE("exit",    UNNEST());                               /// early exit the colon word
     /// @}
     /// @defgroup metacompiler
@@ -463,7 +463,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
              add_w(find("to"));                              /// encode to opcode
          }
          else {
-             w = dict[w].pfa + sizeof(IU);                   /// calculate address to memory
+             w = dict[w]->pfa + sizeof(IU);                  /// calculate address to memory
              *(DU*)MEM(DALIGN(w)) = POP();                   /// update constant
          });
     IMMD("is",              /// ' y is x                     /// alias a word, i.e. ' y is x
@@ -474,7 +474,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
              add_w(find("is"));
          }
          else {
-             dict[POP()].xt = dict[w].xt;
+             dict[POP()]->xt = dict[w]->xt;
          });
     ///
     /// be careful with memory access, especially BYTE because
@@ -498,7 +498,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("task",                                             /// w -- task_id
          IU w = POPI();                                      ///< dictionary index
-         if (IS_UDF(w)) PUSH(task_create(dict[w].pfa));      /// create a task starting on pfa
+         if (IS_UDF(w)) PUSH(task_create(dict[w]->pfa));     /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
     CODE("rank",  PUSH(vm.id));                              /// ( -- n ) thread id
     CODE("start", task_start(POPI()));                       /// ( task_id -- )
@@ -520,8 +520,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("words", words(*BASE));
     CODE("see",
          IU w = find(word()); if (!w) return;
-         pstr(": "); pstr(dict[w].name);
-         if (IS_UDF(w)) see(dict[w].pfa, *BASE);
+         pstr(": "); pstr(dict[w]->name);
+         if (IS_UDF(w)) see(dict[w]->pfa, *BASE);
          else           pstr(" ( built-ins ) ;");
          dot(CR));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
@@ -534,7 +534,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = find(word()); if (!w) return;               /// bail, if not found
          IU b = find("boot")+1;
          if (w > b) {                                       /// clear to specified word
-             pmem.clear(dict[w].pfa - STRLEN(dict[w].name));
+             pmem.clear(dict[w]->pfa - STRLEN(dict[w]->name));
              dict.clear(w);
          }
          else {                                             /// clear to 'boot'
@@ -575,9 +575,9 @@ void dict_validate() {
     /// collect Code::XT0 i.e. xt base pointer
     UFP max = (UFP)0;
     for (int i=0; i < dict.idx; i++) {
-        Code &c = dict[i];
-        if ((UFP)c.xt < Code::XT0) Code::XT0 = (UFP)c.xt;
-        if ((UFP)c.xt > max)       max       = (UFP)c.xt;
+        Code *c = dict[i];
+        if ((UFP)c->xt < Code::XT0) Code::XT0 = (UFP)c->xt;
+        if ((UFP)c->xt > max)       max       = (UFP)c->xt;
     }
     /// check xtoff range
     max -= Code::XT0;
@@ -644,19 +644,17 @@ void forth_init() {
     static bool init    = false;
     if (init) return;                    ///> check dictionary initilized
 
-    dict  = new Code[E4_DICT_SZ];        ///< allocate dictionary
-    pmem  = new U8[E4_PMEM_SZ];          ///< allocate parameter memory
     if (!dict.v || !pmem.v) {
         LOGS("forth_init memory allocation failed, bail...\n");
         exit(0);
     }
-    MEM0  = &pmem[0];
+    MEM0 = &pmem[0];
 
     uvar_init();                         /// * initialize user area
     t_pool_init();                       /// * initialize thread pool
     VM &vm0   = vm_get(0);               /// * initialize main vm
     vm0.state = QUERY;
-    
+
     for (int i = pmem.idx; i < USER_AREA; i+=sizeof(IU)) {
         add_iu(0xffff);                  /// * reserved user area
     }
