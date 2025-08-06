@@ -9,6 +9,7 @@
 #include <sys/sysctl.h>
 #else
 #include <sys/sysinfo.h>
+#include <cstdint>
 #endif
 
 using namespace std;
