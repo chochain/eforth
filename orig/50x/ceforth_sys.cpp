@@ -27,16 +27,16 @@ Code prim[] = {
     Code("0bran",ZBRAN), Code("for  ", FOR),  Code("do   ", DO),   Code("key",  KEY)
 };
 ///@}
-extern List<Code> dict;                    ///< dictionary
-extern List<U8>   pmem;                    ///< parameter memory (for colon definitions)
-extern U8         *MEM0;                   ///< base of parameter memory block
+extern List<Code*> dict;                   ///< dictionary
+extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
+extern U8          *MEM0;                  ///< base of parameter memory block
 
-#define TOS       (vm.tos)                 /**< Top of stack                            */
-#define SS        (vm.ss)                  /**< parameter stack (per task)              */
-#define RS        (vm.rs)                  /**< return stack (per task)                 */
-#define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
+#define TOS        (vm.tos)                /**< Top of stack                            */
+#define SS         (vm.ss)                 /**< parameter stack (per task)              */
+#define RS         (vm.rs)                 /**< return stack (per task)                 */
+#define MEM(a)     (MEM0 + (IU)UINT(a))    /**< pointer to address fetched from pmem    */
 #define IS_PRIM(w) (!IS_UDF(w) && (w < MAX_OP))
-#define NFA(w)     (dict[w].ip() - STRLEN(dict[w].name))
+#define NFA(w)     (dict[w]->ip() - STRLEN(dict[w]->name))
 
 ///====================================================================
 ///
@@ -101,7 +101,7 @@ void pstr(const char *str, io_op op) {
 int p2didx(Param *p) {                              ///< reverse lookup
     for (int i = dict.idx - 1; i >= 0; --i) {
         bool ud = IS_UDF(i);
-        if (ud==p->udf && p->ioff==dict[i].ip()) return i;
+        if (ud==p->udf && p->ioff==dict[i]->ip()) return i;
     }
     return -1;                                      /// * not found
 }
@@ -123,7 +123,7 @@ int to_s(Param *p, int nv, int base) {
     if (w < 0) return -1;                          ///> loop guard
     
     hdr(w);                                        ///> indent and header
-    if (!pm) { fout << dict[w].name; return 0; }   ///> built-in 
+    if (!pm) { fout << dict[w]->name; return 0; }  ///> built-in 
 
     U8 *ip = (U8*)(p+1);                           ///> pointer to data
     switch (w) {
@@ -153,18 +153,18 @@ int to_s(Param *p, int nv, int base) {
 }
 
 void see(IU w, int base) {
-    pstr(": "); pstr(dict[w].name);
+    pstr(": "); pstr(dict[w]->name);
     if (!IS_UDF(w)) {
         pstr(" ( built-ins ) ;", CR);
         return;
     }
     auto nvar = [](IU i0, IU ioff, U8 *ip) { /// * calculate # of elements
         if (ioff) return MEM(ioff) - ip - sizeof(IU);  /// create...does>
-        IU pfa0 = dict[i0].ip();
+        IU pfa0 = dict[i0]->ip();
         IU nfa1 = (i0+1) < (IU)dict.idx ? NFA(i0+1) : pmem.idx;
         return (nfa1 - pfa0 - sizeof(IU));             ///> variable, create ,
     };
-    U8 *ip = MEM(dict[w].ip());                        ///< PFA pointer
+    U8 *ip = MEM(dict[w]->ip());                       ///< PFA pointer
     while (1) {
         Param *p = (Param*)ip;
         int   nv = p->op==VAR ? nvar(w, p->ioff, ip) : 0;  ///< VAR number of elements
@@ -187,7 +187,7 @@ void words(int base) {
     int sz = 0;
     fout << setbase(10);
     for (int i=0; i<dict.idx; i++) {
-        const char *nm = dict[i].name;
+        const char *nm = dict[i]->name;
         const int  len = strlen(nm);
 #if CC_DEBUG > 1
         if (nm[0]) {
@@ -260,13 +260,13 @@ void mem_dump(U32 p0, IU sz, int base) {
 void dict_dump(int base) {
     fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
-        Code &c = dict[i];
+        Code *c = dict[i];
         fout << setfill('0') << setw(3) << i
              << (IS_UDF(i) ? " U" : "  ")
 			 << (IS_IMM(i) ? "I " : "  ")
-             << setw(8) << ((UFP)c.xt & MSK_XT)
-             << ":" << setw(6) << c.ip()
-             << " " << c.name << ENDL;
+             << setw(8) << ((UFP)c->xt & MSK_XT)
+             << ":" << setw(6) << c->ip()
+             << " " << c->name << ENDL;
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
 }

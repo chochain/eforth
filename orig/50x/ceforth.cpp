@@ -53,8 +53,8 @@
 ///     | 1|f |   pfa    |   IP = dict.pfa
 ///     +-----+----------+
 ///
-List<Code, 0> dict;                ///< dictionary
-List<U8,   0> pmem;                ///< parameter memory (for colon definitions)
+List<Code*, E4_DICT_SZ> dict;      ///< dictionary
+List<U8,    E4_PMEM_SZ> pmem;      ///< parameter memory (for colon definitions)
 U8  *MEM0;                         ///< base of parameter memory block
 ///
 ///> Macros to abstract dict and pmem physical implementation
@@ -82,7 +82,7 @@ U8  *MEM0;                         ///< base of parameter memory block
 IU find(const char *s) {
     IU v = 0;
     for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (STRCMP(s, dict[i].name)==0) v = i;
+        if (STRCMP(s, dict[i]->name)==0) v = i;
     }
 #if CC_DEBUG > 1
     LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
@@ -102,8 +102,8 @@ void colon(const char *name) {
     int sz = STRLEN(name);          ///> string length, aligned
     pmem.push((U8*)name,  sz);      ///> setup raw name field
 
-    Code c(nfa, NULL, false);       ///> create a local blank word
-    c.pfa = HERE | UDF_ATTR;        ///> capture code field index
+    Code *c = new Code(nfa, NULL, false);
+    c->pfa = HERE | UDF_ATTR;       ///> capture code field index
 
     dict.push(c);                   ///> deep copy Code struct into dictionary
 }
@@ -119,11 +119,11 @@ void add_p(prim_op op, IU ip=0, bool ext=false, bool exit=false) {   ///> add pr
     add_iu(p.pack);
 };
 void add_w(IU w) {                  ///> add a word index into pmem
-    Param p(MAX_OP, dict[w].ip(), IS_UDF(w));
+    Param p(MAX_OP, dict[w]->ip(), IS_UDF(w));
     add_iu(p.pack);
 #if CC_DEBUG > 1
-    Code &c = dict[w];
-    LOG_KV("add_w(", w); LOG_KX(") => ", c.ip());
+    Code *c = dict[w];
+    LOG_KV("add_w(", w); LOG_KX(") => ", c->ip());
     LOGS(" "); LOGS(c.name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
@@ -182,7 +182,7 @@ void _to_value(VM &vm) {                                   //> update a constant
         add_w(find("to"));                                 // encode to opcode
     }
     else {
-        U8    *pfa = MEM(dict[w].ip());                       // fetch constant pointer
+        U8    *pfa = MEM(dict[w]->ip());                   // fetch constant pointer
         Param &p   = *(Param*)(pfa);
         if (p.op==LIT) {
             DU v = POP();                                  // pop TOS
@@ -201,13 +201,13 @@ void _is_alias(VM &vm) {                                   // create alias funct
         add_lit((DU)w);                                    // save addr on stack
         add_w(find("is"));
     }
-    else dict[POPI()].xt = dict[w].xt;
+    else dict[POPI()]->xt = dict[w]->xt;
 }
 void _forget(const char *name) {
     IU w = find(name); if (!w) return;                    // bail, if not found
     IU b = find("boot")+1;
     if (w > b) {                                          // clear to specified word
-        pmem.clear(dict[w].ip() - STRLEN(dict[w].name));
+        pmem.clear(dict[w]->ip() - STRLEN(dict[w]->name));
         dict.clear(w);
     }
     else {                                                // clear to 'boot'
@@ -303,10 +303,10 @@ void nest(VM& vm) {
 void CALL(VM& vm, IU w) {
     if (IS_UDF(w)) {                   /// colon word
         RS.push(IP);                   /// * terminating IP
-        IP = dict[w].ip();             /// setup task context
+        IP = dict[w]->ip();            /// setup task context
         nest(vm);
     }
-    else dict[w].call(vm);             /// built-in word
+    else dict[w]->call(vm);            /// built-in word
 }
 ///====================================================================
 ///
@@ -470,7 +470,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("value",   
          if (!def_word(word())) return;
          add_p(LIT, 0, true, true); add_du(POP()));             // forced extended, TO can update
-    IMMD("immediate", dict[-1].pfa |= IMM_ATTR);
+    IMMD("immediate", dict[-1]->pfa |= IMM_ATTR);
     CODE("exit",    UNNEST());                                  // early exit the colon word
     /// @}
     /// @defgroup metacompiler
@@ -481,7 +481,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          if (!def_word(word())) return;
          add_p(VAR, 0, true));
     CODE("does>",
-         IU pfa = LAST.ip();
+         IU pfa = LAST->ip();
          while (((Param*)MEM(pfa))->op != VAR && (pfa < (IU)HERE)) {  // find that VAR
              pfa += sizeof(IU);
          }
@@ -509,7 +509,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     CODE("task",                                                // w -- task_id
          IU w = POPI();                                         ///< dictionary index
-         if (IS_UDF(w)) PUSH(task_create(dict[w].ip()));        /// create a task starting on pfa
+         if (IS_UDF(w)) PUSH(task_create(dict[w]->ip()));       /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
     CODE("rank",  PUSH(vm.id));                                 /// ( -- task_id ) used insided a task
     CODE("start", task_start(POPI()));                          /// ( task_id -- )
@@ -620,8 +620,6 @@ void forth_init() {
     static bool init    = false;
     if (init) return;                    ///> check dictionary initilized
 
-    dict  = new Code[E4_DICT_SZ];        ///< allocate dictionary
-    pmem  = new U8[E4_PMEM_SZ];          ///< allocate parameter memory
     if (!dict.v || !pmem.v) {
         LOGS("forth_init memory allocation failed, bail...\n");
         exit(0);
