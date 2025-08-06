@@ -36,11 +36,15 @@ struct List {
     int max = 0;        ///< high watermark for debugging
 
     List()  {
-        v = N ? new T[N] : 0;                     ///< dynamically allocate array storage
+        v = N ? new T[N] : 0;                        ///< dynamically allocate array storage
         if (N && !v) throw "ERR: List allot failed";
     }
-    ~List() { if (v) delete[] v;   }              ///< free memory
-
+    ~List() {
+        if constexpr(is_pointer<T>::value) {
+            for (int i=0; i<idx; i++) delete v[i];   ///< free elements
+        }
+        if (v) delete[] v;                           ///< free memory
+    }              
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
 
@@ -123,8 +127,8 @@ constexpr IU  IMM_ATTR = 0x40000000;         /** immediate word       */
 constexpr IU  MSK_ATTR = 0x3fffffff;         /** attribute mask       */
 constexpr UFP MSK_XT   = (UFP)~0>>2;         /** XT pointer mask      */
 
-#define IS_UDF(w) (dict[w].pfa & UDF_ATTR)
-#define IS_IMM(w) (dict[w].pfa & IMM_ATTR)
+#define IS_UDF(w) (dict[w]->pfa & UDF_ATTR)
+#define IS_IMM(w) (dict[w]->pfa & IMM_ATTR)
 ///@}
 ///@name Code class
 ///@brief - basic struct of dictionary entries
@@ -186,9 +190,9 @@ struct Code {
 ///@name Dictionary Compiler macros
 ///@note - a lambda without capture can degenerate into a function pointer
 ///@{
-#define ADD_CODE(n, g, im) {         \
-    Code c(n, [](VM& vm){ g; }, im); \
-    dict.push(c);                    \
+#define ADD_CODE(n, g, im) {                     \
+    Code *c = new Code(n, [](VM& vm){ g; }, im); \
+    dict.push(c);                                \
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
