@@ -172,45 +172,6 @@ Note: For multi-threading to work, browser needs to receive Cross-Origin policie
     
 Note: Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house keeping. Forth tasks will be tied to core1 only. So, multi-threading is possible but no performance gain. Actually, singled-threaded v4.2 does a bit better.
 
-### Experimental - back to classic linear-memory model.
-
-Instead of using vectors (i.e. pf, p1, p2) to keep codes and parameters, this implementation follows classic Forth's model using one big block of parameter memory with words laid down contiguoursly. With 32-bit data, subroutine threaded but hybrid with 16-bit xt offset (to reduce one lookup).
-
-It is stable but tweaked from time to time and works better with WASM's memory model. It is used as the foundation for [weForth](https://github.com/chochain/weForth). 
-
-    > make 50x
-    > ./tests/eforth50x
-
-### Experimental - An effort to modernize Forth.
-
-Hinted by Sean Pringle's [Rethinking Forth](https://github.com/seanpringle/reforth) and Travis Bemann's wornderful [zeptoforth](https://github.com/tabemann/zeptoforth). Nested module (or sub-words), simplified control structures are attemped. Still very much a work in progress.
-
-    > git checkout reforth
-    > make
-    
-Note:
-    Code:: FV<Code*> vt[] - virtual table for current namespace
-    
-    FV<Code*> nspace - namespace stack
-
-    Code Node: 
-
-    +------+-----+-----+------+----------+-----------------+
-    | LINK | PFA | NSA | LAST | name-str | code/parameters |
-    +------+-----+-----+------+----------+-----------------+
-
-     0          0          0    <= NSA (namespace address)
-      \          \          \
-    <--[ W1 ] <-- [ W2 ] <-- [ W3 ] <-- LAST (word linked-list)
-             \          \          \
-              \         NSA         [ A ] <-- [ B ] <-- [ C ] <-- W3.LAST
-              NSA         \
-                \          [ A ] <-- [ B ] <-- [ X ] <-- W2.LAST
-                 \
-                  [ A ] <-- [ B ] <-- W1.LAST
-                                 \
-                                  [ A ] <-- [ X ] <-- [ Y ] <-- W1B.LAST
-                                  
 
 ## Multi-threading - for release v5.0 and after
 Forth has been supporting multi-tasking since the 70's. They are single-CPU round-robin/time-slicing systems mostly. Modern system has multiple cores and Forth can certainly take advantage of them. However, unlike most of the matured Forth word sets, multi-threading/processing words are yet to be standardized and there are many ways to do it.
@@ -411,6 +372,47 @@ So, what **cachegrind** said for **100M loop** tight loops and **chacha.fs** a C
     | Instruction | +20%      | +40%      |
     
 Apparently, grown ~30% in all aspects. I think because having branching primitives, i.e. **_if/_else/_then**, **for/next**, in C++ prevent the extra fetch of VM branches. Sort of the difference between having hardware and software branchers. However, my gut feeling is the difference shouldn't be so dramatic especially with the recursive nest(). More research on this...
+
+## Experimental Works
+### 50x, 50x32 - back to classic linear-memory model
+
+Instead of using vectors (i.e. pf, p1, p2) to keep codes and parameters, this implementation follows classic Forth's model using one big block of parameter memory with words laid down contiguoursly. With 32-bit data, subroutine threaded but hybrid with 16-bit xt offset (to reduce one lookup).
+
+It works better with WASM's memory model. It is used as the foundation for [weForth](https://github.com/chochain/weForth). So far, it is stable but tweaked from time to time and 
+
+    > make 50x
+    > ./tests/eforth50x
+
+### Reforth - an effort to modernize Forth
+
+Hinted by Sean Pringle's [Rethinking Forth](https://github.com/seanpringle/reforth) and Travis Bemann's wornderful [zeptoforth](https://github.com/tabemann/zeptoforth). Nested module (or sub-words), simplified control structures are attemped. Still very much a work in progress.
+
+    > git checkout reforth
+    > make
+    
+Note:
+    Code:: FV<Code*> vt[] - virtual table for current namespace
+    
+    FV<Code*> nspace - namespace stack
+
+    Code Node: 
+
+    +------+-----+-----+------+----------+-----------------+
+    | LINK | PFA | NSA | LAST | name-str | code/parameters |
+    +------+-----+-----+------+----------+-----------------+
+
+     0          0          0    <= NSA (namespace address)
+      \          \          \
+    <--[ W1 ] <-- [ W2 ] <-- [ W3 ] <-- LAST (word linked-list)
+             \          \          \
+              \         NSA         [ A ] <-- [ B ] <-- [ C ] <-- W3.LAST
+              NSA         \
+                \          [ A ] <-- [ B ] <-- [ X ] <-- W2.LAST
+                 \
+                  [ A ] <-- [ B ] <-- W1.LAST
+                                 \
+                                  [ A ] <-- [ X ] <-- [ Y ] <-- W1B.LAST
+                                  
 
 ## References
     + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
