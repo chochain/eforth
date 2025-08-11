@@ -172,23 +172,24 @@ Note: For multi-threading to work, browser needs to receive Cross-Origin policie
     
 Note: Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house keeping. Forth tasks will be tied to core1 only. So, multi-threading is possible but no performance gain. Actually, singled-threaded v4.2 does a bit better.
 
-### Experimental - Linear-memory, 32-bit data, subroutine (16-bit offset) threaded. Stable but tweaked from time to time
+### Experimental - back to classic linear-memory model.
 
-Instead of using pf, p1, p2 vectors to keep codes and parameters, this implementation follows classic Forth's model using one big block of parameter memory with words laid down contiguoursly. It works better with WASM and is used as the foundation for [weForth](https://github.com/chochain/weForth).
+Instead of using vectors (i.e. pf, p1, p2) to keep codes and parameters, this implementation follows classic Forth's model using one big block of parameter memory with words laid down contiguoursly. With 32-bit data, subroutine threaded but hybrid with 16-bit xt offset (to reduce one lookup).
+
+It is stable but tweaked from time to time and works better with WASM's memory model. It is used as the foundation for [weForth](https://github.com/chochain/weForth). 
 
     > make 50x
     > ./tests/eforth50x
 
-### Experimental - An effort to modernize Forth. Still very much a work in progress.
+### Experimental - An effort to modernize Forth.
 
-Hinted by Sean Pringle's [Rethinking Forth](https://github.com/seanpringle/reforth) and Travis Bemann's wornderful [zeptoforth](https://github.com/tabemann/zeptoforth). Nested module (or sub-words), simplified control structures are attemped. 
+Hinted by Sean Pringle's [Rethinking Forth](https://github.com/seanpringle/reforth) and Travis Bemann's wornderful [zeptoforth](https://github.com/tabemann/zeptoforth). Nested module (or sub-words), simplified control structures are attemped. Still very much a work in progress.
 
     > git checkout reforth
     > make
     
-Note: namespace
-Code::              - act as the container of namespace
-+    FV<Code*> vt[] - virtual table for current namespace
+Note:
+    Code:: FV<Code*> vt[] - virtual table for current namespace
     
     FV<Code*> nspace - namespace stack
 
