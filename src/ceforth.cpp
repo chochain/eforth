@@ -335,7 +335,7 @@ const Code rom[] {               ///< Forth dictionary
     IMMD("include", load(vm, word())),                          /// include an OS file
     CODE("included",                                            /// include a file (programmable)
          POP(); U32 i_w = POPI(); load(vm, STR(i_w))),
-    CODE("mstat",   mem_stat()),                                /// display memory stat
+    CODE("ok",      mem_stat()),                                /// display memory stat
     CODE("clock",   PUSH(millis())),                            /// get system clock in msec
     CODE("rnd",     PUSH(RND())),                               /// get a random number
     CODE("ms",      IU i = POPI(); delay(i)),                   /// n -- delay n msec

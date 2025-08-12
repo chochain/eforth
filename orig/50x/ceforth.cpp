@@ -548,7 +548,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("included",                                        /// include file spec on stack
          POP();                                             /// string length, not used
          load(vm, (const char*)MEM(POP())));                /// include external file
-    CODE("mstat", mem_stat());
+    CODE("ok",    mem_stat());
     CODE("clock", PUSH(millis()));
     CODE("rnd",   PUSH(RND()));                             /// generate random number
     CODE("ms",    delay(POPI()));
