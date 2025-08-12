@@ -18,11 +18,11 @@ Code      *last;                       ///< cached dict[-1]
 ///
 #define VAR(i_w)     (*(dict[(int)((i_w) & 0xffff)]->pf[0]->q.data()+((i_w) >> 16)))
 #define STR(i_w)     (                                  \
-        EQ(i_w, UINT(-DU1))                             \
+        ZEQ(i_w)                                        \
         ? vm.pad.c_str()                                \
         : dict[(i_w) & 0xffff]->pf[(i_w) >> 16]->name   \
         )
-#define BASE         ((U8*)&VAR(vm.id << 16))
+#define BASE         ((U8*)&VAR((vm.id << 16) | BASE_NODE))
 #define DICT_PUSH(c) (dict.push(last=(Code*)(c)))
 #define DICT_POP()   (dict.pop(), last=dict[-1])
 #define ADD_W(w)     (last->append((Code*)w))
@@ -124,7 +124,7 @@ const Code rom[] {               ///< Forth dictionary
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base",   PUSH(vm.id << 16)),   /// dict[0]->pf[0]->q[id] used for base
+    CODE("base",   PUSH((vm.id << 16) | BASE_NODE)),   /// dict[0]->pf[0]->q[id] used for base
     CODE("decimal",dot(RDX, *BASE=10)),
     CODE("hex",    dot(RDX, *BASE=16)),
     CODE("bl",     PUSH(0x20)),
@@ -150,13 +150,13 @@ const Code rom[] {               ///< Forth dictionary
              ADD_W(new Str(s+1, last->token, (int)last->pf.size()));
          }
          else {
-             vm.pad = s;                             /// copy string onto pad
-             PUSH(-DU1); PUSH(STRLEN(s));            /// -1 = pad, len
+             vm.pad = s+1;                           /// copy string onto pad
+             PUSH(0); PUSH(STRLEN(s+1));             /// 0 = pad, len
          }),
     IMMD(".\"",
          const char *s = word('"'); if (!s) return;
          if (vm.compile) ADD_W(new Str(s+1));
-         else            pstr(s)),
+         else            pstr(s+1)),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
