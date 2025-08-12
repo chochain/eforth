@@ -138,6 +138,7 @@ struct Code  {                     ///> Colon words
 ///
 ///> macros to reduce verbosity (but harder to single-step debug)
 ///
+#define BASE_NODE   0                /* Code node to keep VM.base */
 #define TOS         (vm.tos)
 #define SS          (vm.ss)
 #define RS          (vm.rs)
