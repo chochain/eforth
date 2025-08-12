@@ -113,7 +113,7 @@ void ss_dump(VM &vm, bool forced) {       ///> display data stack and ok promt
     SS.push(TOS);
     for (DU v : SS) { fout << rdx(v, *vm.base) << ' '; }
     TOS = SS.pop();
-    fout << "-> ok" << ENDL;
+    fout << "ok " << FLUSH;
 }
 void _see(const Code &c, int dp) {       ///> disassemble a colon word
     if (dp > 2) return;

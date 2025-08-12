@@ -81,7 +81,9 @@ typedef int32_t         DU;
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
-#define ENDL            endl; fout_cb((int)fout.str().length(), fout.str().c_str()); fout.str("")
+#define CALLBACK        fout_cb((int)fout.str().length(), fout.str().c_str()); fout.str("")
+#define FLUSH           flush; CALLBACK
+#define ENDL            endl; CALLBACK
 ///@}
 ///@name Multi-platform support
 ///@{

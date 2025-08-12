@@ -217,7 +217,7 @@ void ss_dump(VM &vm, bool forced) {
         fout << rdx(SS[i], *MEM(vm.base)) << ' ';
     }
     TOS = SS.pop();
-    fout << "-> ok" << ENDL;
+    fout << "ok " << FLUSH;
 }
 void mem_dump(U32 p0, IU sz, int base) {
     fout << setbase(16) << setfill('0');
