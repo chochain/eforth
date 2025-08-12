@@ -383,36 +383,9 @@ It works better with WASM's memory model. It is used as the foundation for [weFo
     > make 50x
     > ./tests/eforth50x
 
-### Reforth - an effort to modernize Forth
+### eForthX - an effort to modernize Forth
 
-Hinted by Sean Pringle's [Rethinking Forth](https://github.com/seanpringle/reforth) and Travis Bemann's wornderful [zeptoforth](https://github.com/tabemann/zeptoforth). Nested module (or sub-words), simplified control structures are attemped. Still very much a work in progress.
-
-    > git checkout reforth
-    > make
-    
-Note:
-    Code:: FV<Code*> vt[] - virtual table for current namespace
-    
-    FV<Code*> nspace - namespace stack
-
-    Code Node: 
-
-    +------+-----+-----+------+----------+-----------------+
-    | LINK | PFA | NSA | LAST | name-str | code/parameters |
-    +------+-----+-----+------+----------+-----------------+
-
-     0          0          0    <= NSA (namespace address)
-      \          \          \
-    <--[ W1 ] <-- [ W2 ] <-- [ W3 ] <-- LAST (word linked-list)
-             \          \          \
-              \         NSA         [ A ] <-- [ B ] <-- [ C ] <-- W3.LAST
-              NSA         \
-                \          [ A ] <-- [ B ] <-- [ X ] <-- W2.LAST
-                 \
-                  [ A ] <-- [ B ] <-- W1.LAST
-                                 \
-                                  [ A ] <-- [ X ] <-- [ Y ] <-- W1B.LAST
-                                  
+Hinted by Sean Pringle's [Rethinking Forth](https://github.com/seanpringle/reforth) and Travis Bemann's wornderful [zeptoforth](https://github.com/tabemann/zeptoforth). Nested module (or sub-words), simplified control structures are attemped. Now, moved to [eForthX](git@github.com:chochain/eforthx.git)
 
 ## References
     + perf   - [multithreaded](https://easyperf.net/blog/2019/10/05/Performance-Analysis-Of-MT-apps)
