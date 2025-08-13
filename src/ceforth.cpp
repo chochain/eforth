@@ -255,7 +255,7 @@ const Code rom[] {               ///< Forth dictionary
     IMMD("postpone",
          const Code *w = find(word()); if (!w) return;
          ADD_W(w)),
-    IMMD("immediate", last->immd = 1),
+    CODE("immediate", last->immd = 1),
     CODE("exit",   UNNEST()),           /// -- (exit from word)
     /// @}
     /// @defgroup metacompiler

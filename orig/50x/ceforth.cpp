@@ -446,7 +446,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          add_var(LIT, POP());                                /// dovar (+parameter field)
          add_w(EXIT));
     IMMD("postpone",  IU w = find(word()); if (w) add_w(w));
-    IMMD("immediate", dict[-1]->attr |= IMM_ATTR);
+    CODE("immediate", dict[-1]->attr |= IMM_ATTR);
     CODE("exit",    UNNEST());                               /// early exit the colon word
     /// @}
     /// @defgroup metacompiler
