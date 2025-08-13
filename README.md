@@ -15,7 +15,7 @@ Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, por
     
 3. <b>Data and Return Stacks are also arrays</b>. With push, pop and [] methods to clarify intentions.
 4. <b>Parameter fields are all arrays</b>. Why not! They can be dynamically expanded while compiling. Or changed on the fly in runtime i.e. self-morphing code. This can be a "scary" feature for future Forth.
-5. <b>No vocabulary, or meta-compilation</b>. These black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
+5. <b>No vocabulary, or meta-compilation</b>. Except CREATE..DOES>, and POSTPONE, these black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
 6. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel. see the multi-threading section below for details
     + A thread pool is built-in. Size is defaults to number of cores.
     + Message Passing send/recv with pthread mutex waiting.
