@@ -252,7 +252,10 @@ const Code rom[] {               ///< Forth dictionary
          DICT_PUSH(new Code(word()));
          Code *w = ADD_W(new Var(DU0));
          w->pf[0]->token = w->token),
-    CODE("immediate", last->immd = 1),
+    IMMD("postpone",
+         const Code *w = find(word()); if (!w) return;
+         ADD_W(w)),
+    IMMD("immediate", last->immd = 1),
     CODE("exit",   UNNEST()),           /// -- (exit from word)
     /// @}
     /// @defgroup metacompiler
