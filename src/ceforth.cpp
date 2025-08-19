@@ -229,11 +229,10 @@ const Code rom[] {               ///< Forth dictionary
          ADD_W(new Bran(_loop));
          DICT_PUSH(new Tmp())),
     CODE("i",      PUSH(RS[-1])),
-    CODE("leave",
-         RS.pop(); RS.pop(); UNNEST()), /// * exit loop
+    CODE("leave",  UNNEST()),                  /// * exit loop
     IMMD("loop",
          Bran *b = BTGT();
-         BRAN(b->pf);                   /// * do.{pf}.loop
+         BRAN(b->pf);                          /// * do.{pf}.loop
          DICT_POP()),
     /// @}
     /// @defgrouop Compiler ops
@@ -241,7 +240,7 @@ const Code rom[] {               ///< Forth dictionary
     CODE("[",      vm.compile = false),
     CODE("]",      vm.compile = true),
     CODE(":",
-         DICT_PUSH(new Code(word()));   /// create new word
+         DICT_PUSH(new Code(word()));          /// create new word
          vm.compile = true),
     IMMD(";", vm.compile = false),
     CODE("constant",
@@ -256,7 +255,7 @@ const Code rom[] {               ///< Forth dictionary
          const Code *w = find(word()); if (!w) return;
          ADD_W(w)),
     CODE("immediate", last->immd = 1),
-    CODE("exit",   UNNEST()),           /// -- (exit from word)
+    CODE("exit",   UNNEST()),                  /// -- (exit from word)
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
@@ -332,6 +331,7 @@ const Code rom[] {               ///< Forth dictionary
     CODE("dump",                                                /// ' xx 1 dump
          IU n = POPI(); mem_dump(POPI(), n, *vm.base)), 
     CODE("depth",   PUSH(SS.size())),                           /// data stack depth
+    CODE("r",       PUSH(RS.size())),                           /// return stack depth
     /// @}
     /// @defgroup OS ops
     /// @{
@@ -412,18 +412,18 @@ void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
             if ((RS[-1]-=1) < 0) break;        /// * decrement counter
             NEST(((Bran&)c).p1);               /// * aft..then
         }
-        RS.pop();
     }
-    catch (...) { RS.pop(); }                  /// handle EXIT
+    catch (...) { /* exit, leave */ }          /// handle EXIT, LEAVE
+    RS.pop();
 }
 void _loop(VM &vm, Code &c) {                  ///> do..loop
     try { 
         do {
             NEST(c.pf);
         } while ((RS[-1]+=1) < RS[-2]);        /// increment counter
-        RS.pop(); RS.pop();
     }
     catch (...) {}                             /// handle LEAVE
+    RS.pop(); RS.pop();                        /// pop off indicies
 }
 void _does(VM &vm, Code &c) {
     bool hit = false;
