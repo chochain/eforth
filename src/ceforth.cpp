@@ -389,7 +389,7 @@ void _str(VM &vm, Code &c)  {
 void _lit(VM &vm, Code &c)  { PUSH(c.q[0]);  }
 void _var(VM &vm, Code &c)  { PUSH(c.token); }
 void _tor(VM &vm, Code &c)  { RS.push(POP()); }
-void _tor2(VM &vm, Code &c) { RS.push(SS.pop()); RS.push(POP()); }
+void _tor2(VM &vm, Code &c) { RS.push(POP()); RS.push(POP()); }
 void _if(VM &vm, Code &c)   { NEST(POP() ? c.pf : ((Bran&)c).p1); }
 void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
     int b = c.stage;             ///< branching state
@@ -417,13 +417,14 @@ void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
     RS.pop();
 }
 void _loop(VM &vm, Code &c) {                  ///> do..loop
-    try { 
+    try {
+        DU m = RS.pop();
         do {
             NEST(c.pf);
-        } while ((RS[-1]+=1) < RS[-2]);        /// increment counter
+        } while ((RS[-1]+=1) < m);             /// increment counter
     }
     catch (...) {}                             /// handle LEAVE
-    RS.pop(); RS.pop();                        /// pop off indicies
+    RS.pop();                                  /// pop off indicies
 }
 void _does(VM &vm, Code &c) {
     bool hit = false;
