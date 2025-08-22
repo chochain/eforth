@@ -3,7 +3,7 @@ With all the advantages, it is unfortunate that Forth lost out to C language ove
 
 So, the question is, how to encourage today's world of C programmers to take a look at Forth. How do we convince them that Forth can be 10 times more productive? Well, we do know that by keep saying how elegant Forth is or even bashing how bad C can be probably won't get us anywhere.
 
-Bill Munich created eForth for simplicity and educational purpose. Dr. Ting, ported to many processors, described Forth in his well-written eForth [genesis](https://chochain.github.io/eforth/docs/eForthAndZen.pdf) and [overview](https://chochain.github.io/eforth/docs/eForthOverviewv5.pdf). I like the idea and decided to pick it up.
+Bill Muench created eForth for simplicity and educational purpose. Dr. Ting, ported to many processors, described Forth in his well-written eForth [genesis](https://chochain.github.io/eforth/docs/eForthAndZen.pdf) and [overview](https://chochain.github.io/eforth/docs/eForthOverviewv5.pdf). I like the idea and decided to pick it up.
 
 ## eForth now - What did I change!
 
