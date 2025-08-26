@@ -14,7 +14,7 @@ Bill Muench created eForth for simplicity and educational purpose. Dr. Ting, por
     + Hashtables might go even faster but we'll try that later.
     
 3. <b>Data and Return Stacks are also arrays</b>. With push, pop and [] methods to clarify intentions.
-4. <b>Parameter fields are all arrays</b>. Why not! They can be dynamically expanded while compiling. Or changed on the fly in runtime i.e. self-morphing code. This can be a "scary" feature for future Forth.
+4. <b>Parameter fields are all arrays</b>. Why not! 
 5. <b>No vocabulary, or meta-compilation</b>. Except CREATE..DOES>, and POSTPONE, these black-belt skills of Forth greatness are dropped to keep the focus on core concepts.
 6. <b>Multi-threading and message passing are available</b> From v5.0 and on, multi-core platform can utilize Forth VMs running in parallel. see the multi-threading section below for details
     + A thread pool is built-in. Size is defaults to number of cores.
@@ -89,7 +89,29 @@ The core of current implementation of eForth is the dictionary composed of an ar
         dict[-1]->add(new Lit(n));        // append numeric literal to it
     else PUSH(n);                         // push onto data stack
     ```
-    
+
+With the array implementation, the first difference is in array variable read/write.
+```Forth
+> create narr 10 cells allot
+> see narr
+> : narr
+    0 0 0 0 0 0 0 0 0 0 ;
+\       ^----------------- narr 2 cells +
+```
+While traditional Forths uses <code>narr 2 cells +</code> to get the memory address of <code>narr[2]</code>, eforth <code>narr</code> returns its index (or defining order) in the dictionary. So, <code>narr 2 cells +</code> will actually get you the index of the second word defined after <code>narr</code>. You'll be storing the value into that word's empty qf field.
+To access n th element of <code>narr</code> use <code>th</code>
+```Forth
+> : fill-arr
+    10 0 do
+      i 2* narr i th !
+    loop ;
+> fill-arr
+> see narr
+> : narr
+    0 2 4 6 8 10 12 14 16 18 ;
+```
+With arrays, the doors are open. Dynamically expanding variables as well as storing objects instead of just integers. Parameter fields can be filled in compile time or changed on the fly in runtime i.e. self-morphing code. These can be the "scary" features for Forths to come.
+
 ## ceForth - Where we came from
 
 Most classic Forth systems are build with a few low-level primitives in assembly language and bootstrap the high-level words in Forth itself. Over the years, Dr. Ting have implemented many Forth systems using the same model. See [here](https://www.forth.org/OffeteStore/OffeteStore.html) for the detailed list. However, he eventually stated that it was silly trying to explain Forth in Forth to new comers. There are just not many people know Forth, period.
