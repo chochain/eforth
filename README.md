@@ -99,7 +99,7 @@ With the array implementation, the first difference is in array variable read/wr
 \       ^----------------- narr 2 cells +
 ```
 While traditional Forths uses <code>narr 2 cells +</code> to get the memory address of <code>narr[2]</code>, eforth <code>narr</code> returns its index (or defining order) in the dictionary. So, <code>narr 2 cells +</code> will actually get you the index of the second word defined after <code>narr</code>. You'll be storing the value into that word's empty qf field.
-To access n th element of <code>narr</code> use <code>th</code>
+To access the n*th* element of <code>narr</code>, use <code>th</code> instead
 ```Forth
 > : fill-arr
     10 0 do
@@ -123,32 +123,36 @@ In 2021-07-04, I got in touched with Dr. Ting mentioning that he taught at the u
 We hope it can serve as a stepping stone for learning Forth to even building their own, one day.
 
 ## How To Build and Run
-
+```Bash
     > git clone https://github.com/chochain/eforth to your local machine
     > cd eforth
-
+```
 There are two major versions current. eForth. v4 is single-threaded only and v5 default single-threaded but also supports multi-threaded.
 
 Checkout the version you are interested in.
-
+```Bash
     > git checkout v42           # for version 4.2 (latest), or
     > git checkout master        # for version 5 and on
-
+```
 To enable multi-threading, of v5, update the followings in ~/src/config.h
-    
+
     > #define DO_MULTITASK   1
     > #define E4_VM_POOL_SZ  8
     
 ### Linux, MacOS, Cygwin, or Raspberry Pi
-
+```Bash
     > make
     > ./tests/eforth             # to bring up the Forth interpreter
+```
+```Forth
     > type> words⏎               \ to see available Forth words
     > type> 1 2 +⏎               \ see Forth in action
     > type> bye⏎  or Ctrl-C      \ to exit eForth
-
+```
     Once you get pass the above, try the lessons by Dr. Ting.
+```Bash    
     > ./tests/eforth < ./tests/demo.fs
+```    
 
     Pretty amazing stuffs! To grasp how they were done, study the
     individual files (*.fs) under ~/tests/demo.
@@ -163,10 +167,12 @@ I haven't develop anything useful on Windows for a long time. Just bearly got th
     > under the root directory, open the solution file eforth.sln (which points to project platform/eforth.vcxproj)
     > Menu bar -> Build -> Build Solution   (default to Debug/64-bit)
     > in a Command window, find and run eforth.exe under tests sub-directory
+    
+```Forth    
     > type> words⏎               \ to see available Forth words
     > type> 1 2 +⏎               \ see Forth in action
     > type> bye⏎  or Ctrl-C      \ to exit eForth
-
+```
     Note: Windows multi-threading seems to work but 2x slower. 
         * I only have a 2-core Win box. Do let me know if it goes further. 8-)
         * No CPU affinity. The code might need to be namespaced to avoid conflicts with Windows include files.
@@ -175,8 +181,10 @@ I haven't develop anything useful on Windows for a long time. Just bearly got th
 
     > ensure you have Emscripten (WASM compiler) installed and configured
     > or, alternatively, you can utilize docker image from emscripten/emsdk
+```Bash    
     > type> make wasm
     > type> python3 tests/cors.py        # supports COOP
+```    
     > from your browser, open http://localhost:8000/tests/eforth.html
 
 Note: For multi-threading to work, browser needs to receive Cross-Origin policies [here for detail](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy) in the response header. A Python script *~/tests/cors.py* is provided to solve the issue. The same needed to be provided if you use other web server.
@@ -263,7 +271,7 @@ Before we go too far, make sure the following are updated before your build
 </pre>
 
 #### Example2 - producer-consumer (~/tests/demo/mpi.fs)
-
+```Forth
     > 0 constant pp                           \ producer task id
     > 0 constant cc                           \ consumer task id
     > : sndr
@@ -280,7 +288,6 @@ Before we go too far, make sure the following are updated before your build
     > pp start                                \ start sender task
     > pp join cc join                         \ wait for completion
 
-<pre>
 [06.1]>> started on T1
 [06.1]>> waiting
 [07.1]>> started on T2
@@ -292,26 +299,23 @@ sent
 sum=10
 [06.3]>> finished on T1
 [00.3]>> VM6 joint
-</pre>
-
+```
 #### Example3 - fetch result(s) from completed task (~/tests/demo/mpi_pull.fs)
-
+```Forth
     > : sum 0 1000000 for i + next ;          \ add 0 to 1M
     > ' sum task constant tt                  \ create the task
     > tt start tt join                        \ run and wait for completion
     > 1 tt pull ." total=" .                  \ pull the sum
 
-<pre>
 [00.3]>> joining VM7
 [07.1]>> started on T1
 [07.3]>> finished on T1
 [00.3]>> VM7 joint
 pulled 1 items from VM7.0
 total= 1784293664 -1 -> ok
-</pre>
+```
 
 ## Source Code Directories
-
     + ~/src       - multi-threaded, dynamic vector-based, object threading
     + ~/platform  - platform specific code for C++, ESP32, Windows, and WASM
     + ~/orig      - archive from Dr. Ting and my past works
