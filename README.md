@@ -124,54 +124,55 @@ We hope it can serve as a stepping stone for learning Forth to even building the
 
 ## How To Build and Run
 ```Bash
-    > git clone https://github.com/chochain/eforth to your local machine
-    > cd eforth
+    $ git clone https://github.com/chochain/eforth to your local machine
+    $ cd eforth
 ```
 There are two major versions current. eForth. v4 is single-threaded only and v5 default single-threaded but also supports multi-threaded.
 
 Checkout the version you are interested in.
 ```Bash
-    > git checkout v42           # for version 4.2 (latest), or
-    > git checkout master        # for version 5 and on
+    $ git checkout v42           # for version 4.2 (latest), or
+    $ git checkout master        # for version 5 and on
 ```
 To enable multi-threading, of v5, update the followings in ~/src/config.h
-
-    > #define DO_MULTITASK   1
-    > #define E4_VM_POOL_SZ  8
-    
+```C
+    #define DO_MULTITASK   1
+    #define E4_VM_POOL_SZ  8
+```    
 ### Linux, MacOS, Cygwin, or Raspberry Pi
 ```Bash
-    > make
-    > ./tests/eforth             # to bring up the Forth interpreter
+    $ make
+    $ ./tests/eforth             # to bring up the Forth interpreter
 ```
 ```Forth
-    > type> words⏎               \ to see available Forth words
-    > type> 1 2 +⏎               \ see Forth in action
-    > type> bye⏎  or Ctrl-C      \ to exit eForth
+    > eForth v5.0, RAM 16.5% free (1300 / 7880 MB)
+    > words⏎               \ to see available Forth words
+    > 1 2 +⏎               \ see Forth in action
+    > bye⏎  or Ctrl-C      \ to exit eForth
 ```
     Once you get pass the above, try the lessons by Dr. Ting.
 ```Bash    
-    > ./tests/eforth < ./tests/demo.fs
+    $ ./tests/eforth < ./tests/demo.fs
 ```    
 
-    Pretty amazing stuffs! To grasp how they were done, study the
-    individual files (*.fs) under ~/tests/demo.
+Pretty amazing stuffs! To grasp how they were done, study the individual files (*.fs) under ~/tests/demo.
     
-    Note: MacOS added, thanks to Kristopher Johnson's work.
+Note: MacOS added, thanks to Kristopher Johnson's work.
 
 ### Windows  (Console App)
 
 I haven't develop anything useful on Windows for a long time. Just bearly got this compiled on an 2007 Windows7 box. So, take it with a grain of salt. I'm hoping someone can make it more streamlined.
 
-    > install and run Visual Studio on your box
-    > under the root directory, open the solution file eforth.sln (which points to project platform/eforth.vcxproj)
-    > Menu bar -> Build -> Build Solution   (default to Debug/64-bit)
-    > in a Command window, find and run eforth.exe under tests sub-directory
+    * install and run Visual Studio on your box
+    * under the root directory, open the solution file eforth.sln (which points to project platform/eforth.vcxproj)
+    * Menu bar -> Build -> Build Solution   (default to Debug/64-bit)
+    * in a Command window, find and run eforth.exe under tests sub-directory
     
-```Forth    
-    > type> words⏎               \ to see available Forth words
-    > type> 1 2 +⏎               \ see Forth in action
-    > type> bye⏎  or Ctrl-C      \ to exit eForth
+```Forth
+    > eForth v5.0, RAM 16.5% free (1300 / 7880 MB)
+    > words⏎               \ to see available Forth words
+    > 1 2 +⏎               \ see Forth in action
+    > bye⏎  or Ctrl-C      \ to exit eForth
 ```
     Note: Windows multi-threading seems to work but 2x slower. 
         * I only have a 2-core Win box. Do let me know if it goes further. 8-)
@@ -179,26 +180,26 @@ I haven't develop anything useful on Windows for a long time. Just bearly got th
     
 ### WASM
 
-    > ensure you have Emscripten (WASM compiler) installed and configured
-    > or, alternatively, you can utilize docker image from emscripten/emsdk
+    * ensure you have Emscripten (WASM compiler) installed and configured
+    * or, alternatively, you can utilize docker image from emscripten/emsdk
 ```Bash    
-    > type> make wasm
-    > type> python3 tests/cors.py        # supports COOP
+    $ make wasm
+    $ python3 tests/cors.py        # supports COOP
 ```    
-    > from your browser, open http://localhost:8000/tests/eforth.html
+    * from your browser, open http://localhost:8000/tests/eforth.html
 
 Note: For multi-threading to work, browser needs to receive Cross-Origin policies [here for detail](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy) in the response header. A Python script *~/tests/cors.py* is provided to solve the issue. The same needed to be provided if you use other web server.
 
 ### ESP32
 
-    > ensure your Arduino IDE have ESP32 libraries installed
-    > update ESP32 compiler.optimization flags in ~/hardware/platform.txt to -O3 (default -Os)
-    > open eforth.ino with Arduino IDE
-    > inside eforth.ino, modify WIFI_SSID and WIFI_PASS to point to your router
-    > open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
-    > compile and load
-    > if successful, web server IP address/port and eForth prompt shown in Serial Monitor
-    > from your browser, enter the IP address to access the ESP32 web server
+    * ensure your Arduino IDE have ESP32 libraries installed
+    * update ESP32 compiler.optimization flags in ~/hardware/platform.txt to -O3 (default -Os)
+    * open eforth.ino with Arduino IDE
+    * inside eforth.ino, modify WIFI_SSID and WIFI_PASS to point to your router
+    * open Arduino Serial Monitor, set baud 115200 and linefeed to 'Both NL & CR'
+    * compile and load
+    * if successful, web server IP address/port and eForth prompt shown in Serial Monitor
+    * from your browser, enter the IP address to access the ESP32 web server
     
 Note: Most ESP32 are dual-core. However core0 is dedicated to WiFi and FreeRTOS house keeping. Forth tasks will be tied to core1 only. So, multi-threading is possible but no performance gain. Actually, singled-threaded v4.2 does a bit better.
 
@@ -208,29 +209,29 @@ Forth has been supporting multi-tasking since the 70's. They are single-CPU roun
 
 ### Design & Implementation
 
-    > each VM has it's own private ss, rs, tos, ip, and state
-    > multi-threading, instead of multi-processing, with shared dictionary and parameter memory blocks.
-    > pthread.h is used. It is a common POSIXish library supported by most platforms. I have only tried the handful on hands, your mileage may vary.
-    > Message Passing interface for inter-task communication.
+    * each VM has it's own private ss, rs, tos, ip, and state
+    * multi-threading, instead of multi-processing, with shared dictionary and parameter memory blocks.
+    * pthread.h is used. It is a common POSIXish library supported by most platforms. I have only tried the handful on hands, your mileage may vary.
+    * Message Passing interface for inter-task communication.
 
 ### Life-cycle
 
-    > 1. We have the VM array, sized by E4_VM_POOL_SZ, which defines the max tasks you want to have. Typically, anything more than your CPU core count does not help completing the job faster.
-    > 2. Each VM is associated with a thread, i.e. our thread-pool.
-    > 3. The event_queue, a C++ queue takes in "ready to run" tasks.
-    > 4. Lastly, event_loop picks up "ready to run" tasks and kicks start them one by one.
+    1. We have the VM array, sized by E4_VM_POOL_SZ, which defines the max tasks you want to have. Typically, anything more than your CPU core count does not help completing the job faster.
+    2. Each VM is associated with a thread, i.e. our thread-pool.
+    3. The event_queue, a C++ queue takes in "ready to run" tasks.
+    4. Lastly, event_loop picks up "ready to run" tasks and kicks start them one by one.
 
     The following VM states manage the life-cycle of a task
     
-    > QUERY - interpreter mode - only the main thread can do this
-    > HOLD  - ready to execute, or waiting for message to arrive
-    > NEST  - in execution
-    > STOP  - free for next task
+    * QUERY - interpreter mode - only the main thread can do this
+    * HOLD  - ready to execute, or waiting for message to arrive
+    * NEST  - in execution
+    * STOP  - free for next task
 
 Before we go too far, make sure the following are updated before your build
 
-    > pthread.h is installed. 
-    > DO_MULTITASK, E4_VM_POOL_SZ are updated in ~/src/config.h
+    * pthread.h is installed. 
+    * DO_MULTITASK, E4_VM_POOL_SZ are updated in ~/src/config.h
 
 ### Built-in words (available only when DO_MULTITASK is enabled)
     
@@ -249,14 +250,15 @@ Before we go too far, make sure the following are updated before your build
 |clock|( -- n )|fetch microsecond since Epoch, useful for timing|
 
 #### Example1 - parallel jobs (~/tests/demo/mtask.fs)
-
+```Forth
     > : once 999999 for rank drop next ;            \ 1M cycles
     > : run clock negate once clock + . ." ms" cr ; \ benchmark
     > ' run constant xt                             \ keep the xt
     > : jobs 1- for xt task start next ;            \ tasks in parallel
     > 4 jobs
-
-<pre><font color="#4E9A06">[06.1]&gt;&gt; started on T2</font>
+```
+<pre>
+<font color="#4E9A06">[06.1]&gt;&gt; started on T2</font>
 <font color="#C4A000">[05.1]&gt;&gt; started on T4</font>
 <font color="#3465A4">[04.1]&gt;&gt; started on T6</font>
 <font color="#CC0000">[07.1]&gt;&gt; started on T0</font>
@@ -287,7 +289,8 @@ Before we go too far, make sure the following are updated before your build
     > cc start                                \ start receiver task
     > pp start                                \ start sender task
     > pp join cc join                         \ wait for completion
-
+```
+<pre>
 [06.1]>> started on T1
 [06.1]>> waiting
 [07.1]>> started on T2
@@ -299,21 +302,22 @@ sent
 sum=10
 [06.3]>> finished on T1
 [00.3]>> VM6 joint
-```
+</pre>
 #### Example3 - fetch result(s) from completed task (~/tests/demo/mpi_pull.fs)
 ```Forth
     > : sum 0 1000000 for i + next ;          \ add 0 to 1M
     > ' sum task constant tt                  \ create the task
     > tt start tt join                        \ run and wait for completion
     > 1 tt pull ." total=" .                  \ pull the sum
-
+```
+<pre>
 [00.3]>> joining VM7
 [07.1]>> started on T1
 [07.3]>> finished on T1
 [00.3]>> VM7 joint
 pulled 1 items from VM7.0
 total= 1784293664 -1 -> ok
-```
+</pre>
 
 ## Source Code Directories
     + ~/src       - multi-threaded, dynamic vector-based, object threading
