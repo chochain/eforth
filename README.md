@@ -139,7 +139,7 @@ To enable multi-threading, of v5, update the followings in ~/src/config.h
     #define DO_MULTITASK   1
     #define E4_VM_POOL_SZ  8
 ```    
-### Linux, MacOS, Cygwin, or Raspberry Pi
+### Linux, MacOS, Cygwin, Raspberry Pi, or Android with Termux
 ```Bash
     $ make
     $ ./tests/eforth             # to bring up the Forth interpreter
