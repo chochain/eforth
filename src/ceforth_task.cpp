@@ -3,11 +3,66 @@
 /// @brief eForth - multi-tasking support
 ///
 #include "ceforth.h"
+#include <map>
 
 extern FV<Code*> dict;             ///< Forth dictionary
 
 #if !DO_MULTITASK
+#define TIMER_WAIT 1000
 VM _vm0;                           ///< singleton, no VM pooling
+
+std::thread timer;
+std::atomic<int> running = true;
+std::atomic<int> ticking = false;
+std::map<int, std::pair<std::atomic<int>, int>> isr;
+
+void _tick() {
+    for (auto &[token, v] : isr) {
+        v.first += 1;
+    }
+}
+
+void t_pool_init() {
+    timer = std::thread([]() {
+        while(running) {
+            delay(TIMER_WAIT);
+            if (ticking) _tick();
+            if (_vm0.state == QUERY) isr_serv(_vm0);
+        }    
+    });
+}
+
+void t_pool_stop() {
+    running = false;
+    timer.join();
+}
+
+void enable_timer(int f) {
+    ticking = f;
+}
+
+void add_tmisr(int period, int token) {
+    int na = isr.find(token)==isr.end();
+    
+    if (period==0) {
+        if (!na) isr.erase(token);
+        return;
+    }
+    int tic = 1 + (period > TIMER_WAIT ? (period - 1) / TIMER_WAIT : 0);
+    if (na) isr[token] = std::pair<int, int>(0, tic);
+    else    isr[token].second = tic;
+}
+
+void isr_serv(VM &vm) {
+    for (auto &[token, v] : isr) {
+        if (v.first >= v.second) {
+            vm.isr = true;
+            dict[token]->nest(vm);
+            vm.isr = false;
+            v.first = 0;
+        }
+    }
+}
 
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
 void uvar_init() {
