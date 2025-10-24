@@ -314,6 +314,10 @@ const Code rom[] {               ///< Forth dictionary
     CODE("bcast",   vm.bcast(POPI())),                          /// ( v1 v2 .. vn -- )
     CODE("pull",    IU t = POPI(); vm.pull(t, POPI())),         /// ( tid n -- v1 v2 .. vn )
     /// @}
+#else
+    CODE("timer",   enable_timer(POPI())),                      /// ( f -- )
+    CODE("tmisr",   U32 n = POPI(); add_tmisr(n, POPI())),      /// ( token period -- )
+    CODE("isr",     isr_dump()),
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
     /// @{
@@ -374,14 +378,16 @@ void Code::nest(VM &vm) {
 
     for (int i=0; i < (int)pf.size(); i++) {
         try         { pf[i]->nest(vm); } /// * execute recursively
-        catch (...) { break; }
-        // printf("%-3x => RS=%d, SS=%d %s", i, (int)vm.rs.size(), (int)vm.ss.size(), pf[i]->name);
+        catch (...) { break; }           /// * catch UNNEST
+        printf("%-3x => RS=%d, SS=%d %s\n", i, (int)vm.rs.size(), (int)vm.ss.size(), pf[i]->name);
     }
 }
 ///====================================================================
 ///
 ///> Primitive Functions
 ///
+#define ISR(vm)  if (!vm.isr) isr_serv(vm)
+
 void _str(VM &vm, Code &c)  {
     if (!c.token) pstr(c.name);
     else { PUSH(c.token); PUSH(strlen(c.name)); }
@@ -399,6 +405,7 @@ void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
         if (b==1)             continue;        /// * ..again
         if (b==2 && POP()==0) break;           /// * ..while..repeat
         NEST(((Bran&)c).p1);
+        ISR(vm);
     }
 }
 void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
@@ -411,6 +418,7 @@ void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
             NEST(((Bran&)c).p2);               /// * then..next
             if ((RS[-1]-=1) < 0) break;        /// * decrement counter
             NEST(((Bran&)c).p1);               /// * aft..then
+            ISR(vm);
         }
     }
     catch (...) { /* exit, leave */ }          /// handle EXIT, LEAVE
@@ -421,6 +429,7 @@ void _loop(VM &vm, Code &c) {                  ///> do..loop
         DU m = RS.pop();
         do {
             NEST(c.pf);
+            ISR(vm);
         } while ((RS[-1]+=1) < m);             /// increment counter
     }
     catch (...) {}                             /// handle LEAVE
@@ -522,7 +531,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
             scan('\n');               /// * exhaust input line
         }
     }
-    if (!vm.compile) ss_dump(vm);
+    if (!vm.compile && !vm.isr) ss_dump(vm);
     
     return vm.state==STOP;
 }
