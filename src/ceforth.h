@@ -9,6 +9,7 @@
 #include <iomanip>                     /// setbase
 #include <vector>                      /// vector
 #include <chrono>
+#include <atomic>
 #include "config.h"
 
 using namespace std;
@@ -67,8 +68,9 @@ struct ALIGNAS VM {
     IU       wp      = 0;          ///< word pointer
     
     U8       *base   = 0;          ///< numeric radix (a pointer)
-    vm_state state   = STOP;       ///< VM status
     bool     compile = false;      ///< compiler flag
+    bool     isr     = false;      ///< interrupt servcing flag
+    std::atomic<vm_state> state = STOP;       ///< VM status
 
     string   pad;
 #if DO_MULTITASK
@@ -196,14 +198,17 @@ struct Bran : Code {
 VM&  vm_get(int id=0);                    ///< get a VM with given id
 void uvar_init();                         ///< initialize user area
 
-#if DO_MULTITASK
 void t_pool_init();
 void t_pool_stop();
+
+#if DO_MULTITASK
 int  task_create(IU w);                   ///< create a VM starting on dict[w]
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else  // !DO_MULTITASK
-#define t_pool_init()  {}
-#define t_pool_stop()  {}
+void enable_timer(int enable);
+void add_tmisr(int period, int token);
+void isr_serv(VM &vm);
+void isr_dump();
 #endif // !DO_MULTITASK
 ///
 ///> System interface
