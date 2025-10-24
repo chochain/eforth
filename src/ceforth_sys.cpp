@@ -239,4 +239,14 @@ void mem_dump(IU w0, IU n, int base) {           ///> ' xx 1 dump
     }
     fout << setbase(base) << setfill(' ');
 }
+
+#include <map>
+extern std::map<int, std::pair<std::atomic<int>, int>> isr;
+void isr_dump() {
+    for (auto &[token, v] : isr) {
+        fout << "[" << token << "] " << dict[token]->name
+             << " cnt=" <<  v.first
+             << " max=" << v.second << ENDL;
+    }
+}
 ///====================================================================
