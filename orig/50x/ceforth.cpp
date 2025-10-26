@@ -218,7 +218,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-//        VM_HDR(&vm, ":%4x", ix);
+        VM_HDR(&vm, ":%4x", ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -273,7 +273,7 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-//        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
+        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
     }
 }
 ///
@@ -509,6 +509,10 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("recv",  vm.recv());                                /// ( -- v1 v2 .. vn ) waiting for values passed by sender
     CODE("bcast", vm.bcast(POPI()));                         /// ( v1 v2 .. vn -- )
     CODE("pull",  IU t = POPI(); vm.pull(t, POPI()));        /// ( tid n -- v1 v2 .. vn )
+#else
+    CODE("timer",   enable_timer(POPI()));                   /// ( f -- )
+    CODE("tmisr",   U32 n = POPI(); add_tmisr(n, POPI()));   /// ( token period -- )
+	CODE("isr",     isr_dump());
     /// @}
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
