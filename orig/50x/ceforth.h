@@ -85,9 +85,10 @@ struct ALIGNAS VM {
     IU       ip      = 0;          ///< instruction pointer
     DU       tos     = -DU1;       ///< top of stack (cached)
 
-    bool     compile = false;      ///< compiler flag
     vm_state state   = STOP;       ///< VM status
     IU       base    = 0;          ///< numeric radix (a pointer)
+    bool     compile = false;      ///< compiler flag
+    bool     isr     = false;      ///< interrupt servicing flag
     
 #if DO_MULTITASK
     static int      NCORE;         ///< number of hardware cores
@@ -219,14 +220,16 @@ struct Code {
 VM&  vm_get(int id=0);                    ///< get a VM with given id
 void uvar_init();                         ///< setup user area
 
-#if DO_MULTITASK
 void t_pool_init();                       ///< initialize thread pool
 void t_pool_stop();                       ///< stop thread pool
+
+#if DO_MULTITASK
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #else
-#define t_pool_init()
-#define t_pool_stop()
+void enable_timer(int f);                 ///< 1:enable, 0:disable timer
+void add_tmisr(int period, int w);        ///< add dict[w] as ISR
+void isr_dump();                          ///< dump ISR list
 #endif // DO_MULTITASK
 ///@}
 ///@name System interface
@@ -235,6 +238,7 @@ void forth_init();
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
+void nest(VM &vm);
 ///@}
 ///@name IO functions
 ///{@
