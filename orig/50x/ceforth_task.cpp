@@ -8,7 +8,66 @@ extern List<U8, 0> pmem;           ///< parameter memory block
 extern U8          *MEM0;          ///< base pointer of pmem
 
 #if !DO_MULTITASK
+#include <atomic>
+#include <map>
+#define TIMER_WAIT 1000
+
 VM _vm0;                           ///< singleton, no VM pooling
+
+std::thread timer;
+std::atomic<int> running = 1;
+std::atomic<int> ticking = 0;
+std::map<int, std::pair<std::atomic<int>, int>> isr;
+
+void _tick() {
+    for (auto &[w, v] : isr) {
+        v.first += 1;
+    }
+}
+
+void t_pool_init() {
+    timer = std::thread([]() {
+        while(running) {
+            delay(TIMER_WAIT);
+            if (ticking) _tick();
+        }    
+    });
+}
+
+void t_pool_stop() {
+    running = 0;
+    timer.join();
+}
+
+void enable_timer(int f) {
+    ticking = f;
+}
+
+void add_tmisr(int period, int w) {
+    int na = isr.find(w)==isr.end();
+    
+    if (period==0) {
+        if (!na) isr.erase(w);
+        return;
+    }
+    int tic = 1 + (period > TIMER_WAIT ? (period - 1) / TIMER_WAIT : 0);
+    if (na) isr[w] = std::pair<int, int>(0, tic);
+    else    isr[w].second = tic;
+}
+
+void isr_serv(VM &vm) {
+    for (auto &[w, v] : isr) {
+        if (v.first < v.second) continue;
+		
+		vm.isr = true;
+		vm.rs.push(DU0);
+		vm.ip  = w;
+		nest(vm);
+		vm.isr = false;
+		v.first = 0;
+    }
+}
+
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
 void uvar_init() {
     U8 *b = &pmem[pmem.idx++];     ///< *base
@@ -65,7 +124,7 @@ void _event_loop(int rank) {
             NOTIFY(_cv_evt);                      /// * notify one
         }
         VM_LOG(vm, ">> started on T%d", rank);
-        vm->rs.push(DU0);                         /// exit token
+        vm->rs.push(DU0);                         /// exit nest
         nest(*vm);
         VM_LOG(vm, ">> finished on T%d", rank);
 
