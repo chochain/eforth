@@ -239,9 +239,9 @@ void mem_dump(U32 p0, IU sz, int base) {
 #if !DO_MULTITASK
 #include <map>
 #include <atomic>
-extern std::map<int, std::pair<std::atomic<int>, int>> isr;
+extern std::map<int, std::pair<std::atomic<int>, int>> _isr;
 void isr_dump() {
-    for (auto &[w, v] : isr) {
+    for (auto &[w, v] : _isr) {
         fout << "[" << w << "] " << dict[w]->name
              << " cnt=" <<  v.first
              << " max=" << v.second << ENDL;
