@@ -4,8 +4,10 @@
 ///
 #include "ceforth.h"
 
+extern List<Code*> dict;           /// dictionary
 extern List<U8, 0> pmem;           ///< parameter memory block
 extern U8          *MEM0;          ///< base pointer of pmem
+extern void nest(VM &vm);          ///< Forth inner loop
 
 #if !DO_MULTITASK
 #include <atomic>
@@ -13,59 +15,60 @@ extern U8          *MEM0;          ///< base pointer of pmem
 #define TIMER_WAIT 1000
 
 VM _vm0;                           ///< singleton, no VM pooling
+///
+/// Timer interrupt
+///
+std::thread      _timer;
+std::atomic<int> _running = 1;
+std::atomic<int> _ticking = 0;
+std::map<int, std::pair<std::atomic<int>, int>> _isr;
 
-std::thread timer;
-std::atomic<int> running = 1;
-std::atomic<int> ticking = 0;
-std::map<int, std::pair<std::atomic<int>, int>> isr;
-
-void _tick() {
-    for (auto &[w, v] : isr) {
-        v.first += 1;
+void isr_serv(VM &vm) {
+    for (auto &[w, v] : _isr) {
+        if (v.first < v.second) continue;
+        vm.isr = true;
+        vm.rs.push(DU0);
+        vm.ip = dict[w]->pfa;
+        nest(vm);
+        vm.isr = false;
+        v.first = 0;
     }
 }
 
+void _tick() {
+    for (auto &[w, v] : _isr) {
+        v.first += 1;
+    }
+    if (_vm0.ip == DU0) isr_serv(_vm0);
+}
+
 void t_pool_init() {
-    timer = std::thread([]() {
-        while(running) {
+    _timer = std::thread([]() {
+        while(_running) {
             delay(TIMER_WAIT);
-            if (ticking) _tick();
+            if (_ticking) _tick();
         }    
     });
 }
 
 void t_pool_stop() {
-    running = 0;
-    timer.join();
+    _running = 0;
+    _timer.join();
 }
 
 void enable_timer(int f) {
-    ticking = f;
+    _ticking = f;
 }
 
 void add_tmisr(int period, int w) {
-    int na = isr.find(w)==isr.end();
-    
+    int na = _isr.find(w)==_isr.end();
     if (period==0) {
-        if (!na) isr.erase(w);
+        if (!na) _isr.erase(w);     /// * remove ISR entry
         return;
     }
     int tic = 1 + (period > TIMER_WAIT ? (period - 1) / TIMER_WAIT : 0);
-    if (na) isr[w] = std::pair<int, int>(0, tic);
-    else    isr[w].second = tic;
-}
-
-void isr_serv(VM &vm) {
-    for (auto &[w, v] : isr) {
-        if (v.first < v.second) continue;
-		
-		vm.isr = true;
-		vm.rs.push(DU0);
-		vm.ip  = w;
-		nest(vm);
-		vm.isr = false;
-		v.first = 0;
-    }
+    if (na) _isr[w] = std::pair<int, int>(0, tic);
+    else    _isr[w].second = tic;
 }
 
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
@@ -87,7 +90,6 @@ VM& vm_get(int id) {
 }
 
 extern void add_du(DU v);          ///< add data unit to pmem
-extern void nest(VM &vm);          ///< Forth inner loop
 ///
 ///> VM messaging and IO control variables
 ///
