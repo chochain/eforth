@@ -159,7 +159,7 @@ void add_var(IU op, DU v=DU0) {     ///< add a varirable header
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
         pstr(" name?", CR); return 0;
-    }  
+    }
     if (find(name)) {               /// * word redefined?
         pstr(name); pstr(" reDef? ", CR);
     }
@@ -218,7 +218,7 @@ void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
     while (IP) {
         IU ix = IGET(IP);                            ///< fetched opcode, hopefully in register
-        VM_HDR(&vm, ":%4x", ix);
+//        VM_HDR(&vm, ":%4x", ix);
         IP += sizeof(IU);
         DISPATCH(ix) {                               /// * opcode dispatcher
         CASE(EXIT, UNNEST());
@@ -273,7 +273,7 @@ void nest(VM& vm) {
             }
             else Code::exec(vm, ix));               ///> execute built-in word
         }
-        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
+//        VM_TLR(&vm, " => SS=%d, RS=%d, IP=%x", SS.idx, RS.idx, IP);
     }
 }
 ///
@@ -493,7 +493,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0)); /// zero padding
     CODE("th",    IU i = POPI(); TOS += i * sizeof(DU));     /// w i -- w'
     /// @}
-#if DO_MULTITASK    
+#if DO_MULTITASK
     /// @defgroup Multitasking ops
     /// @}
     CODE("task",                                             /// w -- task_id
@@ -510,11 +510,11 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("bcast", vm.bcast(POPI()));                         /// ( v1 v2 .. vn -- )
     CODE("pull",  IU t = POPI(); vm.pull(t, POPI()));        /// ( tid n -- v1 v2 .. vn )
 #else
-    CODE("timer",   enable_timer(POPI()));                   /// ( f -- )
-    CODE("tmisr",   U32 n = POPI(); add_tmisr(n, POPI()));   /// ( token period -- )
-	CODE("isr",     isr_dump());
+    CODE("timer", enable_timer(POPI()));                     /// ( f -- )
+    CODE("tmisr", U32 n = POPI(); add_tmisr(n, POPI()));     /// ( token period -- )
+    CODE(".isr",  isr_dump());                               /// ( -- ) list all timer ISR
     /// @}
-#endif // DO_MULTITASK    
+#endif // DO_MULTITASK
     /// @defgroup Debug ops
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());       /// clear ss, rs
@@ -559,7 +559,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("ms",    delay(POPI()));
 #if DO_WASM
     CODE("JS",    native_api(vm));                          /// Javascript interface
-#else    
+#else
     CODE("bye",   vm.state=STOP);
 #endif // DO_WASM
     /// @}
@@ -674,12 +674,12 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                                     ///< get main thread
     fout_setup(hook);
     fin_setup(line);                                        /// * refresh buffer if not resuming
-    
+
     string idiom;
     while (fetch(idiom)) {                                  /// * parse a word
         forth_core(vm, idiom.c_str());                      /// * outer interpreter
     }
     if (!vm.compile) ss_dump(vm);
-    
+
     return vm.state==STOP;
 }
