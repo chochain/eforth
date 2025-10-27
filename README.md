@@ -372,6 +372,31 @@ What is the performance difference?
 
 I have created a git branch 'static' to compare to the 'master. The static version is about 10% slower on 64-bit machine and about 5% slower on 32-bits. This hasn't been carefully analyzed but my guess is because Code is big at 144-bytes on 64-bit. They might get pushed off L1 cache too often.
 
+### Big switch statement vs lambda pointers
+
+An array of lambdas vs the classic switch statement, i.e.
+```
+const Code dict[] {               ///< Forth dictionary
+    CODE("+",      TOS += SS.pop()),
+    CODE("-",      TOS =  SS.pop() - TOS),
+    CODE("*",      TOS *= SS.pop()),
+    CODE("/",      TOS =  SS.pop() / TOS),
+    ...
+```
+vs
+```
+    switch(opcode) {
+    case PLUS:     TOS += SS.pop();      break;
+    case MINUS:    TOS = SS.pop() - TOS; break;
+    case MULTIPLY: TOS *= SS.pop();      break;
+    case DIVIDE:   TOS = SS.pop() / TOS; break;
+    ...
+```
+Though syntax clarity is pretty much the same, lambda being function pointers takes an extra jump and the cost of stack-frame setup/teardown. It takes more space and about 15% slower in tight loops.
+However, with the advance of compilers,
+1. It is possible to prebuild lambda array as a ROM image or static library that can be transported.
+2. A tweak to CODE macro, i.g. adding NEXT, can potentially enable Tail Call Optimization (TCO) which eliminates the stack-frame overhead as did in many functional languages.
+
 ### Memory Consumption Consideration
 Though the use of C++ standard libraries helps us understanding what Forth does but, even on machines with GBs, we still need to be mindful of the followings. It gets expensive especially on MCUs.
 
