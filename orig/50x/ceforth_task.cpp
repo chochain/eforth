@@ -19,7 +19,7 @@ VM _vm0;                           ///< singleton, no VM pooling
 /// Timer interrupt
 ///
 std::thread      _timer;
-std::atomic<int> _running = 1;
+std::atomic<int> _quit    = 0;
 std::atomic<int> _ticking = 0;
 std::map<int, std::pair<std::atomic<int>, int>> _isr;
 
@@ -44,7 +44,7 @@ void _tick() {
 
 void t_pool_init() {
     _timer = std::thread([]() {
-        while(_running) {
+        while(!_quit) {
             delay(TIMER_WAIT);
             if (_ticking) _tick();
         }    
@@ -52,7 +52,7 @@ void t_pool_init() {
 }
 
 void t_pool_stop() {
-    _running = 0;
+    _quit = 1;
     _timer.join();
 }
 
