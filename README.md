@@ -382,10 +382,8 @@ const Code dict[] {               ///< Forth dictionary
     CODE("*",      TOS *= SS.pop()),
     CODE("/",      TOS =  SS.pop() / TOS),
     ...
-```
 vs
-```
-    switch(opcode) {
+    switch(opcode) {             ///< big switch statement
     case PLUS:     TOS += SS.pop();      break;
     case MINUS:    TOS = SS.pop() - TOS; break;
     case MULTIPLY: TOS *= SS.pop();      break;
@@ -394,8 +392,9 @@ vs
 ```
 Though syntax clarity is pretty much the same, lambda being function pointers takes an extra jump and the cost of stack-frame setup/teardown. It takes more space and about 15% slower in tight loops.
 However, with the advance of compilers,
-1. It is possible to prebuild lambda array as a ROM image or static library that can be transported.
-2. A tweak to CODE macro, i.g. adding NEXT, can potentially enable Tail Call Optimization (TCO) which eliminates the stack-frame overhead as did in many functional languages.
+1. It does not need a long enum definition, i.e. PLUS, MINUS, ..., which needs to be kept in-sync
+2. It is possible to prebuild lambda array as a ROM image or static library that can be transported.
+3. A tweak to CODE macro, i.g. adding NEXT, can potentially enable Tail Call Optimization (TCO) which eliminates the stack-frame overhead as did in many functional languages.
 
 ### Memory Consumption Consideration
 Though the use of C++ standard libraries helps us understanding what Forth does but, even on machines with GBs, we still need to be mindful of the followings. It gets expensive especially on MCUs.
