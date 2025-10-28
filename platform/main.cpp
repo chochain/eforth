@@ -5,6 +5,8 @@
 #include <iostream>      // cin, cout
 #include <fstream>       // ifstream
 #include <cstdint>
+#include <thread>
+#include <chrono>
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
@@ -64,11 +66,21 @@ void mem_stat() {
 ///
 ///> include external Forth script
 ///
+#define TIB_SZ 128
 void outer(istream &in) {
-    string cmd;                               ///< input command; TODO: static pool
-    while (getline(in, cmd)) {                ///> fetch user input
-        // printf("cmd=<%s>\n", cmd.c_str());
-        if (forth_vm(cmd.c_str())) break;     ///> run outer interpreter (single task)
+	char  cmd[TIB_SZ+1];
+	int   idx = 0;
+	while (1) {
+		if (in.peek() == '\0') continue;      ///> polling
+		
+		char c = in.get();
+		printf(".%c", c);
+		if (c == 0x8) --idx;
+		else          cmd[idx < TIB_SZ ? idx++ : idx] = c;
+		if (c != '\n' && c != '\r') continue;
+		
+		cmd[idx] = '\0';
+		if (forth_vm(cmd)) break;             ///> run outer interpreter (single task)
     }
 }
 void forth_include(const char *fn) {
