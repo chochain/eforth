@@ -11,6 +11,7 @@ extern void nest(VM &vm);          ///< Forth inner loop
 
 #if !DO_MULTITASK
 #include <atomic>
+#include <queue>
 #include <map>
 #define TIMER_WAIT 1000
 
@@ -21,25 +22,32 @@ VM _vm0;                           ///< singleton, no VM pooling
 std::thread      _timer;
 std::atomic<int> _quit    = 0;
 std::atomic<int> _ticking = 0;
+std::queue<int>  _que;
 std::map<int, std::pair<std::atomic<int>, int>> _isr;
 
 void isr_serv(VM &vm) {
-    for (auto &[w, v] : _isr) {
-        if (v.first < v.second) continue;
-        vm.isr = true;
+	if (_que.empty()) {
+		delay(1000);
+		return;
+	}
+	while (!_que.empty()) {
+		int w = _que.front(); _que.pop();
+		vm.isr = true;
         vm.rs.push(DU0);
         vm.ip = dict[w]->pfa;
         nest(vm);
-        vm.isr = false;
-        v.first = 0;
-    }
+		vm.isr = false;
+	}
 }
 
 void _tick() {
     for (auto &[w, v] : _isr) {
-        v.first += 1;
+		if (v.first < v.second) v.first += 1;
+		else {
+			_que.push(w);
+			v.first = 0;
+		}
     }
-    if (_vm0.ip == DU0) isr_serv(_vm0);
 }
 
 void t_pool_init() {
