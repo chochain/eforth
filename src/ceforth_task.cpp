@@ -9,7 +9,7 @@
 extern FV<Code*> dict;             ///< Forth dictionary
 
 #if !DO_MULTITASK
-#define TIMER_WAIT 1000
+#define TIMER_WAIT 100
 VM _vm0;                           ///< singleton, no VM pooling
 
 std::map<int, std::pair<std::atomic<int>, int>> isr;
@@ -30,8 +30,8 @@ void isr_serv(VM &vm) {
 
 void _tick() {
     for (auto &[token, v] : isr) {
-        if (v.first < v.second) v.first += 1;
-        else {
+        v.first += 1;
+        if (v.first >= v.second) {
             _que.push(token);
             v.first = 0;
         }
