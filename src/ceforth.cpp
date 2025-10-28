@@ -517,7 +517,7 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);               ///< main thread
     if (line==NULL) {
         ISR(vm);
-        delay(100);
+        delay(10);                    /// * wait 10ms, TODO: hardcoded!
         return 0;
     }
     fout_setup(hook);                 /// * init output stream
