@@ -3,6 +3,7 @@
 /// @brief eForth - multi-tasking support
 ///
 #include "ceforth.h"
+#include <queue>
 #include <map>
 
 extern FV<Code*> dict;             ///< Forth dictionary
@@ -11,34 +12,48 @@ extern FV<Code*> dict;             ///< Forth dictionary
 #define TIMER_WAIT 1000
 VM _vm0;                           ///< singleton, no VM pooling
 
-std::thread timer;
-std::atomic<int> running = true;
-std::atomic<int> ticking = false;
 std::map<int, std::pair<std::atomic<int>, int>> isr;
+
+std::thread      _timer;
+std::atomic<int> _quit    = false;
+std::atomic<int> _ticking = false;
+std::queue<int>  _que;
+
+void isr_serv(VM &vm) {
+	while (!_que.empty()) {
+		int token = _que.front(); _que.pop();
+		vm.isr = true;
+        dict[token]->nest(vm);
+		vm.isr = false;
+	}
+}
 
 void _tick() {
     for (auto &[token, v] : isr) {
-        v.first += 1;
+        if (v.first < v.second) v.first += 1;
+        else {
+            _que.push(token);
+            v.first = 0;
+        }
     }
 }
 
 void t_pool_init() {
-    timer = std::thread([]() {
-        while(running) {
+    _timer = std::thread([]() {
+        while(!_quit) {
             delay(TIMER_WAIT);
-            if (ticking) _tick();
-            if (_vm0.state == QUERY) isr_serv(_vm0);
+            if (_ticking) _tick();
         }    
     });
 }
 
 void t_pool_stop() {
-    running = false;
-    timer.join();
+    _quit = true;
+    _timer.join();
 }
 
 void enable_timer(int f) {
-    ticking = f;
+    _ticking = f;
 }
 
 void add_tmisr(int period, int token) {
@@ -48,20 +63,9 @@ void add_tmisr(int period, int token) {
         if (!na) isr.erase(token);
         return;
     }
-    int tic = 1 + (period > TIMER_WAIT ? (period - 1) / TIMER_WAIT : 0);
+    int tic = period > TIMER_WAIT ? period / TIMER_WAIT : 1;
     if (na) isr[token] = std::pair<int, int>(0, tic);
     else    isr[token].second = tic;
-}
-
-void isr_serv(VM &vm) {
-    for (auto &[token, v] : isr) {
-        if (v.first >= v.second) {
-            vm.isr = true;
-            dict[token]->nest(vm);
-            vm.isr = false;
-            v.first = 0;
-        }
-    }
 }
 
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
