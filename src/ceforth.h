@@ -68,9 +68,9 @@ struct ALIGNAS VM {
     IU       wp      = 0;          ///< word pointer
     
     U8       *base   = 0;          ///< numeric radix (a pointer)
+    vm_state state   = STOP;       ///< VM status
     bool     compile = false;      ///< compiler flag
     bool     isr     = false;      ///< interrupt servcing flag
-    std::atomic<vm_state> state = STOP;       ///< VM status
 
     string   pad;
 #if DO_MULTITASK
