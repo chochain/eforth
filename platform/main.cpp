@@ -13,7 +13,7 @@
 #include <conio.h>         // getchar
 #else // Linux || Cygwin
 #include <sys/sysinfo.h>   // memory info
-#include <termios.h>       // getchar
+#include <termios.h>       // tcgetattr
 #include <unistd.h>        // STDIN_FILENO
 #endif
 
@@ -70,48 +70,51 @@ void mem_stat() {
 ///
 #if _WIN32 || _WIN64
 #else
-char getc(int file_no) {                      ///< get one unbuffered char with timeout
+char qkey() {                                 ///< get one unbuffered char with timeout
 	struct termios t0, t1;
 
-	tcgetattr(file_no, &t0);                  /// * backup stdin attributes
+    fflush(stdout);                           /// * flush output buffer before wait
+	tcgetattr(STDIN_FILENO, &t0);             /// * backup stdin attributes
 	t1 = t0;
 	t1.c_lflag &= ~(ICANON | ECHO);           /// * non-buffered, and echo
-    t1.c_cc[VMIN]  = 0;                       /// * no waiting
-    t1.c_cc[VTIME] = 1;                       /// * timeout on 0.1 second (returns '\0')
-	tcsetattr(file_no, TCSANOW, &t1);         /// * set to non-buffered
+    t1.c_cc[VMIN]  = 0;                       /// * capture 0 or more char
+    t1.c_cc[VTIME] = 0;                       /// * 0: no wait, 1:timeout on 0.1 second (returns '\0')
+	tcsetattr(STDIN_FILENO, TCSANOW, &t1);    /// * set to non-buffered
     
 	char ch;
-    int n = read(file_no, &ch, 1);            /// * fetch one char from given input file
+    int n = read(STDIN_FILENO, &ch, 1);       /// * fetch one char from given input file
     
-	tcsetattr(file_no, TCSANOW, &t0);         /// * restore stdin attributes
+	tcsetattr(STDIN_FILENO, TCSANOW, &t0);    /// * restore stdin attributes
 
-	return n ? ch: '\0';
+	return n ? ch : '\0';
 }
 #endif
 
 #define TIB_SZ 128                            /// * 128-byte line buffer
-void outer(int file_no) {
-	char  cmd[TIB_SZ+1];
-	int   idx  = 0;
-    int   done = 0;
+void outer(FILE *fp) {
+	char cmd[TIB_SZ+1];
+	int  idx  = 0;
+    int  done = 0;
 	while (!done) {
-        char c = getc(file_no);
+        char c = (fp==stdin)                  ///< ?key or stream from file
+            ? qkey() : fgetc(fp);  
+//        fprintf(stderr, ".%c%x", c, c);
         switch (c) {
         case '\0':
-            forth_vm("clock . cr 1000 ms");                   /// * handle timer interrupt
+            forth_vm(NULL);                   /// * handle timer interrupt
+            if (feof(fp)) {
+                fprintf(stderr, ".EOF");
+                done = 1;
+            }
             break;
-        case 0x8: --idx; break;               /// * backspace
+        case 0x8: --idx;    break;            /// * backspace
+        case EOF: done = 1; break;            /// * done with input file
         case '\n': case '\r':
             cmd[idx] = '\0';
-            done = forth_vm(cmd);             ///> run outer interpreter (single task)
+            done = forth_vm(cmd);
             idx  = 0;
             break;
-        case EOF: 
-            printf(".EOF");
-            done = 1;
-            break;
         default:                              /// * capture input char
-            printf(".%c", c);
             cmd[idx < TIB_SZ ? idx++ : idx] = c;
             break;
         }
@@ -121,7 +124,7 @@ void outer(int file_no) {
 void forth_include(const char *fn) {
     FILE *fp = fopen(fn, "r");
     
-    if (fp) outer(fp->_fileno);
+    if (fp) outer(fp);
     else    fprintf(stderr, "failed to open file %s\n", fn);
     
     fclose(fp);
@@ -132,12 +135,14 @@ void forth_include(const char *fn) {
 ///
 #include <cstdlib>                            /// srand
 #include <ctime>                              /// time
+#include <iostream>
 int main(int ac, char* av[]) {
+    std::ios_base::sync_with_stdio(true);
     forth_init();                             ///> initialize dictionary
     
     mem_stat();                               ///> show memory status
     srand((int)time(0));                      ///> seed random generator
-    outer(STDIN_FILENO);                      ///> Forth outer interpreter
+    outer(stdin);                             ///> Forth outer interpreter
     
     forth_teardown();                         ///> clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
