@@ -317,7 +317,7 @@ const Code rom[] {               ///< Forth dictionary
 #else
     CODE("timer",   enable_timer(POPI())),                      /// ( f -- )
     CODE("tmisr",   U32 n = POPI(); add_tmisr(n, POPI())),      /// ( token period -- )
-    CODE("isr",     isr_dump()),
+    CODE(".isr",    isr_dump()),
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
     /// @{
@@ -379,7 +379,7 @@ void Code::nest(VM &vm) {
     for (int i=0; i < (int)pf.size(); i++) {
         try         { pf[i]->nest(vm); } /// * execute recursively
         catch (...) { break; }           /// * catch UNNEST
-        printf("%-3x => RS=%d, SS=%d %s\n", i, (int)vm.rs.size(), (int)vm.ss.size(), pf[i]->name);
+        // printf("%-3x => RS=%d, SS=%d %s\n", i, (int)vm.rs.size(), (int)vm.ss.size(), pf[i]->name);
     }
 }
 ///====================================================================
@@ -405,8 +405,8 @@ void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
         if (b==1)             continue;        /// * ..again
         if (b==2 && POP()==0) break;           /// * ..while..repeat
         NEST(((Bran&)c).p1);
-        ISR(vm);
     }
+    ISR(vm);
 }
 void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
     int b = c.stage;                           /// * kept in register
@@ -418,22 +418,22 @@ void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
             NEST(((Bran&)c).p2);               /// * then..next
             if ((RS[-1]-=1) < 0) break;        /// * decrement counter
             NEST(((Bran&)c).p1);               /// * aft..then
-            ISR(vm);
         }
     }
     catch (...) { /* exit, leave */ }          /// handle EXIT, LEAVE
     RS.pop();
+    ISR(vm);
 }
 void _loop(VM &vm, Code &c) {                  ///> do..loop
     try {
         DU m = RS.pop();
         do {
             NEST(c.pf);
-            ISR(vm);
         } while ((RS[-1]+=1) < m);             /// increment counter
     }
     catch (...) {}                             /// handle LEAVE
     RS.pop();                                  /// pop off indicies
+    ISR(vm);
 }
 void _does(VM &vm, Code &c) {
     bool hit = false;
@@ -515,6 +515,11 @@ void forth_teardown() {
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);               ///< main thread
+    if (line==NULL) {
+        ISR(vm);
+        delay(100);
+        return 0;
+    }
     fout_setup(hook);                 /// * init output stream
     fin_setup(line);                  /// * refresh buffer if not resuming
 
