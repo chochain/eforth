@@ -230,6 +230,7 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 void enable_timer(int f);                 ///< 1:enable, 0:disable timer
 void add_tmisr(int period, int w);        ///< add dict[w] as ISR
 void isr_dump();                          ///< dump ISR list
+void isr_serv(VM &vm);
 #endif // DO_MULTITASK
 ///@}
 ///@name System interface
