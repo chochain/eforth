@@ -672,6 +672,11 @@ void forth_teardown() {
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                                     ///< get main thread
+    if (line==NULL) {
+        isr_serv(vm);
+        delay(100);
+        return 0;
+    }
     fout_setup(hook);
     fin_setup(line);                                        /// * refresh buffer if not resuming
 
