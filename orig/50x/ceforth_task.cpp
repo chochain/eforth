@@ -26,10 +26,6 @@ std::queue<int>  _que;
 std::map<int, std::pair<std::atomic<int>, int>> _isr;
 
 void isr_serv(VM &vm) {
-	if (_que.empty()) {
-		delay(1000);
-		return;
-	}
 	while (!_que.empty()) {
 		int w = _que.front(); _que.pop();
 		vm.isr = true;
@@ -74,7 +70,7 @@ void add_tmisr(int period, int w) {
         if (!na) _isr.erase(w);     /// * remove ISR entry
         return;
     }
-    int tic = 1 + (period > TIMER_WAIT ? (period - 1) / TIMER_WAIT : 0);
+    int tic = period > TIMER_WAIT ? period / TIMER_WAIT : 1;
     if (na) _isr[w] = std::pair<int, int>(0, tic);
     else    _isr[w].second = tic;
 }
