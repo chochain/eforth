@@ -213,6 +213,7 @@ void s_quote(VM &vm, prim_op op) {
 #define CASE(op, g)  case op : { g; } break
 #define OTHER(g)     default : { g; } break
 #define UNNEST()     (IP=UINT(RS.pop()))
+#define ISR(vm)      if (!vm.isr) isr_serv(vm)
 
 void nest(VM& vm) {
     vm.state = NEST;                                 /// * activate VM
@@ -230,6 +231,7 @@ void nest(VM& vm) {
              else {                                  /// * yes, loop done!
                  RS.pop();                           /// * pop off loop counter
                  IP += sizeof(IU);                   /// * next instr.
+                 ISR(vm);
              });
         CASE(LOOP,
              if (GT(RS[-2], RS[-1] += DU1)) {        ///> loop done?
@@ -238,6 +240,7 @@ void nest(VM& vm) {
              else {                                  /// * yes, done
                  RS.pop(); RS.pop();                 /// * pop off counters
                  IP += sizeof(IU);                   /// * next instr.
+                 ISR(vm);
              });
         CASE(LIT,
              SS.push(TOS);
@@ -673,8 +676,8 @@ void forth_teardown() {
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                                     ///< get main thread
     if (line==NULL) {
-        isr_serv(vm);
-        delay(100);
+        isr_serv(vm);                                       /// * service interrupt when input idling
+        delay(10);                                          /// * wait 10ms, TODO: hardcoded
         return 0;
     }
     fout_setup(hook);

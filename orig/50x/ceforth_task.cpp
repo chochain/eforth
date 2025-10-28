@@ -13,7 +13,7 @@ extern void nest(VM &vm);          ///< Forth inner loop
 #include <atomic>
 #include <queue>
 #include <map>
-#define TIMER_WAIT 1000
+#define TIMER_WAIT 100
 
 VM _vm0;                           ///< singleton, no VM pooling
 ///
@@ -38,8 +38,8 @@ void isr_serv(VM &vm) {
 
 void _tick() {
     for (auto &[w, v] : _isr) {
-		if (v.first < v.second) v.first += 1;
-		else {
+        v.first += 1;
+		if (v.first >= v.second) {
 			_que.push(w);
 			v.first = 0;
 		}
