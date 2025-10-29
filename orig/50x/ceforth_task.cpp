@@ -15,11 +15,11 @@ VM _vm0;                           ///< singleton, no VM pooling
 #include <atomic>
 #include <queue>
 #include <map>
-#define TIMER_WAIT 100
+#define TIMER_WAIT 10               /** timer wakes every 10ms */
 ///
 /// Timer interrupt
 ///
-std::map<int, std::pair<std::atomic<int>, int>> isr;
+std::map<IU, std::pair<std::atomic<U32>, U32>> isr;
 
 std::thread      _timer;
 std::atomic<int> _quit    = 0;
@@ -39,20 +39,20 @@ void isr_serv(VM &vm) {
 }
 
 void _tick() {
+    auto t = millis();
     for (auto &[w, v] : isr) {
-        v.first += 1;
-		if (v.first >= v.second) {
-			_que.push(w);
-			v.first = 0;
-		}
+        if (v.first < t) {
+            _que.push(w);
+            v.first += v.second;
+        }
     }
 }
 
 void t_pool_init() {
     _timer = std::thread([]() {
         while(!_quit) {
-            delay(TIMER_WAIT);
             if (_ticking) _tick();
+            delay(TIMER_WAIT);
         }    
     });
 }
@@ -63,6 +63,10 @@ void t_pool_stop() {
 }
 
 void enable_timer(int f) {
+    auto t = millis();
+    for (auto &[w, v] : isr) {
+        v.first = t + v.second;
+    }
     _ticking = f;
 }
 
@@ -72,9 +76,8 @@ void add_tmisr(int period, int w) {
         if (!na) isr.erase(w);     /// * remove ISR entry
         return;
     }
-    int tic = period > TIMER_WAIT ? period / TIMER_WAIT : 1;
-    if (na) isr[w] = std::pair<int, int>(0, tic);
-    else    isr[w].second = tic;
+    if (na) isr[w] = std::pair<U32, U32>(0, period);
+    else    isr[w].second = period;
 }
 #else  // !SIM_TIMER_INTR
 void t_pool_init()    {}

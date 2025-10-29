@@ -7,14 +7,15 @@
 extern FV<Code*> dict;             ///< Forth dictionary
 
 #if !DO_MULTITASK
-#define TIMER_WAIT 100
 VM _vm0;                           ///< singleton, no VM pooling
 
 #if SIM_TIMER_INTR
+#include <atomic>
 #include <queue>
 #include <map>
+#define TIMER_WAIT 10              /** timer wakes every 10ms */
 
-std::map<int, std::pair<std::atomic<int>, int>> isr;
+std::map<IU, std::pair<std::atomic<U32>, U32>> isr;
 
 std::thread      _timer;
 std::atomic<int> _quit    = false;
@@ -32,11 +33,11 @@ void isr_serv(VM &vm) {
 }
 
 void _tick() {
+    auto t = millis();
     for (auto &[token, v] : isr) {
-        v.first += 1;
-        if (v.first >= v.second) {
+        if (v.first < t) {
             _que.push(token);
-            v.first = 0;
+            v.first += v.second;
         }
     }
 }
@@ -56,6 +57,10 @@ void t_pool_stop() {
 }
 
 void enable_timer(int f) {
+    auto t = millis();
+    for (auto &[w, v] : isr) {
+        v.first = t + v.second;
+    }
     _ticking = f;
 }
 
@@ -66,9 +71,8 @@ void add_tmisr(int period, int token) {
         if (!na) isr.erase(token);
         return;
     }
-    int tic = period > TIMER_WAIT ? period / TIMER_WAIT : 1;
-    if (na) isr[token] = std::pair<int, int>(0, tic);
-    else    isr[token].second = tic;
+    if (na) isr[token] = std::pair<U32, U32>(0, period);
+    else    isr[token].second = period;
 }
 #else  // !SIM_TIMER_INTR
 void t_pool_init() {}
