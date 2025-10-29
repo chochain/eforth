@@ -45,7 +45,7 @@ void mem_stat() {
 		U64 t = (U64)si.ullTotalPhys;         /// * total physical memory
         fprintf(stdout,
                 ", RAM %d%% free (%ld / %ld MB)",
-                100 - p, f >> 20, t >> 20)
+                100 - p, static_cast<long>(f >> 20), static_cast<long>(t >> 20))
     }
 	else fprintf(stderr, "ERR: Windows memory status fetch failed!");
 #else // Linux, Cygwin
@@ -56,7 +56,8 @@ void mem_stat() {
       U64 p = f * 1000L / t;
       fprintf(stdout, 
               ", RAM %.1f%% free (%ld / %ld MB)",
-              static_cast<float>(p * 0.1), f >> 20, t >> 20);
+              static_cast<float>(p * 0.1),
+			  static_cast<long>(f >> 20), static_cast<long>(t >> 20));
     }
 #endif
     
@@ -71,7 +72,7 @@ char qkey() {
     return _kbhit() ? _getch() : '\0';
 }
 
-#else
+#else // _WIN32 || _WIN64
 #include <termios.h>       // tcgetattr
 #include <unistd.h>        // STDIN_FILENO
 
@@ -93,7 +94,7 @@ char qkey() {                                 ///< get one unbuffered char with 
 
 	return n ? c : '\0';
 }
-#endif
+#endif // _WIN32 || _WIN64
 
 #define TIB_SZ 128                            /// * 128-byte line buffer
 void outer(FILE *fp) {
@@ -107,10 +108,6 @@ void outer(FILE *fp) {
         switch (c) {
         case '\0':
             forth_vm(NULL);                   /// * handle timer interrupt
-            if (feof(fp)) {
-                fprintf(stderr, ".EOF");
-                done = 1;
-            }
             break;
         case 0x8: --idx;    break;            /// * backspace
         case EOF: done = 1; break;            /// * done with input file
