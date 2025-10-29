@@ -204,12 +204,14 @@ void t_pool_stop();
 #if DO_MULTITASK
 int  task_create(IU w);                   ///< create a VM starting on dict[w]
 void task_start(int tid);                 ///< start a thread with given task/VM id
-#else  // !DO_MULTITASK
+#endif // DO_MULTITASK
+
+#if SIM_TIMER_INTR
 void enable_timer(int enable);
 void add_tmisr(int period, int token);
 void isr_serv(VM &vm);
 void isr_dump();
-#endif // !DO_MULTITASK
+#endif // SIM_TIMER_INTR
 ///
 ///> System interface
 ///
