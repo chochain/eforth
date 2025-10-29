@@ -241,13 +241,13 @@ void mem_dump(IU w0, IU n, int base) {           ///> ' xx 1 dump
 }
 
 #if SIM_TIMER_INTR
+#include <atomic>
 #include <map>
-extern std::map<int, std::pair<std::atomic<int>, int>> isr;
+extern std::map<IU, std::pair<std::atomic<U32>, U32>> isr;
 void isr_dump() {
     for (auto &[token, v] : isr) {
         fout << "[" << token << "] " << dict[token]->name
-             << " cnt=" <<  v.first
-             << " max=" << v.second << ENDL;
+             << " period= " << v.second << "ms" << ENDL;
     }
 }
 #endif // SIM_TIMER_INTR
