@@ -9,7 +9,6 @@
 #include <iomanip>                     /// setbase
 #include <vector>                      /// vector
 #include <chrono>
-#include <atomic>
 #include "config.h"
 
 using namespace std;
