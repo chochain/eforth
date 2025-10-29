@@ -387,12 +387,6 @@ void Code::nest(VM &vm) {
 ///
 ///> Primitive Functions
 ///
-#if SIM_TIMER_INTR
-#define ISR(vm)  if (!vm.isr) isr_serv(vm)
-#else  // !SIM_TIMER_INTR
-#define ISR(vm)
-#endif // SIM_TIMER_INTR
-
 void _str(VM &vm, Code &c)  {
     if (!c.token) pstr(c.name);
     else { PUSH(c.token); PUSH(strlen(c.name)); }
@@ -411,7 +405,7 @@ void _begin(VM &vm, Code &c){    ///> begin.while.repeat, begin.until
         if (b==2 && POP()==0) break;           /// * ..while..repeat
         NEST(((Bran&)c).p1);
     }
-    ISR(vm);
+    isr_serv(vm);
 }
 void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
     int b = c.stage;                           /// * kept in register
@@ -427,7 +421,7 @@ void _for(VM &vm, Code &c) {     ///> for..next, for..aft..then..next
     }
     catch (...) { /* exit, leave */ }          /// handle EXIT, LEAVE
     RS.pop();
-    ISR(vm);
+    isr_serv(vm);
 }
 void _loop(VM &vm, Code &c) {                  ///> do..loop
     try {
@@ -438,7 +432,7 @@ void _loop(VM &vm, Code &c) {                  ///> do..loop
     }
     catch (...) {}                             /// handle LEAVE
     RS.pop();                                  /// pop off indicies
-    ISR(vm);
+    isr_serv(vm);
 }
 void _does(VM &vm, Code &c) {
     bool hit = false;
@@ -521,7 +515,7 @@ void forth_teardown() {
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);               ///< main thread
     if (line==NULL) {
-        ISR(vm);
+        isr_serv(vm);
         delay(10);                    /// * wait 10ms, TODO: hardcoded!
         return 0;
     }
