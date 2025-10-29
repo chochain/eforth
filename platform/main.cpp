@@ -10,11 +10,8 @@
 #elif _WIN32 || _WIN64
 #include <windows.h>
 #include <string>
-#include <conio.h>         // getchar
 #else // Linux || Cygwin
 #include <sys/sysinfo.h>   // memory info
-#include <termios.h>       // tcgetattr
-#include <unistd.h>        // STDIN_FILENO
 #endif
 
 using namespace std;
@@ -58,18 +55,26 @@ void mem_stat() {
       U64 t = (U64)si.totalram * si.mem_unit;
       U64 p = f * 1000L / t;
       fprintf(stdout, 
-              ", RAM %3.1f%% free (%ld / %ld MB)",
+              ", RAM %.1f%% free (%ld / %ld MB)",
               static_cast<float>(p * 0.1), f >> 20, t >> 20);
     }
 #endif
-
+    
     fprintf(stdout, "\n");
 }
 ///
 ///> include external Forth script
 ///
 #if _WIN32 || _WIN64
+#include <conio.h>         // getchar
+char qkey() {
+    return _kbhit() ? _getch() : '\0';
+}
+
 #else
+#include <termios.h>       // tcgetattr
+#include <unistd.h>        // STDIN_FILENO
+
 char qkey() {                                 ///< get one unbuffered char with timeout
 	struct termios t0, t1;
 
@@ -81,12 +86,12 @@ char qkey() {                                 ///< get one unbuffered char with 
     t1.c_cc[VTIME] = 0;                       /// * 0: no wait, 1:timeout on 0.1 second (returns '\0')
 	tcsetattr(STDIN_FILENO, TCSANOW, &t1);    /// * set to non-buffered
     
-	char ch;
-    int n = read(STDIN_FILENO, &ch, 1);       /// * fetch one char from given input file
+	char c;
+    int n = read(STDIN_FILENO, &c, 1);        /// * fetch one char from given input file
     
 	tcsetattr(STDIN_FILENO, TCSANOW, &t0);    /// * restore stdin attributes
 
-	return n ? ch : '\0';
+	return n ? c : '\0';
 }
 #endif
 
@@ -137,7 +142,7 @@ void forth_include(const char *fn) {
 #include <ctime>                              /// time
 #include <iostream>
 int main(int ac, char* av[]) {
-    std::ios_base::sync_with_stdio(true);
+    std::ios_base::sync_with_stdio(true);     /// * sync C++ iostream with C stdio
     forth_init();                             ///> initialize dictionary
     
     mem_stat();                               ///> show memory status
