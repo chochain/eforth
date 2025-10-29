@@ -22,7 +22,8 @@ std::atomic<int> _ticking = false;
 std::queue<int>  _que;
 
 void isr_serv(VM &vm) {
-	while (!_que.empty()) {
+	if (vm.isr) return;           ///< no recursive interrupt
+	while (!_que.empty()) { 
 		int token = _que.front(); _que.pop();
 		vm.isr = true;
         dict[token]->nest(vm);
@@ -69,7 +70,7 @@ void add_tmisr(int period, int token) {
     if (na) isr[token] = std::pair<int, int>(0, tic);
     else    isr[token].second = tic;
 }
-#else  // SIM_TIMER_INTR
+#else  // !SIM_TIMER_INTR
 void t_pool_init() {}
 void t_pool_stop() {}
 #endif // SIM_TIMER_INTR
