@@ -209,8 +209,10 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 #if SIM_TIMER_INTR
 void enable_timer(int enable);
 void add_tmisr(int period, int token);
-void isr_serv(VM &vm);
 void isr_dump();
+void isr_serv(VM &vm);
+#else  // !SIM_TIMER_INTR
+#define isr_serv(vm)
 #endif // SIM_TIMER_INTR
 ///
 ///> System interface

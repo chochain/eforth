@@ -226,12 +226,15 @@ void t_pool_stop();                       ///< stop thread pool
 #if DO_MULTITASK
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a thread with given task/VM id
-#else
+#endif  // DO_MULTITASK
+#if SIM_TIMER_INTR
 void enable_timer(int f);                 ///< 1:enable, 0:disable timer
 void add_tmisr(int period, int w);        ///< add dict[w] as ISR
 void isr_dump();                          ///< dump ISR list
 void isr_serv(VM &vm);
-#endif // DO_MULTITASK
+#else  // !SIM_TIMER_INTR
+#define isr_serv(vm)
+#endif // SIM_TIMER_INTR
 ///@}
 ///@name System interface
 ///@{
