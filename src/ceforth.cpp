@@ -314,11 +314,12 @@ const Code rom[] {               ///< Forth dictionary
     CODE("bcast",   vm.bcast(POPI())),                          /// ( v1 v2 .. vn -- )
     CODE("pull",    IU t = POPI(); vm.pull(t, POPI())),         /// ( tid n -- v1 v2 .. vn )
     /// @}
-#else
+#endif // DO_MULTITASK
+#if SIM_TIMER_INTR
     CODE("timer",   enable_timer(POPI())),                      /// ( f -- )
     CODE("tmisr",   U32 n = POPI(); add_tmisr(n, POPI())),      /// ( token period -- )
     CODE(".isr",    isr_dump()),
-#endif // DO_MULTITASK    
+#endif // SIM_TIMER_INTR
     /// @defgroup Debug ops
     /// @{
     CODE("abort",   TOS = -DU1; SS.clear(); RS.clear()),        /// clear ss, rs
@@ -386,7 +387,11 @@ void Code::nest(VM &vm) {
 ///
 ///> Primitive Functions
 ///
+#if SIM_TIMER_INTR
 #define ISR(vm)  if (!vm.isr) isr_serv(vm)
+#else  // !SIM_TIMER_INTR
+#define ISR(vm)
+#endif // SIM_TIMER_INTR
 
 void _str(VM &vm, Code &c)  {
     if (!c.token) pstr(c.name);

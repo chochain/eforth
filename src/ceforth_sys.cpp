@@ -240,6 +240,7 @@ void mem_dump(IU w0, IU n, int base) {           ///> ' xx 1 dump
     fout << setbase(base) << setfill(' ');
 }
 
+#if SIM_TIMER_INTR
 #include <map>
 extern std::map<int, std::pair<std::atomic<int>, int>> isr;
 void isr_dump() {
@@ -249,4 +250,5 @@ void isr_dump() {
              << " max=" << v.second << ENDL;
     }
 }
+#endif // SIM_TIMER_INTR
 ///====================================================================

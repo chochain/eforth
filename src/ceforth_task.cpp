@@ -3,14 +3,16 @@
 /// @brief eForth - multi-tasking support
 ///
 #include "ceforth.h"
-#include <queue>
-#include <map>
 
 extern FV<Code*> dict;             ///< Forth dictionary
 
 #if !DO_MULTITASK
 #define TIMER_WAIT 100
 VM _vm0;                           ///< singleton, no VM pooling
+
+#if SIM_TIMER_INTR
+#include <queue>
+#include <map>
 
 std::map<int, std::pair<std::atomic<int>, int>> isr;
 
@@ -67,6 +69,10 @@ void add_tmisr(int period, int token) {
     if (na) isr[token] = std::pair<int, int>(0, tic);
     else    isr[token].second = tic;
 }
+#else  // SIM_TIMER_INTR
+void t_pool_init() {}
+void t_pool_stop() {}
+#endif // SIM_TIMER_INTR
 
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
 void uvar_init() {

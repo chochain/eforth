@@ -12,6 +12,7 @@
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 #define DO_MULTITASK    0               /**< multitasking/pthread   */
 #define E4_VM_POOL_SZ   8               /**< # of threads in pool   */
+#define SIM_TIMER_INTR  !DO_MULTITASK   /**< fake timer interrupt   */
 //@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
