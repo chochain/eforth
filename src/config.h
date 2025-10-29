@@ -10,7 +10,7 @@
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
-#define DO_MULTITASK    1               /**< multitasking/pthread   */
+#define DO_MULTITASK    0               /**< multitasking/pthread   */
 #define E4_VM_POOL_SZ   8               /**< # of threads in pool   */
 #define SIM_TIMER_INTR  (!DO_MULTITASK) /**< fake timer interrupt   */
 //@}
@@ -81,7 +81,7 @@ typedef int32_t         DU;
 #define ALIGN(sz)       ALIGN2(sz)
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
-#define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
+#define STRLEN(s)       (ALIGN((int)strlen(s)+1))  /** calculate string size with alignment */
 #define CALLBACK        fout_cb((int)fout.str().length(), fout.str().c_str()); fout.str("")
 #define FLUSH           flush; CALLBACK
 #define ENDL            endl; CALLBACK
