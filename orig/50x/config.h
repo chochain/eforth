@@ -11,7 +11,7 @@
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    0               /**< multitasking/pthread   */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
-#define SIM_TIMER_INTR  1               /**< fake timer interrupt   */
+#define SIM_TIMER_INTR  (!DO_MULTITASK) /**< fake timer interrupt   */
 ///@}
 ///@name Memory block configuation
 ///@{
@@ -132,7 +132,7 @@ typedef int32_t         DU;
 #else  // !(ARDUINO || ESP32)
     #define LOGS(s)     printf("%s", s)
     #define LOG(v)      printf("%-ld", static_cast<long>(v))
-    #define LOGX(v)     printf("%-lx", static_cast<unsiged long>(v))
+    #define LOGX(v)     printf("%-lx", static_cast<long>(v))
 #endif // (ARDUINO || ESP32)
     
 #define LOG_NA()        LOGS("N/A\n")

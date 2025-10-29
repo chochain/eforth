@@ -10,9 +10,9 @@
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
-#define DO_MULTITASK    0               /**< multitasking/pthread   */
+#define DO_MULTITASK    1               /**< multitasking/pthread   */
 #define E4_VM_POOL_SZ   8               /**< # of threads in pool   */
-#define SIM_TIMER_INTR  !DO_MULTITASK   /**< fake timer interrupt   */
+#define SIM_TIMER_INTR  (!DO_MULTITASK) /**< fake timer interrupt   */
 //@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
@@ -124,8 +124,8 @@ typedef int32_t         DU;
     #define LOGX(v)     Serial.print(v, HEX)
 #else  // !(ARDUINO || ESP32)
     #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-ld", (int64_t)(v))
-    #define LOGX(v)     printf("%-lx", (uint64_t)(v))
+    #define LOG(v)      printf("%-ld", static_cast<long>(v))
+    #define LOGX(v)     printf("%-lx", static_cast<long>(v))
 #endif // (ARDUINO || ESP32)
     
 #define LOG_NA()        LOGS("N/A\n")
