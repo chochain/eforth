@@ -72,7 +72,7 @@ char qkey() {
     char c = _kbhit() ? _getche() : '\0';
     switch (c) {
     case 0x8:
-    case 0xff: putchar(' ');  putchar(c); break;
+    case 0x7f: putchar(' ');  putchar(c); break;
     case '\r': putchar('\n'); break;
     }
     return c;
@@ -116,7 +116,7 @@ void outer(FILE *fp) {
             forth_vm(NULL);                   /// * handle timer interrupt
             break;
         case 0x8:                             /// * backspace
-        case 0xff: --idx;   break;            /// * erase
+        case 0x7f: --idx;   break;            /// * erase
         case EOF: done = 1; break;            /// * done with input file
         case '\n': case '\r':
             cmd[idx] = '\0';
