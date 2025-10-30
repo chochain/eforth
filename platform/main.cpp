@@ -107,10 +107,10 @@ void outer(FILE *fp) {
     char cmd[TIB_SZ+1];
     int  idx  = 0;
     int  done = 0;
+    int  term = fp==stdin;                    ///< input from terminal
     while (!done) {
-        char c = (fp==stdin)                  ///< ?key or stream from file
-            ? qkey() : fgetc(fp);
-//        fprintf(stderr, ".%c%x", c, c);
+        char c = term ? qkey() : fgetc(fp);   ///< ?key or stream from file
+        //        fprintf(stderr, ".%c%x", c, c);
         switch (c) {
         case '\0':
             forth_vm(NULL);                   /// * handle timer interrupt
@@ -120,6 +120,7 @@ void outer(FILE *fp) {
         case EOF: done = 1; break;            /// * done with input file
         case '\n': case '\r':
             cmd[idx] = '\0';
+//            if (!term) fprintf(stdout, "%s\n", cmd);
             done = forth_vm(cmd);
             idx  = 0;
             break;
