@@ -102,15 +102,17 @@ char qkey() {                                 ///< get one unbuffered char with 
 }
 #endif // _WIN32 || _WIN64
 
-#define TIB_SZ 128                            /// * 128-byte line buffer
-void outer(FILE *fp) {
 #if __ANDROID__
+#include <iostream>
+void outer(FILE *fp) {
     string cmd;                               ///< input command; TODO: static pool
     while (getline(in, cmd)) {                ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
         if (forth_vm(cmd.c_str())) break;     ///> run outer interpreter (single task)
     }
-#else  // !__ANDROID__
+#else  // !__ANDROID__    
+#define TIB_SZ 128                            /// * 128-byte line buffer
+void outer(FILE *fp) {
     char cmd[TIB_SZ+1];
     int  idx  = 0;
     int  done = 0;
@@ -136,8 +138,8 @@ void outer(FILE *fp) {
             break;
         }
     }
-#endif // __ANDROID__
 }
+#endif // __ANDROID__
 
 void forth_include(const char *fn) {
     FILE *fp = fopen(fn, "r");
