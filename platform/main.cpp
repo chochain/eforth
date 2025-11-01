@@ -104,12 +104,16 @@ char qkey() {                                 ///< get one unbuffered char with 
 
 #if __ANDROID__
 #include <iostream>
-void outer(FILE *fp) {
+void outer(istream &in) {
     string cmd;                               ///< input command; TODO: static pool
     while (getline(in, cmd)) {                ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
         if (forth_vm(cmd.c_str())) break;     ///> run outer interpreter (single task)
     }
+}
+
+void forth_include(const char *fn) {}
+
 #else  // !__ANDROID__    
 #define TIB_SZ 128                            /// * 128-byte line buffer
 void outer(FILE *fp) {
@@ -139,7 +143,6 @@ void outer(FILE *fp) {
         }
     }
 }
-#endif // __ANDROID__
 
 void forth_include(const char *fn) {
     FILE *fp = fopen(fn, "r");
@@ -149,6 +152,8 @@ void forth_include(const char *fn) {
 
     fclose(fp);
 }
+#endif // __ANDROID__
+
 ///====================================================================
 ///
 /// main program - Note: Arduino and ESP32 have their own main-loop
@@ -162,7 +167,12 @@ int main(int ac, char* av[]) {
 
     mem_stat();                               ///> show memory status
     srand((int)time(0));                      ///> seed random generator
+
+#if __ANDROID__
+	outer(cin);
+#else 
     outer(stdin);                             ///> Forth outer interpreter
+#endif
 
     forth_teardown();                         ///> clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
