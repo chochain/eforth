@@ -12,6 +12,8 @@
 #include <string>
 #else // Linux || Cygwin
 #include <sys/sysinfo.h>   // memory info
+#include <iostream>
+#include <fstream>
 #endif
 
 using namespace std;
@@ -103,7 +105,10 @@ char qkey() {                                 ///< get one unbuffered char with 
 #endif // _WIN32 || _WIN64
 
 #if __ANDROID__
+<<<<<<< HEAD
 #include <iostream>
+=======
+>>>>>>> 8543152 (~/platform/main.cpp try support Android (BS does not work))
 void outer(istream &in) {
     string cmd;                               ///< input command; TODO: static pool
     while (getline(in, cmd)) {                ///> fetch user input
@@ -112,7 +117,17 @@ void outer(istream &in) {
     }
 }
 
+<<<<<<< HEAD
 void forth_include(const char *fn) {}
+=======
+void forth_include(const char *fn) {
+    ifstream ifile(fn);                       ///< open input stream
+    if (ifile.is_open()) {
+        outer(ifile);
+    }
+    ifile.close();
+}
+>>>>>>> 8543152 (~/platform/main.cpp try support Android (BS does not work))
 
 #else  // !__ANDROID__    
 #define TIB_SZ 128                            /// * 128-byte line buffer
@@ -169,10 +184,10 @@ int main(int ac, char* av[]) {
     srand((int)time(0));                      ///> seed random generator
 
 #if __ANDROID__
-	outer(cin);
-#else 
+    outer(cin);
+#else // !__ANDROID__
     outer(stdin);                             ///> Forth outer interpreter
-#endif
+#endif // __ANDROID__    
 
     forth_teardown();                         ///> clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
