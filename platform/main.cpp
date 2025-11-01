@@ -105,10 +105,6 @@ char qkey() {                                 ///< get one unbuffered char with 
 #endif // _WIN32 || _WIN64
 
 #if __ANDROID__
-<<<<<<< HEAD
-#include <iostream>
-=======
->>>>>>> 8543152 (~/platform/main.cpp try support Android (BS does not work))
 void outer(istream &in) {
     string cmd;                               ///< input command; TODO: static pool
     while (getline(in, cmd)) {                ///> fetch user input
@@ -117,17 +113,7 @@ void outer(istream &in) {
     }
 }
 
-<<<<<<< HEAD
 void forth_include(const char *fn) {}
-=======
-void forth_include(const char *fn) {
-    ifstream ifile(fn);                       ///< open input stream
-    if (ifile.is_open()) {
-        outer(ifile);
-    }
-    ifile.close();
-}
->>>>>>> 8543152 (~/platform/main.cpp try support Android (BS does not work))
 
 #else  // !__ANDROID__    
 #define TIB_SZ 128                            /// * 128-byte line buffer
