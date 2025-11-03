@@ -33,7 +33,7 @@ extern U8          *MEM0;                  ///< base of parameter memory block
 
 ///====================================================================
 ///
-///> IO functions
+///> IO initialization functions
 ///
 void fin_setup(const char *line) {
     fout.str("");                        /// * clean output buffer
@@ -44,6 +44,48 @@ void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;          ///< serial output hook up
 }
+///====================================================================
+///
+///> Serial Terminal input
+///
+#if _WIN32 || _WIN64
+#include <conio.h>         // getchar
+char qkey() {
+    char c = _kbhit() ? _getche() : '\0';
+    switch (c) {
+    case 0x8:
+    case 0x7f: putchar(' ');  putchar(c); break;
+    case '\r': putchar('\n'); break;
+    }
+    return c;
+}
+
+#else // !_WIN32 || _WIN64
+#include <termios.h>       // tcgetattr
+#include <unistd.h>        // read (low-level)
+char qkey() {                                 ///< get one unbuffered char with timeout
+    struct termios t0, t1;
+
+    fflush(stdout);                           /// * flush output buffer before wait
+    tcgetattr(STDIN_FILENO, &t0);             /// * backup stdin attributes
+    t1 = t0;
+    t1.c_lflag &= ~(ICANON | ECHO);           /// * non-buffered, and echo
+    t1.c_cc[VMIN]  = 0;                       /// * capture 0 or more char
+    t1.c_cc[VTIME] = 0;                       /// * 0: no wait, 1:timeout on 0.1 second (returns '\0')
+    tcsetattr(STDIN_FILENO, TCSANOW, &t1);    /// * set to non-buffered
+
+    char c;
+    int n = read(STDIN_FILENO, &c, 1);        /// * fetch one char from given input file
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &t0);    /// * restore stdin attributes
+
+    return n ? c : '\0';
+}
+#endif // _WIN32 || _WIN64
+///====================================================================
+///
+///> IO functions
+///
 const char *scan(char c) {
     static string pad;                   ///< temp storage
     getline(fin, pad, c);                ///< scan fin for char c
