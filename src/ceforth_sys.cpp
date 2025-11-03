@@ -48,6 +48,7 @@ char qkey() {
 
 #else // !_WIN32 || _WIN64
 #include <termios.h>       // tcgetattr
+#include <unistd.h>        // read (low-level)
 char qkey() {                                 ///< get one unbuffered char with timeout
     struct termios t0, t1;
 
