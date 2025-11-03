@@ -77,16 +77,14 @@ int getline_async(const int& fno, string &cmd, char delim='\n') {
 	while (1) {
         char ch = qkey();
         switch (ch) {
-		case '\0': 
-		case EOF:  return 0;                           /// * no input, skip
-		case '\n': return 1;                           /// * done
+		case '\0': case EOF:  return 0;                /// * no input, skip
+		case '\r': case '\n': return 1;                /// * line captured
         default:   cmd.push_back(ch); break;           /// * capture input char
         }
 	}
 }
 #else // !(_WIN32 || _WIN64)
 int getline_async(const int& fno, string& cmd, char delim='\n') {
-    cmd = "";
     int n = 1;
     while (n > 0) {
         char buf[2] = { 0 };
@@ -114,21 +112,18 @@ void outer(FILE *fp) {
 		fcntl(fno, F_SETFL, flags | O_NONBLOCK);
 	};
 #endif
-    string cmd;
+    string cmd("");
+	int    stop = 0;
     noblock();
-    while (1) {
+    while (!stop) {
         fflush(stdout);                                /// * flush output buffer before wait
         int n = getline_async(fno, cmd);
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
-//		if (forth_vm(n ? cmd.c_str() : nullptr)) break;/// * call Forth VM (or trigger ticker)
 		if (n) {
-			fprintf(stderr, "cmd=<%s>\n", cmd.c_str());
-			if (forth_vm(cmd.c_str())) break;
+			stop = forth_vm(cmd.c_str());              /// * call Forth VM (or trigger ticker)
+			cmd = "";
 		}
-		else {
-			fprintf(stderr, "tick\n");
-			forth_vm(nullptr);
-		}
+		else forth_vm(nullptr);
     }
 }
 
