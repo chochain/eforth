@@ -96,7 +96,7 @@ void outer(FILE *fp) {
     };
     int    stop = 0;
     string cmd;
-    noblock();                                         /// * set input stream non-blocking
+    noblock();
     while (!stop) {
         int n = getline_async(fno, cmd);
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
@@ -105,14 +105,19 @@ void outer(FILE *fp) {
     }
 }
 
+#define TIB_SZ 256
 void forth_include(const char *fn) {
     FILE *fp = fopen(fn, "r");
-
-    if (fp) {
-        outer(fp);
-        fclose(fp);
+    char buf[TIB_SZ];
+    if (!fp) {
+        fprintf(stderr, "failed to open file %s\n", fn);
+        return;
     }
-    else fprintf(stderr, "failed to open file %s\n", fn);
+    int stop = 0;
+    while (!stop &&fgets(buf, TIB_SZ, fp) != nullptr) {
+        stop = forth_vm(buf);
+    }
+    fclose(fp);
 }
 
 ///====================================================================
