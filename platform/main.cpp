@@ -77,29 +77,30 @@ int getline_async(const int& fno, string& cmd, char delim='\n') {
     while (n > 0) {
         char buf[2] = { 0 };
         n = (int)read(fno, buf, 1);                      /// * can return -1
-        if (n) {
+        if (n==1) {                                      /// * got char
             if (*buf == delim) return 1;                 /// * EOL
             cmd.append(buf);                             /// * expend string
         } else {
             n = errno==EAGAIN || errno==EWOULDBLOCK;     /// * reverted back to blocking
-            if (!n) break;                               /// * bail
+            if (n) return -1;                            /// * bail
         }
     }
     return n;
 }
 
 void outer(FILE *fp) {
-    int fno = fileno(fp);                               ///< capture file number
-    auto noblock = [fno]() {                            ///< set input to non-blocking
+    int fno = fileno(fp);                              ///< capture file number
+    auto noblock = [fno]() {                           ///< set input to non-blocking
         int flags = fcntl(fno, F_GETFL, 0);
         fcntl(fno, F_SETFL, flags | O_NONBLOCK);
     };
     int    stop = 0;
     string cmd;
+    noblock();                                         /// * set input stream non-blocking
     while (!stop) {
         int n = getline_async(fno, cmd);
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
-        stop = forth_vm(n ? cmd.c_str() : nullptr);    /// * send cmd to Forth VM
+        stop = forth_vm(n ? cmd.c_str() : nullptr);    /// * call Forth VM (or trigger ticker)
         fflush(stdout);                                /// * flush output buffer before wait
     }
 }
