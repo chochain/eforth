@@ -2,18 +2,19 @@
 /// @file
 /// @brief eForth main program for testing on Desktop PC (Linux and Cygwin)
 ///
+#include <fcntl.h>         // O_NONBLOCK
+#include <error.h>         // EAGAIN, EWOUDLBLOCK
+#include <unistd.h>        // read (low-level)
 #include <cstdint>         // U64
 #include <cstdio>          // standard IO
+#include <string>
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #elif _WIN32 || _WIN64
 #include <windows.h>
-#include <string>
 #else // Linux || Cygwin
 #include <sys/sysinfo.h>   // memory info
-#include <iostream>
-#include <fstream>
 #endif
 
 using namespace std;
@@ -37,6 +38,7 @@ void mem_stat() {
     if (sysctlbyname("hw.memsize", &memsize, &len, NULL, 0) == 0) {
         fprintf(stdout, ", RAM %ld MB", memsize >> 20);
     }
+    
 #elif _WIN32 || _WIN64
     MEMORYSTATUSEX si;                        ///< Windows Memory Status
     si.dwLength = sizeof(si);                 /// * Initialize the structure
@@ -50,110 +52,67 @@ void mem_stat() {
             100 - p, static_cast<long>(f >> 20), static_cast<long>(t >> 20));
     }
     else fprintf(stderr, "ERR: Windows memory status fetch failed!");
+    
 #else // Linux, Cygwin
     struct sysinfo si;
     if (sysinfo(&si) != -1) {
-      U64 f = (U64)si.freeram * si.mem_unit;
-      U64 t = (U64)si.totalram * si.mem_unit;
-      U64 p = f * 1000L / t;
-      fprintf(stdout, 
-              ", RAM %.1f%% free (%ld / %ld MB)",
-              static_cast<float>(p * 0.1),
-              static_cast<long>(f >> 20), static_cast<long>(t >> 20));
+        U64 f = (U64)si.freeram * si.mem_unit;
+        U64 t = (U64)si.totalram * si.mem_unit;
+        U64 p = f * 1000L / t;
+        fprintf(stdout, 
+            ", RAM %.1f%% free (%ld / %ld MB)",
+            static_cast<float>(p * 0.1),
+            static_cast<long>(f >> 20), static_cast<long>(t >> 20));
     }
-#endif
     
+#endif
     fprintf(stdout, "\n");
 }
 ///
 ///> include external Forth script
 ///
-#if _WIN32 || _WIN64
-#include <conio.h>         // getchar
-char qkey() {
-    char c = _kbhit() ? _getche() : '\0';
-    switch (c) {
-    case 0x8:
-    case 0x7f: putchar(' ');  putchar(c); break;
-    case '\r': putchar('\n'); break;
-    }
-    return c;
-}
-
-#else // _WIN32 || _WIN64
-#include <termios.h>       // tcgetattr
-#include <unistd.h>        // STDIN_FILENO
-
-char qkey() {                                 ///< get one unbuffered char with timeout
-    struct termios t0, t1;
-
-    fflush(stdout);                           /// * flush output buffer before wait
-    tcgetattr(STDIN_FILENO, &t0);             /// * backup stdin attributes
-    t1 = t0;
-    t1.c_lflag &= ~(ICANON | ECHO);           /// * non-buffered, and echo
-    t1.c_cc[VMIN]  = 0;                       /// * capture 0 or more char
-    t1.c_cc[VTIME] = 0;                       /// * 0: no wait, 1:timeout on 0.1 second (returns '\0')
-    tcsetattr(STDIN_FILENO, TCSANOW, &t1);    /// * set to non-buffered
-
-    char c;
-    int n = read(STDIN_FILENO, &c, 1);        /// * fetch one char from given input file
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &t0);    /// * restore stdin attributes
-
-    return n ? c : '\0';
-}
-#endif // _WIN32 || _WIN64
-
-#if __ANDROID__
-void outer(istream &in) {
-    string cmd;                               ///< input command; TODO: static pool
-    while (getline(in, cmd)) {                ///> fetch user input
-        // printf("cmd=<%s>\n", cmd.c_str());
-        if (forth_vm(cmd.c_str())) break;     ///> run outer interpreter (single task)
-    }
-}
-
-void forth_include(const char *fn) {}
-
-#else  // !__ANDROID__    
-#define TIB_SZ 128                            /// * 128-byte line buffer
-void outer(FILE *fp) {
-    char cmd[TIB_SZ+1];
-    int  idx  = 0;
-    int  done = 0;
-    int  term = fp==stdin;                    ///< input from terminal
-    while (!done) {
-        char c = term ? qkey() : fgetc(fp);   ///< ?key or stream from file
-        //        fprintf(stderr, ".%c%x", c, c);
-        switch (c) {
-        case '\0':
-            forth_vm(NULL);                   /// * handle timer interrupt
-            break;
-        case 0x8:                             /// * backspace
-        case 0x7f: --idx;   break;            /// * erase
-        case EOF: done = 1; break;            /// * done with input file
-        case '\n': case '\r':
-            cmd[idx] = '\0';
-//            if (!term) fprintf(stdout, "%s\n", cmd);
-            done = forth_vm(cmd);
-            idx  = 0;
-            break;
-        default:                              /// * capture input char
-            cmd[idx < TIB_SZ ? idx++ : idx] = c;
-            break;
+int getline_async(const int& fno, string& cmd, char delim='\n') {
+    cmd = "";
+    int n = 1;
+    while (n > 0) {
+        char buf[2] = { 0 };
+        n = (int)read(fno, buf, 1);                      /// * can return -1
+        if (n) {
+            if (*buf == delim) return 1;                 /// * EOL
+            cmd.append(buf);                             /// * expend string
+        } else {
+            n = errno==EAGAIN || errno==EWOULDBLOCK;     /// * reverted back to blocking
+            if (!n) break;                               /// * bail
         }
+    }
+    return n;
+}
+
+void outer(FILE *fp) {
+    int fno = fileno(fp);                               ///< capture file number
+    auto noblock = [fno]() {                            ///< set input to non-blocking
+        int flags = fcntl(fno, F_GETFL, 0);
+        fcntl(fno, F_SETFL, flags | O_NONBLOCK);
+    };
+    int    stop = 0;
+    string cmd;
+    while (!stop) {
+        int n = getline_async(fno, cmd);
+        if (n < 0) { noblock(); n = 0; }               /// * handle input error
+        stop = forth_vm(n ? cmd.c_str() : nullptr);    /// * send cmd to Forth VM
+        fflush(stdout);                                /// * flush output buffer before wait
     }
 }
 
 void forth_include(const char *fn) {
     FILE *fp = fopen(fn, "r");
 
-    if (fp) outer(fp);
-    else    fprintf(stderr, "failed to open file %s\n", fn);
-
-    fclose(fp);
+    if (fp) {
+        outer(fp);
+        fclose(fp);
+    }
+    else fprintf(stderr, "failed to open file %s\n", fn);
 }
-#endif // __ANDROID__
 
 ///====================================================================
 ///
@@ -161,22 +120,19 @@ void forth_include(const char *fn) {
 ///
 #include <cstdlib>                            /// srand
 #include <ctime>                              /// time
-#include <iostream>
+#include <iostream>                           /// stdio
 int main(int ac, char* av[]) {
     std::ios_base::sync_with_stdio(true);     /// * sync C++ iostream with C stdio
-    forth_init();                             ///> initialize dictionary
+    forth_init();                             /// * initialize dictionary
 
-    mem_stat();                               ///> show memory status
-    srand((int)time(0));                      ///> seed random generator
+    mem_stat();                               /// * show memory status
+    srand((int)time(0));                      /// * seed random generator
 
-#if __ANDROID__
-    outer(cin);
-#else // !__ANDROID__
-    outer(stdin);                             ///> Forth outer interpreter
-#endif // __ANDROID__    
+    outer(stdin);                             /// * Forth outer interpreter (non-blocking input)
 
-    forth_teardown();                         ///> clean up before we go
+    forth_teardown();                         /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
+    
     return 0;
 }
 ///====================================================================
