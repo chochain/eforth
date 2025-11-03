@@ -2,18 +2,19 @@
 /// @file
 /// @brief eForth main program for testing on Desktop PC (Linux and Cygwin)
 ///
-#include <fcntl.h>         // O_NONBLOCK
-#include <error.h>         // EAGAIN, EWOUDLBLOCK
-#include <unistd.h>        // read (low-level)
-#include <cstdint>         // U64
 #include <cstdio>          // standard IO
+#include <cstdint>         // U64
 #include <string>
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #elif _WIN32 || _WIN64
 #include <windows.h>
+extern char qkey();
 #else // Linux || Cygwin
+#include <fcntl.h>         // O_NONBLOCK
+#include <unistd.h>        // read (low-level)
+#include <error.h>         // EAGAIN, EWOUDLBLOCK
 #include <sys/sysinfo.h>   // memory info
 #endif
 
@@ -71,37 +72,63 @@ void mem_stat() {
 ///
 ///> include external Forth script
 ///
+#if _WIN32 || _WIN64
+int getline_async(const int& fno, string &cmd, char delim='\n') {
+	while (1) {
+        char ch = qkey();
+        switch (ch) {
+		case '\0': 
+		case EOF:  return 0;                           /// * no input, skip
+		case '\n': return 1;                           /// * done
+        default:   cmd.push_back(ch); break;           /// * capture input char
+        }
+	}
+}
+#else // !(_WIN32 || _WIN64)
 int getline_async(const int& fno, string& cmd, char delim='\n') {
     cmd = "";
     int n = 1;
     while (n > 0) {
         char buf[2] = { 0 };
-        n = (int)read(fno, buf, 1);                      /// * can return -1
-        if (n==1) {                                      /// * got char
-            if (*buf == delim) return 1;                 /// * EOL
-            cmd.append(buf);                             /// * expend string
+        n = (int)read(fno, buf, 1);                    /// * can return -1
+        if (n==1) {                                    /// * got char
+            if (*buf == delim) return 1;               /// * EOL
+            cmd.append(buf);                           /// * expend string
         } else {
-            n = errno==EAGAIN || errno==EWOULDBLOCK;     /// * reverted back to blocking
-            if (n) return -1;                            /// * bail
+            n = errno==EAGAIN || errno==EWOULDBLOCK;   /// * reverted back to blocking
+            if (n) return -1;                          /// * bail
         }
     }
     return n;
 }
+#endif // _WIN32 || _WIN64
 
 void outer(FILE *fp) {
-    int fno = fileno(fp);                              ///< capture file number
-    auto noblock = [fno]() {                           ///< set input to non-blocking
-        int flags = fcntl(fno, F_GETFL, 0);
-        fcntl(fno, F_SETFL, flags | O_NONBLOCK);
-    };
-    int    stop = 0;
+#if _WIN32 || _WIN64
+	int fno = 0;
+	auto noblock = []() {};
+#else
+	int fno = fileno(fp);                              ///< capture file number
+	auto noblock = [fno]() {                           ///< set input to non-blocking
+		int flags = fcntl(fno, F_GETFL, 0);
+		fcntl(fno, F_SETFL, flags | O_NONBLOCK);
+	};
+#endif
     string cmd;
     noblock();
-    while (!stop) {
+    while (1) {
+        fflush(stdout);                                /// * flush output buffer before wait
         int n = getline_async(fno, cmd);
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
-        stop = forth_vm(n ? cmd.c_str() : nullptr);    /// * call Forth VM (or trigger ticker)
-        fflush(stdout);                                /// * flush output buffer before wait
+//		if (forth_vm(n ? cmd.c_str() : nullptr)) break;/// * call Forth VM (or trigger ticker)
+		if (n) {
+			fprintf(stderr, "cmd=<%s>\n", cmd.c_str());
+			if (forth_vm(cmd.c_str())) break;
+		}
+		else {
+			fprintf(stderr, "tick\n");
+			forth_vm(nullptr);
+		}
     }
 }
 
