@@ -4,7 +4,7 @@ EM_FLAG = -std=c++17 -O2 \
           -s PTHREAD_POOL_SIZE='navigator.hardwareConcurrency'
 
 CC = g++
-CC_FLAG = -std=c++17 -g -O3 -Wall -pthread \
+CC_FLAG = -std=gnu++17 -g -O3 -Wall -pthread \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
