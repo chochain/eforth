@@ -19,9 +19,21 @@ int load_dp = 0;                       ///< load depth control
 
 ///====================================================================
 ///
+///> IO initialization functions
+///
+void fin_setup(const char *line) {
+    fout.str("");                      /// * clean output buffer
+    fin.clear();                       /// * clear input stream error bit if any
+    fin.str(line);                     /// * reload user command into input stream
+}
+void fout_setup(void (*hook)(int, const char*)) {
+    auto cb = [](int, const char *rst) { printf("%s", rst); };
+    fout_cb = hook ? hook : cb;        ///< serial output hook up
+}
+///====================================================================
+///
 ///> Serial Terminal input
 ///
-#if DO_SERIAL_INPUT
 #if _WIN32 || _WIN64
 #include <conio.h>         // getchar
 char qkey() {
@@ -55,20 +67,12 @@ char qkey() {                                 ///< get one unbuffered char with 
     return n ? c : '\0';
 }
 #endif // _WIN32 || _WIN64
-#endif // DO_SERIAL_INPUT
 ///====================================================================
 ///
 ///> IO functions
 ///
-void fin_setup(const char *line) {
-    fout.str("");                      /// * clean output buffer
-    fin.clear();                       /// * clear input stream error bit if any
-    fin.str(line);                     /// * reload user command into input stream
-}
-void fout_setup(void (*hook)(int, const char*)) {
-    auto cb = [](int, const char *rst) { printf("%s", rst); };
-    fout_cb = hook ? hook : cb;        ///< serial output hook up
-}
+char key() { return word()[0]; }
+
 const char *scan(char c) {
     static string s;                   ///< temp str, static prevents reclaim
     getline(fin, s, c);                ///< scan fin for char c
@@ -86,7 +90,6 @@ const char *word(char delim) {         ///> read next idiom form input stream
 int fetch(string &idiom) {             ///> read an idiom from input stream
     return !(fin >> idiom)==0;
 }
-char key() { return word()[0]; }
 void load(VM &vm, const char *fn) {    ///> include script from stream
     load_dp++;                         /// * increment depth counter
     void (*cb)(int, const char*) = fout_cb;  ///< keep output function
