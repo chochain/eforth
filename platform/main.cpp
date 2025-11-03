@@ -74,14 +74,14 @@ void mem_stat() {
 ///
 #if _WIN32 || _WIN64
 int getline_async(const int& fno, string &cmd, char delim='\n') {
-	while (1) {
+    while (1) {
         char ch = qkey();
         switch (ch) {
-		case '\0': case EOF:  return 0;                /// * no input, skip
-		case '\r': case '\n': return 1;                /// * line captured
+        case '\0': case EOF:  return 0;                /// * no input, skip
+        case '\r': case '\n': return 1;                /// * line captured
         default:   cmd.push_back(ch); break;           /// * capture input char
         }
-	}
+    }
 }
 #else // !(_WIN32 || _WIN64)
 int getline_async(const int& fno, string& cmd, char delim='\n') {
@@ -103,27 +103,27 @@ int getline_async(const int& fno, string& cmd, char delim='\n') {
 
 void outer(FILE *fp) {
 #if _WIN32 || _WIN64
-	int fno = 0;
-	auto noblock = []() {};
+    int fno = 0;
+    auto noblock = []() {};
 #else
-	int fno = fileno(fp);                              ///< capture file number
-	auto noblock = [fno]() {                           ///< set input to non-blocking
-		int flags = fcntl(fno, F_GETFL, 0);
-		fcntl(fno, F_SETFL, flags | O_NONBLOCK);
-	};
+    int fno = fileno(fp);                              ///< capture file number
+    auto noblock = [fno]() {                           ///< set input to non-blocking
+        int flags = fcntl(fno, F_GETFL, 0);
+        fcntl(fno, F_SETFL, flags | O_NONBLOCK);
+    };
 #endif
     string cmd("");
-	int    stop = 0;
+    int    stop = 0;
     noblock();
     while (!stop) {
         fflush(stdout);                                /// * flush output buffer before wait
         int n = getline_async(fno, cmd);
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
-		if (n) {
-			stop = forth_vm(cmd.c_str());              /// * call Forth VM (or trigger ticker)
-			cmd = "";
-		}
-		else forth_vm(nullptr);
+        if (n) {
+            stop = forth_vm(cmd.c_str());              /// * call Forth VM (or trigger ticker)
+            cmd = "";
+        }
+        else forth_vm(nullptr);
     }
 }
 
