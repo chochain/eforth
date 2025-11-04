@@ -79,6 +79,7 @@ int getline_async(const int& fno, string &cmd, char delim='\n') {
         switch (ch) {
         case '\0': case EOF:  return 0;                /// * no input, skip
         case '\r': case '\n': return 1;                /// * line captured
+        case 0x8:  case 0x7f: cmd.pop_back(); break;   /// * remove previous char
         default:   cmd.push_back(ch); break;           /// * capture input char
         }
     }
@@ -120,6 +121,7 @@ void outer(FILE *fp) {
         int n = getline_async(fno, cmd);
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
         if (n) {
+//            fprintf(stderr, "cmd=<%s>\n", cmd.c_str());
             stop = forth_vm(cmd.c_str());              /// * call Forth VM (or trigger ticker)
             cmd = "";
         }
