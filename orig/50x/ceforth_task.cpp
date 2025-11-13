@@ -64,7 +64,7 @@ void t_pool_stop() {
     _timer.join();
 }
 
-void enable_timer(int f) {
+void timer_enable(int f) {
     auto t = millis();
     for (auto &[w, v] : isr) {
         v.first = t + v.second;
@@ -72,7 +72,7 @@ void enable_timer(int f) {
     _ticking = f;
 }
 
-void add_tmisr(int period, int w) {
+void tmisr_add(int period, int w) {
     int na = isr.find(w)==isr.end();
     if (period==0) {
         if (!na) isr.erase(w);     /// * remove ISR entry

@@ -516,8 +516,8 @@ void dict_compile() {  ///< compile built-in words into dictionary
 #if SIM_TIMER_INTR
     /// @defgroup Timer interrupt service
     /// @}
-    CODE("timer", enable_timer(POPI()));                     /// ( f -- )
-    CODE("tmisr", U32 n = POPI(); add_tmisr(n, POPI()));     /// ( token period -- )
+    CODE("timer", timer_enable(POPI()));                     /// ( f -- )
+    CODE("tmisr", U32 n = POPI(); tmisr_add(n, POPI()));     /// ( token period -- )
     CODE(".isr",  isr_dump());                               /// ( -- ) list all timer ISR
     /// @}
 #endif // SIM_TIMER_INTR

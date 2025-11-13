@@ -228,8 +228,8 @@ int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a thread with given task/VM id
 #endif  // DO_MULTITASK
 #if SIM_TIMER_INTR
-void enable_timer(int f);                 ///< 1:enable, 0:disable timer
-void add_tmisr(int period, int w);        ///< add dict[w] as ISR
+void timer_enable(int f);                 ///< 1:enable, 0:disable timer
+void tmisr_add(int period, int w);        ///< add dict[w] as ISR
 void isr_dump();                          ///< dump ISR list
 void isr_serv(VM &vm);
 #else  // !SIM_TIMER_INTR
@@ -239,7 +239,7 @@ void isr_serv(VM &vm);
 ///@name System interface
 ///@{
 void forth_init();
-int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
+int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 void nest(VM &vm);
