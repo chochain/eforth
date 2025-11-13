@@ -139,7 +139,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
-    LOGS(" "); LOGS(c.name); LOGS("\n");
+    LOGS(" "); LOGS(c->name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
 void add_var(IU op, DU v=DU0) {     ///< add a varirable header
