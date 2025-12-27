@@ -152,7 +152,7 @@ void forth_include(const char *fn) {
 #define  TOPIC_CMD "qnii/forth/cmd"
 #define  TOPIC_RST "qnii/forth/rst"
 
-int onMsg(void *ctx, char *topic, int len, MQTTClient_message *msg) {
+int onMsg(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
     printf("Message arrived\n");
     printf("     topic: %s\n", topic);
     printf("   message: %.*s\n", msg->payloadlen, (char*)msg->payload);
@@ -182,8 +182,6 @@ int main(int argc, char* argv[])
 
     mem_stat();                               /// * show memory status
     srand((int)time(0));                      /// * seed random generator
-
-    printf("Using server at %s\n", MQTT_URI);
 
     MQTT mqtt(MQTT_URI, argv[1], argv[2], onMsg);
 
