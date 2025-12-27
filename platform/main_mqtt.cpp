@@ -143,12 +143,38 @@ void forth_include(const char *fn) {
 
 ///====================================================================
 ///
+/// MQTT receiver
+///
+#include "mqtt.h"
+
+#define  MQTT_URI  "tcp://test.mosquitto.org:1883"
+#define  PAYLOAD   "Hello World!"
+#define  TOPIC_CMD "qnii/forth/cmd"
+#define  TOPIC_RST "qnii/forth/rst"
+
+int onMsg(void *ctx, char *topic, int len, MQTTClient_message *msg) {
+    printf("Message arrived\n");
+    printf("     topic: %s\n", topic);
+    printf("   message: %.*s\n", msg->payloadlen, (char*)msg->payload);
+
+//    if (strcmp(topic, topic_put)==0) {
+//    }
+    
+//    if (strcmp(topic, topic_get)==0) {
+//    }
+
+    MQTTClient_freeMessage(&msg);
+    MQTTClient_free(topic);
+
+    return 1;
+}
+
+///====================================================================
+///
 /// main program - Note: Arduino and ESP32 have their own main-loop
 ///
-#define  MQTT_URI "tcp://test.mosquitto.org:1883"
 #include <ctime>                              /// time
 #include <iostream>                           /// stdio
-#include "mqtt.h"
 int main(int argc, char* argv[])
 {
     std::ios_base::sync_with_stdio(true);     /// * sync C++ iostream with C stdio
@@ -157,21 +183,14 @@ int main(int argc, char* argv[])
     mem_stat();                               /// * show memory status
     srand((int)time(0));                      /// * seed random generator
 
-    const char* uri = (argc > 1) ? argv[1] : MQTT_URI;
-    printf("Using server at %s\n", uri);
+    printf("Using server at %s\n", MQTT_URI);
 
-    MQTT mqtt(uri);
+    MQTT mqtt(MQTT_URI, argv[1], argv[2], onMsg);
 
-    if (mqtt.connect()) return 1;
-
-    int rc;
-    rc = mqtt.subscribe();
-    rc = mqtt.disconnect();
-    
 //    outer(stdin);                             /// * Forth outer interpreter (non-blocking input)
 
     forth_teardown();                         /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
     
-    return rc;
+    return 0;
 }
