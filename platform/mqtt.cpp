@@ -17,6 +17,8 @@ void MQTT::_conn_lost(void *ctx, char *cause) {
 }
 
 MQTT::MQTT(const char *uri, const char *topic_put, const char *topic_get, int (*callback)(void*, char*, int, mqtt_msg_t*)) {
+    printf("Using server at %s\n", uri);
+
     _topic_put = topic_put;
     _topic_get = topic_get;
     int rc;
@@ -66,7 +68,7 @@ int MQTT::publish(void *payload) {
            (int)(TIMEOUT/1000), (char*)payload, _topic_put, CLIENTID);
     
     rc = MQTTClient_waitForCompletion(_sndr, _token, TIMEOUT);
-    printf("Message with delivery token %d delivered\n", _token);
+    printf("sndr: Message with delivery token %d delivered\n", _token);
     
 bail:
     return 0;
@@ -77,17 +79,6 @@ int MQTT::subscribe() {
     if ((rc = MQTTClient_subscribe(_rcvr, _topic_get, QOS)) != MQTTCLIENT_SUCCESS) {
         printf("Failed to subscribe, return code %d\n", rc);
         goto bail;
-    }
-    else {
-        int ch;
-        do {
-            ch = getchar();
-        } while (ch!='Q' && ch != 'q');
-
-        if ((rc = MQTTClient_unsubscribe(_rcvr, _topic_get)) != MQTTCLIENT_SUCCESS) {
-            printf("rcvr: Failed to unsubscribe, return code %d\n", rc);
-            goto bail;
-        }
     }
     rc = 0;
 bail:    
@@ -114,6 +105,10 @@ bail:
 
 int MQTT::_disconnect() {
     int rc;
+    if ((rc = MQTTClient_unsubscribe(_rcvr, _topic_get)) != MQTTCLIENT_SUCCESS) {
+        printf("rcvr: Failed to unsubscribe, return code %d\n", rc);
+        goto bail;
+    }
     if ((rc = MQTTClient_disconnect(_rcvr, TIMEOUT)) != MQTTCLIENT_SUCCESS) {
         printf("Failed to disconnect, return code %d\n", rc);
         goto bail;
