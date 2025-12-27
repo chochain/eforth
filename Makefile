@@ -15,7 +15,19 @@ FLST = \
 	tests/eforth.js   \
 	tests/eforth.wasm
 
+OBJS = \
+	src/ceforth.o \
+	src/ceforth_sys.o \
+	src/ceforth_task.o
+
+OBJS_50X = \
+	orig/50x/ceforth.o \
+	orig/50x/ceforth_sys.o \
+	orig/50x/ceforth_task.o
+
 exe: tests/eforth
+
+mqtt: tests/eforth_mqtt
 
 50x: tests/ceforth50x
 
@@ -23,16 +35,19 @@ wasm: tests/eforth.js
 
 all: exe 50x wasm
 
-%.o: %.cpp
+%.o: %.cpp %.c
 	$(CC) $(CC_FLAG) -Isrc -c -o $@ $<
 
-tests/eforth: platform/main.o src/ceforth.o src/ceforth_sys.o src/ceforth_task.o
+tests/eforth: platform/main.o $(OBJS)
 	$(CC) $(CC_FLAG) -o $@ $^
+
+tests/eforth_mqtt: platform/mqtt.o platform/main_mqtt.o $(OBJS)
+	$(CC) -o $@ $^ -lpaho-mqtt3cs 
 
 debug: tests/eforth
 	/bin/valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $^
 
-tests/ceforth50x: platform/main.o orig/50x/ceforth.o orig/50x/ceforth_sys.o orig/50x/ceforth_task.o
+tests/ceforth50x: platform/main.o $(OBJS_50X)
 	$(CC) $(CC_FLAG) -o $@ $^
 
 debug50: tests/ceforth50x
@@ -45,6 +60,6 @@ tests/eforth.js: platform/wasm.cpp src/ceforth.cpp src/ceforth_sys.cpp src/cefor
 	  -sEXPORTED_RUNTIME_METHODS=cwrap
 
 clean:
-	rm orig/50x/*.o src/*.o platform/*.o $(FLST)
+	rm platform/*.o $(FLST) $(OBJS_50X) $(OBJS) 
 
 
