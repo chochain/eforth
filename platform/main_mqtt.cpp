@@ -154,7 +154,7 @@ int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
     printf("  topic: %s\n", topic);
     printf("  msg: %.*s\n", msg->payloadlen, (char*)msg->payload);
 
-    forth_vm((char *)msg->payload);
+    forth_vm((char*)msg->payload);
 
     MQTTClient_freeMessage(&msg);
     MQTTClient_free(topic);
@@ -189,8 +189,7 @@ int usage(char *argv[]) {
 int main(int argc, char* argv[]) {
     if (argc < 3) return usage(argv);
     
-    MQTT slave( MQTT_URI, argv[1], onCmd, argv[2]);
-    MQTT master(MQTT_URI, argv[2], onRst, argv[1]);
+    MQTT mqtt( MQTT_URI, argv[1], onCmd, argv[2], onRst);
 
     std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
     forth_init();                               /// * initialize dictionary
@@ -198,7 +197,7 @@ int main(int argc, char* argv[]) {
     mem_stat();                                 /// * show memory status
     srand((int)time(0));                        /// * seed random generator
 
-    outer(stdin, &master);                      /// * Forth outer interpreter (non-blocking input)
+    outer(stdin, &mqtt);                      /// * Forth outer interpreter (non-blocking input)
 
     forth_teardown();                           /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
