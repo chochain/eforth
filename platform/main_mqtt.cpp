@@ -189,8 +189,8 @@ int usage(char *argv[]) {
 int main(int argc, char* argv[]) {
     if (argc < 3) return usage(argv);
     
-    MQTT master(MQTT_URI, argv[2], argv[1], onRst);
-    MQTT slave(MQTT_URI,  argv[1], argv[2], onCmd);
+    MQTT slave( MQTT_URI, argv[1], onCmd, argv[2]);
+    MQTT master(MQTT_URI, argv[2], onRst, argv[1]);
 
     std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
     forth_init();                               /// * initialize dictionary
