@@ -4,7 +4,6 @@
 ///
 #include "mqtt.h"
 
-#define CLIENTID   "gnii_mqtt"
 #define QOS        1
 #define TIMEOUT    10000L
 
@@ -18,38 +17,22 @@ void MQTT::_conn_lost(void *ctx, char *cause) {
 }
 
 MQTT::MQTT(
-    const char *uri,                             ///< URL of MQTT broker
-    const char *topic_get,                       ///< input topic, i.g. gnii/mqtt/rst
-    int (*hndl)(void*, char*, int, mqtt_msg_t*), ///< message handler
-    const char *topic_put                        ///< output topic, i.g. gnii/mqtt/cmd
+    const char *uri,            ///< URL of MQTT broker
+    const char *topic_get,      ///< input topic, i.g. gnii/mqtt/rst
+    mqtt_hndl  get_hndl,        ///< message handler
+    const char *topic_put,      ///< output topic, i.g. gnii/mqtt/cmd
+    mqtt_hndl  put_hndl         ///< message handler
     ) {
     printf("Using server at %s\n", uri);
 
     _topic_put = topic_put;
     _topic_get = topic_get;
-    int rc;
-    if ((rc = MQTTClient_create(
-             &_rcvr, uri, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to create rcvr, return code %d\n", rc);
-        goto bail;
-    }
-    if ((rc = MQTTClient_create(
-             &_sndr, uri, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to create sndr, return code %d\n", rc);
-        goto bail;
-    }
-    if ((rc = MQTTClient_setCallbacks(
-             _rcvr, NULL,
-             MQTT::_conn_lost, hndl, MQTT::_delivered)) != MQTTCLIENT_SUCCESS) {
-        printf("rcvr: Failed to set callbacks, return code %d\n", rc);
-        goto bail;
-    }
-    rc = _connect();
-    if (rc) goto bail;
     
-    rc = _subscribe();
-bail:
-    _status = rc;
+    _status =
+        _setup("rcvr", uri, &_rcvr, get_hndl) ||
+        _setup("sndr", uri, &_sndr, put_hndl) ||
+        _connect()                            ||
+        _subscribe();
 }
 
 MQTT::~MQTT() {
@@ -70,18 +53,35 @@ int MQTT::publish(char *payload) {
 
     int rc;
     if ((rc = MQTTClient_publishMessage(_sndr, _topic_put, &msg, &_token)) != MQTTCLIENT_SUCCESS) {
-         printf("sndr: Failed to publish message, return code %d\n", rc);
-         goto bail;
+        printf("sndr: Failed to publish to %s, return code %d\n", _topic_put, rc);
+        goto bail;
     }
-    printf("sndr: Waiting for up to %d seconds for publication of %s\n"
-            "on topic %s for client with ClientID: %s\n",
-           (int)(TIMEOUT/1000), (char*)payload, _topic_put, CLIENTID);
+    printf("sndr: sent %s, waiting for up to %d ms on topic %s\n",
+           payload, (int)TIMEOUT, _topic_put);
     
     rc = MQTTClient_waitForCompletion(_sndr, _token, TIMEOUT);
     printf("sndr: Message with delivery token %d delivered\n", _token);
     
 bail:
     return 0;
+}
+
+int MQTT::_setup(const char *id, const char *uri, mqtt_t *node, mqtt_hndl hndl) {
+    int rc;
+    if ((rc = MQTTClient_create(
+             node, uri, id, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS) {
+        printf("%s: Failed to create, return code %d\n", id, rc);
+        goto bail;
+    }
+    if ((rc = MQTTClient_setCallbacks(
+             node, NULL,
+             MQTT::_conn_lost, hndl, MQTT::_delivered)) != MQTTCLIENT_SUCCESS) {
+        printf("%s: Failed to set callbacks, return code %d\n", id, rc);
+        goto bail;
+    }
+    rc = 0;
+bail:
+    return rc;
 }
 
 int MQTT::_connect() {
@@ -124,7 +124,7 @@ bail:
 int MQTT::_subscribe() {
     int rc;
     if ((rc = MQTTClient_subscribe(_rcvr, _topic_get, QOS)) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to subscribe, return code %d\n", rc);
+        printf("Failed to subscribe to %s, return code %d\n", _topic_get, rc);
         goto bail;
     }
     rc = 0;
