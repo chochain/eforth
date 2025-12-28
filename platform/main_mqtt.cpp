@@ -100,32 +100,6 @@ int getline_async(const int fno, char *cmd, char delim) {
 }
 #endif // _WIN32 || _WIN64
 
-void outer(FILE *fp) {
-#if _WIN32 || _WIN64
-    int fno = 0;
-    auto noblock = []() {};
-#else
-    int fno = fileno(fp);                              ///< capture file number
-    auto noblock = [fno]() {                           ///< set input to non-blocking
-        int flags = fcntl(fno, F_GETFL, 0);
-        fcntl(fno, F_SETFL, flags | O_NONBLOCK);
-    };
-#endif
-    char cmd[128];
-    int  stop = 0;
-    noblock();
-    while (!stop) {
-        fflush(stdout);                                /// * flush output buffer before wait
-        int n = getline_async(fno, cmd, '\n');
-        if (n < 0) { noblock(); n = 0; }               /// * handle input error
-        if (n) {
-            fprintf(stderr, "cmd=<%s>\n", cmd);
-            stop = forth_vm(cmd);                /// * call Forth VM (or trigger ticker)
-        }
-        else forth_vm(nullptr);
-    }
-}
-
 #define TIB_SZ 256
 void forth_include(const char *fn) {
     FILE *fp = fopen(fn, "r");
@@ -147,21 +121,53 @@ void forth_include(const char *fn) {
 ///
 #include "mqtt.h"
 
-#define  MQTT_URI  "tcp://test.mosquitto.org:1883"
-#define  PAYLOAD   "Hello World!"
-#define  TOPIC_CMD "qnii/forth/cmd"
-#define  TOPIC_RST "qnii/forth/rst"
+#define  MQTT_URI "tcp://test.mosquitto.org:1883"
 
-int onMsg(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
-    printf("Message arrived\n");
-    printf("     topic: %s\n", topic);
-    printf("   message: %.*s\n", msg->payloadlen, (char*)msg->payload);
+void outer(FILE *fp, MQTT *sndr) {
+#if _WIN32 || _WIN64
+    int fno = 0;
+    auto noblock = []() {};
+#else
+    int fno = fileno(fp);                              ///< capture file number
+    auto noblock = [fno]() {                           ///< set input to non-blocking
+        int flags = fcntl(fno, F_GETFL, 0);
+        fcntl(fno, F_SETFL, flags | O_NONBLOCK);
+    };
+#endif
+    char cmd[128];
+    int  stop = 0;
+    noblock();
+    while (!stop) {
+        fflush(stdout);                                /// * flush output buffer before wait
+        int n = getline_async(fno, cmd, '\n');
+        if (n < 0) { noblock(); n = 0; }               /// * handle input error
+        if (n) {
+            fprintf(stderr, "cmd=<%s>\n", cmd);
+            stop = sndr->publish(cmd);                 /// * call Forth VM (or trigger ticker)
+        }
+        else sndr->publish(nullptr);
+    }
+}
 
-//    if (strcmp(topic, topic_put)==0) {
-//    }
-    
-//    if (strcmp(topic, topic_get)==0) {
-//    }
+int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
+    printf("Cmd arrived\n");
+    printf("  topic: %s\n", topic);
+    printf("  msg: %.*s\n", msg->payloadlen, (char*)msg->payload);
+
+    forth_vm((char *)msg->payload);
+
+    MQTTClient_freeMessage(&msg);
+    MQTTClient_free(topic);
+
+    return 1;
+}
+
+int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
+    printf("Rst arrived\n");
+    printf("  topic: %s\n", topic);
+    printf("  msg: %.*s\n", msg->payloadlen, (char*)msg->payload);
+
+    printf("%s\n", (char*)msg->payload);
 
     MQTTClient_freeMessage(&msg);
     MQTTClient_free(topic);
@@ -173,21 +179,28 @@ int onMsg(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
 ///
 /// main program - Note: Arduino and ESP32 have their own main-loop
 ///
-#include <ctime>                              /// time
-#include <iostream>                           /// stdio
-int main(int argc, char* argv[])
-{
-    std::ios_base::sync_with_stdio(true);     /// * sync C++ iostream with C stdio
-    forth_init();                             /// * initialize dictionary
+#include <ctime>                                /// time
+#include <iostream>                             /// stdio
+int usage(char *argv[]) {
+    printf("Usage:> %s topic_get topic_put\n", argv[0]);
+    return 1;
+}
 
-    mem_stat();                               /// * show memory status
-    srand((int)time(0));                      /// * seed random generator
+int main(int argc, char* argv[]) {
+    if (argc < 3) return usage(argv);
+    
+    MQTT master(MQTT_URI, argv[2], argv[1], onRst);
+    MQTT slave(MQTT_URI,  argv[1], argv[2], onCmd);
 
-    MQTT mqtt(MQTT_URI, argv[1], argv[2], onMsg);
+    std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
+    forth_init();                               /// * initialize dictionary
 
-//    outer(stdin);                             /// * Forth outer interpreter (non-blocking input)
+    mem_stat();                                 /// * show memory status
+    srand((int)time(0));                        /// * seed random generator
 
-    forth_teardown();                         /// * clean up before we go
+    outer(stdin, &master);                      /// * Forth outer interpreter (non-blocking input)
+
+    forth_teardown();                           /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
     
     return 0;
