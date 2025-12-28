@@ -1,5 +1,7 @@
 ///
-///
+/// @file
+/// @brief - MQTT agent class
+/// @note  - Pipeline architecture, 1-input, filter, 1-output
 ///
 #include "MQTTClient.h"
 
@@ -18,16 +20,19 @@ class MQTT {
     const char *_topic_get;
 
 public:
-    static void _delivered(void *ctx, mqtt_token_t dt);
-    static void _conn_lost(void *ctx, char *cause);                         /// connection lost
+    static void _delivered(void *ctx, mqtt_token_t dt);   /// message delivery notifier
+    static void _conn_lost(void *ctx, char *cause);       /// connection lost handler
     
-    MQTT(const char *uri, const char *topic_put, const char *topic_get, int (*callback)(void*, char*, int, mqtt_msg_t*));
+    MQTT(const char *uri,
+         const char *topic_put,
+         const char *topic_get,
+         int (*hndl)(void*, char*, int, mqtt_msg_t*));
     ~MQTT();
     
-    int subscribe();
-    int publish(void *payload);
+    int publish(char *payload);
 
 private:    
+    int _subscribe();
     int _connect();
     int _disconnect();
 };
