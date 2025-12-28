@@ -1,5 +1,6 @@
 ///
-/// 
+/// @file
+/// @brief - MQTT agent class
 ///
 #include "mqtt.h"
 
@@ -16,7 +17,12 @@ void MQTT::_conn_lost(void *ctx, char *cause) {
     if (cause) printf("     cause: %s\n", cause);
 }
 
-MQTT::MQTT(const char *uri, const char *topic_put, const char *topic_get, int (*callback)(void*, char*, int, mqtt_msg_t*)) {
+MQTT::MQTT(
+    const char *uri,                                ///< URL of MQTT broker
+    const char *topic_put,                          ///< output topic, i.g. gnii/mqtt/cmd
+    const char *topic_get,                          ///< input topic, i.g. gnii/mqtt/rst
+    int (*hndl)(void*, char*, int, mqtt_msg_t*) ///< message handler
+    ) {
     printf("Using server at %s\n", uri);
 
     _topic_put = topic_put;
@@ -34,27 +40,31 @@ MQTT::MQTT(const char *uri, const char *topic_put, const char *topic_get, int (*
     }
     if ((rc = MQTTClient_setCallbacks(
              _rcvr, NULL,
-             MQTT::_conn_lost, callback, MQTT::_delivered)) != MQTTCLIENT_SUCCESS) {
+             MQTT::_conn_lost, hndl, MQTT::_delivered)) != MQTTCLIENT_SUCCESS) {
         printf("rcvr: Failed to set callbacks, return code %d\n", rc);
         goto bail;
     }
     rc = _connect();
+    if (rc) goto bail;
+    
+    rc = _subscribe();
 bail:
     _status = rc;
 }
 
 MQTT::~MQTT() {
     _disconnect();
+    
     MQTTClient_destroy(&_rcvr);
     MQTTClient_destroy(&_sndr);
 }
 
 #include <cstring>
-int MQTT::publish(void *payload) {
+int MQTT::publish(char *payload) {
     mqtt_msg_t msg = MQTT_MSG_INIT;
     
-    msg.payload    = payload;
-    msg.payloadlen = (int)strlen((char*)payload);
+    msg.payload    = (void*)payload;
+    msg.payloadlen = (int)strlen(payload);
     msg.qos        = QOS;
     msg.retained   = 0;
 
@@ -72,17 +82,6 @@ int MQTT::publish(void *payload) {
     
 bail:
     return 0;
-}
-
-int MQTT::subscribe() {
-    int rc;
-    if ((rc = MQTTClient_subscribe(_rcvr, _topic_get, QOS)) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to subscribe, return code %d\n", rc);
-        goto bail;
-    }
-    rc = 0;
-bail:    
-    return rc;
 }
 
 int MQTT::_connect() {
@@ -121,3 +120,16 @@ int MQTT::_disconnect() {
 bail:    
     return rc;
 }
+
+int MQTT::_subscribe() {
+    int rc;
+    if ((rc = MQTTClient_subscribe(_rcvr, _topic_get, QOS)) != MQTTCLIENT_SUCCESS) {
+        printf("Failed to subscribe, return code %d\n", rc);
+        goto bail;
+    }
+    rc = 0;
+bail:    
+    return rc;
+}
+
+
