@@ -15,7 +15,6 @@ typedef int (*mqtt_hndl)(void*, char*, int, mqtt_msg_t*); ///< message handler
 #define MQTT_MSG_INIT             MQTTClient_message_initializer        
 
 class MQTT {
-    mqtt_opts_t _opts = MQTT_CONN_INIT;
     const char  *_topic_put;
     const char  *_topic_get;
     

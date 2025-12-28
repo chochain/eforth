@@ -74,7 +74,7 @@ int MQTT::_setup(const char *id, const char *uri, mqtt_t *node, mqtt_hndl hndl) 
         goto bail;
     }
     if ((rc = MQTTClient_setCallbacks(
-             node, NULL,
+             *node, NULL,
              MQTT::_conn_lost, hndl, MQTT::_delivered)) != MQTTCLIENT_SUCCESS) {
         printf("%s: Failed to set callbacks, return code %d\n", id, rc);
         goto bail;
@@ -85,15 +85,16 @@ bail:
 }
 
 int MQTT::_connect() {
-    _opts.keepAliveInterval = 20;
-    _opts.cleansession = 1;
+    mqtt_opts_t opts = MQTT_CONN_INIT;
+    opts.keepAliveInterval = 20;
+    opts.cleansession = 1;
     
     int rc;
-    if ((rc = MQTTClient_connect(_rcvr, &_opts)) != MQTTCLIENT_SUCCESS) {
+    if ((rc = MQTTClient_connect(_rcvr, &opts)) != MQTTCLIENT_SUCCESS) {
         printf("rcvr: Failed to connect, return code %d\n", rc);
         goto bail;
     }
-    if ((rc = MQTTClient_connect(_sndr, &_opts)) != MQTTCLIENT_SUCCESS) {
+    if ((rc = MQTTClient_connect(_sndr, &opts)) != MQTTCLIENT_SUCCESS) {
         printf("sndr: Failed to connect, return code %d\n", rc);
         goto bail;
     }
