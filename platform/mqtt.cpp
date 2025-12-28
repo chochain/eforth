@@ -18,10 +18,10 @@ void MQTT::_conn_lost(void *ctx, char *cause) {
 }
 
 MQTT::MQTT(
-    const char *uri,                                ///< URL of MQTT broker
-    const char *topic_put,                          ///< output topic, i.g. gnii/mqtt/cmd
-    const char *topic_get,                          ///< input topic, i.g. gnii/mqtt/rst
-    int (*hndl)(void*, char*, int, mqtt_msg_t*) ///< message handler
+    const char *uri,                             ///< URL of MQTT broker
+    const char *topic_get,                       ///< input topic, i.g. gnii/mqtt/rst
+    int (*hndl)(void*, char*, int, mqtt_msg_t*), ///< message handler
+    const char *topic_put                        ///< output topic, i.g. gnii/mqtt/cmd
     ) {
     printf("Using server at %s\n", uri);
 

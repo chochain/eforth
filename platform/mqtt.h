@@ -24,9 +24,9 @@ public:
     static void _conn_lost(void *ctx, char *cause);       /// connection lost handler
     
     MQTT(const char *uri,
-         const char *topic_put,
          const char *topic_get,
-         int (*hndl)(void*, char*, int, mqtt_msg_t*));
+         int (*hndl)(void*, char*, int, mqtt_msg_t*),
+         const char *topic_put);
     ~MQTT();
     
     int publish(char *payload);
