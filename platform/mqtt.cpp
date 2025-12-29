@@ -4,12 +4,9 @@
 ///
 #include "mqtt.h"
 
+#define CLINETID   "gnii_mqtt"
 #define QOS        1
 #define TIMEOUT    10000L
-
-void MQTT::_delivered(void *ctx, mqtt_token_t token) {
-    printf("Message with token value %d delivery confirmed\n", token);
-}
 
 void MQTT::_conn_lost(void *ctx, char *cause) {
     printf("\nConnection lost\n");
@@ -29,21 +26,25 @@ MQTT::MQTT(
     _topic_get = topic_get;
     
     _status =
-        _setup("rcvr", uri, &_rcvr, get_hndl) ||
-        _setup("sndr", uri, &_sndr, put_hndl) ||
-        _connect()                            ||
+        _connect("rcvr", uri, &_rcvr, get_hndl) ||
+//      _connect("sndr", uri, &_sndr, put_hndl) ||
         _subscribe();
 }
 
 MQTT::~MQTT() {
     _disconnect();
     
-    MQTTClient_destroy(&_rcvr);
-    MQTTClient_destroy(&_sndr);
+    MQTTAsync_destroy(&_rcvr);
+//    MQTTClient_destroy(&_sndr);
 }
 
 #include <cstring>
 int MQTT::publish(char *payload) {
+    mqtt_res_opts_t opts = MQTT_RES_INIT;
+    opts.context   = _sndr;
+    opts.onSuccess = _send_ok;
+    opts.onFailure = _send_err;
+    
     mqtt_msg_t msg = MQTT_MSG_INIT;
     
     msg.payload    = (void*)payload;
@@ -52,85 +53,74 @@ int MQTT::publish(char *payload) {
     msg.retained   = 0;
 
     int rc;
-    if ((rc = MQTTClient_publishMessage(_sndr, _topic_put, &msg, &_token)) != MQTTCLIENT_SUCCESS) {
+    if ((rc = MQTTAsync_sendMessage(_sndr, _topic_put, &msg, &opts)) != MQTTASYNC_SUCCESS) {
         printf("sndr: Failed to publish to %s, return code %d\n", _topic_put, rc);
-        goto bail;
+        return rc;
     }
-    printf("sndr: sent %s, waiting for up to %d ms on topic %s\n",
-           payload, (int)TIMEOUT, _topic_put);
-    
-    rc = MQTTClient_waitForCompletion(_sndr, _token, TIMEOUT);
-    printf("sndr: Message with delivery token %d delivered\n", _token);
-    
-bail:
     return 0;
 }
 
-int MQTT::_setup(const char *id, const char *uri, mqtt_t *node, mqtt_hndl hndl) {
+int MQTT::_connect(const char *id, const char *uri, mqtt_t *node, mqtt_hndl hndl) {
     int rc;
-    if ((rc = MQTTClient_create(
-             node, uri, id, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTCLIENT_SUCCESS) {
+    if ((rc = MQTTAsync_create(
+             node, uri, id, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTASYNC_SUCCESS) {
         printf("%s: Failed to create, return code %d\n", id, rc);
-        goto bail;
+        return rc;
     }
-    if ((rc = MQTTClient_setCallbacks(
-             *node, NULL,
-             MQTT::_conn_lost, hndl, MQTT::_delivered)) != MQTTCLIENT_SUCCESS) {
+    if ((rc = MQTTAsync_setCallbacks(
+             *node, *node, MQTT::_conn_lost, hndl, NULL)) != MQTTASYNC_SUCCESS) {
         printf("%s: Failed to set callbacks, return code %d\n", id, rc);
-        goto bail;
+        return rc;
     }
-    rc = 0;
-bail:
-    return rc;
-}
-
-int MQTT::_connect() {
-    mqtt_opts_t opts = MQTT_CONN_INIT;
-    opts.keepAliveInterval = 20;
-    opts.cleansession = 1;
     
-    int rc;
-    if ((rc = MQTTClient_connect(_rcvr, &opts)) != MQTTCLIENT_SUCCESS) {
-        printf("rcvr: Failed to connect, return code %d\n", rc);
-        goto bail;
+    mqtt_conn_opts_t opts  = MQTT_CONN_INIT;
+    opts.context           = _rcvr;
+    opts.onSuccess         = _conn_ok;
+    opts.onFailure         = _conn_err;
+    opts.keepAliveInterval = 20;
+    opts.cleansession      = 1;                     /// * remove all leftover messages
+    
+    if ((rc = MQTTAsync_connect(*node, &opts)) != MQTTASYNC_SUCCESS) {
+        printf("%s: Failed to connect, return code %d\n", id, rc);
+        return rc;
     }
-    if ((rc = MQTTClient_connect(_sndr, &opts)) != MQTTCLIENT_SUCCESS) {
-        printf("sndr: Failed to connect, return code %d\n", rc);
-        goto bail;
-    }
-    rc = 0;
-bail:
-    return rc;
+    return 0;
 }
 
 int MQTT::_disconnect() {
+    mqtt_disconn_opts_t opts = MQTT_DISCONN_INIT;
+    opts.context   = _rcvr;
+    opts.timeout   = TIMEOUT;
+    opts.onSuccess = _disconn_ok;
+    opts.onFailure = _disconn_err;
+    
     int rc;
-    if ((rc = MQTTClient_unsubscribe(_rcvr, _topic_get)) != MQTTCLIENT_SUCCESS) {
-        printf("rcvr: Failed to unsubscribe, return code %d\n", rc);
-        goto bail;
-    }
-    if ((rc = MQTTClient_disconnect(_rcvr, TIMEOUT)) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to disconnect, return code %d\n", rc);
-        goto bail;
-    }
-    if ((rc = MQTTClient_disconnect(_sndr, TIMEOUT)) != MQTTCLIENT_SUCCESS) {
+/*    
+    if ((rc = MQTTAsync_disconnect(_sndr, TIMEOUT)) != MQTTASYNC_SUCCESS) {
     	printf("Failed to disconnect, return code %d\n", rc);
-        goto bail;
+        return rc;
     }
-    rc = 0;
-bail:    
-    return rc;
+*/
+    if ((rc = MQTTAsync_disconnect(_rcvr, &opts)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to disconnect, return code %d\n", rc);
+        return rc;
+    }
+    return 0;
 }
 
 int MQTT::_subscribe() {
+    mqtt_res_opts_t opts = MQTT_RES_INIT;
+    opts.context   = _rcvr;
+    opts.onSuccess = _sub_ok;
+    opts.onFailure = _sub_err;
+    
     int rc;
-    if ((rc = MQTTClient_subscribe(_rcvr, _topic_get, QOS)) != MQTTCLIENT_SUCCESS) {
+    if ((rc = MQTTAsync_subscribe(_rcvr, _topic_get, QOS, &opts)) != MQTTASYNC_SUCCESS) {
         printf("Failed to subscribe to %s, return code %d\n", _topic_get, rc);
-        goto bail;
+        return rc;
     }
-    rc = 0;
-bail:    
-    return rc;
+    printf("successfully subscribe to %s\n", _topic_get);
+    return 0;
 }
 
 
