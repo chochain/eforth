@@ -21,44 +21,41 @@ typedef MQTTAsync_failureData        mqtt_err_t;
 typedef int (*mqtt_hndl)(void*, char*, int, mqtt_msg_t*); ///< message handler
 
 class MQTT {
+    static int  _conn_status;
+    static int  _sub_status;
+    
     const char  *_topic_put;
     const char  *_topic_get;
     
     mqtt_t      _sndr;
     mqtt_t      _rcvr;
-    int         _status;
-    int         _token;
 
 public:
-    static void _conn_ok(void *ctx, mqtt_ok_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
+    static void _conn_ok    (void *ctx, mqtt_ok_t  *res) {
+        _conn_status = 1;
+        printf("_conn_ok token=%d\n",  res->token);
     }
-    static void _conn_err(void *ctx, mqtt_err_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
+    static void _conn_err   (void *ctx, mqtt_err_t *res) {
+        _conn_status = -1;
+        printf("_conn_err token=%d\n", res->token);
     }
-    static void _send_ok(void *ctx, mqtt_ok_t  *res) {    /// message delivery notifier
-        printf("Message with token value %d delivery confirmed\n", res->token);
+    static void _sub_ok     (void *ctx, mqtt_ok_t  *res) {
+        _sub_status = 1;
+        printf("_sub_ok token=%d\n",   res->token);
     }
-    static void _send_err(void *ctx, mqtt_err_t *res) {  /// message delivery notifier
-        printf("Message with token value %d delivery confirmed\n", res->token);
+    static void _sub_err    (void *ctx, mqtt_err_t *res) {
+        _sub_status = -1;
+        printf("_sub_err token=%d\n",  res->token);
     }
-    static void _sub_ok(void *ctx, mqtt_ok_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
-    }
-    static void _sub_err(void *ctx, mqtt_err_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
-    }
-    static void _unsub_ok(void *ctx, mqtt_ok_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
-    }
-    static void _unsub_err(void *ctx, mqtt_err_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
-    }
-    static void _disconn_ok(void *ctx, mqtt_ok_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
+    static void _send_ok    (void *ctx, mqtt_ok_t  *res) { printf("_send_ok token=%d\n",  res->token); }
+    static void _send_err   (void *ctx, mqtt_err_t *res) { printf("_send_err token=%d\n", res->token); }
+    static void _disconn_ok (void *ctx, mqtt_ok_t  *res) {
+        _conn_status = 0;
+        printf("_disconn_ok token=%d\n",  res->token);
     }
     static void _disconn_err(void *ctx, mqtt_err_t *res) {
-        printf("Message with token value %d delivery confirmed\n", res->token);
+        _conn_status = -2;
+        printf("_disconn_err token=%d\n", res->token);
     }
     static void _conn_lost(void *ctx, char *cause);       /// connection lost handler
     static int  _msg_arrived(void *ctx, char *topic, int len, mqtt_msg_t *msg);
