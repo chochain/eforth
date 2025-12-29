@@ -42,7 +42,7 @@ tests/eforth: platform/main.o $(OBJS)
 	$(CC) $(CC_FLAG) -o $@ $^
 
 tests/eforth_mqtt: platform/mqtt.o platform/main_mqtt.o $(OBJS)
-	$(CC) -o $@ $^ -lpaho-mqtt3cs 
+	$(CC) -o $@ $^ -lpaho-mqtt3a
 
 debug: tests/eforth
 	/bin/valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $^
