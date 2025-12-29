@@ -156,8 +156,8 @@ int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
 
     forth_vm((char*)msg->payload);
 
-    MQTTClient_freeMessage(&msg);
-    MQTTClient_free(topic);
+    MQTTAsync_freeMessage(&msg);
+    MQTTAsync_free(topic);
 
     return 1;
 }
@@ -169,8 +169,8 @@ int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
 
     printf("%s\n", (char*)msg->payload);
 
-    MQTTClient_freeMessage(&msg);
-    MQTTClient_free(topic);
+    MQTTAsync_freeMessage(&msg);
+    MQTTAsync_free(topic);
 
     return 1;
 }
@@ -197,7 +197,7 @@ int main(int argc, char* argv[]) {
     mem_stat();                                 /// * show memory status
     srand((int)time(0));                        /// * seed random generator
 
-    outer(stdin, &mqtt);                      /// * Forth outer interpreter (non-blocking input)
+//    outer(stdin, &mqtt);                      /// * Forth outer interpreter (non-blocking input)
 
     forth_teardown();                           /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
