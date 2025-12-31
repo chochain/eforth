@@ -123,7 +123,7 @@ void forth_include(const char *fn) {
 
 #define  MQTT_URI "tcp://test.mosquitto.org:1883"
 
-void outer(FILE *fp, MQTT *sndr) {
+void outer(FILE *fp, MQTT *mqtt) {
 #if _WIN32 || _WIN64
     int fno = 0;
     auto noblock = []() {};
@@ -143,9 +143,9 @@ void outer(FILE *fp, MQTT *sndr) {
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
         if (n) {
             fprintf(stderr, "cmd=<%s>\n", cmd);
-            stop = sndr->publish(cmd);                 /// * call Forth VM (or trigger ticker)
+            stop = mqtt->publish("sndr", &mqtt->sndr, cmd); /// * call Forth VM (or trigger ticker)
         }
-        else sndr->publish(nullptr);
+        else mqtt->publish(nullptr, nullptr, nullptr);
     }
 }
 
