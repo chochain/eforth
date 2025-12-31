@@ -27,10 +27,10 @@ class MQTT {
     const char  *_topic_put;
     const char  *_topic_get;
     
-    mqtt_t      _sndr;
-    mqtt_t      _rcvr;
-
 public:
+    mqtt_t      sndr;
+    mqtt_t      rcvr;
+
     static void _conn_ok    (void *ctx, mqtt_ok_t  *res) {
         _conn_status = 1;
         printf("_conn_ok token=%d\n",  res->token);
@@ -67,7 +67,7 @@ public:
          mqtt_hndl  put_hndl);
     ~MQTT();
     
-    int publish(char *payload);
+    int publish(const char *id, mqtt_t *node, char *payload);
 
 private:
     int _connect(const char *id, const char *rui, mqtt_t *node, mqtt_hndl hndl);
