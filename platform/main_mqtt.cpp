@@ -152,7 +152,7 @@ void outer(FILE *fp, MQTT *mqtt) {
             fprintf(stderr, "cmd=<%s>\n", cmd);
             stop = mqtt->publish("sndr", &mqtt->sndr, cmd); /// * call Forth VM (or trigger ticker)
         }
-        else mqtt->publish(nullptr, nullptr, nullptr);
+//        else mqtt->publish("sndr", &mqtt->sndr, (char*)"\n");
     }
 }
 
@@ -196,7 +196,7 @@ int usage(char *argv[]) {
 int main(int argc, char* argv[]) {
     if (argc < 3) return usage(argv);
     
-    MQTT mqtt( MQTT_URI, argv[1], onCmd, argv[2], onRst);
+    MQTT mqtt(MQTT_URI, argv[1], onCmd, argv[2], onRst);
 
     std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
     forth_init();                               /// * initialize dictionary
@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
     mem_stat();                                 /// * show memory status
     srand((int)time(0));                        /// * seed random generator
 
-//    outer(stdin, &mqtt);                      /// * Forth outer interpreter (non-blocking input)
+    outer(stdin, &mqtt);                        /// * Forth outer interpreter (non-blocking input)
 
     forth_teardown();                           /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
