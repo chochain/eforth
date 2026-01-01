@@ -7,7 +7,7 @@
 ///
 #include <cstdio>
 #include <cstdlib>         /// srand
-#include <cstring>
+#include <string>
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
@@ -20,6 +20,8 @@ extern char qkey();
 #include <error.h>         // EAGAIN, EWOUDLBLOCK
 #include <sys/sysinfo.h>   // memory info
 #endif
+
+using namespace std;
 
 extern void forth_init();
 extern int  forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
@@ -75,7 +77,7 @@ void mem_stat() {
 ///> include external Forth script
 ///
 #if _WIN32 || _WIN64
-int getline_async(const int fno, char *cmd, char delim) {
+int getline_async(int fno, string &cmd, char delim='\n') {
     int idx = 0;
     while (1) {
         char ch = qkey();
@@ -90,20 +92,20 @@ int getline_async(const int fno, char *cmd, char delim) {
 }
 #else // !(_WIN32 || _WIN64)
 #include <errno.h>
-int getline_async(const int fno, char *cmd, char delim) {
-    int idx = 0, n = 1;
+int getline_async(int fno, string& cmd, char delim='\n') {
+    int n = 1;
     while (n > 0) {
         char buf[2] = { 0 };
         n = (int)read(fno, buf, 1);                    /// * can return -1
         if (n==1) {                                    /// * got char
             if (*buf == delim) return 1;               /// * EOL
-            cmd[idx++] = *buf;
+            cmd.append(buf);
         } else {
             n = errno==EAGAIN || errno==EWOULDBLOCK;   /// * reverted back to blocking
             if (n) return -1;                          /// * bail
         }
     }
-    return idx;
+    return n;
 }
 #endif // _WIN32 || _WIN64
 
@@ -141,16 +143,17 @@ void outer(FILE *fp, MQTT *mqtt) {
         fcntl(fno, F_SETFL, flags | O_NONBLOCK);
     };
 #endif
-    char cmd[128];
-    int  stop = 0;
+    string cmd("");
+    int    stop = 0;
     noblock();
     while (!stop) {
         fflush(stdout);                                /// * flush output buffer before wait
-        int n = getline_async(fno, cmd, '\n');
+        int n = getline_async(fno, cmd);
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
         if (n) {
-            fprintf(stderr, "cmd=<%s>\n", cmd);
-            stop = mqtt->publish("sndr", &mqtt->sndr, cmd); /// * call Forth VM (or trigger ticker)
+            fprintf(stderr, "cmd=<%s>\n", cmd.c_str());
+            stop = mqtt->publish("sndr", &mqtt->sndr, cmd.c_str()); /// * call Forth VM (or trigger ticker)
+            cmd = "";
         }
 //        else mqtt->publish("sndr", &mqtt->sndr, (char*)"\n");
     }
