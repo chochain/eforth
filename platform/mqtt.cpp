@@ -30,7 +30,7 @@ MQTT::MQTT(
     _topic_get = topic_get;
     
     _connect("rcvr", uri, &rcvr, get_hndl);
-//  _connect("sndr", uri, &sndr, put_hndl);
+    _connect("sndr", uri, &sndr, put_hndl);
     _subscribe();
 }
 
@@ -40,7 +40,7 @@ MQTT::~MQTT() {
     /// wait for disconnected
     ///
     MQTTAsync_destroy(&rcvr);
-//    MQTTClient_destroy(&sndr);
+    MQTTAsync_destroy(&sndr);
 }
 
 #include <cstring>
@@ -58,10 +58,11 @@ int MQTT::publish(const char *id, mqtt_t *node, char *payload) {
     msg.retained   = 0;
 
     int rc;
-    if ((rc = MQTTAsync_sendMessage(*node, _topic_put, &msg, &opts)) != MQTTASYNC_SUCCESS) {
-        printf("%s: Failed to publish to %s, return code %d\n", id, _topic_put, rc);
+    if ((rc = MQTTAsync_sendMessage(*node, _topic_get, &msg, &opts)) != MQTTASYNC_SUCCESS) {
+        printf("%s: Failed to publish to %s, return code %d\n", id, _topic_get, rc);
         return rc;
     }
+    printf("%s: published %s to %s\n", id, payload, _topic_get);
     return 0;
 }
 
@@ -100,12 +101,10 @@ int MQTT::_disconnect() {
     opts.onFailure = _disconn_err;
     
     int rc;
-/*    
     if ((rc = MQTTAsync_disconnect(sndr, &opts)) != MQTTASYNC_SUCCESS) {
     	printf("sndr: Failed to disconnect, return code %d\n", rc);
         return rc;
     }
-*/
     if ((rc = MQTTAsync_disconnect(rcvr, &opts)) != MQTTASYNC_SUCCESS) {
         printf("rcvr: Failed to disconnect, return code %d\n", rc);
         return rc;
