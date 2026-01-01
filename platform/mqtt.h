@@ -67,7 +67,7 @@ public:
          mqtt_hndl  put_hndl);
     ~MQTT();
     
-    int publish(const char *id, mqtt_t *node, char *payload);
+    int publish(const char *id, mqtt_t *node, const char *payload);
 
 private:
     int _connect(const char *id, const char *rui, mqtt_t *node, mqtt_hndl hndl);

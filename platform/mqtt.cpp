@@ -44,7 +44,7 @@ MQTT::~MQTT() {
 }
 
 #include <cstring>
-int MQTT::publish(const char *id, mqtt_t *node, char *payload) {
+int MQTT::publish(const char *id, mqtt_t *node, const char *payload) {
     mqtt_res_opts_t opts = MQTT_RES_INIT;
     opts.context   = *node;
     opts.onSuccess = _send_ok;
