@@ -1,3 +1,10 @@
+///
+/// @file
+/// @brief - MQTT enabled eForth
+/// @note
+///    1. build and install paho.mqtt.c i.e. make; sudo make install
+///    2. sudo apt install openssl libssl-dev
+///
 #include <cstdio>
 #include <cstdlib>         /// srand
 #include <cstring>
