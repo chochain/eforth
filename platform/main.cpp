@@ -73,7 +73,7 @@ void mem_stat() {
 ///> include external Forth script
 ///
 #if _WIN32 || _WIN64
-int getline_async(const int& fno, string &cmd, char delim='\n') {
+int getline_async(int fno, string& cmd, char delim='\n') {
     while (1) {
         char ch = qkey();
         switch (ch) {
@@ -85,7 +85,7 @@ int getline_async(const int& fno, string &cmd, char delim='\n') {
     }
 }
 #else // !(_WIN32 || _WIN64)
-int getline_async(const int& fno, string& cmd, char delim='\n') {
+int getline_async(int fno, string& cmd, char delim='\n') {
     int n = 1;
     while (n > 0) {
         char buf[2] = { 0 };
