@@ -60,7 +60,8 @@ public:
     }
     static void _conn_lost(void *ctx, char *cause);       /// connection lost handler
     static int  _msg_arrived(void *ctx, char *topic, int len, mqtt_msg_t *msg);
-    
+
+    MQTT() {}
     MQTT(const char *id,
          const char *uri,
          const char *topic_get,
@@ -68,6 +69,11 @@ public:
          mqtt_hndl  get_hndl);
     ~MQTT();
     
+    void init(const char *id,
+         const char *uri,
+         const char *topic_get,
+         const char *topic_put,
+         mqtt_hndl  get_hndl);
     int publish(const char *payload);
 
 private:
