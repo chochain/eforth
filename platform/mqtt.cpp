@@ -18,19 +18,21 @@ int MQTT::_conn_status = 0;
 int MQTT::_sub_status  = 0;
 
 MQTT::MQTT(
+    const char *id,
     const char *uri,            ///< URL of MQTT broker
-    const char *topic_get,      ///< input topic, i.g. gnii/mqtt/rst
-    mqtt_hndl  get_hndl,        ///< message handler
+    const char *topic_get,      ///< input topic, i.g. gnii/mqtt/cmd
     const char *topic_put,      ///< output topic, i.g. gnii/mqtt/cmd
-    mqtt_hndl  put_hndl         ///< message handler
+    mqtt_hndl  get_hndl         ///< message handler
     ) {
-    printf("Using server at %s\n", uri);
+    printf("client_id=%s using broker at %s\n", id, uri);
 
-    _topic_put = topic_put;
+    _id        = id;
+    _uri       = uri;
     _topic_get = topic_get;
+    _topic_put = topic_put;
     
-    _connect("rcvr", uri, &rcvr, get_hndl);
-    _connect("sndr", uri, &sndr, put_hndl);
+    _connect(get_hndl);
+    
     _subscribe();
 }
 
@@ -39,14 +41,13 @@ MQTT::~MQTT() {
     ///
     /// wait for disconnected
     ///
-    MQTTAsync_destroy(&rcvr);
-    MQTTAsync_destroy(&sndr);
+    MQTTAsync_destroy(&_mqtt);
 }
 
 #include <cstring>
-int MQTT::publish(const char *id, mqtt_t *node, const char *payload) {
+int MQTT::publish(const char *payload) {
     mqtt_res_opts_t opts = MQTT_RES_INIT;
-    opts.context   = *node;
+    opts.context   = _mqtt;
     opts.onSuccess = _send_ok;
     opts.onFailure = _send_err;
     
@@ -58,36 +59,36 @@ int MQTT::publish(const char *id, mqtt_t *node, const char *payload) {
     msg.retained   = 0;
 
     int rc;
-    if ((rc = MQTTAsync_sendMessage(*node, _topic_get, &msg, &opts)) != MQTTASYNC_SUCCESS) {
-        printf("%s: Failed to publish to %s, return code %d\n", id, _topic_get, rc);
+    if ((rc = MQTTAsync_sendMessage(_mqtt, _topic_get, &msg, &opts)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to publish to %s, return code %d\n", _topic_get, rc);
         return rc;
     }
-    printf("%s: published %s to %s\n", id, payload, _topic_get);
+    printf("Published %s to %s\n", payload, _topic_get);
     return 0;
 }
 
-int MQTT::_connect(const char *id, const char *uri, mqtt_t *node, mqtt_hndl hndl) {
+int MQTT::_connect(mqtt_hndl get_hndl) {
     int rc;
     if ((rc = MQTTAsync_create(
-             node, uri, id, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTASYNC_SUCCESS) {
-        printf("%s: Failed to create, return code %d\n", id, rc);
+             &_mqtt, _uri, _id, MQTTCLIENT_PERSISTENCE_NONE, NULL)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to create, return code %d\n", rc);
         return rc;
     }
     if ((rc = MQTTAsync_setCallbacks(
-             *node, *node, _conn_lost, hndl, NULL)) != MQTTASYNC_SUCCESS) {
-        printf("%s: Failed to set callbacks, return code %d\n", id, rc);
+             _mqtt, _mqtt, _conn_lost, get_hndl, NULL)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to set callbacks, return code %d\n", rc);
         return rc;
     }
     
     mqtt_conn_opts_t opts  = MQTT_CONN_INIT;
-    opts.context           = *node;
+    opts.context           = _mqtt;
     opts.onSuccess         = _conn_ok;
     opts.onFailure         = _conn_err;
     opts.keepAliveInterval = 20;
     opts.cleansession      = 1;                     /// * remove all leftover messages
     
-    if ((rc = MQTTAsync_connect(*node, &opts)) != MQTTASYNC_SUCCESS) {
-        printf("%s: Failed to connect, return code %d\n", id, rc);
+    if ((rc = MQTTAsync_connect(_mqtt, &opts)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to connect, return code %d\n", rc);
         return rc;
     }
 
@@ -101,12 +102,8 @@ int MQTT::_disconnect() {
     opts.onFailure = _disconn_err;
     
     int rc;
-    if ((rc = MQTTAsync_disconnect(sndr, &opts)) != MQTTASYNC_SUCCESS) {
-    	printf("sndr: Failed to disconnect, return code %d\n", rc);
-        return rc;
-    }
-    if ((rc = MQTTAsync_disconnect(rcvr, &opts)) != MQTTASYNC_SUCCESS) {
-        printf("rcvr: Failed to disconnect, return code %d\n", rc);
+    if ((rc = MQTTAsync_disconnect(_mqtt, &opts)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to disconnect, return code %d\n", rc);
         return rc;
     }
 
@@ -116,12 +113,12 @@ int MQTT::_disconnect() {
 
 int MQTT::_subscribe() {
     mqtt_res_opts_t opts = MQTT_RES_INIT;
-    opts.context   = rcvr;
+    opts.context   = _mqtt;
     opts.onSuccess = _sub_ok;
     opts.onFailure = _sub_err;
     
     int rc;
-    if ((rc = MQTTAsync_subscribe(rcvr, _topic_get, QOS, &opts)) != MQTTASYNC_SUCCESS) {
+    if ((rc = MQTTAsync_subscribe(_mqtt, _topic_get, QOS, &opts)) != MQTTASYNC_SUCCESS) {
         printf("Failed to subscribe to %s, return code %d\n", _topic_get, rc);
         return rc;
     }
