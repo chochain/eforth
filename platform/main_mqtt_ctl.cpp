@@ -115,7 +115,9 @@ int getline_async(int fno, string& cmd, char delim='\n') {
 #define  TOPIC_CMD "gnii/mqtt/cmd"
 #define  TOPIC_RST "gnii/mqtt/rst"
 
-void outer(FILE *fp, MQTT *mqtt) {
+MQTT gMqtt;
+
+void outer(FILE *fp) {
 #if _WIN32 || _WIN64
     int fno = 0;
     auto noblock = []() {};
@@ -135,7 +137,9 @@ void outer(FILE *fp, MQTT *mqtt) {
         if (n < 0) { noblock(); n = 0; }               /// * handle input error
         if (n) {
             fprintf(stderr, "cmd=<%s>\n", cmd.c_str());
-            stop = mqtt->publish(cmd.c_str());         /// * call Forth VM (or trigger ticker)
+            gMqtt.publish(cmd.c_str());                /// * call Forth VM (or trigger ticker)
+            
+            stop = cmd == "bye";                       /// * shutdown console
             cmd = "";
         }
 //        else mqtt->publish("sndr", &mqtt->sndr, (char*)"\n");
@@ -166,7 +170,7 @@ int usage(char *argv[]) {
 int main(int argc, char* argv[]) {
     if (argc < 2) return usage(argv);
     
-    MQTT mqtt(
+    gMqtt.init(
         argv[1],
         MQTT_URI,
         argc > 2 ? argv[2] : TOPIC_RST,
@@ -177,7 +181,7 @@ int main(int argc, char* argv[]) {
 
     mem_stat();                                 /// * show memory status
 
-    outer(stdin, &mqtt);                        /// * Forth outer interpreter (non-blocking input)
+    outer(stdin);                               /// * Forth outer interpreter (non-blocking input)
 
     fprintf(stdout, "%s Done!\n", APP_VERSION);
     
