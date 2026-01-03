@@ -94,13 +94,19 @@ void forth_include(const char *fn) {
 int gStop = 0;
 
 int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
-    char *cmd = (char*)msg->payload;
-    
-    printf("Cmd arrived\n");
-    printf("  topic: %s\n", topic);
-    printf("  msg: %.*s\n", msg->payloadlen, cmd);
+    char *cmd  = (char*)msg->payload;
+    MQTT *mqtt = (MQTT*)ctx;
 
-    forth_vm(cmd);
+    auto rsvp = [](int n, const char *rst) {
+//        mqtt->MQTTAysnc_sendMessage(*mqtt, TOPIC_RST, rst, NULL);
+        printf(">>> %s", rst);
+        fflush(stdout);
+    };
+
+    printf("onCmd topic=%s msg[%d]=%s\n",
+           topic, msg->payloadlen, cmd);
+
+    forth_vm(cmd, rsvp);
     if (strcmp(cmd, "bye")==0) gStop = 1;
 
     MQTTAsync_freeMessage(&msg);
@@ -117,12 +123,12 @@ int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
 #include <iostream>                             /// stdio
 
 int usage(char *argv[]) {
-    printf("Usage:> %s [topic_cmd [topic_rst]]\n", argv[0]);
+    printf("Usage:> %s client_id [topic_cmd [topic_rst]]\n", argv[0]);
     return 1;
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 1) return usage(argv);
+    if (argc < 2) return usage(argv);
     
     MQTT mqtt(
         argv[1],
