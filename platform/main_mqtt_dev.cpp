@@ -9,15 +9,7 @@
 #include <cstdlib>         /// srand
 #include <string>
 
-#ifdef __APPLE__
-#include <sys/sysctl.h>
-#elif _WIN32 || _WIN64
-#include <windows.h>
-extern char qkey();
-#else // Linux || Cygwin
-#include <fcntl.h>         // O_NONBLOCK
-#include <unistd.h>        // read (low-level)
-#include <error.h>         // EAGAIN, EWOUDLBLOCK
+#if !(__APPLE__ || _WIN32 || _WIN64) 
 #include <sys/sysinfo.h>   // memory info
 #endif
 
@@ -27,7 +19,7 @@ extern void forth_init();
 extern int  forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
 extern void forth_teardown();
 
-const char* APP_VERSION = "eForth_MQTT v5.0";
+const char* APP_VERSION = "eForth_MQTT_dev v5.0";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
@@ -73,41 +65,6 @@ void mem_stat() {
 #endif
     fprintf(stdout, "\n");
 }
-///
-///> include external Forth script
-///
-#if _WIN32 || _WIN64
-int getline_async(int fno, string &cmd, char delim='\n') {
-    int idx = 0;
-    while (1) {
-        char ch = qkey();
-        switch (ch) {
-        case '\0': case EOF:  return 0;                /// * no input, skip
-        case '\r': case '\n': return 1;                /// * line captured
-        case 0x8:  case 0x7f: --idx; break;            /// * remove previous char
-        default:   cmd[idx++] = ch; break;             /// * capture input char
-        }
-    }
-    return idx;
-}
-#else // !(_WIN32 || _WIN64)
-#include <errno.h>
-int getline_async(int fno, string& cmd, char delim='\n') {
-    int n = 1;
-    while (n > 0) {
-        char buf[2] = { 0 };
-        n = (int)read(fno, buf, 1);                    /// * can return -1
-        if (n==1) {                                    /// * got char
-            if (*buf == delim) return 1;               /// * EOL
-            cmd.append(buf);
-        } else {
-            n = errno==EAGAIN || errno==EWOULDBLOCK;   /// * reverted back to blocking
-            if (n) return -1;                          /// * bail
-        }
-    }
-    return n;
-}
-#endif // _WIN32 || _WIN64
 
 #define TIB_SZ 256
 void forth_include(const char *fn) {
@@ -128,56 +85,23 @@ void forth_include(const char *fn) {
 ///
 /// MQTT receiver
 ///
+#include <cstring>
 #include "mqtt.h"
+#define  MQTT_URI   "tcp://test.mosquitto.org:1883"
+#define  TOPIC_CMD  "gnii/mqtt/cmd"
+#define  TOPIC_RST  "gnii/mqtt/rst"
 
-#define  MQTT_URI "tcp://test.mosquitto.org:1883"
-
-void outer(FILE *fp, MQTT *mqtt) {
-#if _WIN32 || _WIN64
-    int fno = 0;
-    auto noblock = []() {};
-#else
-    int fno = fileno(fp);                              ///< capture file number
-    auto noblock = [fno]() {                           ///< set input to non-blocking
-        int flags = fcntl(fno, F_GETFL, 0);
-        fcntl(fno, F_SETFL, flags | O_NONBLOCK);
-    };
-#endif
-    string cmd("");
-    int    stop = 0;
-    noblock();
-    while (!stop) {
-        fflush(stdout);                                /// * flush output buffer before wait
-        int n = getline_async(fno, cmd);
-        if (n < 0) { noblock(); n = 0; }               /// * handle input error
-        if (n) {
-            fprintf(stderr, "cmd=<%s>\n", cmd.c_str());
-            stop = mqtt->publish("sndr", &mqtt->sndr, cmd.c_str()); /// * call Forth VM (or trigger ticker)
-            cmd = "";
-        }
-//        else mqtt->publish("sndr", &mqtt->sndr, (char*)"\n");
-    }
-}
+int gStop = 0;
 
 int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
+    char *cmd = (char*)msg->payload;
+    
     printf("Cmd arrived\n");
     printf("  topic: %s\n", topic);
-    printf("  msg: %.*s\n", msg->payloadlen, (char*)msg->payload);
+    printf("  msg: %.*s\n", msg->payloadlen, cmd);
 
-    forth_vm((char*)msg->payload);
-
-    MQTTAsync_freeMessage(&msg);
-    MQTTAsync_free(topic);
-
-    return 1;
-}
-
-int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
-    printf("Rst arrived\n");
-    printf("  topic: %s\n", topic);
-    printf("  msg: %.*s\n", msg->payloadlen, (char*)msg->payload);
-
-    printf("%s\n", (char*)msg->payload);
+    forth_vm(cmd);
+    if (strcmp(cmd, "bye")==0) gStop = 1;
 
     MQTTAsync_freeMessage(&msg);
     MQTTAsync_free(topic);
@@ -191,23 +115,29 @@ int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
 ///
 #include <ctime>                                /// time
 #include <iostream>                             /// stdio
+
 int usage(char *argv[]) {
-    printf("Usage:> %s topic_get topic_put\n", argv[0]);
+    printf("Usage:> %s [topic_cmd [topic_rst]]\n", argv[0]);
     return 1;
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 3) return usage(argv);
+    if (argc < 1) return usage(argv);
     
-    MQTT mqtt(MQTT_URI, argv[1], onCmd, argv[2], onRst);
+    MQTT mqtt(
+        argv[1],
+        MQTT_URI,
+        argc > 2 ? argv[2] : TOPIC_CMD,
+        argc > 3 ? argv[3] : TOPIC_RST,
+        onCmd);
 
     std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
     forth_init();                               /// * initialize dictionary
 
     mem_stat();                                 /// * show memory status
     srand((int)time(0));                        /// * seed random generator
-
-    outer(stdin, &mqtt);                        /// * Forth outer interpreter (non-blocking input)
+    
+    while (!gStop);
 
     forth_teardown();                           /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
