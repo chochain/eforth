@@ -23,14 +23,15 @@ typedef int (*mqtt_hndl)(void*, char*, int, mqtt_msg_t*); ///< message handler
 class MQTT {
     static int  _conn_status;
     static int  _sub_status;
-    
+
+    const char  *_id;
+    const char  *_uri;
     const char  *_topic_put;
     const char  *_topic_get;
     
+    mqtt_t      _mqtt;
+    
 public:
-    mqtt_t      sndr;
-    mqtt_t      rcvr;
-
     static void _conn_ok    (void *ctx, mqtt_ok_t  *res) {
         _conn_status = 1;
         printf("_conn_ok token=%d\n",  res->token);
@@ -60,17 +61,17 @@ public:
     static void _conn_lost(void *ctx, char *cause);       /// connection lost handler
     static int  _msg_arrived(void *ctx, char *topic, int len, mqtt_msg_t *msg);
     
-    MQTT(const char *uri,
+    MQTT(const char *id,
+         const char *uri,
          const char *topic_get,
-         mqtt_hndl  get_hndl,
          const char *topic_put,
-         mqtt_hndl  put_hndl);
+         mqtt_hndl  get_hndl);
     ~MQTT();
     
-    int publish(const char *id, mqtt_t *node, const char *payload);
+    int publish(const char *payload);
 
 private:
-    int _connect(const char *id, const char *rui, mqtt_t *node, mqtt_hndl hndl);
+    int _connect(mqtt_hndl get_hndl);
     int _subscribe();
     int _disconnect();
 };
