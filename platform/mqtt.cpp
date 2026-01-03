@@ -24,6 +24,24 @@ MQTT::MQTT(
     const char *topic_put,      ///< output topic, device: gnii/mqtt/rst, console: gnii/mqtt/cmd
     mqtt_hndl  get_hndl         ///< message handler
     ) {
+    init(id, uri, topic_get, topic_put, get_hndl);
+}
+
+MQTT::~MQTT() {
+    _disconnect();
+    ///
+    /// wait for disconnected
+    ///
+    MQTTAsync_destroy(&_mqtt);
+}
+
+void MQTT::init(
+    const char *id,
+    const char *uri,            ///< URL of MQTT broker
+    const char *topic_get,      ///< input topic,  device: gnii/mqtt/cmd, console: gnii/mqtt/rst
+    const char *topic_put,      ///< output topic, device: gnii/mqtt/rst, console: gnii/mqtt/cmd
+    mqtt_hndl  get_hndl         ///< message handler
+    ) {
     printf("client_id=%s using broker at %s\n", id, uri);
 
     _id        = id;
@@ -34,14 +52,6 @@ MQTT::MQTT(
     _connect(get_hndl);
     
     _subscribe();
-}
-
-MQTT::~MQTT() {
-    _disconnect();
-    ///
-    /// wait for disconnected
-    ///
-    MQTTAsync_destroy(&_mqtt);
 }
 
 #include <cstring>
