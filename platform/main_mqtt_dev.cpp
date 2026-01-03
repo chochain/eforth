@@ -85,29 +85,27 @@ void forth_include(const char *fn) {
 ///
 /// MQTT receiver
 ///
-#include <cstring>
+#include <cstring>                              /// strcmp
 #include "mqtt.h"
 #define  MQTT_URI   "tcp://test.mosquitto.org:1883"
 #define  TOPIC_CMD  "gnii/mqtt/cmd"
 #define  TOPIC_RST  "gnii/mqtt/rst"
 
-int gStop = 0;
+int  gStop = 0;
+MQTT gMqtt;
 
 int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
     char *cmd  = (char*)msg->payload;
-    MQTT *mqtt = (MQTT*)ctx;
 
     auto rsvp = [](int n, const char *rst) {
-//        mqtt->MQTTAysnc_sendMessage(*mqtt, TOPIC_RST, rst, NULL);
-        printf(">>> %s", rst);
-        fflush(stdout);
+        gMqtt.publish(rst);
     };
-
+    
     printf("onCmd topic=%s msg[%d]=%s\n",
            topic, msg->payloadlen, cmd);
 
     forth_vm(cmd, rsvp);
-    if (strcmp(cmd, "bye")==0) gStop = 1;
+    if (strcmp(cmd, "bye")==0) gStop = 1;       /// shutdown device
 
     MQTTAsync_freeMessage(&msg);
     MQTTAsync_free(topic);
@@ -129,14 +127,14 @@ int usage(char *argv[]) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) return usage(argv);
-    
-    MQTT mqtt(
+
+    gMqtt.init(
         argv[1],
         MQTT_URI,
         argc > 2 ? argv[2] : TOPIC_CMD,
         argc > 3 ? argv[3] : TOPIC_RST,
         onCmd);
-
+    
     std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
     forth_init();                               /// * initialize dictionary
 
