@@ -20,8 +20,8 @@ int MQTT::_sub_status  = 0;
 MQTT::MQTT(
     const char *id,
     const char *uri,            ///< URL of MQTT broker
-    const char *topic_get,      ///< input topic, i.g. gnii/mqtt/cmd
-    const char *topic_put,      ///< output topic, i.g. gnii/mqtt/cmd
+    const char *topic_get,      ///< input topic,  device: gnii/mqtt/cmd, console: gnii/mqtt/rst
+    const char *topic_put,      ///< output topic, device: gnii/mqtt/rst, console: gnii/mqtt/cmd
     mqtt_hndl  get_hndl         ///< message handler
     ) {
     printf("client_id=%s using broker at %s\n", id, uri);
@@ -59,11 +59,11 @@ int MQTT::publish(const char *payload) {
     msg.retained   = 0;
 
     int rc;
-    if ((rc = MQTTAsync_sendMessage(_mqtt, _topic_get, &msg, &opts)) != MQTTASYNC_SUCCESS) {
-        printf("Failed to publish to %s, return code %d\n", _topic_get, rc);
+    if ((rc = MQTTAsync_sendMessage(_mqtt, _topic_put, &msg, &opts)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to publish to %s, return code %d\n", _topic_put, rc);
         return rc;
     }
-    printf("Published %s to %s\n", payload, _topic_get);
+    printf("Published %s to %s\n", payload, _topic_put);
     return 0;
 }
 
