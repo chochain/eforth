@@ -143,9 +143,8 @@ void outer(FILE *fp, MQTT *mqtt) {
 }
 
 int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
-    printf("Rst arrived\n");
-    printf("  topic: %s\n", topic);
-    printf("  msg: %.*s\n", msg->payloadlen, (char*)msg->payload);
+    printf("onRst topic=%s payload[%d]=%s\n",
+           topic, msg->payloadlen, (char*)msg->payload);
 
     MQTTAsync_freeMessage(&msg);
     MQTTAsync_free(topic);
@@ -160,12 +159,12 @@ int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
 #include <ctime>                                /// time
 #include <iostream>                             /// stdio
 int usage(char *argv[]) {
-    printf("Usage:> %s [topic_rst [topic_cmd]]\n", argv[0]);
+    printf("Usage:> %s client_id [topic_rst [topic_cmd]]\n", argv[0]);
     return 1;
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 1) return usage(argv);
+    if (argc < 2) return usage(argv);
     
     MQTT mqtt(
         argv[1],
