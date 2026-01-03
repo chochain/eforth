@@ -27,7 +27,7 @@ OBJS_50X = \
 
 exe: tests/eforth
 
-mqtt: tests/eforth_mqtt
+mqtt: tests/eforth_mqtt_dev tests/eforth_mqtt_ctl
 
 50x: tests/ceforth50x
 
@@ -41,7 +41,10 @@ all: exe 50x wasm
 tests/eforth: platform/main.o $(OBJS)
 	$(CC) $(CC_FLAG) -o $@ $^
 
-tests/eforth_mqtt: platform/mqtt.o platform/main_mqtt.o $(OBJS)
+tests/eforth_mqtt_dev: platform/mqtt.o platform/main_mqtt_dev.o $(OBJS)
+	$(CC) -o $@ $^ -lpaho-mqtt3a
+
+tests/eforth_mqtt_ctl: platform/mqtt.o platform/main_mqtt_ctl.o
 	$(CC) -o $@ $^ -lpaho-mqtt3a
 
 debug: tests/eforth
