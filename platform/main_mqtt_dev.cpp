@@ -101,7 +101,7 @@ int onCmd(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
         gMqtt.publish(rst);
     };
     
-    printf("onCmd topic=%s msg[%d]=%s\n",
+    printf("%s [%d]>> %s\n",
            topic, msg->payloadlen, cmd);
 
     forth_vm(cmd, rsvp);
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
     mem_stat();                                 /// * show memory status
     srand((int)time(0));                        /// * seed random generator
     
-    while (!gStop);
+    while (!gStop) gMqtt.yield();
 
     forth_teardown();                           /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
