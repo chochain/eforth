@@ -73,8 +73,12 @@ int MQTT::publish(const char *payload) {
         printf("Failed to publish to %s, return code %d\n", _topic_put, rc);
         return rc;
     }
-    printf("Published %s to %s\n", payload, _topic_put);
+    printf("%s[%d] << %s", _topic_put, (int)strlen(payload), payload);
     return 0;
+}
+
+void MQTT::yield() {
+    usleep(10000L);           ///< wait for 10ms (shouldn't affect Async ops)
 }
 
 int MQTT::_connect(mqtt_hndl get_hndl) {

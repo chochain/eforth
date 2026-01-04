@@ -74,7 +74,8 @@ public:
          const char *topic_get,
          const char *topic_put,
          mqtt_hndl  get_hndl);
-    int publish(const char *payload);
+    int  publish(const char *payload);
+    void yield();
 
 private:
     int _connect(mqtt_hndl get_hndl);
