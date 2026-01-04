@@ -120,31 +120,26 @@ MQTT gMqtt;
 void outer(FILE *fp) {
 #if _WIN32 || _WIN64
     int fno = 0;
-    auto noblock = []() {};
+#define NOBLOCK
 #else
     int fno = fileno(fp);                              ///< capture file number
-    auto noblock = [fno]() {                           ///< set input to non-blocking
-        int flags = fcntl(fno, F_GETFL, 0);
-        fcntl(fno, F_SETFL, flags | O_NONBLOCK);
-    };
+#define NOBLOCK fcntl(fno, F_SETFL, fcntl(fno, F_GETFL, 0) | O_NONBLOCK)   /**< set input to non-blocking */
 #endif
-    string cmd("");
-    int    stop = 0;
-    noblock();
-    while (!stop) {
+    auto get_cmd = [](int fno) {
+        string cmd("");
         fflush(stdout);                                /// * flush output buffer before wait
         int n = getline_async(fno, cmd);
-        if (n < 0) { noblock(); n = 0; }               /// * handle input error
+        if (n < 0) { NOBLOCK; return 1; }              /// * handle input error
         if (n) {
             fprintf(stderr, "cmd=<%s>\n", cmd.c_str());
             gMqtt.publish(cmd.c_str());                /// * call Forth VM (or trigger ticker)
             
-            stop = cmd == "bye";                       /// * shutdown console
-            cmd = "";
+            if (cmd == "bye") return 0;                /// * shutdown console
         }
-//        else mqtt->publish("sndr", &mqtt->sndr, (char*)"\n");
-        gMqtt.yield();                                 /// * sleep 10ms
-    }
+        return 1;
+    };
+    NOBLOCK;
+    while (get_cmd(fno)) gMqtt.yield();                /// * sleep 10ms
 }
 
 int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
