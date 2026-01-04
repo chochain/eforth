@@ -143,11 +143,12 @@ void outer(FILE *fp) {
             cmd = "";
         }
 //        else mqtt->publish("sndr", &mqtt->sndr, (char*)"\n");
+        gMqtt.yield();                                 /// * sleep 10ms
     }
 }
 
 int onRst(void *ctx, char *topic, int len, mqtt_msg_t *msg) {
-    printf("onRst topic=%s payload[%d]=%s\n",
+    printf("%s[%d] >> %s",
            topic, msg->payloadlen, (char*)msg->payload);
 
     MQTTAsync_freeMessage(&msg);
