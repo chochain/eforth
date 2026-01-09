@@ -69,7 +69,7 @@ public:
          mqtt_hndl  get_hndl);
     ~MQTT();
     
-    void init(const char *id,
+    int init(const char *id,
          const char *uri,
          const char *topic_get,
          const char *topic_put,

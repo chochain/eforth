@@ -35,7 +35,7 @@ MQTT::~MQTT() {
     MQTTAsync_destroy(&_mqtt);
 }
 
-void MQTT::init(
+int MQTT::init(
     const char *id,
     const char *uri,            ///< URL of MQTT broker
     const char *topic_get,      ///< input topic,  device: gnii/mqtt/cmd, console: gnii/mqtt/rst
@@ -49,9 +49,9 @@ void MQTT::init(
     _topic_get = topic_get;
     _topic_put = topic_put;
     
-    _connect(get_hndl);
-    
-    _subscribe();
+    return 
+        _connect(get_hndl) ||
+        _subscribe();            ///< 0: success
 }
 
 #include <cstring>
