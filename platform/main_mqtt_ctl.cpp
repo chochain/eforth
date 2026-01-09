@@ -166,12 +166,14 @@ int usage(char *argv[]) {
 int main(int argc, char* argv[]) {
     if (argc < 2) return usage(argv);
     
-    gMqtt.init(
+    int rc = gMqtt.init(
         argv[1],
         MQTT_URI,
         argc > 2 ? argv[2] : TOPIC_RST,
         argc > 3 ? argv[3] : TOPIC_CMD,
         onRst);
+
+    if (rc) return rc;
 
     std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
 
