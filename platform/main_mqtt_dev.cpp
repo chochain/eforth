@@ -128,20 +128,20 @@ int usage(char *argv[]) {
 int main(int argc, char* argv[]) {
     if (argc < 2) return usage(argv);
 
-    gMqtt.init(
-        argv[1],
-        MQTT_URI,
-        argc > 2 ? argv[2] : TOPIC_CMD,
-        argc > 3 ? argv[3] : TOPIC_RST,
-        onCmd);
-    
     std::ios_base::sync_with_stdio(true);       /// * sync C++ iostream with C stdio
     forth_init();                               /// * initialize dictionary
 
     mem_stat();                                 /// * show memory status
     srand((int)time(0));                        /// * seed random generator
     
-    while (!gStop) gMqtt.yield();
+    int err = gMqtt.init(
+        argv[1],
+        MQTT_URI,
+        argc > 2 ? argv[2] : TOPIC_CMD,
+        argc > 3 ? argv[3] : TOPIC_RST,
+        onCmd);
+    
+    while (!err && !gStop) gMqtt.yield();
 
     forth_teardown();                           /// * clean up before we go
     fprintf(stdout, "%s Done!\n", APP_VERSION);
