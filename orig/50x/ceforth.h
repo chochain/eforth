@@ -177,6 +177,7 @@ typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
+    const FPTR func  = NULL;
 #if DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< vtable index
@@ -186,12 +187,14 @@ struct Code {
 #else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
+        U32  im;
         struct {
             IU attr;        ///< steal 2 LSBs because xt is 4-byte aligned on 32-bit CPU
             IU pfa;         ///< offset to pmem space (16-bit for 64K range)
         };
     };
 #endif // DO_WASM
+    
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
     static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
 
@@ -200,6 +203,7 @@ struct Code {
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
         attr |= im ? IMM_ATTR : 0;
     }
+    constexpr Code(const char *n, FPTR fp, U32 im) : name(n), func(fp), im(im) {}     ///< built-in and colon words
     IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
     void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
 };
@@ -207,9 +211,14 @@ struct Code {
 ///@name Dictionary Compiler macros
 ///@note - a lambda without capture can degenerate into a function pointer
 ///@{
-#define ADD_CODE(n, g, im) {                     \
-    Code *c = new Code(n, [](VM& vm){ g; }, im); \
-    dict.push(c);                                \
+constexpr Code rom_code(const char *name, FPTR fp, U32 im) {
+    return Code(name, fp, im);
+}
+#define ROM_(n, g) rom_code(n, [](VM& vm){ g; }, (U32)0)
+#define ROMI(n, g) rom_code(n, [](VM& vm){ g; }, (U32)IMM_ATTR)
+#define ADD_CODE(n, g, im) {                          \
+    Code *c = new Code(n, [](VM& vm){ g; }, im);      \
+    dict.push(c);                                     \
     }
 #define CODE(n, g) ADD_CODE(n, g, false)
 #define IMMD(n, g) ADD_CODE(n, g, true)
