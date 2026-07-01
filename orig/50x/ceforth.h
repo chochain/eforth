@@ -46,11 +46,7 @@ struct List {
         if (N && !v) throw "ERR: List allot failed";
     }
     ~List() {
-        if constexpr(is_pointer<T>::value) {            ///< free elements
-            for (int i=ro; i<idx; i++) {                /// * delete dynamic objects
-                if (v[i]) delete v[i];
-            }
-        }
+        clear(ro);
         if (v) delete[] v;                              ///< free container
     }              
     List &operator=(T *a)   INLINE { v = a; return *this; }
@@ -74,7 +70,15 @@ struct List {
 #endif // RANGE_CHECK
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
-    void clear(int i=0)    INLINE { idx=i; }
+    void clear(int tgt=0)  INLINE {
+        int mx = std::max(tgt, ro);
+        if constexpr(is_pointer<T>::value) {      ///< free elements
+            for (int i = mx; i < idx; i++) {      /// * delete dynamic objects
+                if (v[i]) delete v[i];
+            }
+        }
+        idx = mx;
+    }
 };
 ///====================================================================
 ///
