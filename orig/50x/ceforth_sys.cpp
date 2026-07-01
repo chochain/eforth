@@ -143,7 +143,7 @@ void to_s(IU w, U8 *ip, int base) {
         break;
     default: /* do nothing */ break;
     }
-    fout << setfill(' ') << setw(-1);   ///> restore output format settings
+    fout << setfill(' ') << setbase(base) << setw(-1);   ///> restore output format settings
 }
 void see(IU pfa, int base) {
     U8 *ip = MEM(pfa);                  ///< memory pointer
