@@ -34,6 +34,7 @@ typedef  condition_variable COND_VAR;
 ///   * using decorator pattern
 ///   * this is similar to vector class but much simplified
 ///
+extern char etext;      ///< .text boundary, portable? TODO: CC
 template<class T, int N=0>
 struct List {
     T   *v;             ///< fixed-size array storage
@@ -41,14 +42,16 @@ struct List {
     int max = 0;        ///< high watermark for debugging
 
     List()  {
-        v = N ? new T[N] : 0;                        ///< dynamically allocate array storage
+        v = N ? new T[N] : 0;                           ///< dynamically allocate array storage
         if (N && !v) throw "ERR: List allot failed";
     }
     ~List() {
-        if constexpr(is_pointer<T>::value) {         ///< free elements
-            for (int i=0; i<idx; i++) delete v[i];
+        if constexpr(is_pointer<T>::value) {            ///< free elements
+            for (int i=0; i<idx; i++) {
+                if ((char*)v[i] < &etext) delete v[i];  /// * check R/O
+            }
         }
-        if (v) delete[] v;                           ///< free container
+        if (v) delete[] v;                              ///< free container
     }              
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
@@ -152,21 +155,16 @@ typedef enum {
 ///  4. attr[LSB]  : user defined flag (i.e. colon word)
 ///  5. attr[LSB+1]: immediate flag
 ///
+///  Note: attr can union with xt/pfa but requires masking
+///
 ///  Code class on 64-bit systems (expand pfa to 32-bit possible)
-///  +-------------------+-------------------+
-///  |    *name          |       xt          |
-///  +-------------------+----+----+---------+
-///                      |attr|pfa |xxxxxxxxx|
-///                      +----+----+---------+
+///  +-------------------+-------------------+-------+
+///  |    *name          |        xt         |  attr |
+///  +-------------------+----------+--------+-------+
+///                      |    pfa   |xxxxxxxx|
+///                      +----------+--------+
 ///
-///  Code class on 32-bit systems (memory best utilized)
-///  +---------+---------+
-///  |  *name  |   xt    |
-///  +---------+----+----+
-///            |attr|pfa |
-///            +----+----+
-///
-///  Code class on WASM systems (a bit wasteful but faster)
+///  Code class on 32-bit system or WASM systems
 ///  +---------+---------+----+
 ///  |  *name  |   xt    |attr|
 ///  +---------+----+----+----+
@@ -177,35 +175,22 @@ typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
-    const FPTR func  = NULL;
-#if DO_WASM
-    union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< vtable index
-        IU   pfa;           ///< offset to pmem space (16-bit for 64K range)
-    };
-    IU attr;                ///< xt is vtable index so attrs need to be separated
-#else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
-        U32  im;
-        struct {
-            IU attr;        ///< steal 2 LSBs because xt is 4-byte aligned on 32-bit CPU
-            IU pfa;         ///< offset to pmem space (16-bit for 64K range)
-        };
+        IU   pfa;           ///< offset to pmem space (16-bit, or 32-bit)
     };
-#endif // DO_WASM
+    IU  attr = 0;           ///< only 2 LSBs used (can steal from xt/pfa)
     
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
     static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
-
-    Code() {}               ///< blank struct (for initilization)
-    Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
-    Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
-        attr |= im ? IMM_ATTR : 0;
-    }
-    constexpr Code(const char *n, FPTR fp, U32 im) : name(n), func(fp), im(im) {}     ///< built-in and colon words
-    IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
-    void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
+    ///
+    ///> constructors for primitive, built-in, and colon words
+    ///
+    constexpr Code(const char *n, IU w) : name(n), pfa(w) {}                         ///< primitives
+    constexpr Code(const char *n, FPTR fp, U32 a) : name(n), xt(fp), attr(a) {}      ///< built-in
+    constexpr Code(const char *n, U32 ix, U32 a) : name(n), pfa((IU)ix), attr(a) {}  ///< colon words
+    IU   xtoff() INLINE { return (IU)((UFP)xt - XT0); }  ///< xt offset in code space
+    void call(VM& vm)  INLINE { xt(vm); }
 };
 ///@}
 ///@name Dictionary Compiler macros
@@ -214,14 +199,8 @@ struct Code {
 constexpr Code rom_code(const char *name, FPTR fp, U32 im) {
     return Code(name, fp, im);
 }
-#define ROM_(n, g) rom_code(n, [](VM& vm){ g; }, (U32)0)
-#define ROMI(n, g) rom_code(n, [](VM& vm){ g; }, (U32)IMM_ATTR)
-#define ADD_CODE(n, g, im) {                          \
-    Code *c = new Code(n, [](VM& vm){ g; }, im);      \
-    dict.push(c);                                     \
-    }
-#define CODE(n, g) ADD_CODE(n, g, false)
-#define IMMD(n, g) ADD_CODE(n, g, true)
+#define CODE(n, g) rom_code(n, [](VM& vm){ g; }, (U32)0)
+#define IMMD(n, g) rom_code(n, [](VM& vm){ g; }, (U32)IMM_ATTR)
 ///@}
 ///@name Multitasking support
 ///@{
