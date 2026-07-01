@@ -34,12 +34,12 @@ typedef  condition_variable COND_VAR;
 ///   * using decorator pattern
 ///   * this is similar to vector class but much simplified
 ///
-extern char etext;      ///< .text boundary, portable? TODO: CC
 template<class T, int N=0>
 struct List {
     T   *v;             ///< fixed-size array storage
     int idx = 0;        ///< current index of array
     int max = 0;        ///< high watermark for debugging
+    int ro  = 0;        ///< ReadOnly mark
 
     List()  {
         v = N ? new T[N] : 0;                           ///< dynamically allocate array storage
@@ -47,14 +47,15 @@ struct List {
     }
     ~List() {
         if constexpr(is_pointer<T>::value) {            ///< free elements
-            for (int i=0; i<idx; i++) {
-                if ((char*)v[i] < &etext) delete v[i];  /// * check R/O
+            for (int i=ro; i<idx; i++) {                /// * delete dynamic objects
+                if (v[i]) delete v[i];
             }
         }
         if (v) delete[] v;                              ///< free container
     }              
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
+    void readonly_below(int i)  { ro = i; }
 
 #if RANGE_CHECK
     T pop()     INLINE {
