@@ -244,7 +244,7 @@ void dict_dump(int base) {
     fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
     for (int i=0; i<dict.idx; i++) {
         Code *c = dict[i];
-        fout << setfill('0') << setw(3) << i
+        fout << setfill('0') << setw(3) << setbase(10) << i << setbase(16)
              << "> name=" << setw(8) << (UFP)c->name
              << ", xt="   << setw(8) << (UFP)c->xt
              << ", attr=" << (c->attr & 0x3)
