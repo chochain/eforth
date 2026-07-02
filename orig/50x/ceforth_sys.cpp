@@ -19,7 +19,6 @@ ostringstream     fout;                    ///< forth_out
 void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
 int    load_dp    = 0;
 
-extern Code        prim[];                 ///< primitives
 extern List<Code*> dict;                   ///< dictionary
 extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
 extern U8          *MEM0;                  ///< base of parameter memory block
@@ -28,7 +27,6 @@ extern U8          *MEM0;                  ///< base of parameter memory block
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
-#define DICT(w)   (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
 #define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
 
 ///====================================================================
@@ -96,7 +94,7 @@ int pfa2didx(IU ix) {                          ///> reverse lookup
     IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
         Code *c = dict[i];
-        if (pfa == (IS_UDF(i) ? c->pfa : c->xtoff())) return i;
+        if (pfa == (c->is_udf() ? c->pfa : c->xtoff())) return i;
     }
     return 0;                                  /// * not found
 }
@@ -131,9 +129,7 @@ void to_s(IU w, U8 *ip, int base) {
             fout << *(DU*)MEM(a + i) << ' ';
         }
     }                                   /// no break, fall through
-    default:
-        Code *c = DICT(w);
-        fout << c->name; break;
+    default: fout << prim_or_dict(w)->name;         break;
     }
     switch (w) {
     case NEXT: case LOOP:
@@ -248,7 +244,7 @@ void dict_dump(int base) {
              << "> name=" << setw(8) << (UFP)c->name
              << ", xt="   << setw(8) << (UFP)c->xt
              << ", attr=" << (c->attr & 0x3)
-             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c->pfa : c->xtoff())
+             << ", xtoff="<< setw(4) << (c->is_udf() ? c->pfa : c->xtoff())
              << " "       << c->name << ENDL;
     }
     fout << setbase(base) << setfill(' ') << setw(-1);
