@@ -80,13 +80,12 @@ U8  *MEM0;                         ///< base of parameter memory block
 ///@}
 ///@name Primitive words (to simplify compiler), see nest() for details
 ///@{
-Code prim[] = {
+const Code prim[] = {
     Code(";",   EXIT), Code("nop",  NOP),   Code("next", NEXT),  Code("loop", LOOP),
     Code("lit", LIT),  Code("var",  VAR),   Code("str",  STR),   Code("dotq", DOTQ),
     Code("bran",BRAN), Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),
     Code("for", FOR),  Code("do",   DO),    Code("key",  KEY)
 };
-#define DICT(w) (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
 ///
 ///====================================================================
 ///@}
@@ -127,10 +126,10 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code *c = DICT(w);              /// * code ref to primitive or dictionary entry
+    Code *c = prim_or_dict(w);      /// * code ref to primitive or dictionary entry
     IU   ip = (w & EXT_FLAG)        /// * is primitive?
-        ? (UFP)c->xt                /// * get primitive/built-in token
-        : (IS_UDF(w)                /// * colon word?
+        ? c->pfa                    /// * get primitive/built-in token
+        : (c->is_udf()              /// * colon word?
            ? (c->pfa | EXT_FLAG)    /// * pfa with colon word flag
            : c->xtoff());           /// * XT offset of built-in
     add_iu(ip);
@@ -208,7 +207,7 @@ void s_quote(VM &vm, prim_op op) {
 ///
 void nest(VM& vm);                                    ///< forward
 void CALL(VM& vm, IU w) {
-    if (IS_UDF(w)) {                                  /// colon word
+    if (dict[w]->is_udf()) {                          /// colon word
         RS.push(IP);                                  /// * terminating IP
         IP = dict[w]->pfa;                            /// setup task context
         nest(vm);
@@ -439,7 +438,7 @@ constexpr Code g_rom[] = {                 ///< ROM
          add_var(LIT, POP());                                /// dovar (+parameter field)
          add_w(EXIT)),
     IMMD("postpone",  IU w = find(word()); if (w) add_w(w)),
-    CODE("immediate", dict[-1]->attr |= IMM_ATTR),
+    CODE("immediate", dict[-1]->imm()),                      /// * set last word immediate
     CODE("exit",    UNNEST()),                               /// early exit the colon word
     /// @}
     /// @defgroup metacompiler
@@ -467,7 +466,7 @@ constexpr Code g_rom[] = {                 ///< ROM
              add_w(find("is"));
          }
          else {
-             dict[POP()]->xt = dict[w]->xt;
+             dict[POP()]->pfa = dict[w]->pfa;
          }),
     ///
     /// be careful with memory access, especially BYTE because
@@ -491,7 +490,8 @@ constexpr Code g_rom[] = {                 ///< ROM
     /// @}
     CODE("task",                                             /// w -- task_id
          IU w = POPI();                                      ///< dictionary index
-         if (IS_UDF(w)) PUSH(task_create(dict[w]->pfa));     /// create a task starting on pfa
+         Code *x = dict[w];
+         if (x->is_udf()) PUSH(task_create(x->pfa));         /// create a task starting on pfa
          else pstr("  ?colon word only\n")),
     CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
     CODE("start", task_start(POPI())),                       /// ( task_id -- )
@@ -513,9 +513,10 @@ constexpr Code g_rom[] = {                 ///< ROM
     CODE("words", words(*BASE)),
     CODE("see",
          IU w = find(word()); if (!w) return;
-         pstr(": "); pstr(dict[w]->name);
-         if (IS_UDF(w)) see(dict[w]->pfa, *BASE);
-         else           pstr(" ( built-ins ) ;");
+         Code *x = dict[w];
+         pstr(": "); pstr(x->name);
+         if (x->is_udf()) see(x->pfa, *BASE);
+         else             pstr(" ( built-ins ) ;");
          dot(CR)),
     CODE("depth", IU i = UINT(SS.idx); PUSH(i)),
     CODE("r",     PUSH(RS.idx)),
@@ -555,14 +556,17 @@ constexpr Code g_rom[] = {                 ///< ROM
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU))),
 };                   
 int  g_romsz = sizeof(g_rom)/sizeof(Code);
+
 ///====================================================================
 ///
 ///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
-///
 ///> init base of xt pointer and xtoff range check
 ///
+Code *prim_or_dict(IU w) {
+    return IS_PRIM(w) ? (Code*)&prim[w & ~EXT_FLAG] : dict[w];
+}
 #if DO_WASM
 UFP Code::XT0 = 0;       ///< WASM xt is vtable index (0 is min)
 void dict_compile() {    ///< compile built-in words into dictionary
@@ -574,8 +578,8 @@ void dict_validate() {}  ///> no need to adjust xt offset base
 UFP Code::XT0 = ~0;      ///< init to max value
 void dict_compile() {    ///< compile built-in words into dictionary
     for (int i=0; i < g_romsz; i++) {
-        const Code *c = &g_rom[i];
-        if ((UFP)c->xt < Code::XT0) Code::XT0 = (UFP)c->xt;
+        Code *c = (Code*)&g_rom[i];
+        if (c->pfa < Code::XT0) Code::XT0 = c->pfa;
         dict.push((Code*)c);
     }
     dict.readonly_below(g_romsz);              /// * ensure no freeing, see ~List()
@@ -586,10 +590,11 @@ void dict_validate() {
     UFP max = (UFP)0;
     for (int i=0; i < dict.idx; i++) {
         Code *g = (Code*)&g_rom[i], *c = dict[i];
-        if ((UFP)c->xt > max) max = (UFP)c->xt;
-        printf("%03d> xt==%x %p, attr==%x %x xtoff==%x %04x\n",
-               i, g->xt==c->xt, g->xt, g->attr==c->attr, g->attr,
-               g->xtoff()==c->xtoff(), g->xtoff());
+        if (c->pfa > max) max = c->pfa;
+        if (g->xt!=c->xt || g->attr!=c->attr) {
+            printf("%03d> xt[%zx, %zx], attr[%x, %x]?\n",
+                   i, g->pfa, c->pfa, g->attr, c->attr);
+        }
     }
     /// check xtoff range
     max -= Code::XT0;
@@ -597,7 +602,11 @@ void dict_validate() {
         LOG_KX("*** Init ERROR *** xtoff overflow max = 0x", max);
         LOGS("\nEnter 'dict' to verify, and please contact author!\n");
     }
-    else { LOG_KX("*** Init *** xtoff max = 0x", max); LOGS("\n"); }
+    else {
+        LOG_KX("*** Init *** xtoff max = 0x", max);
+        LOG_KV(" sizeof(Code)=", sizeof(Code));
+        LOGS(" bytes\n");
+    }
 }
 #endif // DO_WASM
 ///====================================================================
@@ -628,7 +637,8 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     vm.state = QUERY;
     IU w = find(idiom);                  ///> * get token by searching through dict
     if (w) {                             ///> * word found?
-        if (vm.compile && !IS_IMM(w)) {  /// * in compile mode?
+        if (vm.compile &&                /// * in compile mode?
+            !dict[w]->is_imm()) {        /// * or immediate?
             add_w(w);                    /// * add to colon word
         }
         else { IP = DU0; CALL(vm, w); }  /// * execute forth word
