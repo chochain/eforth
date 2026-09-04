@@ -1,25 +1,62 @@
 ///
 /// @file
-/// @brief eForth - System dependent functions
+/// @brief eForth - System dependent functions (C-Style Optimization)
 ///
-///====================================================================
-///
-/// utilize C++ standard template libraries for core IO functions only
-/// Note:
-///   * we use STL for its convinence, but
-///   * if it takes too much memory for target MCU,
-///   * these functions can be replaced with our own implementation
-///
-#include <iomanip>                         /// setbase, setw, setfill
-#include <sstream>                         /// iostream, stringstream
+#include <cstdio>                             /// snprintf, sprintf, printf
+#include <cstring>                            /// strlen, strcmp, strchr
+#include <cstdarg>                            /// va_list, va_start, va_end
 #include "ceforth.h"
 
-istringstream     fin;                     ///< forth_in
-ostringstream     fout;                    ///< forth_out
-void (*fout_cb)(int, const char*);         ///< forth output callback function (see ENDL macro)
-int    load_dp    = 0;
+// ==================== STREAM REPLACEMENTS ====================
+static const char *fpi = nullptr;             ///< Replaces istringstream (Tracks remaining input)
+static char *fpo = nullptr;                   ///< Cursor for continuous appending
+static char obuf[E4_OBUF_SZ];                 ///< Replaces ostringstream (Scratch formatting buffer)
 
-extern Code        prim[];                 ///< primitives
+static int  _e4_base  = 10;                   /// Replaces <iomanip> formatting parameters state machine
+static char _e4_fill  = ' ';
+
+void (*fout_cb)(int, const char*) = nullptr;  ///< forth output callback function
+
+/// Clear and flush the custom output buffer layout straight down to the callback
+static void fout_flush() {
+    if (fpo == obuf) return;
+    
+    *fpo = '\0';                              /// Null-terminate
+    if (fout_cb) fout_cb(strlen(obuf), obuf); /// callback
+    fpo = obuf;                               /// Reset pointer position
+}
+
+/// Appends formatted data onto our string block safely
+static void fout(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int sz0 = E4_OBUF_SZ - (fpo - obuf) - 1;
+    if (sz0 > 0) {
+        int sz = vsnprintf(fpo, sz0, fmt, args);
+        if (sz > 0) fpo += (sz < sz0) ? sz : sz0;
+    }
+    va_end(args);
+}
+
+/// Fixed standalone static helper for radix operations
+static const char* _radix_helper(DU v, int b, char* buf, int buf_sz) {
+    int i   = buf_sz - 1;
+    buf[i]  = '\0';
+    
+    int dec = (b == 10);
+    U32 n   = dec ? UINT(v < 0 ? -v : v) : UINT(v);
+
+    do {
+        U8 d = (U8)(n % b);
+        n /= b;
+        buf[--i] = (d > 9) ? ((d - 10) + 'a') : (d + '0');
+    } while (n && i > 0);
+    
+    if (dec && v < 0 && i > 0) buf[--i] = '-';
+
+    return &buf[i];
+}
+/// =============================================================
 extern List<Code*> dict;                   ///< dictionary
 extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
 extern U8          *MEM0;                  ///< base of parameter memory block
@@ -28,76 +65,204 @@ extern U8          *MEM0;                  ///< base of parameter memory block
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
-#define DICT(w)   (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
 #define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
 
 ///====================================================================
 ///
-///> IO initialization functions
-///
-void fin_setup(const char *line) {
-    fout.str("");                        /// * clean output buffer
-    fin.clear();                         /// * clear input stream error bit if any
-    fin.str(line);                       /// * reload user command into input stream
-}
-void fout_setup(void (*hook)(int, const char*)) {
-    auto cb = [](int, const char *rst) { printf("%s", rst); };
-    fout_cb = hook ? hook : cb;          ///< serial output hook up
-}
-///====================================================================
-///
-///> Serial Terminal input
-///
-#if _WIN32 || _WIN64
-#include <conio.h>         // getchar
-char qkey() {
-    char c = _kbhit() ? _getche() : '\0';
-    switch (c) {
-    case 0x8:
-    case 0x7f: putchar(' ');  putchar(c); break;
-    case '\r': putchar('\n'); break;
-    }
-    return c;
-}
-
-#else // !_WIN32 || _WIN64
-#include <termios.h>       // tcgetattr
-#include <unistd.h>        // read (low-level)
-char qkey() {                                 ///< get one unbuffered char with timeout
-    struct termios t0, t1;
-
-    fflush(stdout);                           /// * flush output buffer before wait
-    tcgetattr(STDIN_FILENO, &t0);             /// * backup stdin attributes
-    t1 = t0;
-    t1.c_lflag &= ~(ICANON | ECHO);           /// * non-buffered, and echo
-    t1.c_cc[VMIN]  = 0;                       /// * capture 0 or more char
-    t1.c_cc[VTIME] = 0;                       /// * 0: no wait, 1:timeout on 0.1 second (returns '\0')
-    tcsetattr(STDIN_FILENO, TCSANOW, &t1);    /// * set to non-buffered
-
-    char c;
-    int n = read(STDIN_FILENO, &c, 1);        /// * fetch one char from given input file
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &t0);    /// * restore stdin attributes
-
-    return n ? c : '\0';
-}
-#endif // _WIN32 || _WIN64
-///====================================================================
-///
 ///> IO functions
 ///
+void fin_setup(const char *line) {
+    obuf[0] = '\0';                   /// * clean output buffer safely
+    fpo = obuf;
+    fpi = line;                           /// * reload pointer reference directly
+}
+
+void fout_setup(void (*hook)(int, const char*)) {
+    auto cb = [](int, const char *rst) { printf("%s", rst); };
+    fout_cb = hook ? hook : cb;           ///< serial output hook up
+}
+
 const char *scan(char c) {
-    static string pad;                   ///< temp storage
-    getline(fin, pad, c);                ///< scan fin for char c
-    return pad.c_str();                  ///< return found string
+    static char pad[E4_IBUF_SZ];          /// Fixed: Added explicit literal string buffer sizes
+    if (!fpi || *fpi == '\0') { pad[0] = '\0'; return pad; }
+
+    const char *next = strchr(fpi, c);
+    if (next) {
+        size_t len = next - fpi;
+        if (len >= sizeof(pad)) len = sizeof(pad) - 1;
+        strncpy(pad, fpi, len);
+        pad[len] = '\0';
+        fpi = next + 1; 
+    }
+    else {
+        strncpy(pad, fpi, sizeof(pad) - 1);
+        pad[sizeof(pad) - 1] = '\0';
+        fpi += strlen(fpi); 
+    }
+    return pad;
 }
+
+int fetch(char *idiom, int max) {
+    if (!fpi) return 0;
+    
+    while (*fpi == ' ' || *fpi == '\t' || *fpi == '\r' || *fpi == '\n') {
+        fpi++;
+    }
+    if (*fpi == '\0') return 0;
+
+    int idx = 0;
+    while (*fpi != '\0' && *fpi != ' ' && *fpi != '\t' && 
+           *fpi != '\r' && *fpi != '\n' && idx < max - 1) {
+        idiom[idx++] = *fpi++;
+    }
+    idiom[idx] = '\0';
+    return (idx > 0);
+}
+
 const char *word() {                     ///< get next idiom
-    static string tmp;                   ///< temp string holder
-    if (!fetch(tmp)) tmp.clear();        /// * input buffer exhausted?
-    return tmp.c_str();
+    static char tmp[64];                 /// Fixed: Set explicit bounds to ensure stable compilation
+    if (!fetch(tmp, sizeof(tmp))) tmp[0] = '\0';
+    return tmp;
 }
-int  fetch(string &idiom) { return !(fin >> idiom)==0; }
+
 char key() { return word()[0]; }
+void spaces(int n) { for (int i = 0; i < n; i++) fout(" "); }
+void dot(io_op op, DU v) {
+    switch (op) {
+    case RDX:   _e4_base = UINT(v);                        break;
+    case CR:    fout("\n"); fout_flush();                  break; 
+    case DOT:   fout("%d ", (int)v);                       break;
+    case UDOT:  fout("%u ", static_cast<U32>(v));          break;
+    case EMIT:  { char b = (char)UINT(v); fout("%c", b); } break;
+    case SPCS:  spaces(UINT(v));                           break;
+    default:    fout("unknown io_op=%d\n", op);            break;
+    }
+}
+
+void dotr(int w, DU v, int b, bool u) {
+    char buf[66]; // Large enough to hold a 64-bit binary string + null terminator
+    char *fmt = (char*)_radix_helper(v, b, buf, sizeof(buf));
+    int  len  = (int)strlen(fmt);
+    if (w > len) {
+        int spcs = w - len;
+        for (int i = 0; i < spcs; i++) { // padding
+            fout("%c", (_e4_fill == '0') ? '0' : ' ');
+        }
+    }
+    fout("%s", fmt);
+    _e4_fill = ' ';     /// Reset layout alignment states to safe defaults for subsequent print jobs
+}
+
+void pstr(const char *str, io_op op) {
+    fout("%s", str);
+    if (op == CR) { fout("\n"); fout_flush(); }
+}
+
+///====================================================================
+///
+///> Debug functions
+///
+int pfa2didx(IU ix) {                          ///> reverse lookup
+    if (IS_PRIM(ix)) return (int)ix;           ///> primitives
+    IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
+    for (int i = dict.idx - 1; i > 0; --i) {
+        Code *c = dict[i];
+        if (pfa == (c->is_udf() ? c->pfa : c->xtoff())) return i;
+    }
+    return 0;                                  /// * not found
+}
+
+int  pfa2nvar(IU pfa) {
+    IU  w  = *(IU*)MEM(pfa);
+    if (w != VAR && w != VBRAN) return 0;
+    
+    IU  i0 = pfa2didx(pfa | EXT_FLAG);
+    if (!i0) return 0;
+    IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : pmem.idx;
+    int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
+    return n;
+}
+
+void to_s(IU w, U8 *ip, int base) {
+#if CC_DEBUG
+    fout("( %04x[%4d] ) ", (unsigned int)(ip - MEM0), w);
+#endif // CC_DEBUG
+    
+    ip += sizeof(IU);                   ///> calculate next ip
+    switch (w) {
+    case LIT:  fout("%d ( lit )", (int)*(DU*)ip); break;
+    case STR:  fout("s\" %s\"", (char*)ip);       break;
+    case DOTQ: fout(".\" %s\"", (char*)ip);       break;
+    case VAR:
+    case VBRAN: {
+        int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
+        IU  ix = (IU)(ip - MEM0 + (w==VAR ? 0 : sizeof(IU)));
+        for (int i = 0, a=DALIGN(ix); i < n; i+=sizeof(DU)) {
+            fout("%d ", (int)*(DU*)MEM(a + i));
+        }
+    }                                   /// no break, fall through
+    default: fout("%s", dict[w]->name);           break;
+    }
+    switch (w) {
+    case NEXT: case LOOP:
+    case BRAN: case ZBRAN: case VBRAN:  ///> display jmp target
+        fout(" $%04x", *(IU*)ip);
+        break;
+    default: /* do nothing */ break;
+    }
+    _e4_fill = ' ';
+}
+
+void see(IU pfa, int base) {
+    U8 *ip = MEM(pfa);                  ///< memory pointer
+    int i=0;
+    while (1) {
+        IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
+        if (!w) break;                  ///> loop guard
+        
+        fout("\n  ");                   /// * indent
+        to_s(w, ip, base);              /// * display opcode
+        if (w==EXIT || w==VAR) break;   /// * end of word
+
+        ip += sizeof(IU);               ///> advance ip (next opcode)
+        switch (w) {                    ///> extra bytes to skip
+        case LIT:   ip += sizeof(DU);                    break; 
+        case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
+        case BRAN:  case ZBRAN:
+        case NEXT:  case LOOP:  ip += sizeof(IU);        break;
+        case VBRAN: ip = MEM(*(IU*)ip);                  break;
+        }
+        fout("( %04x[%4d] ) ", (unsigned int)(ip - MEM0), w);
+        break;
+    }
+    fout_flush();
+}
+
+void words(int base) {
+    const int WIDTH = 56;
+    int sz = 0;
+    for (int i=0; i<dict.idx; i++) {
+        const char *nm = dict[i]->name;
+        const int  len = strlen(nm);
+#if CC_DEBUG > 1
+        if (nm[0]) {
+#else  //  CC_DEBUG > 1
+        if (nm[len-1] != ' ') {
+#endif // CC_DEBUG > 1
+            sz += len + 2;
+            fout("  %s", nm);
+        }
+        if (sz > WIDTH) {
+            sz = 0;
+            fout("\n");
+            yield();
+        }
+    }
+    fout("\n");
+    fout_flush();
+}
+
+static int load_dp = 0;
 void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter
     RS.push(vm.ip);                      /// * save context
@@ -109,269 +274,87 @@ void load(VM &vm, const char* fn) {
     --load_dp;                           /// * decrement depth counter
 }
 
-void spaces(int n) { for (int i = 0; i < n; i++) fout << " "; }
-void dot(io_op op, DU v) {
-    switch (op) {
-    case RDX:   fout << setbase(UINT(v));               break;
-    case CR:    fout << ENDL;                           break;
-    case DOT:   fout << v << " ";                       break;
-    case UDOT:  fout << static_cast<U32>(v) << " ";     break;
-    case EMIT:  { char b = (char)UINT(v); fout << b; }  break;
-    case SPCS:  spaces(UINT(v));                        break;
-    default:    fout << "unknown io_op=" << op << ENDL; break;
-    }
-}
-void dotr(int w, DU v, int b, bool u) {
-    fout << setbase(b) << setw(w)
-         << (u ? static_cast<U32>(v) : v);
-}
-void pstr(const char *str, io_op op) {
-    fout << str;
-    if (op==CR) { fout << ENDL; }
-}
-///====================================================================
-///
-///> Debug functions
-///
-int pfa2didx(IU ix) {                          ///> reverse lookup
-    if (IS_PRIM(ix)) return (int)ix;           ///> primitives
-    IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
-    for (int i = dict.idx - 1; i > 0; --i) {
-        Code *c = dict[i];
-        if (pfa == (IS_UDF(i) ? c->pfa : c->xtoff())) return i;
-    }
-    return 0;                                  /// * not found
-}
-int  pfa2nvar(IU pfa) {
-    IU  w  = *(IU*)MEM(pfa);
-    if (w != VAR && w != VBRAN) return 0;
-    
-    IU  i0 = pfa2didx(pfa | EXT_FLAG);
-    if (!i0) return 0;
-    IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : pmem.idx;
-    int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
-    return n;
-}
-void to_s(IU w, U8 *ip, int base) {
-#if CC_DEBUG
-    fout << setbase(16) << "( ";
-    fout << setfill('0') << setw(4) << (ip - MEM0);       ///> addr
-    fout << '[' << setfill(' ') << setw(4) << w << ']';   ///> word ref
-    fout << " ) " << setbase(base);
-#endif // CC_DEBUG
-    
-    ip += sizeof(IU);                   ///> calculate next ip
-    switch (w) {
-    case LIT:  fout << *(DU*)ip << " ( lit )";      break;
-    case STR:  fout << "s\" " << (char*)ip << '"';  break;
-    case DOTQ: fout << ".\" " << (char*)ip << '"';  break;
-    case VAR:
-    case VBRAN: {
-        int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
-        IU  ix = (IU)(ip - MEM0 + (w==VAR ? 0 : sizeof(IU)));
-        for (int i = 0, a=DALIGN(ix); i < n; i+=sizeof(DU)) {
-            fout << *(DU*)MEM(a + i) << ' ';
-        }
-    }                                   /// no break, fall through
-    default:
-        Code *c = DICT(w);
-        fout << c->name; break;
-    }
-    switch (w) {
-    case NEXT: case LOOP:
-    case BRAN: case ZBRAN: case VBRAN:  ///> display jmp target
-        fout << " $" << setbase(16)
-             << setfill('0') << setw(4) << *(IU*)ip;
-        break;
-    default: /* do nothing */ break;
-    }
-    fout << setfill(' ') << setw(-1);   ///> restore output format settings
-}
-void see(IU pfa, int base) {
-    U8 *ip = MEM(pfa);                  ///< memory pointer
-    while (1) {
-        IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
-        if (!w) break;                  ///> loop guard
-        
-        fout << ENDL; fout << "  ";     /// * indent
-        to_s(w, ip, base);              /// * display opcode
-        if (w==EXIT || w==VAR) return;  /// * end of word
-        
-        ip += sizeof(IU);               ///> advance ip (next opcode)
-        switch (w) {                    ///> extra bytes to skip
-        case LIT:   ip += sizeof(DU);                    break; /// alignment?
-        case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
-        case BRAN:  case ZBRAN:
-        case NEXT:  case LOOP:  ip += sizeof(IU);        break;
-        case VBRAN: ip = MEM(*(IU*)ip);                  break;
-        }
-    }
-}
-void words(int base) {
-    const int WIDTH = 60;
-    int sz = 0;
-    fout << setbase(10);
-    for (int i=0; i<dict.idx; i++) {
-        const char *nm = dict[i]->name;
-        const int  len = strlen(nm);
-#if CC_DEBUG > 1
-        if (nm[0]) {
-#else  //  CC_DEBUG > 1
-        if (nm[len-1] != ' ') {
-#endif // CC_DEBUG > 1
-            sz += len + 2;
-            fout << "  " << nm;
-        }
-        if (sz > WIDTH) {
-            sz = 0;
-            fout << ENDL;
-            yield();
-        }
-    }
-    fout << setbase(base) << ENDL;
-}
 void ss_dump(VM &vm, bool forced) {
-    if (load_dp) return;                  /// * skip when including file
-#if DO_WASM    
-    if (!forced) { fout << "ok" << ENDL; return; }
-#endif // DO_WASM
-    static char buf[34];                  ///< static buffer
-    auto rdx = [](DU v, int b) {          ///< display v by radix
-#if USE_FLOAT
-        DU t, f = modf(v, &t);            ///< integral, fraction
-        if (ABS(f) > DU_EPS) {
-            sprintf(buf, "%0.6g", v);
-            return buf;
-        }
-#endif // USE_FLOAT
-        int i = 33;  buf[i]='\0';         /// * C++ can do only base=8,10,16
-        int dec = b==10;
-        U32 n   = dec ? UINT(ABS(v)) : UINT(v);  ///< handle negative
-        do {                              ///> digit-by-digit
-            U8 d = (U8)MOD(n,b);  n /= b;
-            buf[--i] = d > 9 ? (d-10)+'a' : d+'0';
-        } while (n && i);
-        if (dec && v < DU0) buf[--i]='-';
-        return &buf[i];
-    };
+    if (load_dp) return;    /// * skip when including file
+    static char buf[64];    /// Fixed: Added explicit character buffer sizing
     SS.push(TOS);
     for (int i=0; i<SS.idx; i++) {
-        fout << rdx(SS[i], *MEM(vm.base)) << ' ';
+        const char* fmt_val = _radix_helper(SS[i], *MEM(vm.base), buf, sizeof(buf));
+        fout("%s ", fmt_val);
     }
     TOS = SS.pop();
-    fout << "ok " << FLUSH;
+    fout("ok\n");
+    fout_flush();
 }
 void mem_dump(U32 p0, IU sz, int base) {
-    fout << setbase(16) << setfill('0');
-    for (IU i=ALIGN16(p0); i<=ALIGN16(p0+sz); i+=16) {
-        fout << setw(4) << i << ": ";
+    for (IU i=p0 & ~15; i<=(p0+sz); i+=16) {
+        fout("%04x: ", i);
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
-            fout << setw(2) << (int)c << (MOD(j,4)==3 ? " " : "");
+            fout("%02x%s", (int)c, (j % 4 == 3 ? " " : ""));
         }
-        for (int j=0; j<16; j++) {   // print and advance to next byte
+        for (int j=0; j<16; j++) {
             U8 c = pmem[i+j] & 0x7f;
-            fout << (char)((c==0x7f||c<0x20) ? '_' : c);
+            fout("%c", ((c==0x7f||c<0x20) ? '_' : c));
         }
-        fout << ENDL;
+        fout("\n");
         yield();
     }
-    fout << setbase(base) << setfill(' ');
+    fout_flush();
 }
-#if SIM_TIMER_INTR
-#include <atomic>
-#include <map>
-extern std::map<IU, std::pair<std::atomic<U32>, U32>> isr;
-void isr_dump() {
-    for (auto &[w, v] : isr) {
-        fout << "[" << w << "] " << dict[w]->name
-             << " period= " << v.second << "ms" << ENDL;
-    }
-}
-#endif // SIM_TIMER_INTR
-///====================================================================
-///
-///> System statistics - for heap, stack, external memory debugging
-///
+
 void dict_dump(int base) {
-    fout << setbase(16) << setfill('0') << "XT0=" << Code::XT0 << ENDL;
+    printf("XT0=%08x\n", (U32)Code::XT0);
     for (int i=0; i<dict.idx; i++) {
         Code *c = dict[i];
-        fout << setfill('0') << setw(3) << i
-             << "> name=" << setw(8) << (UFP)c->name
-             << ", xt="   << setw(8) << (UFP)c->xt
-             << ", attr=" << (c->attr & 0x3)
-             << ", xtoff="<< setw(4) << (IS_UDF(i) ? c->pfa : c->xtoff())
-             << " "       << c->name << ENDL;
+        printf("%03d> name=%-8s, xt=%p, attr=%x, xtoff=%04x %s\n",
+               i, c->name, c->xt, (c->attr & 0x3),
+               (c->is_udf() ? c->pfa : c->xtoff()), c->name);
     }
-    fout << setbase(base) << setfill(' ') << setw(-1);
 }
 ///====================================================================
 ///
-///> Javascript/WASM interface
+///> LVGL / Native Web Formatter API
 ///
 #if DO_WASM
-#define POP() ({ DU n=TOS; TOS=SS.pop(); n; })
-EM_JS(void, js_call, (const char *ops), {
-        const req = UTF8ToString(ops).split(/\\s+/);
-        const wa  = wasmExports;
-        const mem = wa.vm_mem();
-        let msg = [], tfr = [];
-        for (let i=0, n=req.length; i < n; i++) {
-            if (req[i]=='p') {
-                const a = new Float32Array(     ///< create a buffer ref
-                    wa.memory.buffer,           /// * WASM ArrayBuffer
-                    mem + (req[i+1]|0),         /// * pointer address
-                    req[i+2]|0                  /// * length
-                );
-                i += 2;                         /// *  skip over addr, len
-                const t = new Float64Array(a);  ///< create a transferable
-                msg.push(t);                    /// * which speeds postMessage
-                tfr.push(t.buffer);             /// * from 20ms => 5ms
-            }
-            else msg.push(req[i]);
-        }
-        msg.push(Date.now());                   /// * t0 anchor for performance check
-        postMessage(['js', msg], tfr);
-});
-///
-///> Javascript calling, before passing to js_call()
-///
-///  String substitude similar to printf
-///    %d - integer
-///    %f - float
-///    %x - hex
-///    %s - string
-///    %p - pointer (memory block)
-///
+extern "C" { void js_call(const char *ops); }
 void native_api(VM &vm) {                  ///> ( n addr u -- )
-    static stringstream n;                 ///< string processor
-    static string       pad;               ///< tmp storage
-    auto t2s = [&vm](char c) {             ///< template to string
-        n.str("");                         /// * clear stream
-        switch (c) {
-        case 'd': n << UINT(POP());                break;
-        case 'f': n << (DU)POP();                  break;
-        case 'x': n << "0x" << hex << UINT(POP()); break;
-        case 's': POP(); n << (char*)MEM(POP());   break;  /// also handles raw stream
-        case 'p':
-            n << "p " << UINT(POP());
-            n << ' '  << UINT(POP());              break;
-        default : n << c << '?';                   break;
-        }
-        return n.str();
-    };
     POP();                                 /// * strlen, not used
-    pad.clear();                           /// * init pad
-    pad.append((char*)MEM(POP()));         /// * copy string on stack
-    for (size_t i=pad.find_last_of('%');   ///> find % from back
-         i!=string::npos;                  /// * until not found
-         i=pad.find_last_of('%',i?i-1:0)) {
-        if (i && pad[i-1]=='%') {          /// * double %%
-            pad.replace(--i,1,"");         /// * drop one %
+    char fmt_template = (char)MEM(POP());
+    char pad[512];                         /// Fixed: Correctly sized buffer for parameter translation
+    strncpy(pad, fmt_template, sizeof(pad)-1);
+    pad[sizeof(pad)-1] = '\0';
+    for (int i = (int)strlen(pad) - 2; i >= 0; i--) {
+        if (pad[i] == '%') {
+            char type_char = pad[i + 1];
+            char tmp[256] = {0};           /// Fixed: Clean character array allocation block
+            switch (type_char) {
+            case 'd': snprintf(tmp, sizeof(tmp), "%d", (int)UINT(POP())); break;
+            case 'f': snprintf(tmp, sizeof(tmp), "%g", (double)(DU)POP()); break;
+            case 'x': snprintf(tmp, sizeof(tmp), "0x%x", (unsigned int)UINT(POP())); break;
+            case 's': {POP();snprintf(tmp, sizeof(tmp), "%s", (char*)MEM(POP()));} break;
+            case 'p': {
+                unsigned int len = (unsigned int)UINT(POP());
+                unsigned int addr = (unsigned int)UINT(POP());
+                snprintf(tmp, sizeof(tmp), "p %u %u", addr, len);
+            } break;
+            case '%':
+                tmp[0] = '%';
+                tmp[1] = '\0';
+                memmove(&pad[i+1], &pad[i+2], strlen(&pad[i+2])+1);
+                break;
+            default:
+                snprintf(tmp, sizeof(tmp), "%c?", type_char); break;
+            }
+            size_t orig_len = strlen(pad);
+            size_t insert_len = strlen(tmp);
+            if (orig_len - 2 + insert_len < sizeof(pad) - 1) {
+                memmove(&pad[i + insert_len], &pad[i + 2], strlen(&pad[i + 2]) + 1);
+                memcpy(&pad[i], tmp, insert_len);
+            }
         }
-        else pad.replace(i, 2, t2s(pad[i+1]));
     }
-    js_call(pad.c_str());    /// * call Emscripten js function
+    js_call(pad);
 }
 #endif // DO_WASM
+
