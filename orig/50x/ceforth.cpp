@@ -686,9 +686,9 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     fout_setup(hook);
     fin_setup(line);                                        /// * refresh buffer if not resuming
 
-    string idiom;
+    static char idiom[E4_IBUF_SZ];
     while (fetch(idiom)) {                                  /// * parse a word
-        forth_core(vm, idiom.c_str());                      /// * outer interpreter
+        forth_core(vm, idiom);                              /// * outer interpreter
     }
     if (!vm.compile) ss_dump(vm);
 
