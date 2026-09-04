@@ -3,7 +3,6 @@
 #include <cstdio>
 #include <cstdint>      // uintxx_t
 #include <exception>    // try...catch, throw
-#include <string>       // string class
 #include "config.h"     // configuation and cross-platform support
 
 using namespace std;
@@ -201,7 +200,8 @@ struct Code {
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
         attr |= im ? IMM_ATTR : 0;
     }
-    IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
+    IU   xtoff()  INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
+    bool is_udf() INLINE { return attr & UDF_ATTR; }
     void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
 };
 ///@}
@@ -253,7 +253,7 @@ void fout_setup(void (*hook)(int, const char*));
 
 const char *scan(char c);                 ///< scan input stream for a given char
 const char *word();                       ///< get next idiom
-int  fetch(string &idiom);                ///< read input stream into string
+int  fetch(char *idiom, size_t max=E4_IBUF_SZ); ///< read input stream into string
 char key();                               ///< read key from console
 void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
