@@ -253,7 +253,7 @@ void fout_setup(void (*hook)(int, const char*));
 
 const char *scan(char c);                 ///< scan input stream for a given char
 const char *word();                       ///< get next idiom
-int  fetch(char *idiom, size_t max=E4_IBUF_SZ); ///< read input stream into string
+int  fetch(char *idiom, int max=E4_IBUF_SZ); ///< read input stream into string
 char key();                               ///< read key from console
 void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
