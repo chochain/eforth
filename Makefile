@@ -3,6 +3,11 @@ EM_FLAG = -std=c++17 -O2 \
           -pthread -s USE_PTHREADS=1 \
           -s PTHREAD_POOL_SIZE='navigator.hardwareConcurrency'
 
+CXX = g++
+CXXFLAG = -std=gnu++17 -g -O3 -Wall -pthread \
+          -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
+		  -march=native -ffast-math -funroll-loops
+
 CC = g++
 CC_FLAG = -std=gnu++17 -g -O3 -Wall -pthread \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
@@ -35,7 +40,10 @@ wasm: tests/eforth.js
 
 all: exe 50x wasm
 
-%.o: %.cpp %.c
+%.o: %.cpp
+	$(CXX) $(CXXFLAG) -Isrc -c -o $@ $<
+
+%.o: %.c
 	$(CC) $(CC_FLAG) -Isrc -c -o $@ $<
 
 tests/eforth: platform/main.o $(OBJS)
