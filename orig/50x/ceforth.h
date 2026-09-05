@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdint.h>     // uintxx_t
 #include <exception>    // try...catch, throw
-#include <string>       // string class
 #include "config.h"     // configuation and cross-platform support
 
 using namespace std;
@@ -46,7 +45,7 @@ struct List {
     }
     ~List() {
         if constexpr(is_pointer<T>::value) {         ///< free elements
-            for (int i=0; i<idx; i++) delete v[i];
+            for (int i=0; v && i<idx; i++) delete v[i];
         }
         if (v) delete[] v;                           ///< free container
     }              
@@ -80,15 +79,16 @@ typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
 struct ALIGNAS VM {
     List<DU, E4_SS_SZ> ss;         ///< parameter stack
     List<DU, E4_RS_SZ> rs;         ///< parameter stack
+    char     pad[E4_PAD_SZ];       ///< temp pad buffer
 
     IU       id      = 0;          ///< vm id
     IU       ip      = 0;          ///< instruction pointer
     DU       tos     = -DU1;       ///< top of stack (cached)
 
-    bool     compile = false;      ///< compiler flag
     vm_state state   = STOP;       ///< VM status
     IU       base    = 0;          ///< numeric radix (a pointer)
-    
+    bool     compile = false;      ///< compiler flag
+
 #if DO_MULTITASK
     static int      NCORE;         ///< number of hardware cores
     
@@ -129,9 +129,6 @@ struct ALIGNAS VM {
 #else  // !DO_WASM
 #define MSK_ATTR   ~0x3     /** mask udf,imm bits    */
 #endif // DO_WASM
-
-#define IS_UDF(w) (dict[w]->attr & UDF_ATTR)
-#define IS_IMM(w) (dict[w]->attr & IMM_ATTR)
 ///}
 ///@name primitive opcode
 ///{
@@ -200,7 +197,9 @@ struct Code {
     Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
         attr |= im ? IMM_ATTR : 0;
     }
-    IU   xtoff() INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
+    IU   xtoff()  INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
+    bool is_udf() INLINE { return attr & UDF_ATTR; }
+    bool is_imm() INLINE { return attr & IMM_ATTR; }
     void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
 };
 ///@}
@@ -232,7 +231,7 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 ///@name System interface
 ///@{
 void forth_init();
-int  forth_vm(const char *cmd, void(*hook)(int, const char*)=NULL);
+int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 ///@}
@@ -243,9 +242,9 @@ typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
 
-const char *scan(char c);                 ///< scan input stream for a given char
-const char *word();                       ///< get next idiom
-int  fetch(string &idiom);                ///< read input stream into string
+const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
+const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
+int  fetch(char *buf, int max=E4_IBUF_SZ);               ///< read input stream into buffer
 char key();                               ///< read key from console
 void load(VM &vm, const char* fn);        ///< load external Forth script
 void spaces(int n);                       ///< show spaces
