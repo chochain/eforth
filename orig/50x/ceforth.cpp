@@ -77,6 +77,8 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
 #define CELL(a)   (*(DU*)&pmem[a])         /**< fetch a cell from parameter memory      */
 #define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
+#define SCAN(c)   (scan(c, vm.pad, E4_PAD_SZ))
+#define WORD()    (word(vm.pad, E4_PAD_SZ))
 ///@}
 ///@name Primitive words (to simplify compiler), see nest() for details
 ///@{
@@ -133,13 +135,13 @@ void add_w(IU w) {                  ///< add a word index into pmem
     Code *c = DICT(w);              /// * code ref to primitive or dictionary entry
     IU   ip = (w & EXT_FLAG)        /// * is primitive?
         ? (UFP)c->xt                /// * get primitive/built-in token
-        : (IS_UDF(w)                /// * colon word?
+        : (c->is_udf()              /// * colon word?
            ? (c->pfa | EXT_FLAG)    /// * pfa with colon word flag
            : c->xtoff());           /// * XT offset of built-in
     add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
-    LOGS(" "); LOGS(c.name); LOGS("\n");
+    LOGS(" "); LOGS(c->name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
 void add_var(IU op, DU v=DU0) {     ///< add a varirable header
@@ -159,7 +161,7 @@ void add_var(IU op, DU v=DU0) {     ///< add a varirable header
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
         pstr(" name?", CR); return 0;
-    }  
+    }
     if (find(name)) {               /// * word redefined?
         pstr(name); pstr(" reDef? ", CR);
     }
@@ -167,7 +169,7 @@ int def_word(const char* name) {    ///< display if redefined
     return 1;                       /// * created OK
 }
 void s_quote(VM &vm, prim_op op) {
-    const char *s = scan('"')+1;    ///> string skip first blank
+    const char *s = SCAN('"')+1;    ///> string skip first blank
     if (vm.compile) {
         add_w(op);                  ///> dostr, (+parameter field)
         add_str(s);                 ///> byte0, byte1, byte2, ..., byteN
@@ -280,7 +282,7 @@ void nest(VM& vm) {
 ///> CALL - inner-interpreter proxy (inline macro does not run faster)
 ///
 void CALL(VM& vm, IU w) {
-    if (IS_UDF(w)) {                   /// colon word
+    if (dict[w]->is_udf()) {           /// colon word
         RS.push(IP);                   /// * terminating IP
         IP = dict[w]->pfa;             /// setup task context
         nest(vm);
@@ -386,9 +388,9 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup Literal ops
     /// @{
-    IMMD("(",       scan(')'));
-    IMMD(".(",      pstr(scan(')')));
-    IMMD("\\",      scan('\n'));
+    IMMD("(",       SCAN(')'));
+    IMMD(".(",      pstr(SCAN(')')));
+    IMMD("\\",      SCAN('\n'));
     IMMD("s\"",     s_quote(vm, STR));
     IMMD(".\"",     s_quote(vm, DOTQ));
     /// @}
@@ -438,14 +440,14 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @{
     CODE("[",       vm.compile = false);
     CODE("]",       vm.compile = true);
-    CODE(":",       vm.compile = def_word(word()));
+    CODE(":",       vm.compile = def_word(WORD()));
     IMMD(";",       add_w(EXIT); vm.compile = false);
-    CODE("variable",def_word(word()); add_var(VAR));         /// create a variable
+    CODE("variable",def_word(WORD()); add_var(VAR));         /// create a variable
     CODE("constant",                                         /// create a constant
-         def_word(word());                                   /// create a new word on dictionary
+         def_word(WORD());                                   /// create a new word on dictionary
          add_var(LIT, POP());                                /// dovar (+parameter field)
          add_w(EXIT));
-    IMMD("postpone",  IU w = find(word()); if (w) add_w(w));
+    IMMD("postpone",  IU w = find(WORD()); if (w) add_w(w));
     CODE("immediate", dict[-1]->attr |= IMM_ATTR);
     CODE("exit",    UNNEST());                               /// early exit the colon word
     /// @}
@@ -453,10 +455,10 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
     CODE("exec",   IU w = POP(); CALL(vm, w));               /// execute word
-    CODE("create", def_word(word()); add_var(VBRAN));        /// bran + offset field
+    CODE("create", def_word(WORD()); add_var(VBRAN));        /// bran + offset field
     IMMD("does>",  add_w(DOES));
     IMMD("to",                                               /// alter the value of a constant, i.e. 3 to x
-         IU w = vm.state==QUERY ? find(word()) : POP();      /// constant addr
+         IU w = vm.state==QUERY ? find(WORD()) : POP();      /// constant addr
          if (!w) return;
          if (vm.compile) {
              add_var(LIT, (DU)w);                            /// save addr on stack
@@ -467,7 +469,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
              *(DU*)MEM(DALIGN(w)) = POP();                   /// update constant
          });
     IMMD("is",              /// ' y is x                     /// alias a word, i.e. ' y is x
-         IU w = vm.state==QUERY ? find(word()) : POP();      /// word addr
+         IU w = vm.state==QUERY ? find(WORD()) : POP();      /// word addr
          if (!w) return;
          if (vm.compile) {
              add_var(LIT, (DU)w);                            /// save addr on stack
@@ -493,12 +495,12 @@ void dict_compile() {  ///< compile built-in words into dictionary
          for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0)); /// zero padding
     CODE("th",    IU i = POPI(); TOS += i * sizeof(DU));     /// w i -- w'
     /// @}
-#if DO_MULTITASK    
+#if DO_MULTITASK
     /// @defgroup Multitasking ops
     /// @}
     CODE("task",                                             /// w -- task_id
          IU w = POPI();                                      ///< dictionary index
-         if (IS_UDF(w)) PUSH(task_create(dict[w]->pfa));     /// create a task starting on pfa
+         if (!dict[w]->is_udf()) PUSH(task_create(dict[w]->pfa));  /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
     CODE("rank",  PUSH(vm.id));                              /// ( -- n ) thread id
     CODE("start", task_start(POPI()));                       /// ( task_id -- )
@@ -510,18 +512,18 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("bcast", vm.bcast(POPI()));                         /// ( v1 v2 .. vn -- )
     CODE("pull",  IU t = POPI(); vm.pull(t, POPI()));        /// ( tid n -- v1 v2 .. vn )
     /// @}
-#endif // DO_MULTITASK    
+#endif // DO_MULTITASK
     /// @defgroup Debug ops
     /// @{
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());       /// clear ss, rs
     CODE("here",  PUSH(HERE));
-    IMMD("'",     IU w = find(word()); if (w) PUSH(w));
+    IMMD("'",     IU w = find(WORD()); if (w) PUSH(w));
     CODE(".s",    ss_dump(vm, true));
     CODE("words", words(*BASE));
     CODE("see",
-         IU w = find(word()); if (!w) return;
+         IU w = find(WORD()); if (!w) return;
          pstr(": "); pstr(dict[w]->name);
-         if (IS_UDF(w)) see(dict[w]->pfa, *BASE);
+         if (dict[w]->is_udf()) see(dict[w]->pfa, *BASE);
          else           pstr(" ( built-ins ) ;");
          dot(CR));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
@@ -531,7 +533,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
          mem_dump(POPI(), n, *BASE));
     CODE("dict",  dict_dump(*BASE));
     CODE("forget",
-         IU w = find(word()); if (!w) return;               /// bail, if not found
+         IU w = find(WORD()); if (!w) return;               /// bail, if not found
          IU b = find("boot")+1;
          if (w > b) {                                       /// clear to specified word
              pmem.clear(dict[w]->pfa - STRLEN(dict[w]->name));
@@ -545,7 +547,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @}
     /// @defgroup OS ops
     /// @{
-    IMMD("include", load(vm, word()));                      /// include an OS file
+    IMMD("include", load(vm, WORD()));                      /// include an OS file
     CODE("included",                                        /// include file spec on stack
          POP();                                             /// string length, not used
          load(vm, (const char*)MEM(POP())));                /// include external file
@@ -555,7 +557,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("ms",    delay(POPI()));
 #if DO_WASM
     CODE("JS",    native_api(vm));                          /// Javascript interface
-#else    
+#else
     CODE("bye",   vm.state=STOP);
 #endif // DO_WASM
     /// @}
@@ -613,12 +615,12 @@ DU2 parse_number(const char *idiom, int base, int *err) {
 
 void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     vm.state = QUERY;
-    IU w = find(idiom);                  ///> * get token by searching through dict
-    if (w) {                             ///> * word found?
-        if (vm.compile && !IS_IMM(w)) {  /// * in compile mode?
-            add_w(w);                    /// * add to colon word
+    IU w = find(idiom);                          ///> * get token by searching through dict
+    if (w) {                                     ///> * word found?
+        if (vm.compile && !dict[w]->is_imm()) {  /// * in compile mode?
+            add_w(w);                            /// * add to colon word
         }
-        else { IP = DU0; CALL(vm, w); }  /// * execute forth word
+        else { IP = DU0; CALL(vm, w); }          /// * execute forth word
         return;
     }
     /// try as a number
@@ -671,9 +673,9 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     fout_setup(hook);
     fin_setup(line);                                        /// * refresh buffer if not resuming
     
-    string idiom;
-    while (fetch(idiom)) {                                  /// * parse a word
-        forth_core(vm, idiom.c_str());                      /// * outer interpreter
+    char idiom[E4_IBUF_SZ];
+    while (fetch(idiom, E4_IBUF_SZ)) {                      /// * parse a word
+        forth_core(vm, idiom);                              /// * outer interpreter
     }
     if (!vm.compile) ss_dump(vm);
     
