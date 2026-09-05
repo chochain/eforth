@@ -19,6 +19,9 @@
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
 #define E4_VM_POOL_SZ   8               /**< one plus # cors       */
+#define E4_PAD_SZ       66              /**< temp pad size         */
+#define E4_IBUF_SZ      128             /**< input buffer size     */
+#define E4_OBUF_SZ      1024            /**< output buffer size    */
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
