@@ -67,14 +67,12 @@ static const char* _format(DU v, int b, char* buf, int max, int w, char fill=' '
 extern List<Code*> dict;                   ///< dictionary
 extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
 extern U8          *MEM0;                  ///< base of parameter memory block
-extern Code        prim[];                 ///< primitive opcodes
 
 #define TOS       (vm.tos)                 /**< Top of stack                            */
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
-#define DICT(w)   (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
 
 ///====================================================================
 ///
@@ -209,8 +207,8 @@ void to_s(IU w, U8 *ip, int base) {
         const char *vstr = _format(*(DU*)ip, base, tmp, sizeof(tmp), 0);
         fout("%s ( lit )", vstr);
     } break;
-    case STR:  fout("s\" %s\"",   (char*)ip); break;
-    case DOTQ: fout(".\" %s\"",   (char*)ip); break;
+    case STR:  fout("s\" %s\"",   (char*)ip);   break;
+    case DOTQ: fout(".\" %s\"",   (char*)ip);   break;
     case VAR:
     case VBRAN: {
         int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
@@ -219,7 +217,7 @@ void to_s(IU w, U8 *ip, int base) {
             fout("%x ", *(DU*)MEM(a + i));
         }
     }                                   /// no break, fall through
-    default: fout("%s", DICT(w)->name);       break;
+    default: fout("%s", prim_or_dict(w)->name); break;
     }
     switch (w) {
     case NEXT: case LOOP:

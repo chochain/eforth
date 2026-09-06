@@ -294,6 +294,12 @@ void CALL(VM& vm, IU w) {
 ///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
+ ///
+ ///> init base of xt pointer and xtoff range check
+ ///
+Code *prim_or_dict(IU w) {
+    return IS_PRIM(w) ? (Code*)&prim[w & ~EXT_FLAG] : dict[w];
+}
 void dict_compile() {  ///< compile built-in words into dictionary
     CODE("nul ",    {});               /// dict[0], not used, simplify find()
     ///
