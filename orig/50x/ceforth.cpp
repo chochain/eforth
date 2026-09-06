@@ -147,7 +147,7 @@ void add_w(IU w) {                  ///< add a word index into pmem
 void add_var(IU op, DU v=DU0) {     ///< add a varirable header
     add_w(op);                      /// * VAR or VBRAN
     if (op==VBRAN) add_iu(0);       /// * pad offset field
-    pmem.idx = DALIGN(pmem.idx);    /// * data alignment (WASM 4, other 2)
+    pmem.idx = DALIGN(pmem.idx);    /// * data alignment
     if (op!=VBRAN) add_du(v);       /// * default variable = 0
 }
 ///====================================================================
@@ -372,12 +372,12 @@ void dict_compile() {  ///< compile built-in words into dictionary
     /// @defgroup IO ops
     /// @{
     CODE("base",    PUSH(vm.base));
-    CODE("decimal", dot(RDX, *BASE=10));
-    CODE("hex",     dot(RDX, *BASE=16));
+    CODE("decimal", *BASE=10);
+    CODE("hex",     *BASE=16);
     CODE("bl",      PUSH(0x20));
     CODE("cr",      dot(CR));
-    CODE(".",       dot(DOT,  POP()));
-    CODE("u.",      dot(UDOT, POP()));
+    CODE(".",       dot(DOT,  POP(), *BASE));
+    CODE("u.",      dot(UDOT, POP(), *BASE));
     CODE(".r",      IU w = POPI(); dotr(w, POP(), *BASE));
     CODE("u.r",     IU w = POPI(); dotr(w, POP(), *BASE, true));
     CODE("type",    POP(); pstr((const char*)MEM(POP())));   /// pass string pointer
@@ -519,19 +519,19 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("here",  PUSH(HERE));
     IMMD("'",     IU w = find(WORD()); if (w) PUSH(w));
     CODE(".s",    ss_dump(vm, true));
-    CODE("words", words(*BASE));
+    CODE("words", words());
     CODE("see",
          IU w = find(WORD()); if (!w) return;
          pstr(": "); pstr(dict[w]->name);
          if (dict[w]->is_udf()) see(dict[w]->pfa, *BASE);
-         else           pstr(" ( built-ins ) ;");
+         else pstr(" ( built-ins ) ;");
          dot(CR));
     CODE("depth", IU i = UINT(SS.idx); PUSH(i));
     CODE("r",     PUSH(RS.idx));
     CODE("dump",
          U32 n = POPI();
          mem_dump(POPI(), n, *BASE));
-    CODE("dict",  dict_dump(*BASE));
+    CODE("dict",  dict_dump());
     CODE("forget",
          IU w = find(WORD()); if (!w) return;               /// bail, if not found
          IU b = find("boot")+1;
@@ -555,22 +555,13 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("clock", PUSH(millis()));
     CODE("rnd",   PUSH(RND()));                             /// generate random number
     CODE("ms",    delay(POPI()));
-#if DO_WASM
-    CODE("JS",    native_api(vm));                          /// Javascript interface
-#else
     CODE("bye",   vm.state=STOP);
-#endif // DO_WASM
     /// @}
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)));
 }
 ///
 ///> init base of xt pointer and xtoff range check
 ///
-#if DO_WASM
-UFP Code::XT0 = 0;       ///< WASM xt is vtable index (0 is min)
-void dict_validate() {}  ///> no need to adjust xt offset base
-
-#else // !DO_WASM
 UFP Code::XT0 = ~0;      ///< init to max value
 
 void dict_validate() {
@@ -588,7 +579,6 @@ void dict_validate() {
         LOGS("\nEnter 'dict' to verify, and please contact author!\n");
     }
 }
-#endif // DO_WASM
 ///====================================================================
 ///
 ///> ForthVM - Outer interpreter
@@ -631,6 +621,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         pstr(strerror(err), CR);         ///> and error description
         vm.compile = false;              ///> reset to interpreter mode
         vm.state   = STOP;               ///> skip the entire input buffer
+        return;
     }
     /// is a number
     if (vm.compile) {                    /// * a number in compile mode?
