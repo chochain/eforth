@@ -88,7 +88,6 @@ Code prim[] = {
     Code("bran",BRAN), Code("0bran",ZBRAN), Code("vbran",VBRAN), Code("does>",DOES),
     Code("for", FOR),  Code("do",   DO),    Code("key",  KEY)
 };
-#define DICT(w) (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
 ///
 ///====================================================================
 ///@}
@@ -132,7 +131,7 @@ int  add_str(const char *s) {       ///< add a string to pmem
     return sz;
 }
 void add_w(IU w) {                  ///< add a word index into pmem
-    Code *c = DICT(w);              /// * code ref to primitive or dictionary entry
+    Code *c = prim_or_dict(w);      /// * code ref to primitive or dictionary entry
     IU   ip = (w & EXT_FLAG)        /// * is primitive?
         ? (UFP)c->xt                /// * get primitive/built-in token
         : (c->is_udf()              /// * colon word?
@@ -528,7 +527,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
     CODE("words", words());
     CODE("see",
          IU w = find(WORD()); if (!w) return;
-         pstr(": "); pstr(dict[w]->name);
+         pstr(": "); pstr(dict[w]->name, CR);
          if (dict[w]->is_udf()) see(dict[w]->pfa, *BASE);
          else pstr(" ( built-ins ) ;");
          dot(CR));
