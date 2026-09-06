@@ -234,8 +234,9 @@ void see(IU pfa, int base) {
         IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
         if (!w) break;                  ///> loop guard
         
-        fout("\n  ");                   /// * indent
+        fout("  ");                     /// * indent
         to_s(w, ip, base);              /// * display opcode
+        fout_flush('\n');
         if (w==EXIT || w==VAR) break;   /// * end of word
 
         ip += sizeof(IU);               ///> advance ip (next opcode)
@@ -247,7 +248,6 @@ void see(IU pfa, int base) {
         case VBRAN: ip = MEM(*(IU*)ip);                  break;
         }
     }
-    fout_flush('\n');
 }
 
 void words() {
