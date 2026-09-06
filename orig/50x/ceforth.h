@@ -124,11 +124,7 @@ struct ALIGNAS VM {
 #define UDF_ATTR   0x0001   /** user defined word    */
 #define IMM_ATTR   0x0002   /** immediate word       */
 #define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
-#if DO_WASM
-#define MSK_ATTR   ~0x0     /** no masking needed    */
-#else  // !DO_WASM
 #define MSK_ATTR   ~0x3     /** mask udf,imm bits    */
-#endif // DO_WASM
 ///}
 ///@name primitive opcode
 ///{
@@ -138,7 +134,7 @@ typedef enum {
 } prim_op;
 
 #define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
-#define IS_PRIM(w) ((w & EXT_FLAG) && (w < MAX_OP))
+#define IS_PRIM(w) (((w) & EXT_FLAG) && (((w) & ~EXT_FLAG) < (MAX_OP & ~EXT_FLAG)))
 ///@}
 ///@name Code class
 ///@brief - basic struct of dictionary entries
@@ -163,24 +159,11 @@ typedef enum {
 ///            |attr|pfa |
 ///            +----+----+
 ///
-///  Code class on WASM systems (a bit wasteful but faster)
-///  +---------+---------+----+
-///  |  *name  |   xt    |attr|
-///  +---------+----+----+----+
-///            |pfa |xxxx|
-///            +----+----+
 ///@{
 typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
-#if DO_WASM
-    union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< vtable index
-        IU   pfa;           ///< offset to pmem space (16-bit for 64K range)
-    };
-    IU attr;                ///< xt is vtable index so attrs need to be separated
-#else // !DO_WASM
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
         struct {
@@ -188,7 +171,6 @@ struct Code {
             IU pfa;         ///< offset to pmem space (16-bit for 64K range)
         };
     };
-#endif // DO_WASM
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
     static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
 
@@ -237,7 +219,7 @@ void outer(istream &in);                  ///< Forth outer loop
 ///@}
 ///@name IO functions
 ///{@
-typedef enum { RDX=0, CR, DOT, UDOT, EMIT, SPCS } io_op;
+typedef enum { CR=0, DOT, UDOT, EMIT, SPCS } io_op;
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
@@ -245,26 +227,24 @@ void fout_setup(void (*hook)(int, const char*));
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
 int  fetch(char *buf, int max=E4_IBUF_SZ);               ///< read input stream into buffer
-char key();                               ///< read key from console
-void load(VM &vm, const char* fn);        ///< load external Forth script
-void spaces(int n);                       ///< show spaces
-void dot(io_op op, DU v=DU0);             ///< print literals
-void dotr(int w, DU v, int b, bool u=false); ///< print fixed width literals
-void pstr(const char *str, io_op op=SPCS);///< print string
+char key();                                              ///< read key from console
+void load(VM &vm, const char* fn);                       ///< load external Forth script
+void spaces(int n);                                      ///< show spaces
+void dot(io_op op, DU v=DU0, int base=10);               ///< print literals
+void dotr(int w, DU v, int base=10, bool u=false);       ///< print fixed width literals
+void pstr(const char *str, io_op op=SPCS);               ///< print string
 ///@}
 ///@name Debug functions
 ///@{
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
-void words(int base);                     ///< list dictionary words
-void dict_dump(int base);                 ///< dump dictionary
+void words();                             ///< list dictionary words
+void dict_dump();                         ///< dump dictionary
 void mem_dump(U32 addr, IU sz, int base); ///< dump memory frm addr...addr+sz
 void mem_stat();                          ///< display memory statistics
 ///@}
 ///@name Javascript interface
 ///@{
-#if DO_WASM
 void native_api(VM &vm);
-#endif // DO_WASM
 ///@}
 #endif // __EFORTH_SRC_CEFORTH_H
