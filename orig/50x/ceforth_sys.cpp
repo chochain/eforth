@@ -12,15 +12,13 @@ static const char *tib = nullptr;             ///< Replaces istringstream (Track
 static char *tob = nullptr;                   ///< Cursor for continuous appending
 static char obuf[E4_OBUF_SZ];                 ///< Replaces ostringstream (Scratch formatting buffer)
 
-static int  _obase  = 10;                     /// Replaces <iomanip> formatting parameters state machine
-static char _ofill  = ' ';
-
 void (*fout_cb)(int, const char*) = nullptr;  ///< forth output callback function
 
 /// Clear and flush the custom output buffer layout straight down to the callback
-static void fout_flush() {
+static void fout_flush(char post='\0') {
     if (tob == obuf) return;
     
+    if (post) *tob++ = post;
     *tob = '\0';                              /// Null-terminate
     if (fout_cb) fout_cb(strlen(obuf), obuf); /// callback
     tob = obuf;                               /// Reset pointer position
@@ -38,12 +36,12 @@ static void fout(const char *fmt, ...) {
     va_end(args);
 }
 
-static const char* _format(DU v, int b, char* buf, int buf_sz, int w, char fill) {
+static const char* _format(DU v, int b, char* buf, int max, int w, char fill=' ') {
     int  dec = (b == 10);
     bool is_neg = (dec && v < 0);
     U32  n   = is_neg ? UINT(-v) : UINT(v);
 
-    int i    = buf_sz - 1;
+    int i    = max - 1;
     buf[i]   = '\0';                        /// zero terminate
     
     do {                                    /// fill digits
@@ -53,7 +51,7 @@ static const char* _format(DU v, int b, char* buf, int buf_sz, int w, char fill)
     } while (n && i > 0);
     
     if (fill == '0') {
-        int fw = buf_sz - w;                /// fill width
+        int fw = max - w;                   /// fill width
         if (is_neg  && fw < 1) fw = 1;
         if (!is_neg && fw < 0) fw = 0;
 
@@ -69,12 +67,14 @@ static const char* _format(DU v, int b, char* buf, int buf_sz, int w, char fill)
 extern List<Code*> dict;                   ///< dictionary
 extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
 extern U8          *MEM0;                  ///< base of parameter memory block
+extern Code        prim[];                 ///< primitive opcodes
 
 #define TOS       (vm.tos)                 /**< Top of stack                            */
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
+#define DICT(w)   (IS_PRIM(w) ? &prim[w & ~EXT_FLAG] : dict[w])
 
 ///====================================================================
 ///
@@ -134,18 +134,17 @@ const char *word(char *buf, int max) {    ///< get next idiom
 
 char key() { static char c; return word(&c, 1)[0]; }
 void spaces(int n) { for (int i = 0; i < n; i++) fout(" "); }
-void dot(io_op op, DU v) {
+void dot(io_op op, DU v, int base) {
     switch (op) {
-    case RDX:   _obase = UINT(v);                          break;
-    case CR:    fout("\n"); fout_flush();                  break; 
+    case CR:    fout_flush('\n'); break; 
     case DOT: {
         char tmp[66];
-        const char *vstr = _format(v, _obase, tmp, sizeof(tmp), 0, ' ');
+        const char *vstr = _format(v, base, tmp, sizeof(tmp), 0);
         fout("%s ", vstr);
     } break;
     case UDOT: {
         char tmp[66];
-        const char *vstr = _format(static_cast<U32>(v), _obase, tmp, sizeof(tmp), 0, ' ');
+        const char *vstr = _format(static_cast<U32>(v), base, tmp, sizeof(tmp), 0);
         fout("%s ", vstr);
     } break;
     case EMIT:  { char b = (char)UINT(v); fout("%c", b); } break;
@@ -154,10 +153,10 @@ void dot(io_op op, DU v) {
     }
 }
 
-void dotr(int w, DU v, int b, bool u) {
+void dotr(int w, DU v, int base, bool u) {
     char tmp[66];
     // Pass width and current fill state down to the radix helper
-    char *vstr = (char*)_format(v, b, tmp, sizeof(tmp), w, _ofill);
+    char *vstr = (char*)_format(v, base, tmp, sizeof(tmp), w);
     int  len   = (int)strlen(vstr);
     
     // If the string is shorter than 'w', it means we used space padding (' ')
@@ -166,12 +165,11 @@ void dotr(int w, DU v, int b, bool u) {
         for (int i = 0; i < spcs; i++) fout(" ");
     }
     fout("%s", vstr);
-    _ofill = ' ';    /// Reset layout alignment states to safe defaults
 }
 
 void pstr(const char *str, io_op op) {
     fout("%s", str);
-    if (op == CR) { fout("\n"); fout_flush(); }
+    if (op == CR) fout_flush('\n');
 }
 
 ///====================================================================
@@ -208,7 +206,7 @@ void to_s(IU w, U8 *ip, int base) {
     switch (w) {
     case LIT:  {
         char tmp[66];
-        const char *vstr = _format(*(DU*)ip, base, tmp, sizeof(tmp), 0, ' ');
+        const char *vstr = _format(*(DU*)ip, base, tmp, sizeof(tmp), 0);
         fout("%s ( lit )", vstr);
     } break;
     case STR:  fout("s\" %s\"",   (char*)ip); break;
@@ -221,7 +219,7 @@ void to_s(IU w, U8 *ip, int base) {
             fout("%x ", *(DU*)MEM(a + i));
         }
     }                                   /// no break, fall through
-    default: fout("%s", dict[w]->name);       break;
+    default: fout("%s", DICT(w)->name);       break;
     }
     switch (w) {
     case NEXT: case LOOP:
@@ -230,12 +228,10 @@ void to_s(IU w, U8 *ip, int base) {
         break;
     default: /* do nothing */ break;
     }
-    _ofill = ' ';
 }
 
 void see(IU pfa, int base) {
     U8 *ip = MEM(pfa);                  ///< memory pointer
-    int i=0;
     while (1) {
         IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
         if (!w) break;                  ///> loop guard
@@ -252,13 +248,11 @@ void see(IU pfa, int base) {
         case NEXT:  case LOOP:  ip += sizeof(IU);        break;
         case VBRAN: ip = MEM(*(IU*)ip);                  break;
         }
-        fout("( %04x[%4x] ) ", (unsigned int)(ip - MEM0), w);
-        break;
     }
-    fout_flush();
+    fout_flush('\n');
 }
 
-void words(int base) {
+void words() {
     const int WIDTH = 56;
     int sz = 0;
     for (int i=0; i<dict.idx; i++) {
@@ -274,12 +268,10 @@ void words(int base) {
         }
         if (sz > WIDTH) {
             sz = 0;
-            fout("\n");
-            yield();
+            fout_flush('\n');
         }
     }
-    fout("\n");
-    fout_flush();
+    fout_flush('\n');
 }
 
 static int load_dp = 0;
@@ -300,7 +292,7 @@ void ss_dump(VM &vm, bool forced) {
     SS.push(TOS);
     for (int i=0; i<SS.idx; i++) {
         char tmp[66];
-        fout("%s ", _format(SS[i], *MEM(vm.base), tmp, sizeof(tmp), 0, ' '));
+        fout("%s ", _format(SS[i], *MEM(vm.base), tmp, sizeof(tmp), 0));
     }
     TOS = SS.pop();
     fout("ok\n");
@@ -317,26 +309,27 @@ void mem_dump(U32 p0, IU sz, int base) {
             U8 c = pmem[i+j] & 0x7f;
             fout("%c", ((c==0x7f||c<0x20) ? '_' : c));
         }
-        fout("\n");
+        fout_flush('\n');
         yield();
     }
-    fout_flush();
 }
 
-void dict_dump(int base) {
-    printf("XT0=%08x\n", (U32)Code::XT0);
+void dict_dump() {
+    fout("XT0=%x\n", (U32)Code::XT0);
     for (int i=0; i<dict.idx; i++) {
         Code *c = dict[i];
-        printf("%03d> name=%-8s, xt=%p, attr=%x, xtoff=%04x %s\n",
-               i, c->name, c->xt, (c->attr & 0x3),
-               (c->is_udf() ? c->pfa : c->xtoff()), c->name);
+        fout("%03d> xt=%p, attr=%x, xtoff=%04x %s\n",
+             i, c->xt, (c->attr & 0x3),
+             (c->is_udf() ? c->pfa : c->xtoff()), c->name);
+        fout_flush();
     }
 }
 ///====================================================================
 ///
 ///> LVGL / Native Web Formatter API
 ///
-#if DO_WASM
+#if 0
+/// *note see ceforth_sys#_format
 extern "C" { void js_call(const char *ops); }
 void native_api(VM &vm) {                  ///> ( n addr u -- )
     POP();                                 /// * strlen, not used
@@ -376,5 +369,5 @@ void native_api(VM &vm) {                  ///> ( n addr u -- )
     }
     js_call(pad);
 }
-#endif // DO_WASM
+#endif // LVGL
 
