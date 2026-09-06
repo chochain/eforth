@@ -10,7 +10,6 @@
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    0               /**< multitasking/pthread   */
-#define DO_WASM         __EMSCRIPTEN__  /**< for WASM output        */
 ///@}
 ///@name Memory block configuation
 ///@{
@@ -92,9 +91,7 @@ typedef int32_t         DU;
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
-#define CALLBACK        fout_cb((int)fout.str().length(), fout.str().c_str()); fout.str("")
 #define FLUSH           flush; CALLBACK
-#define ENDL            endl; CALLBACK
 ///@}
 ///@name Multi-platform support
 ///@{
@@ -106,14 +103,7 @@ typedef int32_t         DU;
         #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
     #endif // ESP32
 
-#elif  DO_WASM
-    #include <emscripten.h>
-    #define DALIGN(sz)      ALIGN4(sz)
-    #define millis()        EM_ASM_INT({ return Date.now(); })
-    #define delay(ms)       EM_ASM({ let t = setTimeout(()=>clearTimeout(t), $0); }, ms)
-    #define yield()         /* JS is async */
-
-#else  // !(ARDUINO || ESP32) && !DO_WASM
+#else  // !(ARDUINO || ESP32)
     #include <chrono>
     #include <thread>
     #define DALIGN(sz)      (sz)
@@ -148,21 +138,21 @@ typedef int32_t         DU;
 #if CC_DEBUG
 #include <stdarg.h>
     
-#if DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64)
+#if (ESP32 || ARDUINO)
 #define VM_HDR(vm, fmt, ...)                                \
     printf("[%02d.%d]%-4x" fmt,                             \
            (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                                \
     printf(fmt, ##__VA_ARGS__)
     
-#else // !(DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64))
+#else // !(ESP32 || ARDUINO)
 #define VM_HDR(vm, fmt, ...)                  \
     printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                  \
     printf("\e[%dm" fmt "\e[0m\n",            \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
-#endif // DO_WASM || (ESP32 || ARDUINO) || (_WIN32 || _WIN64)    
+#endif // (ESP32 || ARDUINO)
 #define VM_LOG(vm, fmt, ...)                  \
     VM_HDR(vm, fmt, ##__VA_ARGS__);           \
     printf("\n")
