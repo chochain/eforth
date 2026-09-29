@@ -81,6 +81,19 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define SCAN(c)   (scan(c, vm.pad, E4_PAD_SZ))
 #define WORD()    (word(vm.pad, E4_PAD_SZ))
 ///@}
+///@name Dictionary search functions - can be adapted for ROM+RAM
+///@{
+///
+IU find(const char *s) {
+    IU v = 0;
+    for (IU i = dict.idx - 1; !v && i > 0; --i) {
+        if (STRCMP(s, dict[i]->name)==0) v = i;
+    }
+#if CC_DEBUG > 1
+    LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
+#endif // CC_DEBUG > 1
+    return v;
+}
 ///====================================================================
 ///@}
 ///@name Colon word compiler
@@ -107,30 +120,66 @@ int  add_str(const char *s) {       ///< add a string to pmem
     pmem.push((U8*)s,  sz);         /// * add string terminated with zero
     return sz;
 }
-
-void add_w(IU w) {
-    Code *c = dict[w];
+void add_xt(FPTR f) {
+    pmem.push((U8*)&f, sizeof(FPTR));
+}
+void add_w(IU dict_index) {
+    const Code *c = get_word(dict_index);
     
-    if (c->is_udf()) {
-        // User-defined word: compile CALL pre-processor
+    if (c->attr & UDF_ATTR) {
+        // User-defined word: Compile the EnterColon execution step block
         // Truncate the function address down to a clean lower 32-bit token integer
-        IU udf = (IU)((UFP)CALL);
-        add_iu(udf);
+        uint32_t enter_colon_token = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(EnterColon));
+        add_iu(enter_colon_token);
+        
+        // Compile the target body memory address pointer as a 32-bit data payload block
+        add_iu(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(c->xt))); 
+    } else {
+        // Standard ROM primitive/built-in word
+        uint32_t primitive_token = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(c->xt));
+        add_iu(primitive_token);
     }
-    // Compile the target body memory address pointer as a 32-bit data payload block
-    add_iu((IU)((UFP)c->xt));
+}
+
+#if __SIZEOF_POINTER__ == 8
+uint64_t XT0_SEGMENT = 0;
+
+void forth_init_segment() {
+    // 1. Grab the full 64-bit runtime address of your first primitive lambda
+    uint64_t sample_address = reinterpret_cast<uint64_t>(g_rom[0].xt);
     
+    // 2. Isolate the top 32 bits (the memory page segment)
+    // Mask out the lower 32 bits so it's ready for a lightning-fast bitwise OR
+    XT0_SEGMENT = sample_address & 0xFFFFFFFF00000000ULL;
+    
+    // 3. Safety Verification
+    // Ensure ALL primitives reside within this exact same 4GB segment boundary page
+    for (int i = 0; i < g_romsz; i++) {
+        uint64_t addr = reinterpret_cast<uint64_t>(g_rom[i].xt);
+        if ((addr & 0xFFFFFFFF00000000ULL) != XT0_SEGMENT) {
+            printf("[CRITICAL ERROR] Primitives crossed a 4GB segment boundary layer!\n");
+        }
+    }
+}
+#endif
+void add_w(IU w) {                  ///< add a word index into pmem
+#if 0  /* tail-call */
+    Code *c = dict[w];
+    if (c->is_udf()) add_xt(CALL);  /// * call CALL first
+    add_xt(c->xt);
+#endif
+    Code *c = prim_or_dict(w);      /// * code ref to primitive or dictionary entry
+    IU   ip = (w & EXT_FLAG)        /// * is primitive?
+        ? (UFP)c->xt                /// * get primitive/built-in token
+        : (c->is_udf()              /// * colon word?
+           ? (c->pfa | EXT_FLAG)    /// * pfa with colon word flag
+           : c->xtoff());           /// * XT offset of built-in
+    add_iu(ip);
 #if CC_DEBUG > 1
     LOG_KV("add_w(", w); LOG_KX(") => ", ip);
     LOGS(" "); LOGS(c->name); LOGS("\n");
 #endif // CC_DEBUG > 1
 }
-
-void add_xt(const char *name) {
-    IU w = find(name);
-    add_w(w);
-}
-
 void add_var(IU op, DU v=DU0) {     ///< add a varirable header
     add_w(op);                      /// * VAR or VBRAN
     if (op==VBRAN) add_iu(0);       /// * pad offset field
@@ -203,6 +252,39 @@ void s_quote(VM &vm, prim_op op) {
 #define OTHER(g)     default : { g; } break
 #define UNNEST()     { if (RS.idx > 0) { ip=(IU*)RS.pop(); return NEXT(); } else return NULL; }
 
+void nest(VM& vm) /* tail call */ {
+    vm.state = NEST;
+
+    /* 1. Extract core virtual machine tracking metrics locally onto the local stack frame */
+    IU  *ip = IP;                 /* Local Instruction Pointer map */
+    int &sp = SS.idx;             /* Local Data Stack index map */
+    DU  tos = TOS;                /* Local cached Top-of-Stack register map */
+
+    /* 2. Read the initial function execution token from the current array offset */
+    FPTR next = (FPTR)NEXT();
+
+    /* 
+     * 3. THE TAIL-CALL TRAMPOLINE DRIVER ENGINE:
+     * While next points to a valid function address, invoke it.
+     * The compiler flattens this assignment sequence into an optimized 
+     * 'jx' or 'jmp' assembly branch instruction under C++17 rules.
+     */
+    while (next) {
+        next = (FPTR)next(vm, ip, sp, tos);
+    }
+
+    /* 4. Flush the final stable register configurations back into the persistent VM memory block */
+    IP  = ip;
+    TOS = tos;
+}
+///
+///> CALL - inner-interpreter proxy (inline macro does not run faster)
+///
+void *CALL(VM& vm, IU* &ip, int &sp, DU &tos) {
+    RS.push((DU)((UFP)ip));
+    IP = (IU*)*(ip++);
+    return NEXT();
+}
 ///====================================================================
 ///
 ///> eForth dictionary assembler
@@ -365,11 +447,11 @@ constexpr Code g_rom[] = {
     /// @brief - if...then, if...else...then
     /// @{
     IMMD("if",
-         add_xt("0bran");                          /// if    ( -- here )
+         add_xt((FPTR)dict[find("0bran")]->xt);    /// if    ( -- here )
          SS[++sp] = (DU)HERE_TGT;                  /// save ip0
          add_iu(0)),
     IMMD("else",                                   /// else ( here -- there )
-         add_xt("bran");
+         add_xt((FPTR)dict[find("bran")]->xt);
          IU *tgt  = HERE_TGT;                      /// save target
          add_iu(0);
          IU **ip0 = (IU**)SS[sp];                  /// fetch ip0
@@ -538,57 +620,6 @@ constexpr Code g_rom[] = {
 };
 int  g_romsz = sizeof(g_rom)/sizeof(Code);
 ///
-///@name Dictionary search functions - can be adapted for ROM+RAM
-///@{
-///
-IU find(const char *s) {
-    IU v = 0;
-    for (IU i = dict.idx - 1; !v && i > 0; --i) {
-        if (STRCMP(s, dict[i]->name)==0) v = i;
-    }
-    for (IU i = 0; !v && i < g_romsz; i++) {
-        if (STRCMP(s, g_rom[i].name)==0) v = i;
-    }
-#if CC_DEBUG > 1
-    LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
-#endif // CC_DEBUG > 1
-    return v;
-}
-
-void nest(VM& vm) /* tail call */ {
-    vm.state = NEST;
-
-    /* 1. Extract core virtual machine tracking metrics locally onto the local stack frame */
-    IU  *ip = IP;                 /* Local Instruction Pointer map */
-    int &sp = SS.idx;             /* Local Data Stack index map */
-    DU  tos = TOS;                /* Local cached Top-of-Stack register map */
-
-    /* 2. Read the initial function execution token from the current array offset */
-    FPTR next = (FPTR)NEXT();
-
-    /* 
-     * 3. THE TAIL-CALL TRAMPOLINE DRIVER ENGINE:
-     * While next points to a valid function address, invoke it.
-     * The compiler flattens this assignment sequence into an optimized 
-     * 'jx' or 'jmp' assembly branch instruction under C++17 rules.
-     */
-    while (next) {
-        next = (FPTR)next(vm, ip, sp, tos);
-    }
-
-    /* 4. Flush the final stable register configurations back into the persistent VM memory block */
-    IP  = ip;
-    TOS = tos;
-}
-///
-///> CALL - inner-interpreter proxy (inline macro does not run faster)
-///
-void *CALL(VM& vm, IU* &ip, int &sp, DU &tos) {
-    RS.push((DU)((UFP)ip));
-    ip = (IU*)*(ip++);
-    return NEXT();
-}
-///
 ///> init base of xt pointer and xtoff range check
 ///
 UFP Code::XT0 = ~0;                            ///< init to max value
@@ -602,23 +633,19 @@ void dict_compile() {                          ///< compile built-in words into 
 }
 
 void dict_validate() {
-#if __SIZEOF_POINTER__ == 8    
-    // 1. Grab the full 64-bit runtime address of your first primitive lambda
-    U64 base = (U64)(g_rom[0].xt);
-    
-    // 2. Isolate the top 32 bits (the memory page segment)
-    // Mask out the lower 32 bits so it's ready for a lightning-fast bitwise OR
-    Code::XT0 = base & 0xFFFFFFFF00000000ULL;
-    
-    // 3. Safety Verification
-    // Ensure ALL primitives reside within this exact same 4GB segment boundary page
-    for (int i = 1; i < g_romsz; i++) {
-        U64 addr = (U64)(g_rom[i].xt);
-        if ((addr & 0xFFFFFFFF00000000ULL) != Code::XT0) {
-            printf("[CRITICAL ERROR] Primitives crossed a 4GB segment boundary layer!\n");
-        }
+    /// collect Code::XT0 i.e. xt base pointer
+    UFP max = (UFP)0;
+    for (int i=0; i < dict.idx; i++) {
+        Code *c = dict[i];
+        if ((UFP)c->xt < Code::XT0) Code::XT0 = (UFP)c->xt;
+        if ((UFP)c->xt > max)       max       = (UFP)c->xt;
     }
-#endif // __SIZEOF_POINTER__ == 8 
+    /// check xtoff range
+    max -= Code::XT0;
+    if (max & EXT_FLAG) {                     /// range check
+        LOG_KX("*** Init ERROR *** xtoff overflow max = 0x", max);
+        LOGS("\nEnter 'dict' to verify, and please contact author!\n");
+    }
 }
 ///====================================================================
 ///
@@ -674,7 +701,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     }
     /// is a number
     if (vm.compile) {                    /// * a number in compile mode?
-        add_xt("lit");
+        add_xt((FPTR)dict[find("lit")]->xt);
         add_du(n);                       ///> add to current word
     }
     else PUSH(n);                        ///> or, add value onto data stack

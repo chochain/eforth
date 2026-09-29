@@ -25,6 +25,7 @@
 ///
 ///@name Logical units (instead of physical) for type check and portability
 ///@{
+typedef uint64_t        U64;   ///< unsigned 64-bit integer
 typedef uint32_t        U32;   ///< unsigned 32-bit integer
 typedef int32_t         S32;   ///< signed 32-bit integer
 typedef uint16_t        U16;   ///< unsigned 16-bit integer
