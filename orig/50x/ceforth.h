@@ -242,6 +242,10 @@ typedef enum { CR=0, DOT, UDOT, EMIT, SPCS } io_op;
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
 
+IU   find(const char *s);
+void nest(VM& vm);
+void *CALL(VM& vm, IU* &ip, int &sp, DU &tos);
+
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
 int  fetch(char *buf, int max=E4_IBUF_SZ);               ///< read input stream into buffer
