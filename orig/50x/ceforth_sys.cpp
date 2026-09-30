@@ -245,14 +245,11 @@ void see(IU pfa, int base) {
     }
 }
 
-void vocab(Code *dic, int n) {
+void words() {
     const int WIDTH = 56;
-    int sz = 0;
-    for (int i = n-1; i >= 0; --i) {
-        const char *nm = dic[i].name;
+    auto blip = [](int &sz, int i, const Code &c) {
+        const char *nm = c.name;
         const int  len = strlen(nm);
-        printf("%d => %s\n", i, nm);
-        continue;
 #if CC_DEBUG > 1
         if (nm[0]) {
 #else  //  CC_DEBUG > 1
@@ -265,13 +262,11 @@ void vocab(Code *dic, int n) {
             sz = 0;
             fout_flush('\n');
         }
-    }
-}
-
-void words() {
-    vocab((Code*)g_rom, g_romsz);
-//    vocab(dict[0],  dict.idx);
-//    fout_flush('\n');
+    };
+    int sz = 0;
+    for (int i = 0; i < g_romsz; i++)       blip(sz, i, g_rom[i]);
+    for (int i = dict.idx - 1; i >= 0; --i) blip(sz, i, *dict[i]);
+    fout_flush('\n');
 }
 
 static int load_dp = 0;
@@ -315,17 +310,14 @@ void mem_dump(U32 p0, IU sz, int base) {
 }
 
 void dict_dump() {
-    fout("XT0=%x\n", (U32)Code::XT0);
-    for (int i=0; i < g_romsz; i++) {
-        const Code &c = g_rom[i];
-        printf("%03d> xt=%p, attr=%x, xtoff=%08zx %s\n",
-             i, c.xt, (c.attr & 0x3), (UFP)c.xt & 0xFFFFFFFF, c.name);
-#if 0        
-        fout("%03d> xt=%p, attr=%x, xtoff=%08x %s\n",
+    auto blip = [](int i, const Code &c) {
+        fout("%03d> xt=%p, attr=%x, xtoff=%08zx %s\n",
              i, c.xt, (c.attr & 0x3), (UFP)c.xt & 0xFFFFFFFF, c.name);
         fout_flush();
-#endif        
-    }
+    };
+    fout("XT0=%zx\n", Code::XT0);
+    for (int i=0; i < g_romsz; i++)  blip(i, g_rom[i]);
+    for (int i=0; i < dict.idx; i++) blip(i, *dict[i]);
 }
 ///====================================================================
 ///
