@@ -245,12 +245,14 @@ void see(IU pfa, int base) {
     }
 }
 
-void words() {
+void vocab(Code *dic, int n) {
     const int WIDTH = 56;
     int sz = 0;
-    for (int i=0; i<dict.idx; i++) {
-        const char *nm = dict[i]->name;
+    for (int i = n-1; i >= 0; --i) {
+        const char *nm = dic[i].name;
         const int  len = strlen(nm);
+        printf("%d => %s\n", i, nm);
+        continue;
 #if CC_DEBUG > 1
         if (nm[0]) {
 #else  //  CC_DEBUG > 1
@@ -264,7 +266,12 @@ void words() {
             fout_flush('\n');
         }
     }
-    fout_flush('\n');
+}
+
+void words() {
+    vocab((Code*)g_rom, g_romsz);
+//    vocab(dict[0],  dict.idx);
+//    fout_flush('\n');
 }
 
 static int load_dp = 0;
@@ -309,11 +316,15 @@ void mem_dump(U32 p0, IU sz, int base) {
 
 void dict_dump() {
     fout("XT0=%x\n", (U32)Code::XT0);
-    for (int i=0; i<dict.idx; i++) {
-        Code *c = dict[i];
+    for (int i=0; i < g_romsz; i++) {
+        const Code &c = g_rom[i];
+        printf("%03d> xt=%p, attr=%x, xtoff=%08zx %s\n",
+             i, c.xt, (c.attr & 0x3), (UFP)c.xt & 0xFFFFFFFF, c.name);
+#if 0        
         fout("%03d> xt=%p, attr=%x, xtoff=%08x %s\n",
-             i, c->xt, (c->attr & 0x3), (UFP)c->xt & 0xFFFFFFFF, c->name);
+             i, c.xt, (c.attr & 0x3), (UFP)c.xt & 0xFFFFFFFF, c.name);
         fout_flush();
+#endif        
     }
 }
 ///====================================================================
