@@ -64,10 +64,6 @@ static const char* _format(DU v, int b, char* buf, int max, int w, char fill=' '
     return &buf[i];
 }
 /// =============================================================
-extern List<Code*> dict;                   ///< dictionary
-extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
-extern U8          *MEM0;                  ///< base of parameter memory block
-
 #define TOS       (vm.tos)                 /**< Top of stack                            */
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
@@ -175,11 +171,10 @@ void pstr(const char *str, io_op op) {
 ///> Debug functions
 ///
 int pfa2didx(IU ix) {                          ///> reverse lookup
-    if (IS_PRIM(ix)) return (int)ix;           ///> primitives
     IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
         Code *c = dict[i];
-        if (pfa == (c->is_udf() ? c->pfa : c->xtoff())) return i;
+        if (pfa == ((UFP)c->xt & 0xffffffff)) return i;
     }
     return 0;                                  /// * not found
 }
@@ -217,7 +212,7 @@ void to_s(IU w, U8 *ip, int base) {
             fout("%x ", *(DU*)MEM(a + i));
         }
     }                                   /// no break, fall through
-    default: fout("%s", prim_or_dict(w)->name); break;
+    default: fout("%s", dict[w]->name); break;
     }
     switch (w) {
     case NEXT: case LOOP:
@@ -275,12 +270,12 @@ void words() {
 static int load_dp = 0;
 void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter
-    RS.push(vm.ip);                      /// * save context
+    RS.push(*vm.ip);                     /// * save context
     RS.push(vm.state);
     vm.state = NEST;                     /// * +recursive
     forth_include(fn);                   /// * include file
     vm.state = static_cast<vm_state>(RS.pop());
-    vm.ip   = UINT(RS.pop());            /// * context restored
+    *vm.ip   = UINT(RS.pop());           /// * context restored
     --load_dp;                           /// * decrement depth counter
 }
 
@@ -316,9 +311,8 @@ void dict_dump() {
     fout("XT0=%x\n", (U32)Code::XT0);
     for (int i=0; i<dict.idx; i++) {
         Code *c = dict[i];
-        fout("%03d> xt=%p, attr=%x, xtoff=%04x %s\n",
-             i, c->xt, (c->attr & 0x3),
-             (c->is_udf() ? c->pfa : c->xtoff()), c->name);
+        fout("%03d> xt=%p, attr=%x, xtoff=%08x %s\n",
+             i, c->xt, (c->attr & 0x3), (UFP)c->xt & 0xFFFFFFFF, c->name);
         fout_flush();
     }
 }

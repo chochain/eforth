@@ -4,9 +4,6 @@
 ///
 #include "ceforth.h"
 
-extern List<U8, 0> pmem;           ///< parameter memory block
-extern U8          *MEM0;          ///< base pointer of pmem
-
 #if !DO_MULTITASK
 VM _vm0;                           ///< singleton, no VM pooling
 VM& vm_get(int id) { return _vm0; }/// * return the singleton
