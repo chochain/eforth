@@ -541,7 +541,7 @@ constexpr Code g_rom[] = {
 #endif    
     CODE("boot",  dict.clear(find("boot") + 1); pmem.clear(sizeof(DU)))
 };
-int  g_romsz = sizeof(g_rom)/sizeof(Code);
+constexpr int  g_romsz = sizeof(g_rom)/sizeof(Code);
 ///
 ///@name Dictionary search functions - can be adapted for ROM+RAM
 ///@{
