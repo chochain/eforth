@@ -85,14 +85,17 @@ void forth_include(const char *fn) {
 /// main program - Note: Arduino and ESP32 have their own main-loop
 ///
 extern void dict_dump();
+extern void words();
 int main(int ac, char* av[]) {
     forth_init();                             ///> initialize dictionary
     
     mem_stat();                               ///> show memory status
     srand((int)time(0));                      ///> seed random generator
-//    outer(cin);                               ///> Forth outer interpreter
+    outer(cin);                               ///> Forth outer interpreter
+
     dict_dump();
-    
+    words();
+
     forth_teardown();                         ///> clean up before we go
     cout << APP_VERSION << " Done!" << endl;
     return 0;
