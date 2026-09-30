@@ -38,19 +38,19 @@ struct List {
     T   *v;             ///< fixed-size array storage
     int idx = 0;        ///< current index of array
     int max = 0;        ///< high watermark for debugging
+    int ro  = 0;        ///< readonly index
 
     List()  {
         v = N ? new T[N] : 0;                        ///< dynamically allocate array storage
         if (N && !v) throw "ERR: List allot failed";
     }
     ~List() {
-        if constexpr(is_pointer<T>::value) {         ///< free elements
-            for (int i=0; v && i<idx; i++) delete v[i];
-        }
+        clear(ro);
         if (v) delete[] v;                           ///< free container
     }              
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
+    void readonly_below(int i) { ro = i; }
 
 #if RANGE_CHECK
     T pop()     INLINE {
@@ -69,7 +69,13 @@ struct List {
 #endif // RANGE_CHECK
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
-    void clear(int i=0)    INLINE { idx=i; }
+    void clear(int tgt = 0) {
+        int mx = std::max(tgt, ro);
+        if constexpr (std::is_pointer<T>::value) {
+            for (int i = mx; i < idx; i++) { if (v[i]) delete v[i]; }
+        }
+        idx = mx;
+    }
 };
 ///====================================================================
 ///
@@ -160,7 +166,13 @@ typedef enum {
 ///            |   pfa   |
 ///            +---------+
 ///@{
+/// @brief Unified Function Pointer signature for the Direct-Threaded Continuation Trampoline
+/// @param vm Context reference tracking task-isolated persistent structures
+/// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
+/// @param sp Localized register tracker alias targeting the stack index tracking array natively
+/// @param tos Localized high-speed CPU hardware register cache holding Top-of-Stack data
 typedef void *(*FPTR)(VM &vm, IU* &ip, int &sp, DU &tos);  /// tail-call (returns NEXT)
+
 union Pack {                ///< C++ failed when a != 0
     UFP pfa = 0;            ///< either a primitive or colon word
     struct {
@@ -178,19 +190,22 @@ struct Code {
         UFP  pfa;           ///< user defined word offset
     };
     U8 attr = 0;            ///< only 2 LSBs used (can steal from xt/pfa)
-    
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
+
+#if __SIZEOF_POINTER__ == 8
+    static IU Tok(void *fp) INLINE { return (IU)((UFP)fp & 0xFFFFFFFF); }
+#else
+    static IU Tok(void *fp) INLINE { return (IU)((UFP)fp); }
+#endif
+    static FPTR XT(IU ix) INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
     static void exec(VM &vm, IU ix, IU* &ip, int &sp, DU &tos) INLINE { (*XT(ix))(vm, ip, sp, tos); }
     ///
     ///> constructors for built-in, and colon words
     ///
-    constexpr Code(const char *n, FPTR f, U8 a) : name(n), xt(f), attr(a) {}        ///< built-in
-    constexpr Code(const char *n, U32 ix, U8 a) : name(n), pfa((UFP)ix), attr(a) {} ///< user def
-    
-    IU   xtoff()  INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }               ///< xt offset in code space
+    constexpr Code(const char *n, FPTR f, U8 a=0) : name(n), xt(f), attr(a) {}        ///< built-in
     bool is_imm() INLINE { return attr & IMM_ATTR;    }
     bool is_udf() INLINE { return attr & UDF_ATTR;    }
     void imm()    INLINE { attr |= IMM_ATTR;          }
+    
     void call(VM& vm, IU* &ip, int &sp, DU &tos) INLINE { (*xt)(vm, ip, sp, tos); }
 };
 ///@}
@@ -198,8 +213,22 @@ struct Code {
 ///@note - a lambda without capture can degenerate into a function pointer
 ///@{
 constexpr Code rom_code(const char *name, FPTR fp, U8 im) {
-    return { name, fp, im }; //Code(name, fp, im);
+    return { name, fp, im }; // Code(name, fp, im);
 }
+
+// External hardware dictionary configuration registers
+extern const Code g_rom[] PROGMEM;
+extern const int  g_romsz;
+extern       U8   *MEM0;
+extern       List<Code*, E4_DICT_SZ> dict;
+extern       List<U8,    E4_PMEM_SZ> pmem;
+
+#define HERE       (pmem.idx)
+#define HERE_PTR() ((IU*)&pmem[pmem.idx])
+
+// =====================================================================
+// 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
+// =====================================================================
 #if __SIZEOF_POINTER__ == 8
 #define NEXT()  (void*)(Code::XT0 | (UFP)(*ip++))
 #else
@@ -231,9 +260,20 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 ///@name System interface
 ///@{
 void forth_init();
+void forth_teardown();
+void forth_core(VM& vm, const char* idiom);
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
+///@}
+///@name Compiler Engine methods
+///@{
+void add_iu(IU i);
+void add_du(DU v);
+void add_w(IU w);
+void colon(const char* name);
+IU   find(const char* s);
+inline const Code* get_word(IU w);
 ///@}
 ///@name IO functions
 ///{@
