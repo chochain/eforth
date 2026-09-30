@@ -72,7 +72,7 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
 #define BOOL(f)   ((f)?-1:0)               /**< Forth boolean representation            */
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
-#define HERE_TGT  ((IU*)&pmem[HERE])
+#define HERE_TGT  (*(IU*)&pmem[HERE])
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define BASE      (MEM(vm.base))           /**< pointer to base in VM user area         */
 #define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
@@ -243,16 +243,10 @@ constexpr Code g_rom[] = {
     CODE("dotq",
          const char *s = (const char*)MEM(IP);   ///< get string pointer
          pstr(s); IP += STRLEN(s)),              /// * send to output console
-    CODE("bran", ip = (IU*)*ip),
+    CODE("bran", ip = (IU*)*ip),                 ///< unconditional jmp
     CODE("0bran"
-         if (tos == 0) {
-             tos = SS[sp--];
-             ip = (IU*)*ip;
-         }
-         else {
-             tos = SS[sp--];
-             ip++;
-         }),
+         ip = (tos == 0) ? (IU*)*ip : ip + 1;    /// conditional jmp
+         tos = SS[sp--]),                        /// pop tos
     CODE("vbran",
          PUSH(DALIGN(IP + sizeof(IU)));          /// * put param addr on tos
          if ((IP = IGET(IP))==0) UNNEST()),      /// * jump target of does> if given
@@ -370,41 +364,52 @@ constexpr Code g_rom[] = {
          add_iu(0)),
     IMMD("else",                                   /// else ( here -- there )
          add_xt("bran");
-         IU *tgt  = HERE_TGT;                      /// save target
+         IU tgt  = HERE_TGT;                       /// save target
          add_iu(0);
-         IU **ip0 = (IU**)SS[sp];                  /// fetch ip0
+         IU *ip0 = (IU*)SS[sp];                    /// fetch ip0
          *ip0 = HERE_TGT;
          SS[sp] = (DU)tgt),
     IMMD("then",
-         IU **ip0 = (IU**)SS[sp--];
+         IU *ip0 = (IU*)SS[sp--];
          *ip0 = HERE_TGT),                         /// backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
-    IMMD("begin",   PUSH(HERE)),
-    IMMD("again",   add_w(BRAN);  add_iu(POP())),            /// again    ( there -- )
-    IMMD("until",   add_w(ZBRAN); add_iu(POP())),            /// until    ( there -- )
-    IMMD("while",   add_w(ZBRAN); PUSH(HERE); add_iu(0)),    /// while    ( there -- there here )
-    IMMD("repeat",  add_w(BRAN),                             /// repeat    ( there1 there2 -- )
-         IU t=POP(); add_iu(POP()); SETJMP(t)),              /// set forward and loop back address
+    IMMD("begin", SS[++sp] = (DU)HERE_TGT),
+    IMMD("again", add_xt("bran");  add_iu(SS[sp--])),        /// again    ( there -- )
+    IMMD("until", add_xt("0bran"); add_iu(SS[sp--])),        /// until    ( there -- )
+    IMMD("while",                                            /// while    ( there -- there here )
+         add_xt("0bran");
+         SS[++sp] = (DU)HERE_TGT;                            /// not touching tos
+         add_xt(0)),
+    IMMD("repeat",                                           /// repeat    ( there1 there2 -- )
+         add_xt("bran");
+         IU t* = (IU*)SS[sp--];                              /// set forward and loop back address
+         add_iu(SS[sp--]);
+         add_xt("bran");
+         *t = HERE_TGT),
     /// @}
     /// @defgrouop FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_w(FOR); PUSH(HERE)),                 /// for ( -- here )
-    IMMD("next",    add_w(NEXT); add_iu(POP())),             /// next ( here -- )
+    IMMD("for" ,    add_xt("for"); SS[++sp] = HERE_TGT),     /// for ( -- here )
+    IMMD("next",    add_xt("next"); add_iu(SS[sp--])),       /// next ( here -- )
     IMMD("aft",                                              /// aft ( here -- here there )
-         POP(); add_w(BRAN);
-         IU h=HERE; add_iu(0); PUSH(HERE); PUSH(h)),
+         IU t = SS[sp--];
+         add_x("bran");
+         IU h = HERE_TGT;
+         add_iu(0);
+         SS[++sp] = HERE_TGT;
+         SS[++sp] = h),
     /// @}
     /// @}
     /// @defgrouop DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_w(DO); PUSH(HERE)),                  /// for ( -- here )
+    IMMD("do" ,     add_xt("do"); SS[++sp]=(DU)HERE_TGT),    /// for ( -- here )
     CODE("i",       PUSH(RS[-1])),
     CODE("leave",   RS.pop(); RS.pop(); UNNEST()),           /// quit DO..LOOP
-    IMMD("loop",    add_w(LOOP); add_iu(POP())),             /// next ( here -- )
+    IMMD("loop",    add_xt("loop"); add_iu(SS[sp--])),       /// next ( here -- )
     /// @}
     /// @defgrouop return stack op
     /// @{
