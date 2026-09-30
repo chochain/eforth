@@ -576,6 +576,7 @@ void nest(VM& vm) /* tail call */ {
      * While next points to a valid function address, invoke it.
      * The compiler flattens this assignment sequence into an optimized 
      * 'jx' or 'jmp' assembly branch instruction under C++17 rules.
+     * This is called "Scalar Replacement of Aggregates and Reference Propagation"
      */
     while (next) {
         next = (FPTR)next(vm, ip, sp, tos);
@@ -598,15 +599,6 @@ void *CALL(VM& vm, IU* &ip, int &sp, DU &tos) {
 ///
 UFP Code::XT0 = ~0;                            ///< init to max value
 void dict_compile() {                          ///< compile built-in words into dictionary
-    /// collect Code::XT0 i.e. xt base pointer
-    for (int i=0; i < g_romsz; i++) {
-        Code *c = (Code*)&g_rom[i];            ///< fetch built-in words
-        if (c->pfa < Code::XT0) Code::XT0 = c->pfa;
-        dict.push((Code*)c);                   /// * dict[i] to g_rom
-    }
-}
-
-void dict_validate() {
 #if __SIZEOF_POINTER__ == 8    
     // 1. Grab the full 64-bit runtime address of your first primitive lambda
     U64 base = (U64)(g_rom[0].xt);
@@ -623,7 +615,25 @@ void dict_validate() {
             printf("[CRITICAL ERROR] Primitives crossed a 4GB segment boundary layer!\n");
         }
     }
+#else
+    Code::XT0 = 0;
 #endif // __SIZEOF_POINTER__ == 8 
+}
+
+void dict_validate() {
+    UFP max = 0;
+
+    for (int i = 0; i < g_romsz; i++) {
+        UFP addr = (UFP)g_rom[i].xt;
+        if (addr > max) max = addr;
+    }
+    U64 off = max - Code::XT0;
+
+    LOG_KX("XT0: 0x", Code::XT0);
+    LOG_KX(", OFF: 0x", off);
+    LOGS(off > 0xFFFFFFFFULL
+         ? "\n  [ERROR] Execution memory space exceeds 32-bit offset limits!"
+         : "\n");
 }
 ///====================================================================
 ///
