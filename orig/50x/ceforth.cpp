@@ -728,7 +728,9 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                                     ///< get main thread
     fout_setup(hook);
     fin_setup(line);                                        /// * refresh buffer if not resuming
-    
+
+    return 1;
+
     char idiom[E4_IBUF_SZ];
     while (fetch(idiom, E4_IBUF_SZ)) {                      /// * parse a word
         forth_core(vm, idiom);                              /// * outer interpreter
