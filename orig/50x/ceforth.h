@@ -131,6 +131,7 @@ struct ALIGNAS VM {
 #define IMM_ATTR   0x0002   /** immediate word       */
 #define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
 #define MSK_ATTR   ~0x3     /** mask udf,imm bits    */
+#define UDF_DICT   0x8000
 ///}
 ///@name primitive opcode
 ///{
@@ -202,8 +203,8 @@ struct Code {
     ///> constructors for built-in, and colon words
     ///
     constexpr Code(const char *n, FPTR f, U8 a=0) : name(n), xt(f), attr(a) {}        ///< built-in
-    bool is_imm() INLINE { return attr & IMM_ATTR;    }
-    bool is_udf() INLINE { return attr & UDF_ATTR;    }
+    bool is_imm() const INLINE { return attr & IMM_ATTR;    }
+    bool is_udf() const INLINE { return attr & UDF_ATTR;    }
     void imm()    INLINE { attr |= IMM_ATTR;          }
     
     void call(VM& vm, IU* &ip, int &sp, DU &tos) INLINE { (*xt)(vm, ip, sp, tos); }
