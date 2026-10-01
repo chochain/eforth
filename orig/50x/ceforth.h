@@ -223,9 +223,6 @@ extern       U8   *MEM0;
 extern       List<Code*, E4_DICT_SZ> dict;
 extern       List<U8,    E4_PMEM_SZ> pmem;
 
-#define HERE       (pmem.idx)
-#define HERE_PTR() ((IU*)&pmem[pmem.idx])
-
 // =====================================================================
 // 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
 // =====================================================================
@@ -284,7 +281,7 @@ void fout_setup(void (*hook)(int, const char*));
 
 IU   find(const char *s);
 void nest(VM& vm);
-void *CALL(VM& vm, IU* &ip, int &sp, DU &tos);
+void *doLIST(VM& vm, IU* &ip, int &sp, DU &tos);
 
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
