@@ -624,9 +624,9 @@ void nest(VM& vm) /* tail call */ {
 void *doLIST(VM& vm, IU* &ip, int &sp, DU &tos) {
     LOG(" doLIST=[%x,%x] ", *ip, *(ip+1));
     RS.push((DU)TOK(ip));
-    IU t = *ip++;
-    ip = XT(t);
-    LOG(" => t=%x ip=%p\n", t, ip);
+    FPTR fp = (FPTR)XT(*ip++);
+    LOG(" => fp=%p\n", fp);
+    fp(vm, ip, sp, tos);
     return NEXT();
 }
 ///
