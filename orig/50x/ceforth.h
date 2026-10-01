@@ -173,16 +173,6 @@ typedef enum {
 /// @param sp Localized register tracker alias targeting the stack index tracking array natively
 /// @param tos Localized high-speed CPU hardware register cache holding Top-of-Stack data
 typedef void *(*FPTR)(VM &vm, IU* &ip, int &sp, DU &tos);  /// tail-call (returns NEXT)
-
-union Pack {                ///< C++ failed when a != 0
-    UFP pfa = 0;            ///< either a primitive or colon word
-    struct {
-        UFP attr: 2;        ///< only 2 LSBs used (can steal from xt/pfa)
-        UFP xt  : 30;       ///< lambda pointer or offset to pmem space (4-byte align)
-    } u;                    ///< C++ can constexpr construct this struct
-    constexpr Pack(U32 ix)       : pfa((UFP)ix)    {}
-    constexpr Pack(FPTR f, U8 a) : pfa((UFP)f | a) {}  ///< C++ hates this
-};
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
@@ -193,12 +183,10 @@ struct Code {
     U8 attr = 0;            ///< only 2 LSBs used (can steal from xt/pfa)
 
 #if __SIZEOF_POINTER__ == 8
-    static IU Tok(void *fp) INLINE { return (IU)((UFP)fp & 0xFFFFFFFF); }
+    static IU Token(void *fp) INLINE { return (IU)((UFP)fp & 0xFFFFFFFF); }
 #else
-    static IU Tok(void *fp) INLINE { return (IU)((UFP)fp); }
+    static IU Token(void *fp) INLINE { return (IU)((UFP)fp); }
 #endif
-    static FPTR XT(IU ix) INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
-    static void exec(VM &vm, IU ix, IU* &ip, int &sp, DU &tos) INLINE { (*XT(ix))(vm, ip, sp, tos); }
     ///
     ///> constructors for built-in, and colon words
     ///
