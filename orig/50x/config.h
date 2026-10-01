@@ -119,27 +119,18 @@ typedef int32_t         DU;
 ///@name Logging support
 ///@{
 #if (ARDUINO || ESP32)
-    #define LOGS(s)     Serial.print(F(s))
-    #define LOG(v)      Serial.print(v)
-    #define LOGX(v)     Serial.print(v, HEX)
+    #define LOG(fmt,...) Serial.print(fmt, __VA_ARGS__)
+    #define ERR(...)     Serial.printf("[ERROR] %s\n", __VA_ARGS__)
 #else  // !(ARDUINO || ESP32)
-    #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-ld", (int64_t)(v))
-    #define LOGX(v)     printf("%-lx", (uint64_t)(v))
+    #define LOG(fmt,...) printf(fmt, __VA_ARGS__)
+    #define ERR(...)     printf("[ERROR] %s\n", __VA_ARGS__)
 #endif // (ARDUINO || ESP32)
     
-#define LOG_NA()        LOGS("N/A\n")
-#define LOG_KV(k, v)    LOGS(k); LOG(v)
-#define LOG_KX(k, x)    LOGS(k); LOGX(x)
-#define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
-#define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] ");  \
-                        LOGS(dict[i].name); LOGS(" attr="); \
-                        LOGX(dict[i].attr); LOGS("\n")
 #if DO_MULTITASK
 #if CC_DEBUG
 #include <stdarg.h>
     
-#if (ESP32 || ARDUINO)
+#if (ARDUINO || ESP32)
 #define VM_HDR(vm, fmt, ...)                                \
     printf("[%02d.%d]%-4x" fmt,                             \
            (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
