@@ -107,13 +107,13 @@ void colon(const char *name) {
 }
 
 inline const Code *get_word(IU w) {
-    return w < (IU)g_romsz ? &g_rom[w] : dict[w - g_romsz];
+    return w & UDF_DICT ? dict[w & ~UDF_DICT] : &g_rom[w];
 }
 
 void add_w(IU w) {
     const Code *c = get_word(w);
     
-    if (c->attr & UDF_ATTR) {
+    if (c->is_udf()) {
         // User-defined word: compile CALL pre-processor
         // Truncate the function address down to a clean lower 32-bit token integer
         add_iu(Code::Tok((void*)doLIST));
@@ -122,8 +122,7 @@ void add_w(IU w) {
     add_iu(Code::Tok((void*)c->xt));
     
 #if CC_DEBUG > 1
-    LOG_KV("add_w(", w); LOG_KX(") => ", ip);
-    LOGS(" "); LOGS(c->name); LOGS("\n");
+    LOG("add_w(%d) => %p %s\n", w, ip, c->name);
 #endif // CC_DEBUG > 1
 }
 
@@ -396,7 +395,6 @@ constexpr Code g_rom[] = {
     IMMD("then",
          IU *ip0 = (IU*)MEM(SS[sp--]);
          *ip0 = HERE_TGT),                         /// backfill jump address
-#if 0
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
@@ -421,8 +419,8 @@ constexpr Code g_rom[] = {
     IMMD("for" ,    add_xt("for"); SS[++sp] = HERE_TGT),     /// for ( -- here )
     IMMD("next",    add_xt("next"); add_iu(SS[sp--])),       /// next ( here -- )
     IMMD("aft",                                              /// aft ( here -- here there )
-         DU x = SS[sp--];
-         add_x("bran");
+         sp--;
+         add_xt("bran");
          IU h = HERE_TGT;
          add_iu(0);
          SS[++sp] = (DU)HERE_TGT;
@@ -448,6 +446,7 @@ constexpr Code g_rom[] = {
     CODE("]",       vm.compile = true),
     CODE(":",       vm.compile = def_word(WORD())),
     IMMD(";",       add_w(EXIT); vm.compile = false),
+#if 0
     ///=============================================================================
     CODE("variable",def_word(WORD()); add_var(VAR)),         /// create a variable
     CODE("constant",                                         /// create a constant
@@ -574,14 +573,18 @@ constexpr int  g_romsz = sizeof(g_rom)/sizeof(Code);
 ///
 IU find(const char *s) {
     IU v = 0;
-    for (IU i = dict.idx - 1; !v && i >= 0; --i) {
-        if (STRCMP(s, dict[i]->name)==0) v = i + g_romsz;
+    for (IU i = dict.idx - 1; dict.idx && !v && i >= 0; --i) {
+        LOG("  dict[%d] => %s\n", i, (char*)dict[i]->name);
+        if (STRCMP(s, dict[i]->name)==0) v = i | UDF_DICT;
     }
     for (IU i = g_romsz - 1; !v && i > 0; --i) {
+        LOG("  g_rom[%d] => %s\n", i, (char*)g_rom[i].name);
         if (STRCMP(s, g_rom[i].name)==0) v = i;
     }
 #if CC_DEBUG > 1
-    LOG_HDR("find", s); if (v) { LOG_DIC(v); } else LOG_NA();
+    const Code *c = v > g_romsz ? dict[v - g_romsz] : &g_rom[v];
+    LOG("find(%s) => %s[%d] %s attr=%d\n",
+        s, v > g_romsz ? "dict" : "g_rom", v, c->name, c->attr);
 #endif // CC_DEBUG > 1
     return v;
 }
@@ -616,8 +619,9 @@ void nest(VM& vm) /* tail call */ {
 ///> doLIST - inner-interpreter proxy (inline macro does not run faster)
 ///
 void *doLIST(VM& vm, IU* &ip, int &sp, DU &tos) {
-    RS.push((DU)((UFP)ip));
-    ip = (IU*)*(ip++);
+    RS.push((DU)Code::Tok(ip));
+    IU t = *ip++;
+    ip = (IU*)MEM(t);
     return NEXT();
 }
 ///
@@ -638,7 +642,7 @@ void dict_compile() {                          ///< compile built-in words into 
     for (int i = 1; i < g_romsz; i++) {
         U64 addr = (U64)(g_rom[i].xt);
         if ((addr & 0xFFFFFFFF00000000ULL) != Code::XT0) {
-            printf("[CRITICAL ERROR] Primitives crossed a 4GB segment boundary layer!\n");
+            ERR("Primitives crossed a 4GB segment boundary layer!");
         }
     }
 #endif // __SIZEOF_POINTER__ == 8 
@@ -653,11 +657,9 @@ void dict_validate() {
     }
     U64 off = max - Code::XT0;
 
-    LOG_KX("XT0: 0x", Code::XT0);
-    LOG_KX(", OFF: 0x", off);
-    LOGS(off > 0xFFFFFFFFULL
-         ? "\n  [ERROR] Execution memory space exceeds 32-bit offset limits!"
-         : "\n");
+    LOG("XT0: 0x%zx, OFF, 0x%zx\n", Code::XT0, off);
+    if (off > 0xFFFFFFFFULL)
+        ERR("Execution memory space exceeds 32-bit offset limits!");
 }
 ///====================================================================
 ///
@@ -684,12 +686,14 @@ DU2 parse_number(const char *idiom, int base, int *err) {
 }
 
 void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
+    LOG("forth_vm << %s\n", idiom);
+    
     vm.state = QUERY;
     IU w = find(idiom);                          ///> * get token by searching through dict
-    
+
     if (w) {                                     ///> * word found?
         const Code *c = get_word(w);
-        if (vm.compile && !(c->attr & IMM_ATTR)) {  /// * in compile mode?
+        if (vm.compile && !c->is_imm()) {        /// * in compile mode?
             add_w(w);                            /// * add to colon word
         }
         else {
@@ -731,7 +735,7 @@ void forth_init() {
     if (init) return;                    ///> check dictionary initilized
 
     if (!dict.v || !pmem.v) {
-        LOGS("forth_init memory allocation failed, bail...\n");
+        LOG("forth_init memory allocation failed, %s...\n", "bail");
         exit(0);
     }
     MEM0 = &pmem[0];
@@ -759,6 +763,9 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                                     ///< get main thread
     fout_setup(hook);
     fin_setup(line);                                        /// * refresh buffer if not resuming
+    forth_core(vm, "for");
+    return 1;
+    
     char idiom[E4_IBUF_SZ];
     while (fetch(idiom, E4_IBUF_SZ)) {                      /// * parse a word
         forth_core(vm, idiom);                              /// * outer interpreter
