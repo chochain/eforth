@@ -155,8 +155,8 @@ IU find(const char *s) {
 ///
 ///> functions to reduce verbosity
 ///
-#define PUSH(v) ({SS[++sp]=tos; tos = v;})
-#define POP()   ({ DU n=tos; tos=SS[sp--]; n;})
+#define PUSH(v) ({SS[sp++]=tos; tos=(DU)(v);})
+#define POP()   ({ DU n=tos; tos=SS[--sp]; n;})
 #define POPI()  (UINT(POP()))
 
 int def_word(const char* name) {    ///< display if redefined
@@ -236,18 +236,19 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
      * This is called "Scalar Replacement of Aggregates and Reference Propagation"
      */
     while (TOK(fp)) {             ///< EXIT when ip == NULL
-        LOG(" => fp=%p\n", fp);
+        LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS[-1], TOS);
         fp = (FPTR)fp(vm, ip, sp, tos);
     }
 
     /* 4. Flush the final stable register configurations back into the persistent VM memory block */
     IP  = ip;
     TOS = tos;
+    
+    LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS[-1], TOS);
 }
 
 void CALL(VM &vm, const Code &c) {
     IU stub[2] = { TOK(c.xt), 0 };
-    LOG(" stub=[%x,%x]\n", stub[0], stub[1]);
     vm.ip = stub;
     nest(vm);
 }
@@ -258,7 +259,7 @@ void CALL(VM &vm, const Code &c) {
 ///  Note: sequenced by enum forth_opcode as following
 ///
 void *dodoes(VM &vm, IU* &ip, int &sp, DU &tos) {
-    SS[++sp] = tos;
+    SS[sp++] = tos;
     IU *t = (IU*)XT(*ip++);
     tos = (DU)TOK(ip);
     RS.push((DU)TOK(++ip));
@@ -306,7 +307,7 @@ constexpr Code g_rom[] = {
     CODE("_bran", JMP()),                         ///< unconditional jmp
     CODE("_0bran",
          if (ZEQ(tos)) JMP(); else ip++;         /// conditional jmp
-         tos = SS[sp--]),                        /// pop tos
+         tos = SS[--sp]),                        /// pop tos
     CODE("vbran",
          PUSH(TOK(++ip));                        /// * put param addr on tos
          if ((ip = (IU*)MEM(*ip))==0) UNNEST()), /// * jump target of does> if given
@@ -315,18 +316,18 @@ constexpr Code g_rom[] = {
          *(t+1) = *ip;                           /// * encode current IP, and bail
          UNNEST()),
     CODE("_for", RS.push(POP())),
-    CODE("_do",  RS.push(SS[sp--]); RS.push(POP())),
+    CODE("_do",  RS.push(SS[--sp]); RS.push(POP())),
     CODE("_key", PUSH(key()); UNNEST()),
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
     /// @{
     CODE("dup",     SS[sp++] = tos),
-    CODE("drop",    tos = SS[sp--]),
+    CODE("drop",    tos = SS[--sp]),
     CODE("over",    DU v = SS[-1]; PUSH(v)),
-    CODE("swap",    DU n = SS[sp--]; PUSH(n)),
-    CODE("rot",     DU n = SS[sp--]; DU m = SS[sp--]; SS[++sp] = m; SS[++sp] = tos; tos = n),
-    CODE("-rot",    DU n = SS[sp--]; DU m = SS[sp--]; SS[++sp] = tos; SS[++sp] = n; tos = m),
+    CODE("swap",    DU n = SS[--sp]; PUSH(n)),
+    CODE("rot",     DU n = SS[--sp]; DU m = SS[--sp]; SS[sp++] = m; SS[sp++] = tos; tos = n),
+    CODE("-rot",    DU n = SS[--sp]; DU m = SS[--sp]; SS[sp++] = tos; SS[sp++] = n; tos = m),
     CODE("pick",    IU i = UINT(tos); tos = SS[-i]),
     CODE("nip",     sp--),
     CODE("?dup",    if (tos != DU0) SS[sp++] = tos),
@@ -334,47 +335,46 @@ constexpr Code g_rom[] = {
     /// @defgroup Stack ops - double
     /// @{
     CODE("2dup",    DU v = SS[-1]; PUSH(v); v = SS[-1]; PUSH(v)),
-    CODE("2drop",   sp--; tos = SS[sp--]),
+    CODE("2drop",   sp--; tos = SS[--sp]),
     CODE("2over",   DU v = SS[-3]; PUSH(v); v = SS[-3]; PUSH(v)),
-    CODE("2swap",   DU n = SS[sp--]; DU m = SS[sp--]; DU l = SS[sp--];
+    CODE("2swap",   DU n = SS[--sp]; DU m = SS[--sp]; DU l = SS[--sp];
                     SS.push(n); PUSH(l); PUSH(m)),
     /// @}
     /// @defgroup ALU ops
     /// @{
-    CODE("+",       tos += SS[sp--]),
-    CODE("*",       tos *= SS[sp--]),
-    CODE("-",       tos =  SS[sp--] - tos),
-    CODE("/",       tos =  SS[sp--] / tos),
-    CODE("mod",     tos =  INT(MOD(SS[sp--], tos))),           /// ( a b -- c ) c integer, see fmod
+    CODE("+",       tos += SS.pop()),
+    CODE("*",       tos *= SS[--sp]),
+    CODE("-",       tos =  SS[--sp] - tos),
+    CODE("/",       tos =  SS[--sp] / tos),
+    CODE("mod",     tos =  INT(MOD(SS[--sp], tos))),  /// ( a b -- c ) c integer, see fmod
     CODE("*/",
-         DU2 ss0 = (DU2)SS[sp--];
-         tos =  ss0 * SS[sp--] / tos),    /// ( a b c -- d ) d=a*b / c (float)
-    CODE("/mod",    DU  n = SS[sp--];                          /// ( a b -- c d ) c=a%b, d=int(a/b)
+         DU2 ss0 = (DU2)SS[--sp];
+         tos =  ss0 * SS[--sp] / tos),                /// ( a b c -- d ) d=a*b / c (float)
+    CODE("/mod",    DU  n = SS[--sp];                 /// ( a b -- c d ) c=a%b, d=int(a/b)
                     DU  t = tos;
                     DU  m = MOD(n, t);
-                    SS[++sp] = m; tos = INT(n / t)),
+                    SS[sp++] = m; tos = INT(n / t)),
     CODE("*/mod",
-         DU2 n = (DU2)SS[sp--];
-         n *= SS[sp--];          /// ( a b c -- d e ) d=(a*b)%c, e=(a*b)/c
+         DU2 n = (DU2)SS[--sp]; n *= SS[--sp];        /// ( a b c -- d e ) d=(a*b)%c, e=(a*b)/c
          DU2 t = tos;
          DU  m = MOD(n, t);
-         SS[++sp] = m; tos = INT(n / t)),
-    CODE("and",     tos = UINT(tos) & UINT(SS[sp--])),
-    CODE("or",      tos = UINT(tos) | UINT(SS[sp--])),
-    CODE("xor",     tos = UINT(tos) ^ UINT(SS[sp--])),
+         SS[sp++] = m; tos = INT(n / t)),
+    CODE("and",     tos = UINT(tos) & UINT(SS[--sp])),
+    CODE("or",      tos = UINT(tos) | UINT(SS[--sp])),
+    CODE("xor",     tos = UINT(tos) ^ UINT(SS[--sp])),
     CODE("abs",     tos = ABS(tos)),
     CODE("negate",  tos = -tos),
     CODE("invert",  tos = ~UINT(tos)),
-    CODE("rshift",  tos = UINT(SS[sp--]) >> UINT(tos)),
-    CODE("lshift",  tos = UINT(SS[sp--]) << UINT(tos)),
-    CODE("max",     DU n=SS[sp--]; tos = (tos>n) ? tos : n),
-    CODE("min",     DU n=SS[sp--]; tos = (tos<n) ? tos : n),
+    CODE("rshift",  tos = UINT(SS[--sp]) >> UINT(tos)),
+    CODE("lshift",  tos = UINT(SS[--sp]) << UINT(tos)),
+    CODE("max",     DU n=SS[--sp]; tos = (tos>n) ? tos : n),
+    CODE("min",     DU n=SS[--sp]; tos = (tos<n) ? tos : n),
     CODE("2*",      tos *= 2),
     CODE("2/",      tos /= 2),
     CODE("1+",      tos += 1),
     CODE("1-",      tos -= 1),
 #if USE_FLOAT
-    CODE("fmod",    tos = MOD(SS[sp--], tos)),                /// -3.5 2 fmod => -1.5
+    CODE("fmod",    tos = MOD(SS[--sp], tos)),                /// -3.5 2 fmod => -1.5
     CODE("f>s",     tos = INT(tos)),                          /// 1.9 => 1, -1.9 => -1
 #else
     CODE("f>s",     /* do nothing */),
@@ -385,14 +385,14 @@ constexpr Code g_rom[] = {
     CODE("0=",      tos = BOOL(ZEQ(tos))),
     CODE("0<",      tos = BOOL(LT(tos, DU0))),
     CODE("0>",      tos = BOOL(GT(tos, DU0))),
-    CODE("=",       tos = BOOL(EQ(SS[sp--], tos))),
-    CODE(">",       tos = BOOL(GT(SS[sp--], tos))),
-    CODE("<",       tos = BOOL(LT(SS[sp--], tos))),
-    CODE("<>",      tos = BOOL(!EQ(SS[sp--], tos))),
-    CODE(">=",      tos = BOOL(!LT(SS[sp--], tos))),
-    CODE("<=",      tos = BOOL(!GT(SS[sp--], tos))),
-    CODE("u<",      tos = BOOL(UINT(SS[sp--]) < UINT(tos))),
-    CODE("u>",      tos = BOOL(UINT(SS[sp--]) > UINT(tos))),
+    CODE("=",       tos = BOOL(EQ(SS[--sp], tos))),
+    CODE(">",       tos = BOOL(GT(SS[--sp], tos))),
+    CODE("<",       tos = BOOL(LT(SS[--sp], tos))),
+    CODE("<>",      tos = BOOL(!EQ(SS[--sp], tos))),
+    CODE(">=",      tos = BOOL(!LT(SS[--sp], tos))),
+    CODE("<=",      tos = BOOL(!GT(SS[--sp], tos))),
+    CODE("u<",      tos = BOOL(UINT(SS[--sp]) < UINT(tos))),
+    CODE("u>",      tos = BOOL(UINT(SS[--sp]) > UINT(tos))),
     /// @}
     /// @defgroup IO ops
     /// @{
@@ -405,7 +405,7 @@ constexpr Code g_rom[] = {
     CODE("u.",      dot(UDOT, POP(), *BASE)),
     CODE(".r",      IU w = POPI(); dotr(w, POP(), *BASE)),
     CODE("u.r",     IU w = POPI(); dotr(w, POP(), *BASE, true)),
-    CODE("type",    pstr((const char*)MEM(SS[sp--])); tos = SS[sp--]),   /// pass string pointer
+    CODE("type",    pstr((const char*)MEM(SS[--sp])); tos = SS[--sp]),   /// pass string pointer
     IMMD("key",     if (vm.compile) add_xt("_key"); else PUSH(key())),
     CODE("emit",    dot(EMIT, POP())),
     CODE("space",   dot(SPCS, DU1)),
@@ -424,56 +424,56 @@ constexpr Code g_rom[] = {
     /// @{
     IMMD("if",
          add_xt("_0bran");                         /// if    ( -- here )
-         SS[++sp] = (DU)HERE_TGT;                  /// save ip0
+         SS[sp++] = (DU)HERE_TGT;                  /// save ip0
          add_iu(0)),
     IMMD("else",                                   /// else ( here -- there )
          add_xt("_bran");
          IU tgt  = HERE_TGT;                       /// save target
          add_iu(0);
-         IU *ip0 = (IU*)MEM(SS[sp]);               /// fetch ip0
+         IU *ip0 = (IU*)MEM(SS[--sp]);               /// fetch ip0
          *ip0 = HERE_TGT;
-         SS[sp] = (DU)tgt),
+         SS[sp++] = (DU)tgt),
     IMMD("then",
-         IU *ip0 = (IU*)MEM(SS[sp--]);
+         IU *ip0 = (IU*)MEM(SS[--sp]);
          *ip0 = HERE_TGT),                         /// backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
-    IMMD("begin", SS[++sp] = (DU)HERE_TGT),
-    IMMD("again", add_xt("_bran");  add_iu(SS[sp--])),       /// again    ( there -- )
-    IMMD("until", add_xt("_0bran"); add_iu(SS[sp--])),       /// until    ( there -- )
+    IMMD("begin", SS[sp++] = (DU)HERE_TGT),
+    IMMD("again", add_xt("_bran");  add_iu(SS[--sp])),       /// again    ( there -- )
+    IMMD("until", add_xt("_0bran"); add_iu(SS[--sp])),       /// until    ( there -- )
     IMMD("while",                                            /// while    ( there -- there here )
          add_xt("_0bran");
-         SS[++sp] = (DU)HERE_TGT;                            /// not touching tos
+         SS[sp++] = (DU)HERE_TGT;                            /// not touching tos
          add_xt(0)),
     IMMD("repeat",                                           /// repeat    ( there1 there2 -- )
          add_xt("_bran");
-         IU *t = (IU*)MEM(SS[sp--]);                         /// set forward and loop back address
-         add_iu(SS[sp--]);
+         IU *t = (IU*)MEM(SS[--sp]);                         /// set forward and loop back address
+         add_iu(SS[--sp]);
          add_xt("_bran");
          *t = HERE_TGT),
     /// @}
     /// @defgrouop FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_xt("_for"); SS[++sp] = HERE_TGT),    /// for ( -- here )
-    IMMD("next",    add_xt("_next"); add_iu(SS[sp--])),      /// next ( here -- )
+    IMMD("for" ,    add_xt("_for"); SS[sp++] = HERE_TGT),    /// for ( -- here )
+    IMMD("next",    add_xt("_next"); add_iu(SS[--sp])),      /// next ( here -- )
     IMMD("aft",                                              /// aft ( here -- here there )
          sp--;
          add_xt("_bran");
          IU h = HERE_TGT;
          add_iu(0);
-         SS[++sp] = (DU)HERE_TGT;
-         SS[++sp] = (DU)h),
+         SS[sp++] = (DU)HERE_TGT;
+         SS[sp++] = (DU)h),
     /// @}
     /// @}
     /// @defgrouop DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_xt("_do"); SS[++sp]=(DU)HERE_TGT),   /// for ( -- here )
+    IMMD("do" ,     add_xt("_do"); SS[sp++]=(DU)HERE_TGT),   /// for ( -- here )
     CODE("i",       PUSH(RS[-1])),
     CODE("leave",   RS.pop(); RS.pop(); UNNEST()),           /// quit DO..LOOP
-    IMMD("loop",    add_xt("_loop"); add_iu(SS[sp--])),      /// next ( here -- )
+    IMMD("loop",    add_xt("_loop"); add_iu(SS[--sp])),      /// next ( here -- )
     /// @}
     /// @defgrouop return stack op
     /// @{
