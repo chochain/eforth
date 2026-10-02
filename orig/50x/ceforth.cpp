@@ -106,7 +106,7 @@ void add_w(IU w) {
     add_iu(TOK(c->xt));
     
 #if CC_DEBUG > 1
-    LOG("add_w(%d) => %p %s\n", w, ip, c->name);
+    LOG("add_w(%x) => %08x:%s\n", w, TOK(c->xt), c->name);
 #endif // CC_DEBUG > 1
 }
 int  add_str(const char *s) {        ///< add a string to pmem
@@ -126,12 +126,13 @@ void add_xt(const char *name) {
 }
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];  ///> current pmem pointer
-    LOG("HERE=%d, nfa=%p", HERE, nfa);
-    add_str(nfa);
-    LOG(" => HERE=%d, HERE_PTR=%p\n", HERE, HERE_PTR);
+    int  sz   = strlen(name) + 1;
+    LOG("HERE=%d, sz=%d nfa=%p", HERE, sz, nfa);
+    pmem.push((U8*)name, ALIGN(sz));
 
     Code *c = new Code(nfa, (FPTR)HERE_PTR, (U8)UDF_ATTR);
     dict.push(c);                   ///> deep copy Code struct into dictionary
+    LOG(" => HERE=%d, HERE_PTR=%p dict.idx=%d '%s'\n", HERE, HERE_PTR, dict.idx, nfa);
 }
 ///@}
 ///@name Dictionary search functions - can be adapted for ROM+RAM
@@ -142,21 +143,23 @@ inline const Code *get_word(IU w) {
 }
 
 IU find(const char *s) {
-    IU v = 0;
-    for (IU i = dict.idx - 1; dict.idx && !v && i >= 0; --i) {
-//        LOG("  dict[%d] => %s\n", i, (char*)dict[i]->name);
-        if (STRCMP(s, dict[i]->name)==0) v = i | UDF_DICT;
+    int w = 0;
+    for (int i = dict.idx - 1; dict.idx && !w && i >= 0; --i) {
+//        LOG(" dict[%x] => %s\n", i, (char*)dict[i]->name);
+        if (STRCMP(s, dict[i]->name)==0) w = (i | UDF_DICT);
     }
-    for (IU i = g_romsz - 1; !v && i > 0; --i) {
+    for (int i = g_romsz - 1; !w && i > 0; --i) {
 //        LOG("  g_rom[%d] => %s\n", i, (char*)g_rom[i].name);
-        if (STRCMP(s, g_rom[i].name)==0) v = i;
+        if (STRCMP(s, g_rom[i].name)==0) w = i;
     }
 #if CC_DEBUG > 1
-    const Code *c = v > g_romsz ? dict[v - g_romsz] : &g_rom[v];
-    LOG("find(%s) => %s[%d] %s attr=%d\n",
-        s, v > g_romsz ? "dict" : "g_rom", v, c->name, c->attr);
+    if (w) {
+        const Code *c = get_word(w);
+        LOG("find(%s) => %s[%d] %s attr=%d\n",
+            s, (w & UDF_DICT) ? "dict" : "g_rom", w, c->name, c->attr);
+    }
 #endif // CC_DEBUG > 1
-    return v;
+    return w;
 }
 ///@}
 ///====================================================================
@@ -239,7 +242,7 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
     DU  tos = TOS;                ///< Local cached Top-of-Stack register map
 
     /* 2. Read the initial function execution token from the current array offset */
-    FPTR fp = (FPTR)NEXT();
+    FPTR fp = (FPTR)NEXT();       ///< fetch first function pointer
 
     /* 
      * 3. THE TAIL-CALL TRAMPOLINE DRIVER ENGINE:
@@ -249,7 +252,7 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
      * This is called "Scalar Replacement of Aggregates and Reference Propagation"
      */
     while (TOK(fp)) {             ///< EXIT when ip == NULL
-        LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS[-1], TOS);
+        LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
         fp = (FPTR)fp(vm, ip, sp, tos);
     }
 
@@ -257,7 +260,7 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
     IP  = ip;
     TOS = tos;
     
-    LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS[-1], TOS);
+    LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
 }
 
 void CALL(VM &vm, const Code &c) {
