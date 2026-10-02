@@ -93,9 +93,6 @@ int main(int ac, char* av[]) {
     srand((int)time(0));                      ///> seed random generator
     outer(cin);                               ///> Forth outer interpreter
 
-    dict_dump();
-    words();
-
     forth_teardown();                         ///> clean up before we go
     cout << APP_VERSION << " Done!" << endl;
     return 0;
