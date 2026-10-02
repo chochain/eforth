@@ -125,7 +125,32 @@ void colon(const char *name) {
     Code *c = new Code(nfa, (FPTR)HERE_PTR, (U8)UDF_ATTR);
     dict.push(c);                   ///> deep copy Code struct into dictionary
 }
+///@}
+///@name Dictionary search functions - can be adapted for ROM+RAM
+///@{
+///
+inline const Code *get_word(IU w) {
+    return w & UDF_DICT ? dict[w & ~UDF_DICT] : &g_rom[w];
+}
 
+IU find(const char *s) {
+    IU v = 0;
+    for (IU i = dict.idx - 1; dict.idx && !v && i >= 0; --i) {
+//        LOG("  dict[%d] => %s\n", i, (char*)dict[i]->name);
+        if (STRCMP(s, dict[i]->name)==0) v = i | UDF_DICT;
+    }
+    for (IU i = g_romsz - 1; !v && i > 0; --i) {
+//        LOG("  g_rom[%d] => %s\n", i, (char*)g_rom[i].name);
+        if (STRCMP(s, g_rom[i].name)==0) v = i;
+    }
+#if CC_DEBUG > 1
+    const Code *c = v > g_romsz ? dict[v - g_romsz] : &g_rom[v];
+    LOG("find(%s) => %s[%d] %s attr=%d\n",
+        s, v > g_romsz ? "dict" : "g_rom", v, c->name, c->attr);
+#endif // CC_DEBUG > 1
+    return v;
+}
+///@}
 ///====================================================================
 ///
 ///> functions to reduce verbosity
@@ -161,7 +186,6 @@ void s_quote(VM &vm, prim_op op, int &sp, DU &tos) {
         HERE = h0;                  ///> restore memory addr
     }
 }
-///@}
 ///====================================================================
 ///
 ///> Forth inner interpreter (handles a colon word)
@@ -187,14 +211,46 @@ void s_quote(VM &vm, prim_op op, int &sp, DU &tos) {
 ///          * 32-bit Param pointer   Ir/Dr = 3.2M/0.9M (899ms)
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
-#define DISPATCH(op) switch(op)
-#define CASE(op, g)  case op : { g; } break
-#define OTHER(g)     default : { g; } break
 #define UNNEST()     {                          \
         if (RS.idx <= 0) return NULL;           \
         ip = XT(RS.pop());                      \
         return NEXT();                          \
     }
+
+void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
+    vm.state = NEST;
+
+    /* 1. Extract core virtual machine tracking metrics locally onto the local stack frame */
+    IU *ip  = IP;
+    int &sp = SS.idx;             ///< Local Data Stack index map
+    DU  tos = TOS;                ///< Local cached Top-of-Stack register map
+
+    /* 2. Read the initial function execution token from the current array offset */
+    FPTR fp = (FPTR)NEXT();
+
+    /* 
+     * 3. THE TAIL-CALL TRAMPOLINE DRIVER ENGINE:
+     * While next points to a valid function address, invoke it.
+     * The compiler flattens this assignment sequence into an optimized 
+     * 'jx' or 'jmp' assembly branch instruction under C++17 rules.
+     * This is called "Scalar Replacement of Aggregates and Reference Propagation"
+     */
+    while (TOK(fp)) {             ///< EXIT when ip == NULL
+        LOG(" => fp=%p\n", fp);
+        fp = (FPTR)fp(vm, ip, sp, tos);
+    }
+
+    /* 4. Flush the final stable register configurations back into the persistent VM memory block */
+    IP  = ip;
+    TOS = tos;
+}
+
+void CALL(VM &vm, const Code &c) {
+    IU stub[2] = { TOK(c.xt), 0 };
+    LOG(" stub=[%x,%x]\n", stub[0], stub[1]);
+    vm.ip = stub;
+    nest(vm);
+}
 
 ///====================================================================
 ///
@@ -212,10 +268,10 @@ void *dodoes(VM &vm, IU* &ip, int &sp, DU &tos) {
 ///@name Built-in Dictionary (lambda-based, ROMable)
 ///@{
 constexpr Code g_rom[] = {
-    CODE("nop ",    {}),                                /// dict[0], not used, simplify find()
-    CODE("_:",      RS.push((DU)TOK(ip)); JMP()),       /// docolon
+    CODE("nop ",    {}),                          /// dict[0], not used, simplify find()
+    CODE("_:",      RS.push((DU)TOK(ip)); JMP()), /// docolon
     CODE("_;",      UNNEST()),
-    CODE("_lit",    PUSH((DU)(*ip++))),                 /// doconst
+    CODE("_lit",    PUSH((DU)(*ip++))),           /// doconst
     CODE("_var",    PUSH(TOK(ip++))),
     CODE("_str",
          U32 len = *ip++;
@@ -227,7 +283,7 @@ constexpr Code g_rom[] = {
          pstr((char*)ip);
          ip += (len + 3)),
     CODE("_create", PUSH((DU)TOK(++ip)); ip++),
-    CODE("_does>",
+    CODE("_does",
          Code *c = dict[dict.idx = 1];
          IU   *t = (IU*)c->xt;
          *t++ = TOK(dodoes);
@@ -238,29 +294,29 @@ constexpr Code g_rom[] = {
     CODE("_loop",
          if (GT(RS[-2], RS[-1] += DU1)) JMP();   ///> loop done? no, loop back
          else { RS.pop(); RS.pop(); ip++; }),    /// * pop off counters
-    CODE("str",
+    CODE("_str",
          const char *s = (const char*)ip;        ///< get string pointer
          U32 len = STRLEN(s);
          PUSH(TOK(ip));
          PUSH(len);
          ip += len),
-    CODE("dotq",
+    CODE("_dotq",
          const char *s = (const char*)ip;        ///< get string pointer
          pstr(s); ip += STRLEN(s)),              /// * send to output console
-    CODE("bran", JMP()),                         ///< unconditional jmp
-    CODE("0bran",
+    CODE("_bran", JMP()),                         ///< unconditional jmp
+    CODE("_0bran",
          if (ZEQ(tos)) JMP(); else ip++;         /// conditional jmp
          tos = SS[sp--]),                        /// pop tos
     CODE("vbran",
          PUSH(TOK(++ip));                        /// * put param addr on tos
          if ((ip = (IU*)MEM(*ip))==0) UNNEST()), /// * jump target of does> if given
-    CODE("does>",
+    CODE("_does>",
          IU *t = (IU*)dict[-1]->xt;              ///< memory pointer to pfa 
          *(t+1) = *ip;                           /// * encode current IP, and bail
          UNNEST()),
-    CODE("for", RS.push(POP())),
-    CODE("do",  RS.push(SS[sp--]); RS.push(POP())),
-    CODE("key", PUSH(key()); UNNEST()),
+    CODE("_for", RS.push(POP())),
+    CODE("_do",  RS.push(SS[sp--]); RS.push(POP())),
+    CODE("_key", PUSH(key()); UNNEST()),
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -350,7 +406,7 @@ constexpr Code g_rom[] = {
     CODE(".r",      IU w = POPI(); dotr(w, POP(), *BASE)),
     CODE("u.r",     IU w = POPI(); dotr(w, POP(), *BASE, true)),
     CODE("type",    pstr((const char*)MEM(SS[sp--])); tos = SS[sp--]),   /// pass string pointer
-    IMMD("key",     if (vm.compile) add_w(KEY); else PUSH(key())),
+    IMMD("key",     if (vm.compile) add_xt("_key"); else PUSH(key())),
     CODE("emit",    dot(EMIT, POP())),
     CODE("space",   dot(SPCS, DU1)),
     CODE("spaces",  dot(SPCS, POP())),
@@ -367,11 +423,11 @@ constexpr Code g_rom[] = {
     /// @brief - if...then, if...else...then
     /// @{
     IMMD("if",
-         add_xt("0bran");                          /// if    ( -- here )
+         add_xt("_0bran");                         /// if    ( -- here )
          SS[++sp] = (DU)HERE_TGT;                  /// save ip0
          add_iu(0)),
     IMMD("else",                                   /// else ( here -- there )
-         add_xt("bran");
+         add_xt("_bran");
          IU tgt  = HERE_TGT;                       /// save target
          add_iu(0);
          IU *ip0 = (IU*)MEM(SS[sp]);               /// fetch ip0
@@ -385,27 +441,27 @@ constexpr Code g_rom[] = {
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
     IMMD("begin", SS[++sp] = (DU)HERE_TGT),
-    IMMD("again", add_xt("bran");  add_iu(SS[sp--])),        /// again    ( there -- )
-    IMMD("until", add_xt("0bran"); add_iu(SS[sp--])),        /// until    ( there -- )
+    IMMD("again", add_xt("_bran");  add_iu(SS[sp--])),       /// again    ( there -- )
+    IMMD("until", add_xt("_0bran"); add_iu(SS[sp--])),       /// until    ( there -- )
     IMMD("while",                                            /// while    ( there -- there here )
-         add_xt("0bran");
+         add_xt("_0bran");
          SS[++sp] = (DU)HERE_TGT;                            /// not touching tos
          add_xt(0)),
     IMMD("repeat",                                           /// repeat    ( there1 there2 -- )
-         add_xt("bran");
+         add_xt("_bran");
          IU *t = (IU*)MEM(SS[sp--]);                         /// set forward and loop back address
          add_iu(SS[sp--]);
-         add_xt("bran");
+         add_xt("_bran");
          *t = HERE_TGT),
     /// @}
     /// @defgrouop FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_xt("for"); SS[++sp] = HERE_TGT),     /// for ( -- here )
-    IMMD("next",    add_xt("next"); add_iu(SS[sp--])),       /// next ( here -- )
+    IMMD("for" ,    add_xt("_for"); SS[++sp] = HERE_TGT),    /// for ( -- here )
+    IMMD("next",    add_xt("_next"); add_iu(SS[sp--])),      /// next ( here -- )
     IMMD("aft",                                              /// aft ( here -- here there )
          sp--;
-         add_xt("bran");
+         add_xt("_bran");
          IU h = HERE_TGT;
          add_iu(0);
          SS[++sp] = (DU)HERE_TGT;
@@ -414,10 +470,10 @@ constexpr Code g_rom[] = {
     /// @}
     /// @defgrouop DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_xt("do"); SS[++sp]=(DU)HERE_TGT),    /// for ( -- here )
+    IMMD("do" ,     add_xt("_do"); SS[++sp]=(DU)HERE_TGT),   /// for ( -- here )
     CODE("i",       PUSH(RS[-1])),
     CODE("leave",   RS.pop(); RS.pop(); UNNEST()),           /// quit DO..LOOP
-    IMMD("loop",    add_xt("loop"); add_iu(SS[sp--])),       /// next ( here -- )
+    IMMD("loop",    add_xt("_loop"); add_iu(SS[sp--])),      /// next ( here -- )
     /// @}
     /// @defgrouop return stack op
     /// @{
@@ -452,7 +508,7 @@ constexpr Code g_rom[] = {
          def_word(WORD());
          add_xt("vbran");                                    /// bran + offset field
          add_iu(0)),
-    IMMD("does>",  add_xt("does>")),
+    IMMD("does>",  add_xt("_does>")),
     IMMD("to",                                               /// alter the value of a constant, i.e. 3 to x
          IU w = vm.state==QUERY ? find(WORD()) : POP();      /// constant addr
          if (!w) return NEXT();
@@ -560,58 +616,6 @@ constexpr Code g_rom[] = {
 };
 constexpr int  g_romsz = sizeof(g_rom)/sizeof(Code);
 ///@}
-///@name Dictionary search functions - can be adapted for ROM+RAM
-///@{
-///
-inline const Code *get_word(IU w) {
-    return w & UDF_DICT ? dict[w & ~UDF_DICT] : &g_rom[w];
-}
-IU find(const char *s) {
-    IU v = 0;
-    for (IU i = dict.idx - 1; dict.idx && !v && i >= 0; --i) {
-//        LOG("  dict[%d] => %s\n", i, (char*)dict[i]->name);
-        if (STRCMP(s, dict[i]->name)==0) v = i | UDF_DICT;
-    }
-    for (IU i = g_romsz - 1; !v && i > 0; --i) {
-//        LOG("  g_rom[%d] => %s\n", i, (char*)g_rom[i].name);
-        if (STRCMP(s, g_rom[i].name)==0) v = i;
-    }
-#if CC_DEBUG > 1
-    const Code *c = v > g_romsz ? dict[v - g_romsz] : &g_rom[v];
-    LOG("find(%s) => %s[%d] %s attr=%d\n",
-        s, v > g_romsz ? "dict" : "g_rom", v, c->name, c->attr);
-#endif // CC_DEBUG > 1
-    return v;
-}
-
-void nest(VM& vm, IU* &ip) {       ///< inner-interpreter i.e. doLIST, tail-call
-    LOG(" nest=[%x,%x] ", *ip, *(ip+1));
-    vm.state = NEST;
-
-    /* 1. Extract core virtual machine tracking metrics locally onto the local stack frame */
-    int &sp = SS.idx;             ///< Local Data Stack index map
-    DU  tos = TOS;                ///< Local cached Top-of-Stack register map
-
-    /* 2. Read the initial function execution token from the current array offset */
-    FPTR fp = (FPTR)NEXT();
-
-    /* 
-     * 3. THE TAIL-CALL TRAMPOLINE DRIVER ENGINE:
-     * While next points to a valid function address, invoke it.
-     * The compiler flattens this assignment sequence into an optimized 
-     * 'jx' or 'jmp' assembly branch instruction under C++17 rules.
-     * This is called "Scalar Replacement of Aggregates and Reference Propagation"
-     */
-    while (fp) {                  ///< EXIT when fp == NULL
-        LOG(" => fp=%p\n", fp);
-        fp = (FPTR)fp(vm, ip, sp, tos);
-    }
-
-    /* 4. Flush the final stable register configurations back into the persistent VM memory block */
-    IP  = ip;
-    TOS = tos;
-}
-
 ///
 ///> init base of xt pointer and xtoff range check
 ///
@@ -685,12 +689,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         if (vm.compile && !c->is_imm()) {        /// * in compile mode?
             add_w(w);                            /// * add to colon word
         }
-        else {
-            IU stub[2] = { TOK(c->xt), 0 };
-            LOG(" stub=[%x,%x]\n", stub[0], stub[1]);
-            IU *ip = stub;
-            nest(vm, ip);
-        }
+        else CALL(vm, *c);                       /// * execute word
         return;
     }
     /// try as a number
@@ -756,7 +755,6 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     while (fetch(idiom, E4_IBUF_SZ)) {                      /// * parse a word
         forth_core(vm, idiom);                              /// * outer interpreter
     }
-    return 1;
     if (!vm.compile) ss_dump(vm);
     
     return vm.state==STOP;
