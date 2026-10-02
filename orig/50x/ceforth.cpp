@@ -109,18 +109,26 @@ void add_w(IU w) {
     LOG("add_w(%d) => %p %s\n", w, ip, c->name);
 #endif // CC_DEBUG > 1
 }
-int  add_str(const char *s) {       ///< add a string to pmem
-    int sz = STRLEN(s);             ///> string length, aligned
-    pmem.push((U8*)s,  sz);         /// * add string terminated with zero
-    return sz;
+int  add_str(const char *s) {        ///< add a string to pmem
+    U16 len = (U16)strlen(s);
+    int bsz = sizeof(U16) + len + 1; ///< 16-bit len + string + '\0'
+    int asz = ALIGN(bsz);            ///> string length, aligned
+
+    pmem.push((U8*)&len, sizeof(U16));
+    pmem.push((U8*)s, len);          /// * add string
+
+    for (int i = bsz-1; i < asz; i++) pmem.push((U8)0);  /// * '\0' padding
+    return asz;
 }
 void add_xt(const char *name) {
     IU w = find(name);
     add_w(w);
 }
 void colon(const char *name) {
-    char *nfa = (char*)&pmem[HERE]; ///> current pmem pointer
+    char *nfa = (char*)&pmem[HERE];  ///> current pmem pointer
+    LOG("HERE=%d, nfa=%p", HERE, nfa);
     add_str(nfa);
+    LOG(" => HERE=%d, HERE_PTR=%p\n", HERE, HERE_PTR);
 
     Code *c = new Code(nfa, (FPTR)HERE_PTR, (U8)UDF_ATTR);
     dict.push(c);                   ///> deep copy Code struct into dictionary
@@ -172,15 +180,20 @@ int def_word(const char* name) {    ///< display if redefined
 void s_quote(VM &vm, prim_op op, int &sp, DU &tos) {
     const char *s = SCAN('"')+1;    ///> string skip first blank
     if (vm.compile) {
-        add_w(op);                  ///> dostr, (+parameter field)
-        add_str(s);                 ///> byte0, byte1, byte2, ..., byteN
+        switch (op) {
+        case STR:  add_xt("_str");  break;
+        case DOTQ: add_xt("_dotq"); break;
+        default: pstr("s_quote unknown op:");
+        }
+        add_str(s);                 ///> 16-bit len, byte0, byte1, byte2, ..., byteN, '\0'
     }
     else {                          ///> use PAD ad TEMP storage
         IU h0  = HERE;              ///> keep current memory addr
         DU len = add_str(s);        ///> write string to PAD
+        char *str = (char*)MEM(h0) + sizeof(U16);
         switch (op) {
-        case STR:  PUSH(h0); PUSH(len);        break; ///> addr, len
-        case DOTQ: pstr((const char*)MEM(h0)); break; ///> to console
+        case STR:  PUSH((DU)TOK(str)); PUSH(len); break; ///> addr, len
+        case DOTQ: pstr(str, CR);                 break; ///> to console
         default:   pstr("s_quote unknown op:");
         }
         HERE = h0;                  ///> restore memory addr
@@ -275,14 +288,18 @@ constexpr Code g_rom[] = {
     CODE("_lit",    PUSH((DU)(*ip++))),           /// doconst
     CODE("_var",    PUSH(TOK(ip++))),
     CODE("_str",
-         U32 len = *ip++;
-         PUSH((DU)TOK(ip));
+         U16 len = *(U16*)ip;                     /// 2-byte length
+         char *str = (char*)ip + sizeof(U16);
+         PUSH((DU)TOK(str));
          PUSH((DU)len);
-         ip += (len + 3)),
+         int bsz = sizeof(U16) + len + 1;         /// 16-bit len + string + '\0'
+         ip = (IU*)((U8*)ip + ALIGN(bsz))),
     CODE("_dotq",
-         U32 len = *ip++;
-         pstr((char*)ip);
-         ip += (len + 3)),
+         U16 len = *(U16*)ip;
+         char *str = (char*)ip + sizeof(U16);
+         pstr(str, CR);
+         int bsz = sizeof(U16) + len + 1;
+         ip = (IU*)((U8*)ip + ALIGN(bsz))),
     CODE("_create", PUSH((DU)TOK(++ip)); ip++),
     CODE("_does",
          Code *c = dict[dict.idx = 1];
@@ -295,15 +312,6 @@ constexpr Code g_rom[] = {
     CODE("_loop",
          if (GT(RS[-2], RS[-1] += DU1)) JMP();   ///> loop done? no, loop back
          else { RS.pop(); RS.pop(); ip++; }),    /// * pop off counters
-    CODE("_str",
-         const char *s = (const char*)ip;        ///< get string pointer
-         U32 len = STRLEN(s);
-         PUSH(TOK(ip));
-         PUSH(len);
-         ip += len),
-    CODE("_dotq",
-         const char *s = (const char*)ip;        ///< get string pointer
-         pstr(s); ip += STRLEN(s)),              /// * send to output console
     CODE("_bran", JMP()),                         ///< unconditional jmp
     CODE("_0bran",
          if (ZEQ(tos)) JMP(); else ip++;         /// conditional jmp
