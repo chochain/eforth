@@ -249,7 +249,6 @@ void forth_core(VM &vm, const char *idiom);
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
-void nest(VM& vm, IU* &ip);
 ///@}
 ///@name Compiler Engine methods
 ///@{
@@ -260,6 +259,9 @@ int  add_str(const char *s);
 void add_xt(const char *name);
 void colon(const char *name);
 ///@}
+///@name Inner-interpreter methods
+void nest(VM &vm);
+void CALL(VM &vm, const Code &c);
 ///@name Dictionary Search methods
 ///@{
 inline const Code *get_word(IU w);
