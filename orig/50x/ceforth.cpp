@@ -102,12 +102,11 @@ void add_w(IU w) {
         // Truncate the function address down to a clean lower 32-bit token integer
         add_xt("_:");
     }
+#if CC_DEBUG > 1
+    LOG("add_w(%x) => %08zx << %08x:%s\n", w, (UFP)HERE_PTR, TOK(c->xt), c->name);
+#endif // CC_DEBUG > 1
     // Compile the target body memory address pointer as a 32-bit data payload block
     add_iu(TOK(c->xt));
-    
-#if CC_DEBUG > 1
-    LOG("add_w(%x) => %08x:%s\n", w, TOK(c->xt), c->name);
-#endif // CC_DEBUG > 1
 }
 int  add_str(const char *s) {        ///< add a string to pmem
     U16 len = (U16)strlen(s);
@@ -127,12 +126,12 @@ void add_xt(const char *name) {
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];  ///> current pmem pointer
     int  sz   = strlen(name) + 1;
-    LOG("HERE=%d, sz=%d nfa=%p", HERE, sz, nfa);
+    LOG("colon %08zx:%04x, sz=%d", (UFP)nfa, HERE, sz);
     pmem.push((U8*)name, ALIGN(sz));
 
     Code *c = new Code(nfa, (FPTR)HERE_PTR, (U8)UDF_ATTR);
     dict.push(c);                   ///> deep copy Code struct into dictionary
-    LOG(" => HERE=%d, HERE_PTR=%p dict.idx=%d '%s'\n", HERE, HERE_PTR, dict.idx, nfa);
+    LOG(" => %08zx:%04x dict.idx=%d '%s'\n", (UFP)HERE_PTR, HERE, dict.idx, nfa);
 }
 ///@}
 ///@name Dictionary search functions - can be adapted for ROM+RAM
@@ -155,7 +154,7 @@ IU find(const char *s) {
 #if CC_DEBUG > 1
     if (w) {
         const Code *c = get_word(w);
-        LOG("find(%s) => %s[%d] %s attr=%d\n",
+        LOG("find(%s) => %s[%x] %s attr=%d\n",
             s, (w & UDF_DICT) ? "dict" : "g_rom", w, c->name, c->attr);
     }
 #endif // CC_DEBUG > 1
@@ -228,13 +227,14 @@ void s_quote(VM &vm, prim_op op, int &sp, DU &tos) {
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
 #define UNNEST()     {                          \
-        if (RS.idx <= 0) return NULL;           \
+        if (RS.idx <= 0) return nullptr;        \
         ip = XT(RS.pop());                      \
         return NEXT();                          \
     }
 
 void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
     vm.state = NEST;
+    LOG("\nnest(%08zx) sp%d, rp%d, [%d, %d] ", (UFP)IP, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
 
     /* 1. Extract core virtual machine tracking metrics locally onto the local stack frame */
     IU *ip  = IP;
@@ -251,20 +251,22 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
      * 'jx' or 'jmp' assembly branch instruction under C++17 rules.
      * This is called "Scalar Replacement of Aggregates and Reference Propagation"
      */
-    while (TOK(fp)) {             ///< EXIT when ip == NULL
-        LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
+    while (fp != nullptr) {       ///< EXIT when ip == NULL
+        LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, sp, RS.idx, sp > 0 ? SS[sp-1] : 0, tos);
         fp = (FPTR)fp(vm, ip, sp, tos);
     }
 
     /* 4. Flush the final stable register configurations back into the persistent VM memory block */
-    IP  = ip;
-    TOS = tos;
+    IP     = ip;
+    SS.idx = sp;
+    TOS    = tos;
     
     LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
 }
 
 void CALL(VM &vm, const Code &c) {
     IU stub[2] = { TOK(c.xt), 0 };
+    LOG("\n  %08zx: sp%d, rp%d, [%d, %d] ", (UFP)stub, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
     vm.ip = stub;
     nest(vm);
 }
@@ -696,7 +698,8 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
 
     if (w) {                                     ///> * word found?
         const Code *c = get_word(w);
-        LOG(" => [%d] %s", w, c->name);
+        LOG(" => %s[%x]:%08zx attr=%d %s\n",
+            (w & UDF_DICT) ? "dict" : "g_rom", w, (UFP)c->xt, c->attr, c->name);
         if (vm.compile && !c->is_imm()) {        /// * in compile mode?
             add_w(w);                            /// * add to colon word
         }
