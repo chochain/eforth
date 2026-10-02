@@ -6,7 +6,7 @@
 ///
 ///@name Conditional compililation options
 ///@}
-#define CC_DEBUG        1               /**< debug level 0|1|2      */
+#define CC_DEBUG        2               /**< debug level 0|1|2      */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    0               /**< multitasking/pthread   */
