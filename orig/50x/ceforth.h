@@ -194,8 +194,6 @@ struct Code {
     bool is_imm() const INLINE { return attr & IMM_ATTR;    }
     bool is_udf() const INLINE { return attr & UDF_ATTR;    }
     void imm()    INLINE { attr |= IMM_ATTR;          }
-    
-    void call(VM& vm, IU* &ip, int &sp, DU &tos) INLINE { (*xt)(vm, ip, sp, tos); }
 };
 ///@}
 ///@name Dictionary Compiler macros
@@ -222,10 +220,10 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 #endif
 
 #define CODE(n, g)                                     \
-    rom_code(n, [](VM& vm, IU* &ip, int &sp, DU &tos)  \
+    rom_code(n, [](VM &vm, IU* &ip, int &sp, DU &tos)  \
         -> void* { g; return NEXT(); }, (U8)0)
 #define IMMD(n, g)                                     \
-    rom_code(n, [](VM& vm, IU* &ip, int &sp, DU &tos)  \
+    rom_code(n, [](VM &vm, IU* &ip, int &sp, DU &tos)  \
         -> void* { g; return NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
@@ -247,19 +245,25 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 ///@{
 void forth_init();
 void forth_teardown();
-void forth_core(VM& vm, const char* idiom);
+void forth_core(VM &vm, const char *idiom);
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
+void nest(VM& vm, IU* &ip);
 ///@}
 ///@name Compiler Engine methods
 ///@{
 void add_iu(IU i);
 void add_du(DU v);
 void add_w(IU w);
-void colon(const char* name);
-IU   find(const char* s);
-inline const Code* get_word(IU w);
+int  add_str(const char *s);
+void add_xt(const char *name);
+void colon(const char *name);
+///@}
+///@name Dictionary Search methods
+///@{
+inline const Code *get_word(IU w);
+IU   find(const char *s);
 ///@}
 ///@name IO functions
 ///{@
@@ -268,14 +272,10 @@ typedef enum { CR=0, DOT, UDOT, EMIT, SPCS } io_op;
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
 
-IU   find(const char *s);
-void nest(VM& vm);
-void *doLIST(VM& vm, IU* &ip, int &sp, DU &tos);
-
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
 int  fetch(char *buf, int max=E4_IBUF_SZ);               ///< read input stream into buffer
-char key();                                              ///< read key from console
+char key(void);                                          ///< read key from console
 void load(VM &vm, const char* fn);                       ///< load external Forth script
 void spaces(int n);                                      ///< show spaces
 void dot(io_op op, DU v=DU0, int base=10);               ///< print literals
@@ -284,7 +284,6 @@ void pstr(const char *str, io_op op=SPCS);               ///< print string
 ///@}
 ///@name Debug functions
 ///@{
-Code *prim_or_dict(IU w);                 ///< dictionary pointer
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
 void words();                             ///< list dictionary words
