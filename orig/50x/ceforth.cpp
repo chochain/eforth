@@ -86,7 +86,6 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define WORD()    (word(vm.pad, E4_PAD_SZ))
 ///@}
 ///====================================================================
-///@}
 ///@name Colon word compiler
 ///@brief
 ///    * we separate dict and pmem space to make word uniform in size
@@ -95,10 +94,29 @@ U8  *MEM0;                         ///< base of parameter memory block
 ///@{
 void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU)); }  ///< add an instruction into pmem
 void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)); }  ///< add a cell into pmem
+void add_w(IU w) {
+    const Code *c = get_word(w);
+    
+    if (c->is_udf()) {
+        // User-defined word: compile doLIST pre-processor
+        // Truncate the function address down to a clean lower 32-bit token integer
+        add_xt("_:");
+    }
+    // Compile the target body memory address pointer as a 32-bit data payload block
+    add_iu(TOK(c->xt));
+    
+#if CC_DEBUG > 1
+    LOG("add_w(%d) => %p %s\n", w, ip, c->name);
+#endif // CC_DEBUG > 1
+}
 int  add_str(const char *s) {       ///< add a string to pmem
     int sz = STRLEN(s);             ///> string length, aligned
     pmem.push((U8*)s,  sz);         /// * add string terminated with zero
     return sz;
+}
+void add_xt(const char *name) {
+    IU w = find(name);
+    add_w(w);
 }
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE]; ///> current pmem pointer
@@ -108,37 +126,6 @@ void colon(const char *name) {
     dict.push(c);                   ///> deep copy Code struct into dictionary
 }
 
-inline const Code *get_word(IU w) {
-    return w & UDF_DICT ? dict[w & ~UDF_DICT] : &g_rom[w];
-}
-
-void add_w(IU w) {
-    const Code *c = get_word(w);
-    
-    if (c->is_udf()) {
-        // User-defined word: compile CALL pre-processor
-        // Truncate the function address down to a clean lower 32-bit token integer
-        add_iu(TOK(doLIST));
-    }
-    // Compile the target body memory address pointer as a 32-bit data payload block
-    add_iu(TOK(c->xt));
-    
-#if CC_DEBUG > 1
-    LOG("add_w(%d) => %p %s\n", w, ip, c->name);
-#endif // CC_DEBUG > 1
-}
-
-void add_xt(const char *name) {
-    IU w = find(name);
-    add_w(w);
-}
-
-void add_var(IU op, DU v=DU0) {     ///< add a varirable header
-    add_w(op);                      /// * VAR or VBRAN
-    if (op==VBRAN) add_iu(0);       /// * pad offset field
-    pmem.idx = DALIGN(pmem.idx);    /// * data alignment
-    if (op!=VBRAN) add_du(v);       /// * default variable = 0
-}
 ///====================================================================
 ///
 ///> functions to reduce verbosity
@@ -205,7 +192,7 @@ void s_quote(VM &vm, prim_op op, int &sp, DU &tos) {
 #define OTHER(g)     default : { g; } break
 #define UNNEST()     {                          \
         if (RS.idx <= 0) return NULL;           \
-        ip = XT(RS.pop());       \
+        ip = XT(RS.pop());                      \
         return NEXT();                          \
     }
 
@@ -222,39 +209,35 @@ void *dodoes(VM &vm, IU* &ip, int &sp, DU &tos) {
     ip = t;
     return NEXT();
 }
-
+///@name Built-in Dictionary (lambda-based, ROMable)
+///@{
 constexpr Code g_rom[] = {
     CODE("nop ",    {}),                                /// dict[0], not used, simplify find()
     CODE("_:",      RS.push((DU)TOK(ip)); JMP()),       /// docolon
-    CODE("_const",  SS[++sp] = tos; tos = (DU)(*ip++)), /// doconst
-    CODE("_var",    SS[++sp] = tos; tos = (DU)TOK(ip++)),
+    CODE("_;",      UNNEST()),
+    CODE("_lit",    PUSH((DU)(*ip++))),                 /// doconst
+    CODE("_var",    PUSH(TOK(ip++))),
     CODE("_str",
-         SS[++sp] = tos;
          U32 len = *ip++;
-         SS[++sp] = (DU)TOK(ip);
-         ip += (len + 3) >> 2),
+         PUSH((DU)TOK(ip));
+         PUSH((DU)len);
+         ip += (len + 3)),
     CODE("_dotq",
          U32 len = *ip++;
          pstr((char*)ip);
-         ip += (len + 3) >> 2),
-    CODE("_create", SS[++sp] = tos; tos = (DU)TOK(++ip); ip++),
+         ip += (len + 3)),
+    CODE("_create", PUSH((DU)TOK(++ip)); ip++),
     CODE("_does>",
          Code *c = dict[dict.idx = 1];
          IU   *t = (IU*)c->xt;
          *t++ = TOK(dodoes);
          *t   = TOK(ip)),
-    ///=====================================================================
-    CODE(";",       UNNEST()),
-    CODE("next",
+    CODE("_next",
          if (GT(RS[-1] -= DU1, -DU1)) JMP();     ///> loop done? no, loop back
          else { RS.pop(); ip++; }),              /// * yes, bail!
-    CODE("loop",
+    CODE("_loop",
          if (GT(RS[-2], RS[-1] += DU1)) JMP();   ///> loop done? no, loop back
          else { RS.pop(); RS.pop(); ip++; }),    /// * pop off counters
-    CODE("lit",
-         SS[++sp] = tos;
-         tos = *(DU*)(ip++)),
-    CODE("var", PUSH(TOK(ip)); UNNEST()),
     CODE("str",
          const char *s = (const char*)ip;        ///< get string pointer
          U32 len = STRLEN(s);
@@ -447,30 +430,36 @@ constexpr Code g_rom[] = {
     CODE("[",       vm.compile = false),
     CODE("]",       vm.compile = true),
     CODE(":",       vm.compile = def_word(WORD())),
-    IMMD(";",       add_w(EXIT); vm.compile = false),
-#if 0
+    IMMD(";",       add_xt("_;"); vm.compile = false),
     ///=============================================================================
-    CODE("variable",def_word(WORD()); add_var(VAR)),         /// create a variable
+    CODE("variable",                                         /// create a variable
+         def_word(WORD());
+         add_xt("_var");
+         add_du(0)),
     CODE("constant",                                         /// create a constant
          def_word(WORD());                                   /// create a new word on dictionary
-         add_var(LIT, POP());                                /// dovar (+parameter field)
-         add_w(EXIT)),
+         add_xt("_lit");                                     /// dovar (+parameter field)
+         add_du(POP())),
     IMMD("postpone",  IU w = find(WORD()); if (w) add_w(w)),
-    CODE("immediate", dict[-1]->attr |= IMM_ATTR),
+    CODE("immediate", dict[-1]->imm()),                      /// set immediate flag
     CODE("exit",    UNNEST()),                               /// early exit the colon word
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-    CODE("exec",   IU w = POP(); doLIST(vm, w)),             /// execute word
-    CODE("create", def_word(WORD()); add_var(VBRAN)),        /// bran + offset field
-    IMMD("does>",  add_w(DOES)),
+//    CODE("exec",   IU w = POP(); doLIST(vm, w)),             /// execute word
+    CODE("create",
+         def_word(WORD());
+         add_xt("vbran");                                    /// bran + offset field
+         add_iu(0)),
+    IMMD("does>",  add_xt("does>")),
     IMMD("to",                                               /// alter the value of a constant, i.e. 3 to x
          IU w = vm.state==QUERY ? find(WORD()) : POP();      /// constant addr
-         if (!w) return;
+         if (!w) return NEXT();
          if (vm.compile) {
-             add_var(LIT, (DU)w);                            /// save addr on stack
-             add_w(find("to"));                              /// encode to opcode
+             add_xt("_lit");
+             add_du((DU)w);
+             add_xt("to");                                   /// encode to opcode
          }
          else {
              w = dict[w]->pfa + sizeof(IU);                  /// calculate address to memory
@@ -478,10 +467,11 @@ constexpr Code g_rom[] = {
          }),
     IMMD("is",              /// ' y is x                     /// alias a word, i.e. ' y is x
          IU w = vm.state==QUERY ? find(WORD()) : POP();      /// word add
-         if (!w) return;
+         if (!w) return NEXT();
          if (vm.compile) {
-             add_var(LIT, (DU)w);                            /// save addr on stack
-             add_w(find("is"));
+             add_xt("_lit");
+             add_du((DU)w);                                  /// save addr on stack
+             add_xt("is");
          }
          else {
              dict[POP()]->xt = dict[w]->xt;
@@ -500,9 +490,8 @@ constexpr Code g_rom[] = {
     CODE("cells", IU i = POPI(); PUSH(i * sizeof(DU))),      /// n -- n'
     CODE("allot",                                            /// n --
          IU n = POPI();                                      /// number of bytes
-         for (int i = 0; i < n; i+=sizeof(DU)) add_du(DU0)), /// zero padding
+         for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0)),  /// zero padding
     CODE("th",    IU i = POPI(); TOS += i * sizeof(DU)),     /// w i -- w'
-#endif
     /// @}
 #if DO_MULTITASK
     /// @defgroup Multitasking ops
@@ -570,18 +559,21 @@ constexpr Code g_rom[] = {
     CODE("boot",  dict.clear(); pmem.clear(sizeof(DU)))
 };
 constexpr int  g_romsz = sizeof(g_rom)/sizeof(Code);
-///
+///@}
 ///@name Dictionary search functions - can be adapted for ROM+RAM
 ///@{
 ///
+inline const Code *get_word(IU w) {
+    return w & UDF_DICT ? dict[w & ~UDF_DICT] : &g_rom[w];
+}
 IU find(const char *s) {
     IU v = 0;
     for (IU i = dict.idx - 1; dict.idx && !v && i >= 0; --i) {
-        LOG("  dict[%d] => %s\n", i, (char*)dict[i]->name);
+//        LOG("  dict[%d] => %s\n", i, (char*)dict[i]->name);
         if (STRCMP(s, dict[i]->name)==0) v = i | UDF_DICT;
     }
     for (IU i = g_romsz - 1; !v && i > 0; --i) {
-        LOG("  g_rom[%d] => %s\n", i, (char*)g_rom[i].name);
+//        LOG("  g_rom[%d] => %s\n", i, (char*)g_rom[i].name);
         if (STRCMP(s, g_rom[i].name)==0) v = i;
     }
 #if CC_DEBUG > 1
@@ -592,13 +584,13 @@ IU find(const char *s) {
     return v;
 }
 
-void nest(VM& vm) /* tail call */ {
+void nest(VM& vm, IU* &ip) {       ///< inner-interpreter i.e. doLIST, tail-call
+    LOG(" nest=[%x,%x] ", *ip, *(ip+1));
     vm.state = NEST;
 
     /* 1. Extract core virtual machine tracking metrics locally onto the local stack frame */
-    IU  *ip = IP;                 /* Local Instruction Pointer map */
-    int &sp = SS.idx;             /* Local Data Stack index map */
-    DU  tos = TOS;                /* Local cached Top-of-Stack register map */
+    int &sp = SS.idx;             ///< Local Data Stack index map
+    DU  tos = TOS;                ///< Local cached Top-of-Stack register map
 
     /* 2. Read the initial function execution token from the current array offset */
     FPTR fp = (FPTR)NEXT();
@@ -610,7 +602,8 @@ void nest(VM& vm) /* tail call */ {
      * 'jx' or 'jmp' assembly branch instruction under C++17 rules.
      * This is called "Scalar Replacement of Aggregates and Reference Propagation"
      */
-    while (fp) {
+    while (fp) {                  ///< EXIT when fp == NULL
+        LOG(" => fp=%p\n", fp);
         fp = (FPTR)fp(vm, ip, sp, tos);
     }
 
@@ -618,17 +611,7 @@ void nest(VM& vm) /* tail call */ {
     IP  = ip;
     TOS = tos;
 }
-///
-///> doLIST - inner-interpreter proxy (inline macro does not run faster)
-///
-void *doLIST(VM& vm, IU* &ip, int &sp, DU &tos) {
-    LOG(" doLIST=[%x,%x] ", *ip, *(ip+1));
-    RS.push((DU)TOK(ip));
-    FPTR fp = (FPTR)XT(*ip++);
-    LOG(" => fp=%p\n", fp);
-    fp(vm, ip, sp, tos);
-    return NEXT();
-}
+
 ///
 ///> init base of xt pointer and xtoff range check
 ///
@@ -705,11 +688,8 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         else {
             IU stub[2] = { TOK(c->xt), 0 };
             LOG(" stub=[%x,%x]\n", stub[0], stub[1]);
-            IU  *ip = stub;
-            int &sp = SS.idx;
-            DU  tos = TOS;
-            doLIST(vm, ip, sp, tos);   /// * execute forth word
-            TOS = tos;
+            IU *ip = stub;
+            nest(vm, ip);
         }
         return;
     }
@@ -723,15 +703,15 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         vm.state   = STOP;               ///> skip the entire input buffer
         return;
     }
-    LOG(" => %d", n);
+    LOG(" => %d\n", n);
     /// is a number
     if (vm.compile) {                    /// * a number in compile mode?
-        add_xt("lit");                   ///> add to current word
+        add_xt("_lit");                  ///> add to current word
         add_du(n);                       
     }
     else {                               ///> or, add value onto data stack
         SS.push(vm.tos);
-        vm.tos = n;                      
+        vm.tos = n;
     }
 }
 ///====================================================================
