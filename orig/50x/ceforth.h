@@ -70,7 +70,7 @@ struct List {
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
     void clear(int tgt = 0) {
-        int mx = std::max(tgt, ro);
+        int mx = (tgt > ro) ? tgt : ro;
         if constexpr (std::is_pointer<T>::value) {
             for (int i = mx; i < idx; i++) { if (v[i]) delete v[i]; }
         }
