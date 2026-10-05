@@ -214,7 +214,7 @@ void s_quote(VM &vm, prim_op op, int &sp, DU &tos) {
 #define UNNEST()     {                 \
         if (RS.idx <= 0) return NULL;  \
         ip = XT(RS.pop());             \
-        return NEXT();                 \
+        NEXT();                        \
     }
 
 void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
@@ -227,19 +227,8 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
 
     DEBUG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
     DEBUG("nest(%08x) sp%d, rp%d, [%d, %d]\n", *ip, sp, RS.idx, sp > 0 ? SS[-1] : 0, tos);
-
-    FPTR fp = (FPTR)NEXT();
-    ///
-    /// While next points to a valid function address, invoke it.
-    /// The compiler flattens this assignment sequence into an optimized 
-    /// 'jx' or 'jmp' assembly branch instruction under C++17 rules.
-    /// This is called "Scalar Replacement of Aggregates and Reference Propagation"
-    ///
-    while (fp) {
-        DEBUG("  %p: sp%d, rp%d, [%d, %d] ", fp, sp, RS.idx, sp > 0 ? SS[sp-1] : 0, tos);
-        fp = (FPTR)fp(vm, ip, sp, tos);
-        DEBUG(" => fp=%p\n", fp);
-    }
+    
+    NEXT_FP()(vm, ip, sp, tos);   /// * the whole word chain runs by tail calls; doSTOP returns
 
     /// capture stack frame back into VM
     IP     = ip;
