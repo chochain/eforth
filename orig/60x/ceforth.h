@@ -172,7 +172,7 @@ typedef enum {
 /// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
 /// @param sp Localized register tracker alias targeting the stack index tracking array natively
 /// @param tos Localized high-speed CPU hardware register cache holding Top-of-Stack data
-typedef void *(*FPTR)(VM &vm, IU* &ip, int &sp, DU &tos);  /// tail-call (returns NEXT)
+typedef void *(*FPTR)(VM &vm, IU* ip, int sp, DU tos);  /// tail-call (returns NEXT)
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
@@ -214,18 +214,18 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 // 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
 // =====================================================================
 #if __SIZEOF_POINTER__ == 8
-#define NEXT_FP()  ((FPTR)(Code::XT0 | (UFP)*ip++))
+#define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
 #else
-#define NEXT_FP()  ((FPTR)(*ip++))
+#define NEXT_FP  ((FPTR)(*ip++))
 #endif
-#define NEXT()     return NEXT_FP()(vm, ip, sp, tos)   /** true tail call */
+#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(vm, ip, sp, tos);})   /** true tail call */
 
-#define CODE(n, g)                                     \
-    rom_code(n, [](VM &vm, IU* &ip, int &sp, DU &tos)  \
-        -> void* { g; NEXT(); }, (U8)0)
-#define IMMD(n, g)                                     \
-    rom_code(n, [](VM &vm, IU* &ip, int &sp, DU &tos)  \
-        -> void* { g; NEXT(); }, (U8)IMM_ATTR)
+#define CODE(n, g)                                  \
+    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
+             -> void *{ g; NEXT(); }, (U8)0)
+#define IMMD(n, g)                                  \
+    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
+             -> void *{ g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
 ///@{
