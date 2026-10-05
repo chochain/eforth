@@ -227,18 +227,20 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
 
     DEBUG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
     DEBUG("nest(%08x) sp%d, rp%d, [%d, %d]\n", *ip, sp, RS.idx, sp > 0 ? SS[-1] : 0, tos);
-    
-    NEXT_FP()(vm, ip, sp, tos);   /// * the whole word chain runs by tail calls; doSTOP returns
 
+    FPTR fp = NEXT_FP;
+    fp(vm, ip, sp, tos);          /// * the whole word chain runs by tail calls; doSTOP returns
+
+    DEBUG("  %p: sp%d, rp%d, [%d, %d]\n", fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
+}
+
+void *doSTOP(VM &vm, IU* ip, int sp, DU tos) {
     /// capture stack frame back into VM
     IP     = ip;
     SS.idx = sp;
     TOS    = tos;
-    
-    DEBUG("  %p: sp%d, rp%d, [%d, %d]\n", fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
+    return NULL;
 }
-
-void *doSTOP(VM &vm, IU* &ip, int &sp, DU &tos) { return NULL; }
 static IU gStop[] = { TOK(doSTOP) };  ///< tempoline sentinal
 
 void CALL(VM &vm, const Code &c) {
