@@ -5,11 +5,13 @@ EM_FLAG = -std=c++17 -O2 \
 
 CXX = g++
 CXXFLAG = -std=gnu++17 -g -O3 -Wall -pthread \
+          -fno-pie -no-pie \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
 CC = g++
 CC_FLAG = -std=gnu++17 -g -O3 -Wall -pthread \
+          -fno-pie -no-pie \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
