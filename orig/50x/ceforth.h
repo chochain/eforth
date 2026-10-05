@@ -214,7 +214,7 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 // 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
 // =====================================================================
 #if __SIZEOF_POINTER__ == 8
-#define NEXT()  (void*)(Code::XT0 | (UFP)(*ip++))
+#define NEXT()  (void*)(Code::XT0 | (UFP)*ip++)
 #else
 #define NEXT()  (void*)(*ip++)
 #endif
@@ -254,7 +254,7 @@ void outer(istream &in);                  ///< Forth outer loop
 ///@{
 void add_iu(IU i);
 void add_du(DU v);
-void add_w(IU w);
+void add_w(const Code *w);
 int  add_str(const char *s);
 void add_xt(const char *name);
 void colon(const char *name);
@@ -265,7 +265,7 @@ void CALL(VM &vm, const Code &c);
 ///@name Dictionary Search methods
 ///@{
 inline const Code *get_word(IU w);
-IU   find(const char *s);
+const Code *find(const char *s);
 ///@}
 ///@name IO functions
 ///{@
