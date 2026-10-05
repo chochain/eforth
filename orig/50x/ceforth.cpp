@@ -95,9 +95,7 @@ U8  *MEM0;                         ///< base of parameter memory block
 void add_iu(IU i) { pmem.push((U8*)&i, sizeof(IU)); }  ///< add an instruction into pmem
 void add_du(DU v) { pmem.push((U8*)&v, sizeof(DU)); }  ///< add a cell into pmem
 void add_w(const Code *c) {
-#if CC_DEBUG > 1
-    LOG("add_w(%08zx) => %08zx << %08x:%s\n", (UFP)c, (UFP)HERE_PTR, TOK(c->xt), c->name);
-#endif // CC_DEBUG > 1
+    DEBUG("add_w(%08zx) => %08zx << %08x:%s\n", (UFP)c, (UFP)HERE_PTR, TOK(c->xt), c->name);
     // Compile the target body memory address pointer as a 32-bit data payload block
     if (c->is_udf()) add_xt("_:");   /// doLIST
     add_iu(TOK(c->xt));
@@ -120,12 +118,12 @@ void add_xt(const char *name) {
 void colon(const char *name) {
     char *nfa = (char*)&pmem[HERE];  ///> current pmem pointer
     int  sz   = strlen(name) + 1;
-    LOG("colon %08zx:%04x, sz=%d", (UFP)nfa, HERE, sz);
+    DEBUG("colon %08zx:%04x, sz=%d", (UFP)nfa, HERE, sz);
     pmem.push((U8*)name, ALIGN(sz));
 
     Code *c = new Code(nfa, (FPTR)HERE_PTR, (U8)UDF_ATTR);
     dict.push(c);                   ///> deep copy Code struct into dictionary
-    LOG(" => %08zx:%04x dict.idx=%d '%s'\n", (UFP)HERE_PTR, HERE, dict.idx, nfa);
+    DEBUG(" => %08zx:%04x dict.idx=%d '%s'\n", (UFP)HERE_PTR, HERE, dict.idx, nfa);
 }
 ///@}
 ///@name Dictionary search functions - can be adapted for ROM+RAM
@@ -135,20 +133,16 @@ const Code *find(const char *s) {
     const Code *w = NULL;
     int i;
     for (i = dict.idx - 1; dict.idx && !w && i >= 0; --i) {
-//        LOG(" dict[%x] => %s\n", i, (char*)dict[i]->name);
         if (STRCMP(s, dict[i]->name)==0) w = dict[i];
     }
     for (i = g_romsz - 1; !w && i > 0; --i) {
-//        LOG("  g_rom[%d] => %s\n", i, (char*)g_rom[i].name);
         if (STRCMP(s, g_rom[i].name)==0) w = &g_rom[i];
     }
-#if CC_DEBUG > 1
     if (w) {
-        LOG("find(%s) => %s[%d]:%08zx attr=%d %s\n",
+        DEBUG("find(%s) => %s[%d]:%08zx attr=%d %s\n",
             s, w->is_udf() ? "dict" : "g_rom", i, (UFP)w->xt, w->attr, w->name);
     }
-    else LOG("find(%s) => %s\n", s, "N/A");
-#endif // CC_DEBUG > 1
+    else DEBUG("find(%s) => %s\n", s, "N/A");
     return w;
 }
 ///@}
@@ -231,8 +225,8 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
     int &sp = SS.idx;             ///< Local Data Stack index map
     DU  tos = TOS;                ///< Local cached Top-of-Stack register map
 
-    LOG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
-    LOG("nest(%08x) sp%d, rp%d, [%d, %d]\n", *ip, sp, RS.idx, sp > 0 ? SS[-1] : 0, tos);
+    DEBUG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
+    DEBUG("nest(%08x) sp%d, rp%d, [%d, %d]\n", *ip, sp, RS.idx, sp > 0 ? SS[-1] : 0, tos);
 
     FPTR fp = (FPTR)NEXT();
     ///
@@ -242,9 +236,9 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
     /// This is called "Scalar Replacement of Aggregates and Reference Propagation"
     ///
     while (fp) {
-        LOG("  %p: sp%d, rp%d, [%d, %d] ", fp, sp, RS.idx, sp > 0 ? SS[sp-1] : 0, tos);
+        DEBUG("  %p: sp%d, rp%d, [%d, %d] ", fp, sp, RS.idx, sp > 0 ? SS[sp-1] : 0, tos);
         fp = (FPTR)fp(vm, ip, sp, tos);
-        LOG(" => fp=%p\n", fp);
+        DEBUG(" => fp=%p\n", fp);
     }
 
     /// capture stack frame back into VM
@@ -252,7 +246,7 @@ void nest(VM& vm) {               ///< inner-interpreter i.e. doLIST, tail-call
     SS.idx = sp;
     TOS    = tos;
     
-    LOG("  %p: sp%d, rp%d, [%d, %d]\n", fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
+    DEBUG("  %p: sp%d, rp%d, [%d, %d]\n", fp, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
 }
 
 void *doSTOP(VM &vm, IU* &ip, int &sp, DU &tos) { return NULL; }
@@ -262,7 +256,7 @@ void CALL(VM &vm, const Code &c) {
     if (c.is_udf()) {
         RS.push(TOK(gStop));
         vm.ip = (IU*)c.xt;
-        LOG("\n  CALL(%x): sp%d, rp%d [%d,%d] ", *vm.ip, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
+        DEBUG("\n  CALL(%x): sp%d, rp%d [%d,%d] ", *vm.ip, SS.idx, RS.idx, SS.idx > 0 ? SS[-1] : 0, TOS);
         nest(vm);
     }
     else {
@@ -695,7 +689,7 @@ DU2 parse_number(const char *idiom, int base, int *err) {
 }
 
 void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
-    LOG("forth_core(%s) ", idiom);
+    DEBUG("forth_core(%s) ", idiom);
     
     vm.state = QUERY;
     const Code *w = find(idiom);                 ///> * get token by searching through dict
@@ -717,7 +711,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         vm.state   = STOP;               ///> skip the entire input buffer
         return;
     }
-    LOG(" => %d\n", n);
+    DEBUG(" => %d\n", n);
     /// is a number
     if (vm.compile) {                    /// * a number in compile mode?
         add_xt("_lit");                  ///> add to current word
