@@ -532,7 +532,7 @@ constexpr Code g_rom[] = {
     CODE("allot",                                            /// n --
          IU n = POPI();                                      /// number of bytes
          for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0)),  /// zero padding
-    CODE("th",    IU i = POPI(); TOS += i * sizeof(DU)),     /// w i -- w'
+    CODE("th",    IU i = POPI(); tos += i * sizeof(DU)),     /// w i -- w'
     /// @}
 #if DO_MULTITASK
     /// @defgroup Multitasking ops
