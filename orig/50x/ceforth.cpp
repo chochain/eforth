@@ -588,7 +588,9 @@ constexpr Code g_rom[] = {
          const Code *w = find(WORD());                      /// bail, if not found
          if (w) {                                           /// clear to specified word
              pmem.clear((int)((U8*)w->pfa - MEM0) - STRLEN(w->name));
-// CC_DEBUG            dict.clear(w);
+             for (int i=dict.idx - 1; i >=0; dict.clear(i--)) {
+                 if (dict[i] == w) { dict.clear(i); break; }
+             }
          }
          else {                                             /// clear to 'boot'
              pmem.clear(USER_AREA);
