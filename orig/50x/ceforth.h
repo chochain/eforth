@@ -214,17 +214,18 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 // 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
 // =====================================================================
 #if __SIZEOF_POINTER__ == 8
-#define NEXT()  (void*)(Code::XT0 | (UFP)*ip++)
+#define NEXT_FP()  ((FPTR)(Code::XT0 | (UFP)*ip++))
 #else
-#define NEXT()  (void*)(*ip++)
+#define NEXT_FP()  ((FPTR)(*ip++))
 #endif
+#define NEXT()     return NEXT_FP()(vm, ip, sp, tos)   /** true tail call */
 
 #define CODE(n, g)                                     \
     rom_code(n, [](VM &vm, IU* &ip, int &sp, DU &tos)  \
-        -> void* { g; return NEXT(); }, (U8)0)
+        -> void* { g; NEXT(); }, (U8)0)
 #define IMMD(n, g)                                     \
     rom_code(n, [](VM &vm, IU* &ip, int &sp, DU &tos)  \
-        -> void* { g; return NEXT(); }, (U8)IMM_ATTR)
+        -> void* { g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
 ///@{
