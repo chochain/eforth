@@ -264,8 +264,8 @@ void words() {
         }
     };
     int sz = 0;
-    for (int i = 0; i < g_romsz; i++)       blip(sz, i, g_rom[i]);
-    for (int i = dict.idx - 1; i >= 0; --i) blip(sz, i, *dict[i]);
+    for (int i = 0; i < g_romsz;  ++i) blip(sz, i, g_rom[i]);
+    for (int i = 0; i < dict.idx; ++i) blip(sz, i, *dict[i]);
     fout_flush('\n');
 }
 
