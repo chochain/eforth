@@ -1,0 +1,169 @@
+///
+/// eForth - Configuration and Cross Platform macros
+///
+#ifndef __EFORTH_SRC_CONFIG_H
+#define __EFORTH_SRC_CONFIG_H
+///
+///@name Conditional compililation options
+///@}
+#define CC_DEBUG        1               /**< debug level 0|1|2      */
+#define CASE_SENSITIVE  1               /**< word case sensitive    */
+#define USE_FLOAT       0               /**< support floating point */
+#define DO_MULTITASK    0               /**< multitasking/pthread   */
+///@}
+///@name Memory block configuation
+///@{
+#define E4_RS_SZ        32
+#define E4_SS_SZ        32
+#define E4_DICT_SZ      400
+#define E4_PMEM_SZ      (32*1024)
+#define E4_VM_POOL_SZ   8               /**< one plus # cors       */
+#define E4_PAD_SZ       66              /**< temp pad size         */
+#define E4_IBUF_SZ      128             /**< input buffer size     */
+#define E4_OBUF_SZ      1024            /**< output buffer size    */
+///@}
+///
+///@name Logical units (instead of physical) for type check and portability
+///@{
+typedef uint64_t        U64;   ///< unsigned 64-bit integer
+typedef uint32_t        U32;   ///< unsigned 32-bit integer
+typedef int32_t         S32;   ///< signed 32-bit integer
+typedef uint16_t        U16;   ///< unsigned 16-bit integer
+typedef uint8_t         U8;    ///< byte, unsigned character
+typedef uintptr_t       UFP;   ///< function pointer as integer
+typedef uint32_t        IU;    ///< instruction pointer unit
+
+#include <cmath>
+#if USE_FLOAT
+typedef double          DU2;
+typedef float           DU;
+#define DU0             0.0f
+#define DU1             1.0f
+#define DU_EPS          0.00001f
+#define INT(v)          (static_cast<S32)(v))
+#define UINT(v)         (static_cast<U32>(v))
+#define MOD(m,n)        ((DU)fmodf(m,n))
+#define ABS(v)          (fabsf(v))
+#define ZEQ(v)          (ABS(v) < DU_EPS)
+#define EQ(a,b)         (ZEQ((a) - (b)))
+#define LT(a,b)         (((a) - (b)) < -DU_EPS)
+#define GT(a,b)         (((a) - (b)) > DU_EPS)
+#define RND()           (static_cast<float>(rand()) / static_cast<float>(RAND_MAX))
+#define MAX(a,b)        (fmaxf(a,b))
+
+#else // !USE_FLOAT
+typedef int64_t         DU2;
+typedef int32_t         DU;
+#define DU0             0
+#define DU1             1
+#define DU_EPS          0
+#define INT(v)          (static_cast<S32>(v))
+#define UINT(v)         (static_cast<U32>(v))
+#define MOD(m,n)        ((m) % (n))
+#define ABS(v)          (abs(v))
+#define ZEQ(v)          ((v)==DU0)
+#define EQ(a,b)         ((a)==(b))
+#define LT(a,b)         ((a) < (b))
+#define GT(a,b)         ((a) > (b))
+#define RND()           (rand())
+#define MAX(a,b)        (std::max(a,b))
+
+#endif // USE_FLOAT
+///@}
+///@name String comparison
+///@{
+#if CASE_SENSITIVE
+#define STRCMP(a, b)    (strcmp(a, b))
+#else // !CASE_SENSITIVE
+#include <strings.h>     // strcasecmp
+#define STRCMP(a, b)    (strcasecmp(a, b))
+#endif // CASE_SENSITIVE
+///@}
+///@name Inline & Alignment macros
+///@{
+#include <cstring>
+#pragma GCC optimize("align-functions=4")    // we need fn alignment
+#define INLINE          __attribute__((always_inline))
+#define ALIGN2(sz)      ((sz) + (-(sz) & 0x1))
+#define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
+#define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
+#define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
+#define ALIGN(sz)       ALIGN4(sz)
+// #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
+#define ALIGNAS         alignas(64)
+#define STRLEN(s)       (ALIGN(sizeof(U16)+strlen(s)+1))  /** calculate string size with alignment */
+#define FLUSH           flush; CALLBACK
+///@}
+///@name Multi-platform support
+///@{
+#if (ARDUINO || ESP32)
+    #include <Arduino.h>
+    #define DALIGN(sz)      (sz)
+    #define to_string(i)    string(String(i).c_str())
+    #if    ESP32
+        #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
+    #endif // ESP32
+
+#else  // !(ARDUINO || ESP32)
+    #include <chrono>
+    #include <thread>
+    #define DALIGN(sz)      (sz)
+    #define millis()        chrono::duration_cast<chrono::milliseconds>( \
+                            chrono::steady_clock::now().time_since_epoch()).count()
+    #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
+    #define yield()         this_thread::yield()
+    #define PROGMEM
+
+#endif // (ARDUINO || ESP32)
+///@}
+///@name Logging support
+///@{
+#if (ARDUINO || ESP32)
+    #define LOG(fmt,...) Serial.print(fmt, __VA_ARGS__)
+    #define ERR(...)     Serial.printf("[ERROR] %s\n", __VA_ARGS__)
+#else  // !(ARDUINO || ESP32)
+    #define LOG(fmt,...) printf(fmt, __VA_ARGS__)
+    #define ERR(...)     printf("[ERROR] %s\n", __VA_ARGS__)
+#endif // (ARDUINO || ESP32)
+
+#if CC_DEBUG > 1
+#if (ARDUINO || ESP32)
+    #define DEBUG(fmt,...) Serial.print(fmt, __VA_ARGS__)
+#else  // !(ARUINO || ESP32)
+    #define DEBUG(fmt,...) printf(fmt, __VA_ARGS__)
+#endif // (ARDUINO || ESP32)
+#else  // CC_DEBUG > 1
+#define DEBUG(fmt,...)
+#endif // CC_DEBUG > 1
+    
+#if DO_MULTITASK
+#if CC_DEBUG
+#include <stdarg.h>
+    
+#if (ARDUINO || ESP32)
+#define VM_HDR(vm, fmt, ...)                                \
+    printf("[%02d.%d]%-4x" fmt,                             \
+           (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
+#define VM_TLR(vm, fmt, ...)                                \
+    printf(fmt, ##__VA_ARGS__)
+    
+#else // !(ESP32 || ARDUINO)
+#define VM_HDR(vm, fmt, ...)                  \
+    printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
+           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
+#define VM_TLR(vm, fmt, ...)                  \
+    printf("\e[%dm" fmt "\e[0m\n",            \
+           ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
+#endif // (ESP32 || ARDUINO)
+#define VM_LOG(vm, fmt, ...)                  \
+    VM_HDR(vm, fmt, ##__VA_ARGS__);           \
+    printf("\n")
+
+#endif // CC_DEBUG
+#else  // !DO_MULTITASK
+#define VM_HDR(vm, fmt, ...)
+#define VM_TLR(vm, fmt, ...)
+#define VM_LOG(vm, fmt, ...)
+#endif // DO_MULTITASK
+///@}
+#endif // __EFORTH_SRC_CONFIG_H
