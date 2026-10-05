@@ -270,15 +270,6 @@ void CALL(VM &vm, const Code &c) {
 ///> eForth dictionary assembler
 ///  Note: sequenced by enum forth_opcode as following
 ///
-void *doDOES(VM &vm, IU* &ip, int &sp, DU &tos) {
-    SS[sp++] = tos;
-    IU *t = (IU*)XT(*ip++);
-    tos = (DU)TOK(ip);
-    RS.push((DU)TOK(++ip));
-    ip = t;
-    return NEXT();
-}
-
 ///@name Built-in Dictionary (lambda-based, ROMable)
 ///@{
 constexpr Code g_rom[] = {
@@ -304,11 +295,10 @@ constexpr Code g_rom[] = {
          int bsz = sizeof(U16) + len + 1;
          ip = (IU*)((U8*)ip + ALIGN(bsz))),
     CODE("_create", PUSH((DU)TOK(++ip)); ip++),
-    CODE("_does",
-         Code *c = dict[-1];
-         IU   *t = (IU*)c->xt;
-         *t++ = TOK(doDOES);
-         *t   = TOK(ip)),
+    CODE("_does>",
+         IU *t = (IU*)dict[-1]->xt;              ///< memory pointer to pfa 
+         *(t+1) = TOK(ip);                       /// * encode does> body token, and bail
+         UNNEST()),
     CODE("_next",
          if (GT(RS[-1] -= DU1, -DU1)) JMP();     ///> loop done? no, loop back
          else { RS.pop(); ip++; }),              /// * yes, bail!
@@ -320,12 +310,9 @@ constexpr Code g_rom[] = {
          if (ZEQ(tos)) JMP(); else ip++;         /// conditional jmp
          tos = SS[--sp]),                        /// pop tos
     CODE("vbran",
-         PUSH(TOK(++ip));                        /// * put param addr on tos
-         if ((ip = (IU*)MEM(*ip))==0) UNNEST()), /// * jump target of does> if given
-    CODE("_does>",
-         IU *t = (IU*)dict[-1]->xt;              ///< memory pointer to pfa 
-         *(t+1) = *ip;                           /// * encode current IP, and bail
-         UNNEST()),
+         IU tgt = *ip;                           /// * does> target token (0 if none)
+         PUSH(TOK(ip + 1));                      /// * put param addr on tos
+         if (tgt) ip = XT(tgt); else UNNEST()),  /// * jump to does> body, or return
     CODE("_for", RS.push(POP())),
     CODE("_do",  RS.push(SS[--sp]); RS.push(POP())),
     CODE("_key", PUSH(key()); UNNEST()),
@@ -657,7 +644,6 @@ void dict_validate() {
         if (addr > max) max = addr;
     }
     if ((UFP)doSTOP > max) max = (UFP)doSTOP;
-    if ((UFP)doDOES > max) max = (UFP)doDOES;
     U64 off = max - Code::XT0;
 
     LOG("XT0: 0x%zx, OFF, 0x%zx\n", Code::XT0, off);
