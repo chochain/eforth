@@ -6,7 +6,7 @@
 ///
 ///@name Conditional compililation options
 ///@}
-#define CC_DEBUG        2               /**< debug level 0|1|2      */
+#define CC_DEBUG        1               /**< debug level 0|1|2      */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    0               /**< multitasking/pthread   */
@@ -125,6 +125,16 @@ typedef int32_t         DU;
     #define LOG(fmt,...) printf(fmt, __VA_ARGS__)
     #define ERR(...)     printf("[ERROR] %s\n", __VA_ARGS__)
 #endif // (ARDUINO || ESP32)
+
+#if CC_DEBUG > 1
+#if (ARDUINO || ESP32)
+    #define DEBUG(fmt,...) Serial.print(fmt, __VA_ARGS__)
+#else  // !(ARUINO || ESP32)
+    #define DEBUG(fmt,...) printf(fmt, __VA_ARGS__)
+#endif // (ARDUINO || ESP32)
+#else  // CC_DEBUG > 1
+#define DEBUG(fmt,...)
+#endif // CC_DEBUG > 1
     
 #if DO_MULTITASK
 #if CC_DEBUG
