@@ -295,7 +295,7 @@ void ss_dump(VM &vm, bool forced) {
 }
 void mem_dump(U32 p0, IU sz, int base) {
     for (IU i=p0 & ~15; i<=(p0+sz); i+=16) {
-        fout("%04x: ", i);
+        fout("%08zx %04x: ", (UFP)&pmem[i], i);
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
             fout("%02x%s", (int)c, (j % 4 == 3 ? " " : ""));
