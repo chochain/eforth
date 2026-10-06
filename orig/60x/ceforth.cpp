@@ -583,16 +583,13 @@ constexpr Code g_rom[] = {
     CODE("dict",  dict_dump()),
     CODE("forget",
          const Code *w = find(WORD());                      /// bail, if not found
-         if (w) {                                           /// clear to specified word
+         if (w && w->is_udf()) {                            /// clear to specified word
              pmem.clear((int)((U8*)w->pfa - MEM0) - STRLEN(w->name));
              for (int i=dict.idx - 1; i >=0; dict.clear(i--)) {
                  if (dict[i] == w) { dict.clear(i); break; }
              }
          }
-         else {                                             /// clear to 'boot'
-             pmem.clear(USER_AREA);
-             dict.clear();
-         }
+         else if (w) LOG("%s is built-in\n", w->name);      /// clear to 'boot'
     ),
     /// @}
     /// @defgroup OS ops
@@ -652,7 +649,7 @@ void dict_validate() {
     if ((UFP)doSTOP > max) max = (UFP)doSTOP;
     U64 off = max - Code::XT0;
 
-    LOG("XT0: 0x%zx, OFF, 0x%zx\n", Code::XT0, off);
+    LOG("XT0: 0x%zx, OFF: 0x%zx\n", Code::XT0, off);
     if (off > 0xFFFFFFFFULL)
         ERR("Execution memory space exceeds 32-bit offset limits!");
 }
