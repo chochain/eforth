@@ -4,14 +4,14 @@ EM_FLAG = -std=c++17 -O2 \
           -s PTHREAD_POOL_SIZE='navigator.hardwareConcurrency'
 
 CXX = g++
-CXXFLAG = -std=gnu++17 -g -O3 -Wall -pthread \
-          -fno-pie -no-pie \
+CXXFLAG = -std=gnu++17 -g -O2 -Wall -pthread \
+          -fno-pie -no-pie -DXT0_U32=1       \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
 CC = g++
-CC_FLAG = -std=gnu++17 -g -O3 -Wall -pthread \
-          -fno-pie -no-pie \
+CC_FLAG = -std=gnu++17 -g -O2 -Wall -pthread \
+          -fno-pie -no-pie -DXT0_U32=1       \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
