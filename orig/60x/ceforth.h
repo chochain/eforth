@@ -4,6 +4,14 @@
 #include <stdint.h>     // uintxx_t
 #include <exception>    // try...catch, throw
 #include "config.h"     // configuation and cross-platform support
+#ifndef XT0_U32
+  #if __SIZEOF_POINTER__ == 8
+  #define XT0_U32  0      /** 64-bit: build with -DXT0_U32=1 -no-pie to fold XT0 */
+  #else
+  #define XT0_U32  1      /** 32-bit target: pointers are already tokens         */
+  #endif
+#endif
+#define XT0_MSK  0xFFFFFFFF00000000ULL
 
 using namespace std;
 
@@ -174,7 +182,11 @@ typedef enum {
 /// @param tos Localized high-speed CPU hardware register cache holding Top-of-Stack data
 typedef void *(*FPTR)(VM &vm, IU* ip, int sp, DU tos);  /// tail-call (returns NEXT)
 struct Code {
-    static UFP XT0;         ///< function pointer base (in registers hopefully)
+#if XT0_U32
+    static constexpr UFP XT0 = 0;   ///< all code & pmem below 4GB (-no-pie, or 32-bit target): folds away
+#else
+    static UFP XT0;                 ///< function pointer base, set at run time (PIE builds)
+#endif
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
         FPTR xt = 0;        ///< lambda pointer or offset to pmem space (4-byte align)
@@ -213,19 +225,19 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 // =====================================================================
 // 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
 // =====================================================================
-#if __SIZEOF_POINTER__ == 8
-#define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
+#if XT0_U32
+#define NEXT_FP  ((FPTR)(UFP)(*ip++))
 #else
-#define NEXT_FP  ((FPTR)(*ip++))
+#define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
 #endif
 #define NEXT()   ({ FPTR fp = NEXT_FP; return fp(vm, ip, sp, tos);})   /** true tail call */
 
 #define CODE(n, g)                                  \
     rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
-             -> void *{ g; NEXT(); }, (U8)0)
+        INLINE -> void *{ g; NEXT(); }, (U8)0)
 #define IMMD(n, g)                                  \
     rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
-             -> void *{ g; NEXT(); }, (U8)IMM_ATTR)
+        INLINE -> void *{ g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
 ///@{
