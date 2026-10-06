@@ -138,8 +138,7 @@ struct ALIGNAS VM {
 #define UDF_ATTR   0x0001   /** user defined word    */
 #define IMM_ATTR   0x0002   /** immediate word       */
 #define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
-#define MSK_ATTR   ~0x3     /** mask udf,imm bits    */
-#define UDF_DICT   0x8000
+#define UDF_DICT   0x8000   /** user defined word    */
 ///}
 ///@name primitive opcode
 ///{
