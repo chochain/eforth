@@ -168,6 +168,12 @@ const Code *find(const char *s) {
 #define UALU(op) ({ tos = UINT(nos) op UINT(tos); FILL(); })
 #define CMP(op)  ({ tos = BOOL(op(nos, tos)); FILL(); })
 #define UCMP(op) ({ tos = BOOL(op(UINT(nos), UINT(tos))); FILL(); })
+///
+/// Register window <=> memory sync. Use around any call that reads or
+/// writes this VM's stack through memory (include, tasking, ...).
+///
+#define SPILL()  ({ SP = sp; TOS = tos; NOS = nos; })   /**< registers => memory  */
+#define RELOAD() ({ sp = SP; tos = TOS; nos = NOS; })   /**< memory => registers  */
 
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
@@ -289,7 +295,10 @@ constexpr Code g_rom[] = {
          RS[RP++] = (DU)TOK(ip);                     /// * return address
          ip = w),
     CODE("_;",      ip = XT(RS[--RP])),              ///< EXIT
-    CODE("_lit",    PUSH(*ip++)),                    /// doconst
+    CODE("_lit",                                     ///< doconst
+         DU v = *(DU*)ip;
+         ip += sizeof(DU)/sizeof(IU);                /// * should DU/IU size different
+         PUSH(v)),  /// doconst
     CODE("_var",    PUSH(TOK(ip)); UNNEST()),
     CODE("_str",
          U16 len = *(U16*)ip;                        /// 2-byte length
@@ -322,7 +331,8 @@ constexpr Code g_rom[] = {
          PUSH(TOK(ip + 1));                          /// * put param addr on tos
          if (tgt) ip = XT(tgt); else UNNEST()),      /// * jump to does> body, or return
     CODE("_for", RS[RP++] = POP()),
-    CODE("_do",  RS[RP++] = SS[--sp]; RS[RP++] = POP()),
+    CODE("_do",                                      /// ( limit start -- )
+         DU t = POP(); DU n = POP(); RS[RP++] = n; RS[RP++] = t),
     CODE("_key", PUSH(key()); UNNEST()),
     ///
     /// @defgroup Stack ops
@@ -330,18 +340,18 @@ constexpr Code g_rom[] = {
     /// @{
     CODE("dup",     PUSH(tos)),
     CODE("drop",    POP()),
-    CODE("over",    PUSH(nos)),
+    CODE("over",    DU v = nos; PUSH(v)),
     CODE("swap",    std::swap(tos, nos)),
     CODE("rot",     DU n = OS3; DU m = nos; OS3 = m; nos = tos; tos = n),
     CODE("-rot",    DU n = tos; tos = nos; nos = OS3; OS3 = n),
-    CODE("pick",    IU i = UINT(tos); tos = SS[sp - 2 - i]),
+    CODE("pick",    IU i = UINT(tos); tos = i ? SS[sp - 2 - i] : nos),
     CODE("nip",     nos = OS3; sp--),
-    CODE("?dup",    if (ZEQ(tos)) { DU v = tos; PUSH(v); }),
+    CODE("?dup",    if (!ZEQ(tos)) { DU v = tos; PUSH(v); }),
     /// @}
     /// @defgroup Stack ops - double
     /// @{
     CODE("2dup",    DU v1 = nos; DU v2 = tos; PUSH(v1); PUSH(v2)),
-    CODE("2drop",   sp -= 2),
+    CODE("2drop",   POP(); POP()),
     CODE("2over",   DU v1 = OS4; DU v2 = OS3; PUSH(v1); PUSH(v2)),
     CODE("2swap",
          DU v1 = tos; DU v2 = nos;
@@ -354,13 +364,14 @@ constexpr Code g_rom[] = {
     CODE("-",       ALU(-)),
     CODE("/",       ALU(/)),
     CODE("mod",     ALU(%)),
-    CODE("*/",      DU2 ss0 = (DU2)nos; nos = ss0 * OS3 / tos; sp -= 2),
+    CODE("*/",                              ///< ( a b c -- a*b/c )
+         DU2 n = (DU2)nos * OS3; tos = (DU)(n / tos); sp -= 2; nos = NOS),
     CODE("/mod",
          DU n = nos; DU t = tos; DU m = MOD(n, t);
          nos = m; tos = INT(n / t)),
-    CODE("*/mod",
-         DU2 n = (DU2)OS3; n *= nos; DU2 t = tos; DU m = MOD(n, t);
-         OS3 = m; NOS = INT(n / t); sp--),
+    CODE("*/mod",                           ///< ( a b c -- (a*b)%c )
+         DU2 n = (DU2)OS3; n *= nos; DU2 t = tos; DU m = MOD(n, t); DU q = INT(n / t);
+         nos = m; tos = q; sp--),
     CODE("and",     UALU(&)),
     CODE("or",      UALU(|)),
     CODE("xor",     UALU(^)),
@@ -407,7 +418,7 @@ constexpr Code g_rom[] = {
     CODE("u.",      dot(UDOT, POP(), *BASE)),
     CODE(".r",      IU w = POPI(); dotr(w, POP(), *BASE)),
     CODE("u.r",     IU w = POPI(); dotr(w, POP(), *BASE, true)),
-    CODE("type",    pstr((const char*)MEM(NOS)); sp -= 2),
+    CODE("type",    POP(); pstr((const char*)MEM(POP()))),
     IMMD("key",     if (vm.compile) add_xt("_key"); else PUSH(key())),
     CODE("emit",    dot(EMIT, POP())),
     CODE("space",   dot(SPCS, DU1)),
@@ -426,63 +437,63 @@ constexpr Code g_rom[] = {
     /// @{
     IMMD("if",
          add_xt("_0bran");                         /// if    ( -- here )
-         SS[SP++] = (DU)HERE_TGT;                  /// save ip0
+         PUSH(HERE_TGT);                           /// save ip0
          add_iu(0)),
     IMMD("else",                                   /// else ( here -- there )
          add_xt("_bran");
          IU tgt  = HERE_TGT;                       /// save target
          add_iu(0);
-         IU *ip0 = (IU*)MEM(SS[--SP]);             /// fetch ip0
+         IU *ip0 = (IU*)MEM(POP());                /// fetch ip0
          *ip0 = HERE_TGT;
-         SS[SP++] = (DU)tgt),
+         PUSH(tgt)),
     IMMD("then",
-         IU *ip0 = (IU*)MEM(SS[--SP]);
+         IU *ip0 = (IU*)MEM(POP());
          *ip0 = HERE_TGT),                         /// backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
-    IMMD("begin", SS[SP++] = (DU)HERE_TGT),
-    IMMD("again", add_xt("_bran");  add_iu(SS[--SP])),       /// again    ( there -- )
-    IMMD("until", add_xt("_0bran"); add_iu(SS[--SP])),       /// until    ( there -- )
+    IMMD("begin", PUSH(HERE_TGT)),
+    IMMD("again", add_xt("_bran");  add_iu(POPI())),         /// again    ( there -- )
+    IMMD("until", add_xt("_0bran"); add_iu(POPI())),         /// until    ( there -- )
     IMMD("while",                                            /// while    ( there -- there here )
          add_xt("_0bran");
-         SS[SP++] = (DU)HERE_TGT;                            /// not touching tos
+         PUSH(HERE_TGT);
          add_iu(0)),
     IMMD("repeat",                                           /// repeat    ( there1 there2 -- )
          add_xt("_bran");
-         IU *t = (IU*)MEM(SS[--SP]);                         /// set forward and loop back address
-         add_iu(SS[--SP]);
+         IU *t = (IU*)MEM(POP());                            /// set forward and loop back address
+         add_iu(POPI());
          *t = HERE_TGT),
     /// @}
-    /// @defgrouop FOR...NEXT loops
+    /// @defgroup FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_xt("_for"); SS[SP++] = HERE_TGT),    /// for ( -- here )
-    IMMD("next",    add_xt("_next"); add_iu(SS[--SP])),      /// next ( here -- )
+    IMMD("for" ,    add_xt("_for"); PUSH(HERE_TGT)),         /// for ( -- here )
+    IMMD("next",    add_xt("_next"); add_iu(POPI())),        /// next ( here -- )
     IMMD("aft",                                              /// aft ( here -- here there )
-         SP--;
+         POP();
          add_xt("_bran");
          IU h = HERE_TGT;
          add_iu(0);
-         SS[SP++] = (DU)HERE_TGT;
-         SS[SP++] = (DU)h),
+         PUSH(HERE_TGT);
+         PUSH(h)),
     /// @}
     /// @}
-    /// @defgrouop DO..LOOP loops
+    /// @defgroup DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_xt("_do"); SS[SP++]=(DU)HERE_TGT),   /// for ( -- here )
+    IMMD("do" ,     add_xt("_do"); PUSH(HERE_TGT)),          /// do ( -- here )
     CODE("i",       PUSH(RS[RP-1])),
-    CODE("leave",   --RP; --RP; UNNEST()),                   /// quit DO..LOOP
-    IMMD("loop",    add_xt("_loop"); add_iu(SS[--SP])),      /// next ( here -- )
+    CODE("leave",   --RP; --RP; UNNEST()),                   /// NOTE: exits the word, not just the loop
+    IMMD("loop",    add_xt("_loop"); add_iu(POPI())),        /// loop ( here -- )
     /// @}
-    /// @defgrouop return stack op
+    /// @defgroup return stack op
     /// @{
     CODE(">r",      RS[RP++] = POP()),
     CODE("r>",      PUSH(RS[--RP])),
     CODE("r@",      PUSH(RS[RP-1])),                         /// same as I (the loop counter)
     /// @}
-    /// @defgrouop Compiler ops
+    /// @defgroup Compiler ops
     /// @{
     CODE("[",       vm.compile = false),
     CODE("]",       vm.compile = true),
@@ -515,7 +526,7 @@ constexpr Code g_rom[] = {
          if (vm.compile) {
              const Code *w = find(WORD());                   /// constant addr
              add_xt("_lit");
-             add_w(w);
+             add_iu(TOK(w->xt));                             /// push body address (no _: wrapper)
              add_xt("to");                                   /// encode to opcode
          }
          else {
@@ -526,7 +537,7 @@ constexpr Code g_rom[] = {
          const Code *w = find(WORD());
          if (vm.compile) {
              add_xt("_lit");
-             add_w(w);                                       /// save addr on stack
+             add_iu(TOK(w->xt));                             /// save addr on stack
              add_xt("is");
          }
          else {
@@ -547,24 +558,29 @@ constexpr Code g_rom[] = {
     CODE("allot",                                            /// n --
          IU n = POPI();                                      /// number of bytes
          for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0)),  /// zero padding
-    CODE("th",    nos += tos * sizeof(DU); FILL()),          /// w i -- w'
+    CODE("th",    tos = nos + tos * sizeof(DU); FILL()),     /// w i -- w'
     /// @}
 #if DO_MULTITASK
     /// @defgroup Multitasking ops
     /// @}
     CODE("task",                                             /// w -- task_id
          IU w = POPI();                                      ///< dictionary index
-         if (!dict[w]->is_udf()) PUSH(task_create(dict[w]->pfa));  /// create a task starting on pfa
+         if (dict[w]->is_udf()) {
+             SPILL();
+             IU tid = task_create(dict[w]->pfa);             /// create a task starting on pfa
+             RELOAD();
+             PUSH(tid);
+         }
          else pstr("  ?colon word only\n")),
     CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
-    CODE("start", task_start(POPI())),                       /// ( task_id -- )
-    CODE("join",  vm.join(POPI())),                          /// ( task_id -- )
+    CODE("start", IU t = POPI(); SPILL(); task_start(t); RELOAD()),                       /// ( task_id -- )
+    CODE("join",  IU t = POPI(); SPILL(); vm.join(t); RELOAD()),                          /// ( task_id -- )
     CODE("lock",  vm.io_lock()),                             /// wait for IO semaphore
     CODE("unlock",vm.io_unlock()),                           /// release IO semaphore
-    CODE("send",  IU t = POPI(); vm.send(t, POPI())),        /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
-    CODE("recv",  vm.recv()),                                /// ( -- v1 v2 .. vn ) waiting for values passed by sender
-    CODE("bcast", vm.bcast(POPI())),                         /// ( v1 v2 .. vn -- )
-    CODE("pull",  IU t = POPI(); vm.pull(t, POPI())),        /// ( tid n -- v1 v2 .. vn )
+    CODE("send",  IU t = POPI(); IU n = POPI(); SPILL(); vm.send(t, n); RELOAD()),        /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
+    CODE("recv",  SPILL(); vm.recv(); RELOAD()),                                /// ( -- v1 v2 .. vn ) waiting for values passed by sender
+    CODE("bcast", IU n = POPI(); SPILL(); vm.bcast(n); RELOAD()),                         /// ( v1 v2 .. vn -- )
+    CODE("pull",  IU t = POPI(); IU n = POPI(); SPILL(); vm.pull(t, n); RELOAD()),        /// ( tid n -- v1 v2 .. vn )
     /// @}
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
@@ -601,10 +617,12 @@ constexpr Code g_rom[] = {
     /// @}
     /// @defgroup OS ops
     /// @{
-    IMMD("include", load(vm, WORD())),                      /// include an OS file
+    IMMD("include",                                         /// include an OS file
+         const char *f = WORD(); SPILL(); load(vm, f); RELOAD()),  
     CODE("included",                                        /// include file spec on stack
          POP();                                             /// string length, not used
-         load(vm, (const char*)MEM(POP()))),                /// include external file
+         const char *f = (const char*)MEM(POP());
+         SPILL(); load(vm, f); RELOAD()),                   /// include external file
     CODE("ok",    mem_stat()),
     CODE("clock", PUSH(millis())),
     CODE("rnd",   PUSH(RND())),                             /// generate random number
