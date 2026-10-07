@@ -181,7 +181,7 @@ void pstr(const char *str, io_op op) {
 
 static const Code *tok2rom(IU tok) {                       ///< reverse lookup a primitive
     for (int i = 0; i < g_romsz; i++) {
-        if (TOK((const void*)g_rom[i].xt) == tok) return &g_rom[i];
+        if (TOK(g_rom[i].xt) == tok) return &g_rom[i];
     }
     return nullptr;
 }
@@ -202,26 +202,25 @@ static int nvar_cells(int di, const IU *op, int hdr) {     ///< # of data cells 
 ///
 /// How to decode the cells that follow an opcode (everything else is a plain, operand-less primitive)
 ///
-enum OpKind { K_PLAIN, K_CALL, K_LIT, K_STR, K_DOTQ, K_BRANCH, K_EXIT, K_VAR, K_VBRAN };
-static const struct { const char *name; OpKind kind; } OP_TBL[] = {
-    { "_:",    K_CALL    },                                ///< [_:][body token]
-    { "_lit",  K_LIT     },                                ///< [_lit][value]
-    { "_str",  K_STR     },                                ///< [_str][len16, chars, 0, pad]
-    { "_dotq", K_DOTQ    },                                ///< [_dotq][len16, chars, 0, pad]
-    { "_bran", K_BRANCH  }, { "_0bran", K_BRANCH },        ///< [op][target token]
-    { "_next", K_BRANCH  }, { "_loop",  K_BRANCH },
-    { "_;",    K_EXIT },                                   ///< end of word
-    { "_var",  K_VAR  },                                   ///< [_var][data...]
-    { "vbran", K_VBRAN},                                   ///< [vbran][does> token][data...]
+typedef enum { NOP, ENTER, EXIT, LIT, VAR, VBRAN, STR, DOTQ, BRAN } see_op;
+static const struct { const char *name; see_op op; } SEE_OP[] = {
+    { "_:",    ENTER },                     ///< [_:][body token]
+    { "_;",    EXIT  },                     ///< end of word
+    { "_lit",  LIT   },                     ///< [_lit][value]
+    { "_var",  VAR   },                     ///< [_var][data...]
+    { "vbran", VBRAN },                     ///< [vbran][does> token][data...]
+    { "_str",  STR   },                     ///< [_str][len16, chars, 0, pad]
+    { "_dotq", DOTQ  },                     ///< [_dotq][len16, chars, 0, pad]
+    { "_bran", BRAN  }, { "_0bran", BRAN }, ///< [op][target token]
+    { "_next", BRAN  }, { "_loop",  BRAN },
 };
-static OpKind op_kind(const Code *c) {
-    for (const auto &o : OP_TBL) if (!strcmp(c->name, o.name)) return o.kind;
-    return K_PLAIN;
+static see_op get_op(const Code *c) {
+    for (const auto &o : SEE_OP) if (!strcmp(c->name, o.name)) return o.op;
+    return NOP;
 }
 
 void see(IU pfa, int base) {                                ///< disassemble a colon word
     const IU *ip = PTR(pfa);                                ///< body address from token
-    int  di = tok2udf(pfa);                                 ///< dictionary index (for data size)
     char tmp[66];
     auto num = [&](DU v) { return _format(v, base, tmp, sizeof(tmp), 0); };
 
@@ -240,25 +239,18 @@ void see(IU pfa, int base) {                                ///< disassemble a c
         const IU *nx  = ip + 1;                             ///< next cell (after opcode)
         bool      end = false;
 
-        switch (op_kind(c)) {
-        case K_CALL: {
+        switch (get_op(c)) {
+        case ENTER: {
             int k = tok2udf(*nx++);
             fout("%s", k >= 0 ? dict[k]->name : "?");
         } break;
-        case K_LIT:
-            fout("%s ( lit )", num(*(const DU*)nx++)); break;
-        case K_STR:
-        case K_DOTQ: {
-            U16 len = *(const U16*)nx;
-            fout(op_kind(c) == K_STR
-                 ? "s\" %s\"" : ".\" %s\"", (const char*)nx + sizeof(U16));
-            nx = (const IU*)((const U8*)nx + ALIGN(sizeof(U16) + len + 1));
-        } break;
-        case K_BRANCH: fout("%s $%04x", c->name, OFF(PTR(*nx++))); break;
-        case K_EXIT:   fout(";"); end = true;                      break;
-        case K_VAR:
-        case K_VBRAN: {
-            bool is_var = (op_kind(c) == K_VAR);
+        case EXIT: fout(";"); end = true;                      break;
+        case LIT:
+            fout("%s ( lit )", num(*(const DU*)nx++));         break;
+        case VAR:
+        case VBRAN: {
+            int  di     = tok2udf(pfa);                     ///< dictionary index (for data size)
+            bool is_var = (get_op(c) == VAR);
             fout("%s", c->name);
             if (!is_var && *nx) fout(" does> $%04x", OFF(PTR(*nx)));
             int n = nvar_cells(di, ip, is_var ? 1 : 2);
@@ -266,9 +258,15 @@ void see(IU pfa, int base) {                                ///< disassemble a c
             for (int i = 0; i < n; i++) fout(" %s", num(*(const DU*)(nx + i)));
             end = true;                                     /// * data ends the word
         } break;
-        default:
-            fout("%s", c->name);                            /// * plain primitive
-            break;
+        case STR:
+        case DOTQ: {
+            U16 len = *(const U16*)nx;
+            fout(get_op(c) == STR
+                 ? "s\" %s\"" : ".\" %s\"", (const char*)nx + sizeof(U16));
+            nx = (const IU*)((const U8*)nx + ALIGN(sizeof(U16) + len + 1));
+        } break;
+        case BRAN: fout("%s $%04x", c->name, OFF(PTR(*nx++))); break;
+        default:   fout("%s", c->name);                        break;
         }
         fout_flush('\n');
         if (end) break;
