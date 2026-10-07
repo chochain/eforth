@@ -64,6 +64,10 @@ static const char* _format(DU v, int b, char* buf, int max, int w, char fill=' '
     return &buf[i];
 }
 /// =============================================================
+extern List<Code*> dict;                   ///< dictionary
+extern List<U8>    pmem;                   ///< parameter memory (for colon definitions)
+extern U8          *MEM0;                  ///< base of parameter memory block
+
 #define TOS       (vm.tos)                 /**< Top of stack                            */
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
@@ -171,10 +175,11 @@ void pstr(const char *str, io_op op) {
 ///> Debug functions
 ///
 int pfa2didx(IU ix) {                          ///> reverse lookup
+    if (IS_PRIM(ix)) return (int)ix;           ///> primitives
     IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
     for (int i = dict.idx - 1; i > 0; --i) {
         Code *c = dict[i];
-        if (pfa == ((UFP)c->xt & 0xffffffff)) return i;
+        if (pfa == (c->is_udf() ? c->pfa : c->xtoff())) return i;
     }
     return 0;                                  /// * not found
 }
@@ -212,7 +217,7 @@ void to_s(IU w, U8 *ip, int base) {
             fout("%x ", *(DU*)MEM(a + i));
         }
     }                                   /// no break, fall through
-    default: fout("%s", dict[w]->name); break;
+    default: fout("%s", prim_or_dict(w)->name); break;
     }
     switch (w) {
     case NEXT: case LOOP:
@@ -247,8 +252,9 @@ void see(IU pfa, int base) {
 
 void words() {
     const int WIDTH = 56;
-    auto blip = [](int &sz, int i, const Code &c) {
-        const char *nm = c.name;
+    int sz = 0;
+    for (int i=0; i<dict.idx; i++) {
+        const char *nm = dict[i]->name;
         const int  len = strlen(nm);
 #if CC_DEBUG > 1
         if (nm[0]) {
@@ -262,22 +268,19 @@ void words() {
             sz = 0;
             fout_flush('\n');
         }
-    };
-    int sz = 0;
-    for (int i = 0; i < g_romsz;  ++i) blip(sz, i, g_rom[i]);
-    for (int i = 0; i < dict.idx; ++i) blip(sz, i, *dict[i]);
+    }
     fout_flush('\n');
 }
 
 static int load_dp = 0;
 void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter
-    RS.push(*vm.ip);                     /// * save context
+    RS.push(vm.ip);                      /// * save context
     RS.push(vm.state);
     vm.state = NEST;                     /// * +recursive
     forth_include(fn);                   /// * include file
     vm.state = static_cast<vm_state>(RS.pop());
-    *vm.ip   = UINT(RS.pop());           /// * context restored
+    vm.ip   = UINT(RS.pop());            /// * context restored
     --load_dp;                           /// * decrement depth counter
 }
 
@@ -295,7 +298,7 @@ void ss_dump(VM &vm, bool forced) {
 }
 void mem_dump(U32 p0, IU sz, int base) {
     for (IU i=p0 & ~15; i<=(p0+sz); i+=16) {
-        fout("%08zx %04x: ", (UFP)&pmem[i], i);
+        fout("%04x: ", i);
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
             fout("%02x%s", (int)c, (j % 4 == 3 ? " " : ""));
@@ -310,14 +313,14 @@ void mem_dump(U32 p0, IU sz, int base) {
 }
 
 void dict_dump() {
-    auto blip = [](int i, const Code &c) {
-        fout("%03d> xt=%p, attr=%x, xtoff=%08zx %s\n",
-             i, c.xt, (c.attr & 0x3), (UFP)c.xt & 0xFFFFFFFF, c.name);
+    fout("XT0=%x\n", (U32)Code::XT0);
+    for (int i=0; i<dict.idx; i++) {
+        Code *c = dict[i];
+        fout("%03d> xt=%p, attr=%x, xtoff=%04x %s\n",
+             i, c->xt, (c->attr & 0x3),
+             (c->is_udf() ? c->pfa : c->xtoff()), c->name);
         fout_flush();
-    };
-    fout("XT0=%zx\n", Code::XT0);
-    for (int i=0; i < g_romsz; i++)  blip(i, g_rom[i]);
-    for (int i=0; i < dict.idx; i++) blip(i, *dict[i]);
+    }
 }
 ///====================================================================
 ///
