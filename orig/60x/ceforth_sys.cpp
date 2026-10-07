@@ -66,7 +66,6 @@ static const char* _format(DU v, int b, char* buf, int max, int w, char fill=' '
 /// =============================================================
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
-#define TOS       (SS[SS.idx-1])           /**< Top of stack                            */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
 
@@ -188,15 +187,18 @@ static const Code *tok2code(IU tok) {                      ///< reverse lookup a
     }
     return nullptr;
 }
-static int nvar_cells(const Code *c, const IU *op, int hdr) {     ///< # of data cells after _var/vbran
-    int di;
-    for (di = dict.idx - 1; di >= 0; --di) if (dict[di] == c) break;
-    if (di < 0) return 0;
-    const U8 *end = (di + 1 < dict.idx)
-        ? (const U8*)dict[di + 1]->name                    /// * next word's name field
-        : (const U8*)&pmem[pmem.idx];                      /// * or end of pmem
-    int bytes = (int)(end - (const U8*)op) - hdr * (int)sizeof(IU);
-    return bytes > 0 ? bytes / (int)sizeof(IU) : 0;
+static const U8 *word_end(IU pfa) {                         ///< end of a colon word's parameter area
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (TOK(dict[i]->xt) != pfa) continue;
+        return (i + 1 < dict.idx)
+            ? (const U8*)dict[i + 1]->name                  /// * next word's name field
+            : (const U8*)&pmem[pmem.idx];                   /// * or end of pmem
+    }
+    return (const U8*)&pmem[pmem.idx];
+}
+static int nvar_cells(const U8 *end, const IU *data) {     ///< # of DU cells from data to end of word
+    int bytes = (int)(end - (const U8*)data);
+    return bytes > 0 ? bytes / (int)sizeof(DU) : 0;
 }
 ///
 /// How to decode the cells that follow an opcode (everything else is a plain, operand-less primitive)
@@ -222,10 +224,12 @@ static see_op get_op(const Code *c) {
 
 void see(IU pfa, int base) {                                ///< disassemble a colon word
     const IU *ip = PTR(pfa);                                ///< body address from token
+    const U8 *wend = word_end(pfa);                         ///< end of this word's pmem
+    bool done = false;
     char tmp[66];
     auto num = [&](DU v) { return _format(v, base, tmp, sizeof(tmp), 0); };
 
-    for (int guard = 0; guard < 256; guard++) {             ///> guard against a runaway
+    for (int guard = 0; guard < 256 && !done; guard++) {    ///> guard against a runaway
         IU tok = *ip;
         const Code *c = tok2code(tok);
         fout("  ");
@@ -235,6 +239,7 @@ void see(IU pfa, int base) {                                ///< disassemble a c
         if (!c) {                                           /// * not an opcode we know
             fout("?? %08x", tok);
             fout_flush('\n');
+            done = true;
             break;
         }
         const IU *nx  = ip + 1;                             ///< next cell (after opcode)
@@ -246,17 +251,19 @@ void see(IU pfa, int base) {                                ///< disassemble a c
             fout("%s", w ? w->name : "?");
         } break;
         case EXIT:  fout(";"); end = true;                     break;
-        case LIT:   fout("%s ( lit )", num(*(const DU*)nx++)); break;
+        case LIT: {
+            fout("%s ( lit )", num(*(const DU*)nx));
+            nx += sizeof(DU) / sizeof(IU);                  /// * same advance as _lit
+        } break;
         case VAR:
         case VBRAN: {
             bool is_var = get_op(c) == VAR;
             fout("%s", c->name);
             if (!is_var && *nx) fout(" does> $%04x", OFF(PTR(*nx)));
-            int n = nvar_cells(c, ip, is_var ? 1 : 2);
-            if (!is_var) nx++;
-            for (int i = 0; i < n; i++) {
-                fout(" %s", num(*(const DU*)(nx + i)));
-            }
+            if (!is_var) nx++;                              /// * skip does> cell
+            const DU *d = (const DU*)nx;
+            int n = nvar_cells(wend, nx);
+            for (int i = 0; i < n; i++) fout(" %s", num(d[i]));
             end = true;                                     /// * data ends the word
         } break;
         case STR:
@@ -270,9 +277,10 @@ void see(IU pfa, int base) {                                ///< disassemble a c
         default:   fout("%s", c->name);                        break;
         }
         fout_flush('\n');
-        if (end) break;
+        if (end) { done = true; break; }
         ip = nx;
     }
+    if (!done) { fout("  ..."); fout_flush('\n'); }       /// * listing was truncated
 }
 
 void words() {
@@ -314,12 +322,10 @@ void load(VM &vm, const char* fn) {
 void ss_dump(VM &vm, bool forced) {
     if (load_dp) return;                 /// * skip when including file
     
-    SS.push(TOS);
     for (int i=0; i<SS.idx; i++) {
         char tmp[66];
         fout("%s ", _format(SS[i], *MEM(vm.base), tmp, sizeof(tmp), 0));
     }
-    TOS = SS.pop();
     fout("ok\n");
     fout_flush();
 }
