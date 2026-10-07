@@ -179,19 +179,18 @@ void pstr(const char *str, io_op op) {
 #define OFF(p)  ((IU)((const U8*)(p) - MEM0))              /**< address => offset in pmem       */
 #define TOK(p)  (Code::Token((void*)(p)))
 
-static const Code *tok2rom(IU tok) {                       ///< reverse lookup a primitive
+static const Code *tok2code(IU tok) {                      ///< reverse lookup a primitive
     for (int i = 0; i < g_romsz; i++) {
         if (TOK(g_rom[i].xt) == tok) return &g_rom[i];
     }
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (TOK(dict[i]->xt) == tok) return dict[i];
+    }
     return nullptr;
 }
-static int tok2udf(IU tok) {                               ///< reverse lookup a colon word by body
-    for (int i = dict.idx - 1; i >= 0; --i) {
-        if (TOK((const void*)dict[i]->pfa) == tok) return i;
-    }
-    return -1;
-}
-static int nvar_cells(int di, const IU *op, int hdr) {     ///< # of data cells after _var/vbran
+static int nvar_cells(const Code *c, const IU *op, int hdr) {     ///< # of data cells after _var/vbran
+    int di;
+    for (di = dict.idx - 1; di >= 0; --di) if (dict[di] == c) break;
     if (di < 0) return 0;
     const U8 *end = (di + 1 < dict.idx)
         ? (const U8*)dict[di + 1]->name                    /// * next word's name field
@@ -215,7 +214,9 @@ static const struct { const char *name; see_op op; } SEE_OP[] = {
     { "_next", BRAN  }, { "_loop",  BRAN },
 };
 static see_op get_op(const Code *c) {
-    for (const auto &o : SEE_OP) if (!strcmp(c->name, o.name)) return o.op;
+    for (const auto &o : SEE_OP) {
+        if (!strcmp(c->name, o.name)) return o.op;
+    }
     return NOP;
 }
 
@@ -226,7 +227,7 @@ void see(IU pfa, int base) {                                ///< disassemble a c
 
     for (int guard = 0; guard < 256; guard++) {             ///> guard against a runaway
         IU tok = *ip;
-        const Code *c = tok2rom(tok);
+        const Code *c = tok2code(tok);
         fout("  ");
 #if CC_DEBUG
         fout("( %04x ) ", OFF(ip));
@@ -241,21 +242,21 @@ void see(IU pfa, int base) {                                ///< disassemble a c
 
         switch (get_op(c)) {
         case ENTER: {
-            int k = tok2udf(*nx++);
-            fout("%s", k >= 0 ? dict[k]->name : "?");
+            const Code *w = tok2code(*nx++);
+            fout("%s", w ? w->name : "?");
         } break;
-        case EXIT: fout(";"); end = true;                      break;
-        case LIT:
-            fout("%s ( lit )", num(*(const DU*)nx++));         break;
+        case EXIT:  fout(";"); end = true;                     break;
+        case LIT:   fout("%s ( lit )", num(*(const DU*)nx++)); break;
         case VAR:
         case VBRAN: {
-            int  di     = tok2udf(pfa);                     ///< dictionary index (for data size)
-            bool is_var = (get_op(c) == VAR);
+            bool is_var = get_op(c) == VAR;
             fout("%s", c->name);
             if (!is_var && *nx) fout(" does> $%04x", OFF(PTR(*nx)));
-            int n = nvar_cells(di, ip, is_var ? 1 : 2);
+            int n = nvar_cells(c, ip, is_var ? 1 : 2);
             if (!is_var) nx++;
-            for (int i = 0; i < n; i++) fout(" %s", num(*(const DU*)(nx + i)));
+            for (int i = 0; i < n; i++) {
+                fout(" %s", num(*(const DU*)(nx + i)));
+            }
             end = true;                                     /// * data ends the word
         } break;
         case STR:
