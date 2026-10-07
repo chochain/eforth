@@ -85,6 +85,13 @@ struct List {
         idx = mx;
     }
 };
+
+// The lightweight register window context passed down the execution chain by value
+struct Stk {
+    int sp;     ///< Stack Pointer Depth
+    DU  tos;    ///< Top of Stack
+    DU  nos;    ///< Next of Stack
+};
 ///====================================================================
 ///
 ///> VM context (single task)
@@ -97,7 +104,9 @@ struct ALIGNAS VM {
 
     IU       id      = 0;          ///< vm id
     IU       *ip     = NULL;       ///< instruction pointer
+    int      sp      = 0;
     DU       tos     = -DU1;       ///< top of stack (cached)
+    DU       nos     = -DU1;
 
     vm_state state   = STOP;       ///< VM status
     IU       base    = 0;          ///< numeric radix (a pointer)
@@ -169,9 +178,8 @@ struct ALIGNAS VM {
 /// @brief Unified Function Pointer signature for the Direct-Threaded Continuation Trampoline
 /// @param vm Context reference tracking task-isolated persistent structures
 /// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
-/// @param sp Localized register tracker alias targeting the stack index tracking array natively
-/// @param tos Localized high-speed CPU hardware register cache holding Top-of-Stack data
-typedef void *(*FPTR)(VM &vm, IU* ip, int sp, DU tos);  /// tail-call (returns NEXT)
+/// @param Stk Localized register pack
+typedef void *(*FPTR)(VM &vm, IU* ip, int sp, DU tos, DU nos);  ///< tail-call (returns NEXT)
 struct Code {
 #if XT0_U32
     static constexpr UFP XT0 = 0;   ///< all code & pmem below 4GB (-no-pie, or 32-bit target): folds away
@@ -221,13 +229,13 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 #else
 #define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
 #endif
-#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(vm, ip, sp, tos);})   /** true tail call */
+#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(vm, ip, sp, tos, nos);})   /** true tail call */
 
-#define CODE(n, g)                                  \
-    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
+#define CODE(n, g)                                              \
+    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos, DU nos)      \
         INLINE -> void *{ g; NEXT(); }, (U8)0)
-#define IMMD(n, g)                                  \
-    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
+#define IMMD(n, g)                                              \
+    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos, DU nos)      \
         INLINE -> void *{ g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
