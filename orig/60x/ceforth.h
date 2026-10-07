@@ -140,14 +140,6 @@ struct ALIGNAS VM {
 #define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
 #define UDF_DICT   0x8000   /** user defined word    */
 ///}
-///@name primitive opcode
-///{
-typedef enum {
-    EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
-    VBRAN, DOES, FOR, DO, KEY, MAX_OP
-} prim_op;
-#define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
-///@}
 ///@name Code class
 ///@brief - basic struct of dictionary entries
 ///
