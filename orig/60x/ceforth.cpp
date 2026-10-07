@@ -170,24 +170,20 @@ int def_word(const char* name) {    ///< display if redefined
     colon(name);                    /// * create a colon word
     return 1;                       /// * created OK
 }
-void s_quote(VM &vm, prim_op op, int &sp, DU &tos) {
+void s_quote(VM &vm, int &sp, DU &tos, bool dotq=false) {
     const char *s = SCAN('"')+1;    ///> string skip first blank
     if (vm.compile) {
-        switch (op) {
-        case STR:  add_xt("_str");  break;
-        case DOTQ: add_xt("_dotq"); break;
-        default: pstr("s_quote unknown op:");
-        }
+        add_xt(dotq ? "_dotq" : "_str"); 
         add_str(s);                 ///> 16-bit len, byte0, byte1, byte2, ..., byteN, '\0'
     }
     else {                          ///> use PAD ad TEMP storage
         IU h0  = HERE;              ///> keep current memory addr
         DU len = add_str(s);        ///> write string to PAD
         char *str = (char*)&pmem[h0] + sizeof(U16);
-        switch (op) {
-        case STR:  PUSH((DU)TOK(str)); PUSH(len); break; ///> addr, len
-        case DOTQ: pstr(str, CR);                 break; ///> to console
-        default:   pstr("s_quote unknown op:");
+        if (dotq) pstr(str, CR);
+        else {
+            PUSH((DU)TOK(str));     ///> addr, len
+            PUSH(len);
         }
         HERE = h0;                  ///> restore memory addr
     }
@@ -411,8 +407,8 @@ constexpr Code g_rom[] = {
     IMMD("(",       SCAN(')')),
     IMMD(".(",      pstr(SCAN(')'))),
     IMMD("\\",      SCAN('\n')),
-    IMMD("s\"",     s_quote(vm, STR, sp, tos)),
-    IMMD(".\"",     s_quote(vm, DOTQ, sp, tos)),
+    IMMD("s\"",     s_quote(vm, sp, tos, true)),
+    IMMD(".\"",     s_quote(vm, sp, tos, false)),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
