@@ -21,6 +21,7 @@
 #define E4_PAD_SZ       66              /**< temp pad size         */
 #define E4_IBUF_SZ      128             /**< input buffer size     */
 #define E4_OBUF_SZ      1024            /**< output buffer size    */
+#define USER_AREA       (ALIGN16(E4_VM_POOL_SZ))
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
