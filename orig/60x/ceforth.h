@@ -104,8 +104,6 @@ struct ALIGNAS VM {
 
     IU       id      = 0;          ///< vm id
     IU       *ip     = NULL;       ///< instruction pointer
-    DU       tos     = -DU1;       ///< top of stack (cached)
-    DU       nos     = -DU1;
 
     vm_state state   = STOP;       ///< VM status
     IU       base    = 0;          ///< numeric radix (a pointer)
