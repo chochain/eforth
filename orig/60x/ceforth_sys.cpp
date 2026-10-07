@@ -64,9 +64,9 @@ static const char* _format(DU v, int b, char* buf, int max, int w, char fill=' '
     return &buf[i];
 }
 /// =============================================================
-#define TOS       (vm.tos)                 /**< Top of stack                            */
 #define SS        (vm.ss)                  /**< parameter stack (per task)              */
 #define RS        (vm.rs)                  /**< return stack (per task)                 */
+#define TOS       (SS[SS.idx-1])           /**< Top of stack                            */
 #define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
 #define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
 
