@@ -170,78 +170,109 @@ void pstr(const char *str, io_op op) {
 ///
 ///> Debug functions
 ///
-int pfa2didx(IU ix) {                          ///> reverse lookup
-    IU pfa = ix & ~EXT_FLAG;                   ///< pfa (mask colon word)
-    for (int i = dict.idx - 1; i > 0; --i) {
-        Code *c = dict[i];
-        if (pfa == ((UFP)c->xt & 0xffffffff)) return i;
+/// Token <-> pointer helpers (cells in pmem hold 32-bit tokens of real addresses)
+///   primitive : token of its function address (lambda in g_rom)
+///   colon word: token of its body address in pmem, compiled as [_:][body token]
+///   branches  : token of the target address in pmem
+///
+#define PTR(t)  ((const IU*)(Code::XT0 | (UFP)(IU)(t)))    /**< token => address                */
+#define OFF(p)  ((IU)((const U8*)(p) - MEM0))              /**< address => offset in pmem       */
+#define TOK(p)  (Code::Token((void*)(p)))
+
+static const Code *tok2rom(IU tok) {                       ///< reverse lookup a primitive
+    for (int i = 0; i < g_romsz; i++) {
+        if (TOK((const void*)g_rom[i].xt) == tok) return &g_rom[i];
     }
-    return 0;                                  /// * not found
+    return nullptr;
+}
+static int tok2udf(IU tok) {                               ///< reverse lookup a colon word by body
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (TOK((const void*)dict[i]->pfa) == tok) return i;
+    }
+    return -1;
+}
+static int nvar_cells(int di, const IU *op, int hdr) {     ///< # of data cells after _var/vbran
+    if (di < 0) return 0;
+    const U8 *end = (di + 1 < dict.idx)
+        ? (const U8*)dict[di + 1]->name                    /// * next word's name field
+        : (const U8*)&pmem[pmem.idx];                      /// * or end of pmem
+    int bytes = (int)(end - (const U8*)op) - hdr * (int)sizeof(IU);
+    return bytes > 0 ? bytes / (int)sizeof(IU) : 0;
+}
+///
+/// How to decode the cells that follow an opcode (everything else is a plain, operand-less primitive)
+///
+enum OpKind { K_PLAIN, K_CALL, K_LIT, K_STR, K_DOTQ, K_BRANCH, K_EXIT, K_VAR, K_VBRAN };
+static const struct { const char *name; OpKind kind; } OP_TBL[] = {
+    { "_:",    K_CALL    },                                ///< [_:][body token]
+    { "_lit",  K_LIT     },                                ///< [_lit][value]
+    { "_str",  K_STR     },                                ///< [_str][len16, chars, 0, pad]
+    { "_dotq", K_DOTQ    },                                ///< [_dotq][len16, chars, 0, pad]
+    { "_bran", K_BRANCH  }, { "_0bran", K_BRANCH },        ///< [op][target token]
+    { "_next", K_BRANCH  }, { "_loop",  K_BRANCH },
+    { "_;",    K_EXIT },                                   ///< end of word
+    { "_var",  K_VAR  },                                   ///< [_var][data...]
+    { "vbran", K_VBRAN},                                   ///< [vbran][does> token][data...]
+};
+static OpKind op_kind(const Code *c) {
+    for (const auto &o : OP_TBL) if (!strcmp(c->name, o.name)) return o.kind;
+    return K_PLAIN;
 }
 
-int  pfa2nvar(IU pfa) {
-    IU  w  = *(IU*)MEM(pfa);
-    if (w != VAR && w != VBRAN) return 0;
-    
-    IU  i0 = pfa2didx(pfa | EXT_FLAG);
-    if (!i0) return 0;
-    IU  p1 = (i0+1) < dict.idx ? TONAME(i0+1) : pmem.idx;
-    int n  = p1 - pfa - sizeof(IU) * (w==VAR ? 1 : 2);    ///> CC: calc # of elements
-    return n;
-}
+void see(IU pfa, int base) {                                ///< disassemble a colon word
+    const IU *ip = PTR(pfa);                                ///< body address from token
+    int  di = tok2udf(pfa);                                 ///< dictionary index (for data size)
+    char tmp[66];
+    auto num = [&](DU v) { return _format(v, base, tmp, sizeof(tmp), 0); };
 
-void to_s(IU w, U8 *ip, int base) {
+    for (int guard = 0; guard < 256; guard++) {             ///> guard against a runaway
+        IU tok = *ip;
+        const Code *c = tok2rom(tok);
+        fout("  ");
 #if CC_DEBUG
-    fout("( %04x[%4x] ) ", (IU)(ip - MEM0), w);
+        fout("( %04x ) ", OFF(ip));
 #endif // CC_DEBUG
-    
-    ip += sizeof(IU);                   ///> calculate next ip
-    switch (w) {
-    case LIT:  {
-        char tmp[66];
-        const char *vstr = _format(*(DU*)ip, base, tmp, sizeof(tmp), 0);
-        fout("%s ( lit )", vstr);
-    } break;
-    case STR:  fout("s\" %s\"",   (char*)ip);   break;
-    case DOTQ: fout(".\" %s\"",   (char*)ip);   break;
-    case VAR:
-    case VBRAN: {
-        int n  = pfa2nvar(UINT(ip - MEM0 - sizeof(IU)));
-        IU  ix = (IU)(ip - MEM0 + (w==VAR ? 0 : sizeof(IU)));
-        for (int i = 0, a=DALIGN(ix); i < n; i+=sizeof(DU)) {
-            fout("%x ", *(DU*)MEM(a + i));
+        if (!c) {                                           /// * not an opcode we know
+            fout("?? %08x", tok);
+            fout_flush('\n');
+            break;
         }
-    }                                   /// no break, fall through
-    default: fout("%s", dict[w]->name); break;
-    }
-    switch (w) {
-    case NEXT: case LOOP:
-    case BRAN: case ZBRAN: case VBRAN:  ///> display jmp target
-        fout(" $%04x", *(IU*)ip);
-        break;
-    default: /* do nothing */ break;
-    }
-}
+        const IU *nx  = ip + 1;                             ///< next cell (after opcode)
+        bool      end = false;
 
-void see(IU pfa, int base) {
-    U8 *ip = MEM(pfa);                  ///< memory pointer
-    while (1) {
-        IU w = pfa2didx(*(IU*)ip);      ///< fetch word index by pfa
-        if (!w) break;                  ///> loop guard
-        
-        fout("  ");                     /// * indent
-        to_s(w, ip, base);              /// * display opcode
+        switch (op_kind(c)) {
+        case K_CALL: {
+            int k = tok2udf(*nx++);
+            fout("%s", k >= 0 ? dict[k]->name : "?");
+        } break;
+        case K_LIT:
+            fout("%s ( lit )", num(*(const DU*)nx++)); break;
+        case K_STR:
+        case K_DOTQ: {
+            U16 len = *(const U16*)nx;
+            fout(op_kind(c) == K_STR
+                 ? "s\" %s\"" : ".\" %s\"", (const char*)nx + sizeof(U16));
+            nx = (const IU*)((const U8*)nx + ALIGN(sizeof(U16) + len + 1));
+        } break;
+        case K_BRANCH: fout("%s $%04x", c->name, OFF(PTR(*nx++))); break;
+        case K_EXIT:   fout(";"); end = true;                      break;
+        case K_VAR:
+        case K_VBRAN: {
+            bool is_var = (op_kind(c) == K_VAR);
+            fout("%s", c->name);
+            if (!is_var && *nx) fout(" does> $%04x", OFF(PTR(*nx)));
+            int n = nvar_cells(di, ip, is_var ? 1 : 2);
+            if (!is_var) nx++;
+            for (int i = 0; i < n; i++) fout(" %s", num(*(const DU*)(nx + i)));
+            end = true;                                     /// * data ends the word
+        } break;
+        default:
+            fout("%s", c->name);                            /// * plain primitive
+            break;
+        }
         fout_flush('\n');
-        if (w==EXIT || w==VAR) break;   /// * end of word
-
-        ip += sizeof(IU);               ///> advance ip (next opcode)
-        switch (w) {                    ///> extra bytes to skip
-        case LIT:   ip += sizeof(DU);                    break; 
-        case STR:   case DOTQ:  ip += STRLEN((char*)ip); break;
-        case BRAN:  case ZBRAN:
-        case NEXT:  case LOOP:  ip += sizeof(IU);        break;
-        case VBRAN: ip = MEM(*(IU*)ip);                  break;
-        }
+        if (end) break;
+        ip = nx;
     }
 }
 
