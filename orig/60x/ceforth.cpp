@@ -407,8 +407,8 @@ constexpr Code g_rom[] = {
     IMMD("(",       SCAN(')')),
     IMMD(".(",      pstr(SCAN(')'))),
     IMMD("\\",      SCAN('\n')),
-    IMMD("s\"",     s_quote(vm, sp, tos, true)),
-    IMMD(".\"",     s_quote(vm, sp, tos, false)),
+    IMMD("s\"",     s_quote(vm, sp, tos, false)),
+    IMMD(".\"",     s_quote(vm, sp, tos, true)),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
