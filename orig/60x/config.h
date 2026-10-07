@@ -21,16 +21,18 @@
 #define E4_PAD_SZ       66              /**< temp pad size         */
 #define E4_IBUF_SZ      128             /**< input buffer size     */
 #define E4_OBUF_SZ      1024            /**< output buffer size    */
+#define USER_AREA       (ALIGN16(E4_VM_POOL_SZ))
 ///@}
 ///
 ///@name Logical units (instead of physical) for type check and portability
 ///@{
+typedef uint64_t        U64;   ///< unsigned 64-bit integer
 typedef uint32_t        U32;   ///< unsigned 32-bit integer
 typedef int32_t         S32;   ///< signed 32-bit integer
 typedef uint16_t        U16;   ///< unsigned 16-bit integer
 typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
-typedef uint16_t        IU;    ///< instruction pointer unit
+typedef uint32_t        IU;    ///< instruction pointer unit
 
 #include <cmath>
 #if USE_FLOAT
@@ -87,10 +89,10 @@ typedef int32_t         DU;
 #define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
-#define ALIGN(sz)       ALIGN2(sz)
+#define ALIGN(sz)       ALIGN4(sz)
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
-#define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */
+#define STRLEN(s)       (ALIGN(sizeof(U16)+strlen(s)+1))  /** calculate string size with alignment */
 #define FLUSH           flush; CALLBACK
 ///@}
 ///@name Multi-platform support
@@ -118,27 +120,28 @@ typedef int32_t         DU;
 ///@name Logging support
 ///@{
 #if (ARDUINO || ESP32)
-    #define LOGS(s)     Serial.print(F(s))
-    #define LOG(v)      Serial.print(v)
-    #define LOGX(v)     Serial.print(v, HEX)
+    #define LOG(fmt,...) Serial.print(fmt, __VA_ARGS__)
+    #define ERR(...)     Serial.printf("[ERROR] %s\n", __VA_ARGS__)
 #else  // !(ARDUINO || ESP32)
-    #define LOGS(s)     printf("%s", s)
-    #define LOG(v)      printf("%-ld", (int64_t)(v))
-    #define LOGX(v)     printf("%-lx", (uint64_t)(v))
+    #define LOG(fmt,...) printf(fmt, __VA_ARGS__)
+    #define ERR(...)     printf("[ERROR] %s\n", __VA_ARGS__)
 #endif // (ARDUINO || ESP32)
+
+#if CC_DEBUG > 1
+#if (ARDUINO || ESP32)
+    #define DEBUG(fmt,...) Serial.print(fmt, __VA_ARGS__)
+#else  // !(ARUINO || ESP32)
+    #define DEBUG(fmt,...) printf(fmt, __VA_ARGS__)
+#endif // (ARDUINO || ESP32)
+#else  // CC_DEBUG > 1
+#define DEBUG(fmt,...)
+#endif // CC_DEBUG > 1
     
-#define LOG_NA()        LOGS("N/A\n")
-#define LOG_KV(k, v)    LOGS(k); LOG(v)
-#define LOG_KX(k, x)    LOGS(k); LOGX(x)
-#define LOG_HDR(f, s)   LOGS(f); LOGS("("); LOGS(s); LOGS(") => ")
-#define LOG_DIC(i)      LOGS("dict["); LOG(i); LOGS("] ");  \
-                        LOGS(dict[i].name); LOGS(" attr="); \
-                        LOGX(dict[i].attr); LOGS("\n")
 #if DO_MULTITASK
 #if CC_DEBUG
 #include <stdarg.h>
     
-#if (ESP32 || ARDUINO)
+#if (ARDUINO || ESP32)
 #define VM_HDR(vm, fmt, ...)                                \
     printf("[%02d.%d]%-4x" fmt,                             \
            (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)

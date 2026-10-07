@@ -4,6 +4,14 @@
 #include <stdint.h>     // uintxx_t
 #include <exception>    // try...catch, throw
 #include "config.h"     // configuation and cross-platform support
+#ifndef XT0_U32
+  #if __SIZEOF_POINTER__ == 8
+  #define XT0_U32  0      /** 64-bit: build with -DXT0_U32=1 -no-pie to fold XT0 */
+  #else
+  #define XT0_U32  1      /** 32-bit target: pointers are already tokens         */
+  #endif
+#endif
+#define XT0_MSK  0xFFFFFFFF00000000ULL
 
 using namespace std;
 
@@ -38,19 +46,19 @@ struct List {
     T   *v;             ///< fixed-size array storage
     int idx = 0;        ///< current index of array
     int max = 0;        ///< high watermark for debugging
+    int ro  = 0;        ///< readonly index
 
     List()  {
         v = N ? new T[N] : 0;                        ///< dynamically allocate array storage
         if (N && !v) throw "ERR: List allot failed";
     }
     ~List() {
-        if constexpr(is_pointer<T>::value) {         ///< free elements
-            for (int i=0; v && i<idx; i++) delete v[i];
-        }
+        clear(ro);
         if (v) delete[] v;                           ///< free container
     }              
     List &operator=(T *a)   INLINE { v = a; return *this; }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
+    void readonly_below(int i) { ro = i; }
 
 #if RANGE_CHECK
     T pop()     INLINE {
@@ -69,7 +77,13 @@ struct List {
 #endif // RANGE_CHECK
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
-    void clear(int i=0)    INLINE { idx=i; }
+    void clear(int tgt = 0) {
+        int mx = (tgt > ro) ? tgt : ro;
+        if constexpr (std::is_pointer<T>::value) {
+            for (int i = mx; i < idx; i++) { if (v[i]) delete v[i]; }
+        }
+        idx = mx;
+    }
 };
 ///====================================================================
 ///
@@ -82,7 +96,7 @@ struct ALIGNAS VM {
     char     pad[E4_PAD_SZ];       ///< temp pad buffer
 
     IU       id      = 0;          ///< vm id
-    IU       ip      = 0;          ///< instruction pointer
+    IU       *ip     = NULL;       ///< instruction pointer
     DU       tos     = -DU1;       ///< top of stack (cached)
 
     vm_state state   = STOP;       ///< VM status
@@ -124,18 +138,8 @@ struct ALIGNAS VM {
 #define UDF_ATTR   0x0001   /** user defined word    */
 #define IMM_ATTR   0x0002   /** immediate word       */
 #define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
-#define MSK_ATTR   ~0x3     /** mask udf,imm bits    */
+#define UDF_DICT   0x8000   /** user defined word    */
 ///}
-///@name primitive opcode
-///{
-typedef enum {
-    EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
-    VBRAN, DOES, FOR, DO, KEY, MAX_OP
-} prim_op;
-
-#define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
-#define IS_PRIM(w) (((w) & EXT_FLAG) && (((w) & ~EXT_FLAG) < (MAX_OP & ~EXT_FLAG)))
-///@}
 ///@name Code class
 ///@brief - basic struct of dictionary entries
 ///
@@ -145,55 +149,86 @@ typedef enum {
 ///  4. attr[LSB]  : user defined flag (i.e. colon word)
 ///  5. attr[LSB+1]: immediate flag
 ///
+///  Note: attr can union with xt/pfa, maskign required,
+///        breaks C++ constexpr compilation rule
+///
 ///  Code class on 64-bit systems (expand pfa to 32-bit possible)
-///  +-------------------+-------------------+
-///  |    *name          |       xt          |
-///  +-------------------+----+----+---------+
-///                      |attr|pfa |xxxxxxxxx|
-///                      +----+----+---------+
+///  +-------------------+-------------------+-------+
+///  |    *name          |        xt         |  attr |
+///  +-------------------+----------+--------+-------+
+///                      |    pfa   |xxxxxxxx|
+///                      +----------+--------+
 ///
-///  Code class on 32-bit systems (memory best utilized)
-///  +---------+---------+
-///  |  *name  |   xt    |
-///  +---------+----+----+
-///            |attr|pfa |
-///            +----+----+
-///
+///  Code class on 32-bit system
+///  +---------+---------+--------+
+///  |  *name  |   xt    |  attr  |
+///  +---------+---------+--------+
+///            |   pfa   |
+///            +---------+
 ///@{
-typedef void (*FPTR)(VM&);  ///< function pointer
+/// @brief Unified Function Pointer signature for the Direct-Threaded Continuation Trampoline
+/// @param vm Context reference tracking task-isolated persistent structures
+/// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
+/// @param sp Localized register tracker alias targeting the stack index tracking array natively
+/// @param tos Localized high-speed CPU hardware register cache holding Top-of-Stack data
+typedef void *(*FPTR)(VM &vm, IU* ip, int sp, DU tos);  /// tail-call (returns NEXT)
 struct Code {
-    static UFP XT0;         ///< function pointer base (in registers hopefully)
+#if XT0_U32
+    static constexpr UFP XT0 = 0;   ///< all code & pmem below 4GB (-no-pie, or 32-bit target): folds away
+#else
+    static UFP XT0;                 ///< function pointer base, set at run time (PIE builds)
+#endif
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
-        struct {
-            IU attr;        ///< steal 2 LSBs because xt is 4-byte aligned on 32-bit CPU
-            IU pfa;         ///< offset to pmem space (16-bit for 64K range)
-        };
+        FPTR xt = 0;        ///< lambda pointer or offset to pmem space (4-byte align)
+        UFP  pfa;           ///< user defined word offset
     };
-    static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
-    static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
+    U8 attr = 0;            ///< only 2 LSBs used (can steal from xt/pfa)
 
-    Code() {}               ///< blank struct (for initilization)
-    Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
-    Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
-        attr |= im ? IMM_ATTR : 0;
-    }
-    IU   xtoff()  INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
-    bool is_udf() INLINE { return attr & UDF_ATTR; }
-    bool is_imm() INLINE { return attr & IMM_ATTR; }
-    void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
+#if __SIZEOF_POINTER__ == 8
+    static IU Token(void *fp) INLINE { return (IU)((UFP)fp & 0xFFFFFFFF); }
+#else
+    static IU Token(void *fp) INLINE { return (IU)((UFP)fp); }
+#endif
+    ///
+    ///> constructors for built-in, and colon words
+    ///
+    constexpr Code(const char *n, FPTR f, U8 a=0) : name(n), xt(f), attr(a) {}        ///< built-in
+    bool is_imm() const INLINE { return attr & IMM_ATTR;    }
+    bool is_udf() const INLINE { return attr & UDF_ATTR;    }
+    void imm()    INLINE { attr |= IMM_ATTR;          }
 };
 ///@}
 ///@name Dictionary Compiler macros
 ///@note - a lambda without capture can degenerate into a function pointer
 ///@{
-#define ADD_CODE(n, g, im) {                     \
-    Code *c = new Code(n, [](VM& vm){ g; }, im); \
-    dict.push(c);                                \
-    }
-#define CODE(n, g) ADD_CODE(n, g, false)
-#define IMMD(n, g) ADD_CODE(n, g, true)
+constexpr Code rom_code(const char *name, FPTR fp, U8 im) {
+    return { name, fp, im }; // Code(name, fp, im);
+}
+
+// External hardware dictionary configuration registers
+extern const Code g_rom[] PROGMEM;
+extern const int  g_romsz;
+extern       U8   *MEM0;
+extern       List<Code*, E4_DICT_SZ> dict;
+extern       List<U8,    E4_PMEM_SZ> pmem;
+
+// =====================================================================
+// 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
+// =====================================================================
+#if XT0_U32
+#define NEXT_FP  ((FPTR)(UFP)(*ip++))
+#else
+#define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
+#endif
+#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(vm, ip, sp, tos);})   /** true tail call */
+
+#define CODE(n, g)                                  \
+    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
+        INLINE -> void *{ g; NEXT(); }, (U8)0)
+#define IMMD(n, g)                                  \
+    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos)  \
+        INLINE -> void *{ g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
 ///@{
@@ -213,9 +248,28 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 ///@name System interface
 ///@{
 void forth_init();
+void forth_teardown();
+void forth_core(VM &vm, const char *idiom);
 int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
+///@}
+///@name Compiler Engine methods
+///@{
+void add_iu(IU i);
+void add_du(DU v);
+void add_w(const Code *w);
+int  add_str(const char *s);
+void add_xt(const char *name);
+void colon(const char *name);
+///@}
+///@name Inner-interpreter methods
+void nest(VM &vm);
+void CALL(VM &vm, const Code &c);
+///@name Dictionary Search methods
+///@{
+inline const Code *get_word(IU w);
+const Code *find(const char *s);
 ///@}
 ///@name IO functions
 ///{@
@@ -227,7 +281,7 @@ void fout_setup(void (*hook)(int, const char*));
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
 int  fetch(char *buf, int max=E4_IBUF_SZ);               ///< read input stream into buffer
-char key();                                              ///< read key from console
+char key(void);                                          ///< read key from console
 void load(VM &vm, const char* fn);                       ///< load external Forth script
 void spaces(int n);                                      ///< show spaces
 void dot(io_op op, DU v=DU0, int base=10);               ///< print literals
@@ -236,7 +290,6 @@ void pstr(const char *str, io_op op=SPCS);               ///< print string
 ///@}
 ///@name Debug functions
 ///@{
-Code *prim_or_dict(IU w);                 ///< dictionary pointer
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
 void words();                             ///< list dictionary words

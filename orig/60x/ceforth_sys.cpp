@@ -1,0 +1,398 @@
+///
+/// @file
+/// @brief eForth - System dependent functions (C-Style Optimization)
+///
+#include <cstdio>                             /// snprintf, sprintf, printf
+#include <cstring>                            /// strlen, strcmp, strchr
+#include <cstdarg>                            /// va_list, va_start, va_end
+#include "ceforth.h"
+
+// ==================== STREAM REPLACEMENTS ====================
+static const char *tib = nullptr;             ///< Replaces istringstream (Tracks remaining input)
+static char *tob = nullptr;                   ///< Cursor for continuous appending
+static char obuf[E4_OBUF_SZ];                 ///< Replaces ostringstream (Scratch formatting buffer)
+
+void (*fout_cb)(int, const char*) = nullptr;  ///< forth output callback function
+
+/// Clear and flush the custom output buffer layout straight down to the callback
+static void fout_flush(char post='\0') {
+    if (tob == obuf) return;
+    
+    if (post) *tob++ = post;
+    *tob = '\0';                              /// Null-terminate
+    if (fout_cb) fout_cb(strlen(obuf), obuf); /// callback
+    tob = obuf;                               /// Reset pointer position
+}
+
+/// Appends formatted data onto our string block safely
+static void fout(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int sz0 = E4_OBUF_SZ - (tob - obuf) - 1;
+    if (sz0 > 0) {
+        int sz = vsnprintf(tob, sz0, fmt, args);
+        if (sz > 0) tob += (sz < sz0) ? sz : sz0;
+    }
+    va_end(args);
+}
+
+static const char* _format(DU v, int b, char* buf, int max, int w, char fill=' ') {
+    int  dec = (b == 10);
+    bool is_neg = (dec && v < 0);
+    U32  n   = is_neg ? UINT(-v) : UINT(v);
+
+    int i    = max - 1;
+    buf[i]   = '\0';                        /// zero terminate
+    
+    do {                                    /// fill digits
+        U8 d = (U8)(n % b);
+        n /= b;
+        buf[--i] = (d > 9) ? ((d - 10) + 'a') : (d + '0');
+    } while (n && i > 0);
+    
+    if (fill == '0') {
+        int fw = max - w;                   /// fill width
+        if (is_neg  && fw < 1) fw = 1;
+        if (!is_neg && fw < 0) fw = 0;
+
+        while (i > fw) buf[--i] = '0';      /// pad leading zeros
+        if (is_neg) buf[--i] = '-';         /// prefix negative sign
+    } 
+    else if (is_neg) {
+        if (i > 0) buf[--i] = '-';
+    }
+    return &buf[i];
+}
+/// =============================================================
+#define TOS       (vm.tos)                 /**< Top of stack                            */
+#define SS        (vm.ss)                  /**< parameter stack (per task)              */
+#define RS        (vm.rs)                  /**< return stack (per task)                 */
+#define MEM(a)    (MEM0 + (IU)UINT(a))     /**< pointer to address fetched from pmem    */
+#define TONAME(w) (dict[w]->pfa - STRLEN(dict[w]->name))
+
+///====================================================================
+///
+///> IO functions
+///
+void fin_setup(const char *line) {
+    obuf[0] = '\0';                       /// * clean output buffer safely
+    tob = obuf;
+    tib = line;                           /// * reload pointer reference directly
+}
+
+void fout_setup(void (*hook)(int, const char*)) {
+    auto cb = [](int, const char *rst) { printf("%s", rst); };
+    fout_cb = hook ? hook : cb;           ///< serial output hook up
+}
+
+const char *scan(char c, char *buf, int max) {
+    if (!tib || *tib == '\0') { buf[0] = '\0'; return buf; }
+
+    const char *next = strchr(tib, c);
+    if (next) {
+        size_t len = next - tib;
+        if (len >= (size_t)max) len = max - 1;
+        strncpy(buf, tib, len);
+        buf[len] = '\0';
+        tib = next + 1; 
+    }
+    else {
+        strncpy(buf, tib, max - 1);
+        buf[max - 1] = '\0';
+        tib += strlen(tib); 
+    }
+    return buf;
+}
+
+int fetch(char *buf, int max) {
+    if (!tib) return 0;
+    
+    while (*tib == ' ' || *tib == '\t' || *tib == '\r' || *tib == '\n') {
+        tib++;
+    }
+    if (*tib == '\0') return 0;
+
+    int idx = 0;
+    while (*tib != '\0' && *tib != ' ' && *tib != '\t' && 
+           *tib != '\r' && *tib != '\n' && idx < max - 1) {
+        buf[idx++] = *tib++;
+    }
+    buf[idx] = '\0';
+    return (idx > 0);
+}
+
+const char *word(char *buf, int max) {    ///< get next idiom
+    if (!fetch(buf, max)) buf[0] = '\0';
+    return buf;
+}
+
+char key() { static char c; return word(&c, 1)[0]; }
+void spaces(int n) { for (int i = 0; i < n; i++) fout(" "); }
+void dot(io_op op, DU v, int base) {
+    switch (op) {
+    case CR:    fout_flush('\n'); break; 
+    case DOT: {
+        char tmp[66];
+        const char *vstr = _format(v, base, tmp, sizeof(tmp), 0);
+        fout("%s ", vstr);
+    } break;
+    case UDOT: {
+        char tmp[66];
+        const char *vstr = _format(static_cast<U32>(v), base, tmp, sizeof(tmp), 0);
+        fout("%s ", vstr);
+    } break;
+    case EMIT:  { char b = (char)UINT(v); fout("%c", b); } break;
+    case SPCS:  spaces(UINT(v));                           break;
+    default:    fout("unknown io_op=%d\n", op);            break;
+    }
+}
+
+void dotr(int w, DU v, int base, bool u) {
+    char tmp[66];
+    // Pass width and current fill state down to the radix helper
+    char *vstr = (char*)_format(v, base, tmp, sizeof(tmp), w);
+    int  len   = (int)strlen(vstr);
+    
+    // If the string is shorter than 'w', it means we used space padding (' ')
+    if (w > len) {
+        int spcs = w - len;
+        for (int i = 0; i < spcs; i++) fout(" ");
+    }
+    fout("%s", vstr);
+}
+
+void pstr(const char *str, io_op op) {
+    fout("%s", str);
+    if (op == CR) fout_flush('\n');
+}
+
+///====================================================================
+///
+///> Debug functions
+///
+/// Token <-> pointer helpers (cells in pmem hold 32-bit tokens of real addresses)
+///   primitive : token of its function address (lambda in g_rom)
+///   colon word: token of its body address in pmem, compiled as [_:][body token]
+///   branches  : token of the target address in pmem
+///
+#define PTR(t)  ((const IU*)(Code::XT0 | (UFP)(IU)(t)))    /**< token => address                */
+#define OFF(p)  ((IU)((const U8*)(p) - MEM0))              /**< address => offset in pmem       */
+#define TOK(p)  (Code::Token((void*)(p)))
+
+static const Code *tok2code(IU tok) {                      ///< reverse lookup a primitive
+    for (int i = 0; i < g_romsz; i++) {
+        if (TOK(g_rom[i].xt) == tok) return &g_rom[i];
+    }
+    for (int i = dict.idx - 1; i >= 0; --i) {
+        if (TOK(dict[i]->xt) == tok) return dict[i];
+    }
+    return nullptr;
+}
+static int nvar_cells(const Code *c, const IU *op, int hdr) {     ///< # of data cells after _var/vbran
+    int di;
+    for (di = dict.idx - 1; di >= 0; --di) if (dict[di] == c) break;
+    if (di < 0) return 0;
+    const U8 *end = (di + 1 < dict.idx)
+        ? (const U8*)dict[di + 1]->name                    /// * next word's name field
+        : (const U8*)&pmem[pmem.idx];                      /// * or end of pmem
+    int bytes = (int)(end - (const U8*)op) - hdr * (int)sizeof(IU);
+    return bytes > 0 ? bytes / (int)sizeof(IU) : 0;
+}
+///
+/// How to decode the cells that follow an opcode (everything else is a plain, operand-less primitive)
+///
+typedef enum { NOP, ENTER, EXIT, LIT, VAR, VBRAN, STR, DOTQ, BRAN } see_op;
+static const struct { const char *name; see_op op; } SEE_OP[] = {
+    { "_:",    ENTER },                     ///< [_:][body token]
+    { "_;",    EXIT  },                     ///< end of word
+    { "_lit",  LIT   },                     ///< [_lit][value]
+    { "_var",  VAR   },                     ///< [_var][data...]
+    { "vbran", VBRAN },                     ///< [vbran][does> token][data...]
+    { "_str",  STR   },                     ///< [_str][len16, chars, 0, pad]
+    { "_dotq", DOTQ  },                     ///< [_dotq][len16, chars, 0, pad]
+    { "_bran", BRAN  }, { "_0bran", BRAN }, ///< [op][target token]
+    { "_next", BRAN  }, { "_loop",  BRAN },
+};
+static see_op get_op(const Code *c) {
+    for (const auto &o : SEE_OP) {
+        if (!strcmp(c->name, o.name)) return o.op;
+    }
+    return NOP;
+}
+
+void see(IU pfa, int base) {                                ///< disassemble a colon word
+    const IU *ip = PTR(pfa);                                ///< body address from token
+    char tmp[66];
+    auto num = [&](DU v) { return _format(v, base, tmp, sizeof(tmp), 0); };
+
+    for (int guard = 0; guard < 256; guard++) {             ///> guard against a runaway
+        IU tok = *ip;
+        const Code *c = tok2code(tok);
+        fout("  ");
+#if CC_DEBUG
+        fout("( %04x ) ", OFF(ip));
+#endif // CC_DEBUG
+        if (!c) {                                           /// * not an opcode we know
+            fout("?? %08x", tok);
+            fout_flush('\n');
+            break;
+        }
+        const IU *nx  = ip + 1;                             ///< next cell (after opcode)
+        bool      end = false;
+
+        switch (get_op(c)) {
+        case ENTER: {
+            const Code *w = tok2code(*nx++);
+            fout("%s", w ? w->name : "?");
+        } break;
+        case EXIT:  fout(";"); end = true;                     break;
+        case LIT:   fout("%s ( lit )", num(*(const DU*)nx++)); break;
+        case VAR:
+        case VBRAN: {
+            bool is_var = get_op(c) == VAR;
+            fout("%s", c->name);
+            if (!is_var && *nx) fout(" does> $%04x", OFF(PTR(*nx)));
+            int n = nvar_cells(c, ip, is_var ? 1 : 2);
+            if (!is_var) nx++;
+            for (int i = 0; i < n; i++) {
+                fout(" %s", num(*(const DU*)(nx + i)));
+            }
+            end = true;                                     /// * data ends the word
+        } break;
+        case STR:
+        case DOTQ: {
+            U16 len = *(const U16*)nx;
+            fout(get_op(c) == STR
+                 ? "s\" %s\"" : ".\" %s\"", (const char*)nx + sizeof(U16));
+            nx = (const IU*)((const U8*)nx + ALIGN(sizeof(U16) + len + 1));
+        } break;
+        case BRAN: fout("%s $%04x", c->name, OFF(PTR(*nx++))); break;
+        default:   fout("%s", c->name);                        break;
+        }
+        fout_flush('\n');
+        if (end) break;
+        ip = nx;
+    }
+}
+
+void words() {
+    const int WIDTH = 56;
+    auto blip = [](int &sz, int i, const Code &c) {
+        const char *nm = c.name;
+        const int  len = strlen(nm);
+#if CC_DEBUG > 1
+        if (nm[0]) {
+#else  //  CC_DEBUG > 1
+        if (nm[len-1] != ' ') {
+#endif // CC_DEBUG > 1
+            sz += len + 2;
+            fout("  %s", nm);
+        }
+        if (sz > WIDTH) {
+            sz = 0;
+            fout_flush('\n');
+        }
+    };
+    int sz = 0;
+    for (int i = 0; i < g_romsz;  ++i) blip(sz, i, g_rom[i]);
+    for (int i = 0; i < dict.idx; ++i) blip(sz, i, *dict[i]);
+    fout_flush('\n');
+}
+
+static int load_dp = 0;
+void load(VM &vm, const char* fn) {
+    load_dp++;                           /// * increment depth counter
+    RS.push(*vm.ip);                     /// * save context
+    RS.push(vm.state);
+    vm.state = NEST;                     /// * +recursive
+    forth_include(fn);                   /// * include file
+    vm.state = static_cast<vm_state>(RS.pop());
+    *vm.ip   = UINT(RS.pop());           /// * context restored
+    --load_dp;                           /// * decrement depth counter
+}
+
+void ss_dump(VM &vm, bool forced) {
+    if (load_dp) return;                 /// * skip when including file
+    
+    SS.push(TOS);
+    for (int i=0; i<SS.idx; i++) {
+        char tmp[66];
+        fout("%s ", _format(SS[i], *MEM(vm.base), tmp, sizeof(tmp), 0));
+    }
+    TOS = SS.pop();
+    fout("ok\n");
+    fout_flush();
+}
+void mem_dump(U32 p0, IU sz, int base) {
+    for (IU i=p0 & ~15; i<=(p0+sz); i+=16) {
+        fout("%08zx %04x: ", (UFP)&pmem[i], i);
+        for (int j=0; j<16; j++) {
+            U8 c = pmem[i+j];
+            fout("%02x%s", (int)c, (j % 4 == 3 ? " " : ""));
+        }
+        for (int j=0; j<16; j++) {
+            U8 c = pmem[i+j] & 0x7f;
+            fout("%c", ((c==0x7f||c<0x20) ? '_' : c));
+        }
+        fout_flush('\n');
+        yield();
+    }
+}
+
+void dict_dump() {
+    auto blip = [](int i, const Code &c) {
+        fout("%03d> xt=%p, attr=%x, xtoff=%08zx %s\n",
+             i, c.xt, (c.attr & 0x3), (UFP)c.xt & 0xFFFFFFFF, c.name);
+        fout_flush();
+    };
+    fout("XT0=%zx\n", Code::XT0);
+    for (int i=0; i < g_romsz; i++)  blip(i, g_rom[i]);
+    for (int i=0; i < dict.idx; i++) blip(i, *dict[i]);
+}
+///====================================================================
+///
+///> LVGL / Native Web Formatter API
+///
+#if 0
+/// *note see ceforth_sys#_format
+extern "C" { void js_call(const char *ops); }
+void native_api(VM &vm) {                  ///> ( n addr u -- )
+    POP();                                 /// * strlen, not used
+    char fmt_template = (char)MEM(POP());
+    char pad[512];                         /// Fixed: Correctly sized buffer for parameter translation
+    strncpy(pad, fmt_template, sizeof(pad)-1);
+    pad[sizeof(pad)-1] = '\0';
+    for (int i = (int)strlen(pad) - 2; i >= 0; i--) {
+        if (pad[i] == '%') {
+            char type_char = pad[i + 1];
+            char tmp[256] = {0};           /// Fixed: Clean character array allocation block
+            switch (type_char) {
+            case 'd': snprintf(tmp, sizeof(tmp), "%d", (int)UINT(POP())); break;
+            case 'f': snprintf(tmp, sizeof(tmp), "%g", (double)(DU)POP()); break;
+            case 'x': snprintf(tmp, sizeof(tmp), "0x%x", (unsigned int)UINT(POP())); break;
+            case 's': {POP();snprintf(tmp, sizeof(tmp), "%s", (char*)MEM(POP()));} break;
+            case 'p': {
+                unsigned int len = (unsigned int)UINT(POP());
+                unsigned int addr = (unsigned int)UINT(POP());
+                snprintf(tmp, sizeof(tmp), "p %u %u", addr, len);
+            } break;
+            case '%':
+                tmp[0] = '%';
+                tmp[1] = '\0';
+                memmove(&pad[i+1], &pad[i+2], strlen(&pad[i+2])+1);
+                break;
+            default:
+                snprintf(tmp, sizeof(tmp), "%c?", type_char); break;
+            }
+            size_t orig_len = strlen(pad);
+            size_t insert_len = strlen(tmp);
+            if (orig_len - 2 + insert_len < sizeof(pad) - 1) {
+                memmove(&pad[i + insert_len], &pad[i + 2], strlen(&pad[i + 2]) + 1);
+                memcpy(&pad[i], tmp, insert_len);
+            }
+        }
+    }
+    js_call(pad);
+}
+#endif // LVGL
+
