@@ -25,13 +25,12 @@
 ///
 ///@name Logical units (instead of physical) for type check and portability
 ///@{
-typedef uint64_t        U64;   ///< unsigned 64-bit integer
 typedef uint32_t        U32;   ///< unsigned 32-bit integer
 typedef int32_t         S32;   ///< signed 32-bit integer
 typedef uint16_t        U16;   ///< unsigned 16-bit integer
 typedef uint8_t         U8;    ///< byte, unsigned character
 typedef uintptr_t       UFP;   ///< function pointer as integer
-typedef uint32_t        IU;    ///< instruction pointer unit
+typedef uint16_t        IU;    ///< instruction pointer unit
 
 #include <cmath>
 #if USE_FLOAT
@@ -88,7 +87,7 @@ typedef int32_t         DU;
 #define ALIGN4(sz)      ((sz) + (-(sz) & 0x3))
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
-#define ALIGN(sz)       ALIGN4(sz)
+#define ALIGN(sz)       ALIGN2(sz)
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(strlen(s)+1))  /** calculate string size with alignment */

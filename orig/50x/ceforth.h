@@ -82,7 +82,7 @@ struct ALIGNAS VM {
     char     pad[E4_PAD_SZ];       ///< temp pad buffer
 
     IU       id      = 0;          ///< vm id
-    IU       *ip     = NULL;       ///< instruction pointer
+    IU       ip      = 0;          ///< instruction pointer
     DU       tos     = -DU1;       ///< top of stack (cached)
 
     vm_state state   = STOP;       ///< VM status
@@ -132,7 +132,9 @@ typedef enum {
     EXIT=0|EXT_FLAG, NOP, NEXT, LOOP, LIT, VAR, STR, DOTQ, BRAN, ZBRAN,
     VBRAN, DOES, FOR, DO, KEY, MAX_OP
 } prim_op;
+
 #define USER_AREA  (ALIGN16(MAX_OP & ~EXT_FLAG))
+#define IS_PRIM(w) (((w) & EXT_FLAG) && (((w) & ~EXT_FLAG) < (MAX_OP & ~EXT_FLAG)))
 ///@}
 ///@name Code class
 ///@brief - basic struct of dictionary entries
@@ -143,75 +145,55 @@ typedef enum {
 ///  4. attr[LSB]  : user defined flag (i.e. colon word)
 ///  5. attr[LSB+1]: immediate flag
 ///
-///  Note: attr can union with xt/pfa, maskign required,
-///        breaks C++ constexpr compilation rule
-///
 ///  Code class on 64-bit systems (expand pfa to 32-bit possible)
-///  +-------------------+-------------------+-------+
-///  |    *name          |        xt         |  attr |
-///  +-------------------+----------+--------+-------+
-///                      |    pfa   |xxxxxxxx|
-///                      +----------+--------+
+///  +-------------------+-------------------+
+///  |    *name          |       xt          |
+///  +-------------------+----+----+---------+
+///                      |attr|pfa |xxxxxxxxx|
+///                      +----+----+---------+
 ///
-///  Code class on 32-bit system
-///  +---------+---------+--------+
-///  |  *name  |   xt    |  attr  |
-///  +---------+---------+--------+
-///            |   pfa   |
-///            +---------+
+///  Code class on 32-bit systems (memory best utilized)
+///  +---------+---------+
+///  |  *name  |   xt    |
+///  +---------+----+----+
+///            |attr|pfa |
+///            +----+----+
+///
 ///@{
-typedef void *(*FPTR)(VM &vm, IU* &ip, int &sp, DU &tos);  /// tail-call (returns NEXT)
-union Pack {                ///< C++ failed when a != 0
-    UFP pfa = 0;            ///< either a primitive or colon word
-    struct {
-        UFP attr: 2;        ///< only 2 LSBs used (can steal from xt/pfa)
-        UFP xt  : 30;       ///< lambda pointer or offset to pmem space (4-byte align)
-    } u;                    ///< C++ can constexpr construct this struct
-    constexpr Pack(U32 ix)       : pfa((UFP)ix)    {}
-    constexpr Pack(FPTR f, U8 a) : pfa((UFP)f | a) {}  ///< C++ hates this
-};
+typedef void (*FPTR)(VM&);  ///< function pointer
 struct Code {
     static UFP XT0;         ///< function pointer base (in registers hopefully)
     const char *name = 0;   ///< name field
     union {                 ///< either a primitive or colon word
-        FPTR xt = 0;        ///< lambda pointer or offset to pmem space (4-byte align)
-        UFP  pfa;           ///< user defined word offset
+        FPTR xt = 0;        ///< lambda pointer (4-byte align, 2 LSBs can be used for attr)
+        struct {
+            IU attr;        ///< steal 2 LSBs because xt is 4-byte aligned on 32-bit CPU
+            IU pfa;         ///< offset to pmem space (16-bit for 64K range)
+        };
     };
-    U8 attr = 0;            ///< only 2 LSBs used (can steal from xt/pfa)
-    
     static FPTR XT(IU ix)   INLINE { return (FPTR)(XT0 + (UFP)(ix & MSK_ATTR)); }
-    static void exec(VM &vm, IU ix, IU* &ip, int &sp, DU &tos) INLINE { (*XT(ix))(vm, ip, sp, tos); }
-    ///
-    ///> constructors for built-in, and colon words
-    ///
-    constexpr Code(const char *n, FPTR f, U8 a) : name(n), xt(f), attr(a) {}        ///< built-in
-    constexpr Code(const char *n, U32 ix, U8 a) : name(n), pfa((UFP)ix), attr(a) {} ///< user def
-    
-    IU   xtoff()  INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }               ///< xt offset in code space
-    bool is_imm() INLINE { return attr & IMM_ATTR;    }
-    bool is_udf() INLINE { return attr & UDF_ATTR;    }
-    void imm()    INLINE { attr |= IMM_ATTR;          }
-    void call(VM& vm, IU* &ip, int &sp, DU &tos) INLINE { (*xt)(vm, ip, sp, tos); }
+    static void exec(VM &vm, IU ix) INLINE { (*XT(ix))(vm); }
+
+    Code() {}               ///< blank struct (for initilization)
+    Code(const char *n, IU w) : name(n), xt((FPTR)((UFP)w)) {} ///< primitives
+    Code(const char *n, FPTR fp, bool im) : name(n), xt(fp) {  ///< built-in and colon words
+        attr |= im ? IMM_ATTR : 0;
+    }
+    IU   xtoff()  INLINE { return (IU)(((UFP)xt - XT0) & MSK_ATTR); }  ///< xt offset in code space
+    bool is_udf() INLINE { return attr & UDF_ATTR; }
+    bool is_imm() INLINE { return attr & IMM_ATTR; }
+    void call(VM& vm)  INLINE { (*(FPTR)((UFP)xt & MSK_ATTR))(vm); }
 };
 ///@}
 ///@name Dictionary Compiler macros
 ///@note - a lambda without capture can degenerate into a function pointer
 ///@{
-constexpr Code rom_code(const char *name, FPTR fp, U8 im) {
-    return { name, fp, im }; //Code(name, fp, im);
-}
-#if __SIZEOF_POINTER__ == 8
-#define NEXT()  (void*)(Code::XT0 | (UFP)(*ip++))
-#else
-#define NEXT()  (void*)(*ip++)
-#endif
-
-#define CODE(n, g)                                     \
-    rom_code(n, [](VM& vm, IU* &ip, int &sp, DU &tos)  \
-        -> void* { g; return NEXT(); }, (U8)0)
-#define IMMD(n, g)                                     \
-    rom_code(n, [](VM& vm, IU* &ip, int &sp, DU &tos)  \
-        -> void* { g; return NEXT(); }, (U8)IMM_ATTR)
+#define ADD_CODE(n, g, im) {                     \
+    Code *c = new Code(n, [](VM& vm){ g; }, im); \
+    dict.push(c);                                \
+    }
+#define CODE(n, g) ADD_CODE(n, g, false)
+#define IMMD(n, g) ADD_CODE(n, g, true)
 ///@}
 ///@name Multitasking support
 ///@{
