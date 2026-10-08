@@ -507,7 +507,6 @@ void dict_compile() {  ///< compile built-in words into dictionary
          IU w = POPI();                                      ///< dictionary index
          if (!dict[w]->is_udf()) PUSH(task_create(dict[w]->pfa));  /// create a task starting on pfa
          else pstr("  ?colon word only\n"));
-    CODE("rank",  PUSH(vm.id));                              /// ( -- n ) thread id
     CODE("start", task_start(POPI()));                       /// ( task_id -- )
     CODE("join",  vm.join(POPI()));                          /// ( task_id -- )
     CODE("lock",  vm.io_lock());                             /// wait for IO semaphore
@@ -520,6 +519,7 @@ void dict_compile() {  ///< compile built-in words into dictionary
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
     /// @{
+    CODE("rank",  PUSH(vm.id));                              /// ( -- n ) thread id
     CODE("abort", TOS = -DU1; SS.clear(); RS.clear());       /// clear ss, rs
     CODE("here",  PUSH(HERE));
     IMMD("'",     IU w = find(WORD()); if (w) PUSH(w));

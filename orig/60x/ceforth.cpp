@@ -572,7 +572,6 @@ constexpr Code g_rom[] = {
              PUSH(tid);
          }
          else pstr("  ?colon word only\n")),
-    CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
     CODE("start", IU t = POPI(); SPILL(); task_start(t); RELOAD()),                       /// ( task_id -- )
     CODE("join",  IU t = POPI(); SPILL(); vm.join(t); RELOAD()),                          /// ( task_id -- )
     CODE("lock",  vm.io_lock()),                             /// wait for IO semaphore
@@ -585,6 +584,7 @@ constexpr Code g_rom[] = {
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
     /// @{
+    CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
     CODE("abort", sp = 0; RP = 0; ip = gStop),               /// clear ss, rs, and stop
     CODE("here",  PUSH(HERE)),
     IMMD("'",     const Code *w = find(WORD()); if (w) PUSH(TOK(w->xt))),

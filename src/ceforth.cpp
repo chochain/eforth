@@ -304,7 +304,6 @@ const Code rom[] {               ///< Forth dictionary
          IU w = POPI();                                         ///< dictionary index
          if (dict[w]->xt) pstr("  ?colon word only\n");
          else PUSH(task_create(w))),                            /// create a task starting on pfa
-    CODE("rank",    PUSH(vm.id)),                               /// ( -- n ) thread id
     CODE("start",   task_start(POPI())),                        /// ( task_id -- )
     CODE("join",    vm.join(POPI())),                           /// ( task_id -- )
     CODE("lock",    vm.io_lock()),                              /// wait for IO semaphore
@@ -317,6 +316,7 @@ const Code rom[] {               ///< Forth dictionary
 #endif // DO_MULTITASK    
     /// @defgroup Debug ops
     /// @{
+    CODE("rank",    PUSH(vm.id)),                               /// ( -- n ) thread id
     CODE("abort",   TOS = -DU1; SS.clear(); RS.clear()),        /// clear ss, rs
     CODE("here",    PUSH(last->token)),
     CODE("'",
