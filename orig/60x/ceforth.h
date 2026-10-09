@@ -90,7 +90,7 @@ struct List {
 
 // The lightweight register window context passed down the execution chain by value
 struct Stk {
-    int sp;     ///< Stack Pointer Depth
+    DU *sp;     ///< Stack Pointer (points one past TOS; depth = sp - ss.v)
     DU  tos;    ///< Top of Stack
     DU  nos;    ///< Next of Stack
 };
@@ -178,7 +178,7 @@ struct ALIGNAS VM {
 /// @param vm Context reference tracking task-isolated persistent structures
 /// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
 /// @param Stk Localized register pack
-typedef void *(*FPTR)(VM &vm, IU* ip, int sp, DU tos, DU nos);  ///< tail-call (returns NEXT)
+typedef void *(*FPTR)(VM &vm, IU *ip, DU *sp, DU tos, DU nos);  ///< tail-call (returns NEXT)
 struct Code {
 #if XT0_U32
     static constexpr UFP XT0 = 0;   ///< all code & pmem below 4GB (-no-pie, or 32-bit target): folds away
@@ -230,11 +230,11 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 #endif
 #define NEXT()   ({ FPTR fp = NEXT_FP; return fp(vm, ip, sp, tos, nos);})   /** true tail call */
 
-#define CODE(n, g)                                              \
-    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos, DU nos)      \
+#define CODE(n, g)                                               \
+    rom_code(n, [](VM &vm, IU* ip, DU *sp, DU tos, DU nos)       \
         INLINE -> void *{ g; NEXT(); }, (U8)0)
-#define IMMD(n, g)                                              \
-    rom_code(n, [](VM &vm, IU* ip, int sp, DU tos, DU nos)      \
+#define IMMD(n, g)                                               \
+    rom_code(n, [](VM &vm, IU* ip, DU *sp, DU tos, DU nos)       \
         INLINE -> void *{ g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
