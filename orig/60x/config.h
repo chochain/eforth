@@ -14,6 +14,7 @@
 ///@name Calling convention of the threaded-code words (see ceforth.h)
 ///@brief  override with -DE4_TRAMP=.. -DE4_NOS=..
 ///  E4_TRAMP 0: every word tail-calls the next one (needs sibling-call support)
+///              x86, ARM, RISC-V should use this
 ///           1: every word returns {next,ip,sp,tos} to a trampoline loop
 ///              (needed on windowed-ABI Xtensa i.e. ESP32/S2/S3: GCC emits
 ///               callx8+retw there, so a tail-call chain would overflow the stack)
@@ -21,25 +22,33 @@
 ///           0: TOS only                        (4 args: vm,ip,sp,tos)
 ///              AAPCS (ARM) has only r0-r3, so a 5th arg goes via the stack;
 ///              the trampoline returns 4 registers, so it has no room for nos.
+///  E4_RTOP  1: return-stack pointer travels in a register too (one more argument).
+///              x86-64 SysV has 6 arg regs, RISC-V 8, 
+///           0: ARM only 4, so it won't fit. Not with the Xtensa trampoline: the
+///              4-register return value is full.
 ///@{
-#ifndef E4_TRAMP        // use trampoline if tail-call not supported
+#ifndef E4_TRAMP
   #if defined(__XTENSA__) && defined(__XTENSA_WINDOWED_ABI__)
   #define E4_TRAMP      1
   #else
   #define E4_TRAMP      0
   #endif
-#endif
+#endif // E4_TRAMP
 
-#ifndef E4_NOS          // use NOS in register windowing
-  #if E4_TRAMP || defined(__arm__) || defined(__thumb__)
+#if E4_TRAMP || defined(__arm__) || defined(__thumb__)
   #define E4_NOS        0
-  #else
+  #define E4_RTOP       0
+#else
+  #ifndef E4_NOS
   #define E4_NOS        1
-  #endif
-#endif
+  #endif  // E4_NOS
+  #ifndef E4_RTOP
+  #define E4_RTOP       1
+  #endif  // E4_RTOP
+#endif // E4_NOS
 
-#if E4_TRAMP && E4_NOS
-  #error "E4_TRAMP needs E4_NOS=0"
+#if E4_TRAMP && (E4_NOS || E4_RTOP)
+  #error "E4_TRAMP needs E4_NOS=0 and E4_RTOP=0"
 #endif
 ///@}
 ///@name Memory block configuation
