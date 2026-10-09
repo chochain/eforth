@@ -71,10 +71,11 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define SP        (vm.ss.idx)
 #define RP        (vm.rs.idx)
 #define IP        (vm.ip)
-#define TOS       (SS[sp-1])               /**< top of stack                            */
-#define NOS       (SS[sp-2])               /**< next of stack                           */
-#define OS3       (SS[sp-3])               /**< 3rd of stack in memory                  */
-#define OS4       (SS[sp-4])               /**< 4th of stack in memory                  */
+#define TOS       (sp[-1])                 /**< top of stack (memory shadow slot)       */
+#define NOS       (sp[-2])                 /**< next of stack                           */
+#define OS3       (sp[-3])                 /**< 3rd of stack in memory                  */
+#define OS4       (sp[-4])                 /**< 4th of stack in memory                  */
+#define DEPTH     ((int)(sp - SS))         /**< number of items on stack                */
 // Direct array-index tracking mappings for high-speed manipulation
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define HERE_PTR  ((IU*)&pmem[HERE])
@@ -172,8 +173,8 @@ const Code *find(const char *s) {
 /// Register window <=> memory sync. Use around any call that reads or
 /// writes this VM's stack through memory (include, tasking, ...).
 ///
-#define SPILL()  ({ SP = sp; TOS = tos; NOS = nos; })   /**< registers => memory  */
-#define RELOAD() ({ sp = SP; tos = TOS; nos = NOS; })   /**< memory => registers  */
+#define SPILL()  ({ SP = sp - SS; TOS = tos; NOS = nos; }) /**< registers => memory  */
+#define RELOAD() ({ sp = SS + SP; tos = TOS; nos = NOS; }) /**< memory => registers  */
 
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
@@ -185,7 +186,7 @@ int def_word(const char* name) {    ///< display if redefined
     colon(name);                    /// * create a colon word
     return 1;                       /// * created OK
 }
-void s_quote(VM &vm, int &sp, DU &tos, DU &nos, bool dotq=false) {
+void s_quote(VM &vm, DU *&sp, DU &tos, DU &nos, bool dotq=false) {
     const char *s = SCAN('"')+1;    ///> string skip first blank
     if (vm.compile) {
         add_xt(dotq ? "_dotq" : "_str"); 
@@ -228,10 +229,10 @@ void s_quote(VM &vm, int &sp, DU &tos, DU &nos, bool dotq=false) {
 ///          * 32-bit Param pointer   Ir/Dr = 3.2M/0.9M (899ms)
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
-void *doSTOP(VM &vm, IU* ip, int sp, DU tos, DU nos) {
+void *doSTOP(VM &vm, IU* ip, DU *sp, DU tos, DU nos) {
     // Commit current register window variables back to permanent storage on exit
     IP  = ip;
-    SP  = sp;
+    SP  = sp - SS;
     TOS = tos;
     NOS = nos;
     return NULL;
@@ -248,14 +249,14 @@ void nest(VM& vm) {                   ///< inner-interpreter i.e. doLIST, tail-c
     vm.state = NEST;
     
     /// Extract core virtual machine tracking metrics locally onto the local struct
-    IU *ip  = IP;
-    int sp  = SP;
+    IU  *ip = IP;
+    DU *sp  = SS + SP;
     DU  tos = TOS;                   /// Direct load. Unguarded garbage behavior if empty
     DU  nos = NOS;
 
     DEBUG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
     DEBUG("nest(%08x) sp%d, rp%d, [%d, %d]\n",
-          *ip, sp, RP, sp > 1 ? nos : 0, sp > 0 ? tos : 0);
+          *ip, DEPTH, RP, DEPTH > 1 ? nos : 0, DEPTH > 0 ? tos : 0);
 
     FPTR fp = NEXT_FP;
     fp(vm, ip, sp, tos, nos);       /// * the whole word chain runs by tail calls; doSTOP returns
@@ -274,7 +275,7 @@ void CALL(VM &vm, const Code &c) {
     }
     else {
         IU *ip  = gStop;
-        int sp  = SP;
+        DU *sp  = SS + SP;
         DU  tos = TOS;
         DU  nos = NOS;
         c.xt(vm, ip, sp, tos, nos);
@@ -344,7 +345,7 @@ constexpr Code g_rom[] = {
     CODE("swap",    std::swap(tos, nos)),
     CODE("rot",     DU n = OS3; DU m = nos; OS3 = m; nos = tos; tos = n),
     CODE("-rot",    DU n = tos; tos = nos; nos = OS3; OS3 = n),
-    CODE("pick",    IU i = UINT(tos); tos = i ? SS[sp - 2 - i] : nos),
+    CODE("pick",    int i = (int)UINT(tos); tos = i ? sp[-2 - i] : nos),
     CODE("nip",     nos = OS3; sp--),
     CODE("?dup",    if (!ZEQ(tos)) { DU v = tos; PUSH(v); }),
     /// @}
@@ -585,10 +586,10 @@ constexpr Code g_rom[] = {
     /// @defgroup Debug ops
     /// @{
     CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
-    CODE("abort", sp = 0; RP = 0; ip = gStop),               /// clear ss, rs, and stop
+    CODE("abort", sp = SS; RP = 0; ip = gStop),              /// clear ss, rs, and stop
     CODE("here",  PUSH(HERE)),
     IMMD("'",     const Code *w = find(WORD()); if (w) PUSH(TOK(w->xt))),
-    CODE(".s",    SP = sp; TOS = tos; NOS = nos; ss_dump(vm, true)),
+    CODE(".s",    SPILL(); ss_dump(vm, true)),
     CODE("words", words()),
     CODE("see",
          const Code *w = find(WORD());
@@ -598,7 +599,7 @@ constexpr Code g_rom[] = {
              else             pstr(" ( built-ins ) ;");
              dot(CR);
          }),
-    CODE("depth", PUSH(UINT(sp))),
+    CODE("depth", PUSH(DEPTH)),
     CODE("r",     PUSH(RP)),
     CODE("dump",
          U32 n = POPI();
