@@ -76,6 +76,9 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define OS3       (sp[-3])                 /**< 3rd of stack in memory                  */
 #define OS4       (sp[-4])                 /**< 4th of stack in memory                  */
 #define DEPTH     ((int)(sp - SS))         /**< number of items on stack                */
+#if !E4_NOS
+#define nos       (sp[-2])                 /**< TOS-only cache: NOS stays in memory     */
+#endif // !E4_NOS
 // Direct array-index tracking mappings for high-speed manipulation
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define HERE_PTR  ((IU*)&pmem[HERE])
@@ -160,8 +163,18 @@ const Code *find(const char *s) {
 ///
 ///> functions to reduce verbosity
 ///
+#if E4_NOS
 #define FILL()   ({ sp--; nos = NOS; })
 #define PUSH(v)  ({ NOS = nos; nos = tos; tos = (DU)(v); sp++; })
+#define SPILL()  ({ SP = sp - SS; TOS = tos; NOS = nos; }) /**< registers => memory  */
+#define RELOAD() ({ sp = SS + SP; tos = TOS; nos = NOS; }) /**< memory => registers  */
+#else  // E4_NOS
+#define FILL()   ({ sp--; })
+#define PUSH(v)  ({ DU _v = (DU)(v); TOS = tos; tos = _v; sp++; })
+#define SPILL()  ({ SP = sp - SS; TOS = tos; })            /**< no NOS */
+#define RELOAD() ({ sp = SS + SP; tos = TOS; })            /**< no nos */
+#endif // E4_NOS
+
 #define POP()    ({ DU _rst = tos; tos = nos; FILL(); _rst; })
 #define POPI()   (UINT(POP()))
 #define BOOL(f)  ((f)?-1:0)               /**< Forth boolean representation */
@@ -169,12 +182,6 @@ const Code *find(const char *s) {
 #define UALU(op) ({ tos = UINT(nos) op UINT(tos); FILL(); })
 #define CMP(op)  ({ tos = BOOL(op(nos, tos)); FILL(); })
 #define UCMP(op) ({ tos = BOOL(op(UINT(nos), UINT(tos))); FILL(); })
-///
-/// Register window <=> memory sync. Use around any call that reads or
-/// writes this VM's stack through memory (include, tasking, ...).
-///
-#define SPILL()  ({ SP = sp - SS; TOS = tos; NOS = nos; }) /**< registers => memory  */
-#define RELOAD() ({ sp = SS + SP; tos = TOS; nos = NOS; }) /**< memory => registers  */
 
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
@@ -186,7 +193,7 @@ int def_word(const char* name) {    ///< display if redefined
     colon(name);                    /// * create a colon word
     return 1;                       /// * created OK
 }
-void s_quote(VM &vm, DU *&sp, DU &tos, DU &nos, bool dotq=false) {
+void s_quote(XT_REFS, bool dotq=false) {
     const char *s = SCAN('"')+1;    ///> string skip first blank
     if (vm.compile) {
         add_xt(dotq ? "_dotq" : "_str"); 
@@ -229,21 +236,34 @@ void s_quote(VM &vm, DU *&sp, DU &tos, DU &nos, bool dotq=false) {
 ///          * 32-bit Param pointer   Ir/Dr = 3.2M/0.9M (899ms)
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
-void *doSTOP(VM &vm, IU* ip, DU *sp, DU tos, DU nos) {
+XT_RET doSTOP(XT_ARGS) {
+#if E4_TRAMP
+    return Ret{ 0, ip, sp, tos };                          /// * fp==0 ends the trampoline
+#else // E4_TRAMP
     // Commit current register window variables back to permanent storage on exit
     IP  = ip;
     SP  = sp - SS;
     TOS = tos;
+#if E4_NOS
     NOS = nos;
+#endif // E4_NOS
     return NULL;
+#endif // E4_TRAMP
 }
 static IU gStop[] = { TOK(doSTOP) };  ///< tempoline sentinal
 
-#define UNNEST()     {                                     \
-        if (RP <= 0) return doSTOP(vm, ip, sp, tos, nos);  \
-        ip = XT(RS[--RP]);                                 \
-        NEXT();                                            \
+#define UNNEST()     {                       \
+        if (RP <= 0) return doSTOP(XT_PASS); \
+        ip = XT(RS[--RP]);                   \
+        NEXT();                              \
     }
+
+#if E4_TRAMP
+static void run(VM &vm, Ret r) {      ///< trampoline: constant C stack, one call+return per word
+    while (r.fp) r = r.fp(vm, r.ip, r.sp, r.tos);
+    IP = r.ip; SP = r.sp - SS; r.sp[-1] = r.tos;     /// TOS shadow slot
+}
+#endif // E4_TRAMP
 
 void nest(VM& vm) {                   ///< inner-interpreter i.e. doLIST, tail-call
     vm.state = NEST;
@@ -252,14 +272,20 @@ void nest(VM& vm) {                   ///< inner-interpreter i.e. doLIST, tail-c
     IU  *ip = IP;
     DU *sp  = SS + SP;
     DU  tos = TOS;                   /// Direct load. Unguarded garbage behavior if empty
+#if E4_NOS    
     DU  nos = NOS;
+#endif // E4_NOS
 
     DEBUG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
     DEBUG("nest(%08x) sp%d, rp%d, [%d, %d]\n",
           *ip, DEPTH, RP, DEPTH > 1 ? nos : 0, DEPTH > 0 ? tos : 0);
 
     FPTR fp = NEXT_FP;
-    fp(vm, ip, sp, tos, nos);       /// * the whole word chain runs by tail calls; doSTOP returns
+#if E4_TRAMP
+    run(vm, Ret{ fp, ip, sp, tos });
+#else // E4_TRAMP
+    fp(XT_PASS);                    /// * the whole word chain runs by tail calls; doSTOP returns
+#endif // E4_TRAMP
 
     DEBUG("  %p: sp%d, rp%d, [%d, %d]\n",
           fp, SP, RP, SP > 1? NOS : 0, SP > 0 ? TOS : 0);
@@ -277,8 +303,15 @@ void CALL(VM &vm, const Code &c) {
         IU *ip  = gStop;
         DU *sp  = SS + SP;
         DU  tos = TOS;
+#if E4_NOS
         DU  nos = NOS;
-        c.xt(vm, ip, sp, tos, nos);
+#endif // E4_NOS
+        
+#if E4_TRAMP
+        run(vm, c.xt(vm, ip, sp, tos));
+#else // E4_TRAMP
+        c.xt(XT_PASS);
+#endif // E4_TRAMP
     }
 }
 
@@ -372,7 +405,7 @@ constexpr Code g_rom[] = {
          nos = m; tos = INT(n / t)),
     CODE("*/mod",                           ///< ( a b c -- (a*b)%c )
          DU2 n = (DU2)OS3; n *= nos; DU2 t = tos; DU m = MOD(n, t); DU q = INT(n / t);
-         nos = m; tos = q; sp--),
+         sp--; nos = m; tos = q),                        /// sp-- first: nos may live in memory
     CODE("and",     UALU(&)),
     CODE("or",      UALU(|)),
     CODE("xor",     UALU(^)),
@@ -430,8 +463,8 @@ constexpr Code g_rom[] = {
     IMMD("(",       SCAN(')')),
     IMMD(".(",      pstr(SCAN(')'))),
     IMMD("\\",      SCAN('\n')),
-    IMMD("s\"",     s_quote(vm, sp, tos, nos, false)),
-    IMMD(".\"",     s_quote(vm, sp, tos, nos, true)),
+    IMMD("s\"",     s_quote(XT_RPASS, false)),
+    IMMD(".\"",     s_quote(XT_RPASS, true)),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
