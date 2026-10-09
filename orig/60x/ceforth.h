@@ -177,8 +177,31 @@ struct ALIGNAS VM {
 /// @brief Unified Function Pointer signature for the Direct-Threaded Continuation Trampoline
 /// @param vm Context reference tracking task-isolated persistent structures
 /// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
-/// @param Stk Localized register pack
+#if E4_TRAMP
+struct  Ret;
+typedef Ret (*FPTR)(VM &vm, IU *ip, DU *sp, DU tos);   ///< returns the next step (4 regs on 32-bit)
+struct  Ret { FPTR fp; IU *ip; DU *sp; DU tos; };
+#define XT_RET     Ret
+#elif E4_NOS
 typedef void *(*FPTR)(VM &vm, IU *ip, DU *sp, DU tos, DU nos);  ///< tail-call (returns NEXT)
+#define XT_RET     void *
+#else
+typedef void *(*FPTR)(VM &vm, IU *ip, DU *sp, DU tos);          ///< tail-call (returns NEXT)
+#define XT_RET     void *
+#endif
+
+#if E4_NOS
+#define XT_ARGS    VM &vm, IU *ip, DU *sp, DU tos, DU nos      /** word signature        */
+#define XT_PASS    vm, ip, sp, tos, nos                        /** forward as-is         */
+#define XT_REFS    VM &vm, DU *&sp, DU &tos, DU &nos           /** helper by reference   */
+#define XT_RPASS   vm, sp, tos, nos
+#else
+#define XT_ARGS    VM &vm, IU *ip, DU *sp, DU tos
+#define XT_PASS    vm, ip, sp, tos
+#define XT_REFS    VM &vm, DU *&sp, DU &tos
+#define XT_RPASS   vm, sp, tos
+#endif
+
 struct Code {
 #if XT0_U32
     static constexpr UFP XT0 = 0;   ///< all code & pmem below 4GB (-no-pie, or 32-bit target): folds away
@@ -228,14 +251,19 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 #else
 #define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
 #endif
-#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(vm, ip, sp, tos, nos);})   /** true tail call */
 
-#define CODE(n, g)                                               \
-    rom_code(n, [](VM &vm, IU* ip, DU *sp, DU tos, DU nos)       \
-        INLINE -> void *{ g; NEXT(); }, (U8)0)
-#define IMMD(n, g)                                               \
-    rom_code(n, [](VM &vm, IU* ip, DU *sp, DU tos, DU nos)       \
-        INLINE -> void *{ g; NEXT(); }, (U8)IMM_ATTR)
+#if E4_TRAMP
+#define NEXT()   ({ FPTR fp = NEXT_FP; return Ret{ fp, ip, sp, tos }; })  /** back to trampoline */
+#else
+#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(XT_PASS); })             /** true tail call */
+#endif
+
+#define CODE(n, g)                                              \
+    rom_code(n, [](XT_ARGS)                                     \
+        INLINE -> XT_RET{ g; NEXT(); }, (U8)0)
+#define IMMD(n, g)                                              \
+    rom_code(n, [](XT_ARGS)                                     \
+        INLINE -> XT_RET{ g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
 ///@{
