@@ -11,6 +11,37 @@
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    0               /**< multitasking/pthread   */
 ///@}
+///@name Calling convention of the threaded-code words (see ceforth.h)
+///@brief  override with -DE4_TRAMP=.. -DE4_NOS=..
+///  E4_TRAMP 0: every word tail-calls the next one (needs sibling-call support)
+///           1: every word returns {next,ip,sp,tos} to a trampoline loop
+///              (needed on windowed-ABI Xtensa i.e. ESP32/S2/S3: GCC emits
+///               callx8+retw there, so a tail-call chain would overflow the stack)
+///  E4_NOS   1: TOS and NOS cached in registers (5 args: vm,ip,sp,tos,nos)
+///           0: TOS only                        (4 args: vm,ip,sp,tos)
+///              AAPCS (ARM) has only r0-r3, so a 5th arg goes via the stack;
+///              the trampoline returns 4 registers, so it has no room for nos.
+///@{
+#ifndef E4_TRAMP        // use trampoline if tail-call not supported
+  #if defined(__XTENSA__) && defined(__XTENSA_WINDOWED_ABI__)
+  #define E4_TRAMP      1
+  #else
+  #define E4_TRAMP      0
+  #endif
+#endif
+
+#ifndef E4_NOS          // use NOS in register windowing
+  #if E4_TRAMP || defined(__arm__) || defined(__thumb__)
+  #define E4_NOS        0
+  #else
+  #define E4_NOS        1
+  #endif
+#endif
+
+#if E4_TRAMP && E4_NOS
+  #error "E4_TRAMP needs E4_NOS=0"
+#endif
+///@}
 ///@name Memory block configuation
 ///@{
 #define E4_RS_SZ        32
