@@ -177,30 +177,43 @@ struct ALIGNAS VM {
 /// @brief Unified Function Pointer signature for the Direct-Threaded Continuation Trampoline
 /// @param vm Context reference tracking task-isolated persistent structures
 /// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
+/// @param Stk Localized register pack
+#if E4_NOS
+#define NARG      DU tos, DU nos
+#define NPAS      tos, nos
+#else  // E4_NOS
+#define NARG      DU tos
+#define NPAS      tos
+#endif // E4_NOS
+
+#if E4_RTOP
+#define ARGS      DU *rp, NARG
+#define PASS      rp, NPAS
+#else // E4_RTOP
+#define ARGS      NARG
+#define PASS      NPAS
+#endif // E4_RTOP
+
 #if E4_TRAMP
-struct  Ret;
-typedef Ret (*FPTR)(VM &vm, IU *ip, DU *sp, DU tos);   ///< returns the next step (4 regs on 32-bit)
-struct  Ret { FPTR fp; IU *ip; DU *sp; DU tos; };
+struct Ret;
+typedef Ret        (*FPTR)(VM &vm, IU *ip, DU *sp, DU tos);    ///< returns the next step (4 regs on 32-bit)
+struct  Ret        { FPTR fp; IU *ip; DU *sp; DU tos; };
 #define XT_RET     Ret
-#elif E4_NOS
-typedef void *(*FPTR)(VM &vm, IU *ip, DU *sp, DU tos, DU nos);  ///< tail-call (returns NEXT)
+#else // E4_TRAMP
+typedef void       *(*FPTR)(VM &vm, IU *ip, DU *sp, ARGS);     ///< tail-call (returns NEXT)
 #define XT_RET     void *
-#else
-typedef void *(*FPTR)(VM &vm, IU *ip, DU *sp, DU tos);          ///< tail-call (returns NEXT)
-#define XT_RET     void *
-#endif
+#endif // E4_TRAMP
+
+#define XT_ARGS    VM &vm, IU *ip, DU *sp, ARGS                /** word signature      */
+#define XT_PASS    vm, ip, sp, PASS                            /** forward as-is       */
 
 #if E4_NOS
-#define XT_ARGS    VM &vm, IU *ip, DU *sp, DU tos, DU nos      /** word signature        */
-#define XT_PASS    vm, ip, sp, tos, nos                        /** forward as-is         */
-#define XT_REFS    VM &vm, DU *&sp, DU &tos, DU &nos           /** helper by reference   */
-#define XT_RPASS   vm, sp, tos, nos
-#else
-#define XT_ARGS    VM &vm, IU *ip, DU *sp, DU tos
-#define XT_PASS    vm, ip, sp, tos
+#define XT_REFS    VM &vm, DU *&sp, DU &tos, DU &nos           /** helper by reference */
+#define XT_RPAS    vm, sp, tos, nos
+#else  // E4_NOS
 #define XT_REFS    VM &vm, DU *&sp, DU &tos
-#define XT_RPASS   vm, sp, tos
-#endif
+#define XT_RPAS    vm, sp, tos
+#endif // E4_NOS
 
 struct Code {
 #if XT0_U32
@@ -251,7 +264,6 @@ extern       List<U8,    E4_PMEM_SZ> pmem;
 #else
 #define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
 #endif
-
 #if E4_TRAMP
 #define NEXT()   ({ FPTR fp = NEXT_FP; return Ret{ fp, ip, sp, tos }; })  /** back to trampoline */
 #else
