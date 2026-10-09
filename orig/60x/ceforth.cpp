@@ -64,7 +64,7 @@ U8  *MEM0;                         ///< base of parameter memory block
 ///  Note:
 ///    so we can change pmem implementation anytime without affecting opcodes defined below
 ///
-///@name Dictionary and data stack access macros
+///@name data stack access macros
 ///@{
 #define SS        (vm.ss.v)
 #define RS        (vm.rs.v)
@@ -76,10 +76,37 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define OS3       (sp[-3])                 /**< 3rd of stack in memory                  */
 #define OS4       (sp[-4])                 /**< 4th of stack in memory                  */
 #define DEPTH     ((int)(sp - SS))         /**< number of items on stack                */
+
 #if !E4_NOS
 #define nos       (sp[-2])                 /**< TOS-only cache: NOS stays in memory     */
 #endif // !E4_NOS
-// Direct array-index tracking mappings for high-speed manipulation
+///@}
+///@name return stack access macros
+///@{
+#if E4_RTOP                                /** return stack pointer cached in a register  */
+#define RPUSH(x)   (*rp++ = (x))
+#define RPOP()     (*--rp)
+#define RTOP       (rp[-1])
+#define RTOP2      (rp[-2])
+#define RDROP(n)   (rp -= (n))
+#define RDEPTH     ((int)(rp - RS))
+#define RRESET()   (rp = RS)
+#define RSPILL()   (RP = rp - RS)          /** register => vm, before leaving the register world */
+#define RRELOAD()  (rp = RS + RP)          /** vm => register */
+#else // E4_RTOP                           /** RS/RP live in the VM struct (memory)       */
+#define RPUSH(x)   (RS[RP++] = (x))
+#define RPOP()     (RS[--RP])
+#define RTOP       (RS[RP-1])
+#define RTOP2      (RS[RP-2])
+#define RDROP(n)   (RP -= (n))
+#define RDEPTH     (RP)
+#define RRESET()   (RP = 0)
+#define RSPILL()
+#define RRELOAD()
+#endif // E4_RTOP
+///@}
+///@name Direct array-index tracking mappings
+///@{
 #define HERE      (pmem.idx)               /**< current parameter memory index          */
 #define HERE_PTR  ((IU*)&pmem[HERE])
 #define HERE_TGT  (TOK(HERE_PTR))          /**< token (pointer) of current pmem position */
@@ -161,20 +188,15 @@ const Code *find(const char *s) {
 ///@}
 ///====================================================================
 ///
-///> functions to reduce verbosity
+///> macros to reduce function verbosity
 ///
 #if E4_NOS
 #define FILL()   ({ sp--; nos = NOS; })
 #define PUSH(v)  ({ NOS = nos; nos = tos; tos = (DU)(v); sp++; })
-#define SPILL()  ({ SP = sp - SS; TOS = tos; NOS = nos; }) /**< registers => memory  */
-#define RELOAD() ({ sp = SS + SP; tos = TOS; nos = NOS; }) /**< memory => registers  */
 #else  // E4_NOS
 #define FILL()   ({ sp--; })
 #define PUSH(v)  ({ DU _v = (DU)(v); TOS = tos; tos = _v; sp++; })
-#define SPILL()  ({ SP = sp - SS; TOS = tos; })            /**< no NOS */
-#define RELOAD() ({ sp = SS + SP; tos = TOS; })            /**< no nos */
 #endif // E4_NOS
-
 #define POP()    ({ DU _rst = tos; tos = nos; FILL(); _rst; })
 #define POPI()   (UINT(POP()))
 #define BOOL(f)  ((f)?-1:0)               /**< Forth boolean representation */
@@ -182,6 +204,17 @@ const Code *find(const char *s) {
 #define UALU(op) ({ tos = UINT(nos) op UINT(tos); FILL(); })
 #define CMP(op)  ({ tos = BOOL(op(nos, tos)); FILL(); })
 #define UCMP(op) ({ tos = BOOL(op(UINT(nos), UINT(tos))); FILL(); })
+///
+/// Register window <=> memory sync. Use around any call that reads or
+/// writes this VM's stack through memory (include, tasking, ...).
+///
+#if E4_NOS
+#define SPILL()  ({ SP = sp - SS; RSPILL();  TOS = tos; NOS = nos; }) /**< registers => memory  */
+#define RELOAD() ({ sp = SS + SP; RRELOAD(); tos = TOS; nos = NOS; }) /**< memory => registers  */
+#else  // E4_NOS
+#define SPILL()  ({ SP = sp - SS; RSPILL();  TOS = tos; })            /**< registers => memory  */
+#define RELOAD() ({ sp = SS + SP; RRELOAD(); tos = TOS; })            /**< memory => registers  */
+#endif // E4_NOS
 
 int def_word(const char* name) {    ///< display if redefined
     if (name[0]=='\0') {            /// * missing name?
@@ -247,15 +280,18 @@ XT_RET doSTOP(XT_ARGS) {
 #if E4_NOS
     NOS = nos;
 #endif // E4_NOS
+#if E4_RTOP
+    RP  = rp - RS;
+#endif // E4_RTOP
     return NULL;
 #endif // E4_TRAMP
 }
 static IU gStop[] = { TOK(doSTOP) };  ///< tempoline sentinal
 
-#define UNNEST()     {                       \
-        if (RP <= 0) return doSTOP(XT_PASS); \
-        ip = XT(RS[--RP]);                   \
-        NEXT();                              \
+#define UNNEST()     {                                     \
+        if (RDEPTH <= 0) return doSTOP(XT_PASS);               \
+        ip = XT(RPOP());                                 \
+        NEXT();                                            \
     }
 
 #if E4_TRAMP
@@ -265,38 +301,33 @@ static void run(VM &vm, Ret r) {      ///< trampoline: constant C stack, one cal
 }
 #endif // E4_TRAMP
 
-void nest(VM& vm) {                   ///< inner-interpreter i.e. doLIST, tail-call
+void nest(VM& vm) {                   ///< inner-interpreter i.e. doLIST
     vm.state = NEST;
-    
-    /// Extract core virtual machine tracking metrics locally onto the local struct
-    IU  *ip = IP;
+
+    IU *ip  = IP;                    /// Extract VM state into registers
     DU *sp  = SS + SP;
     DU  tos = TOS;                   /// Direct load. Unguarded garbage behavior if empty
-#if E4_NOS    
+#if E4_NOS
     DU  nos = NOS;
 #endif // E4_NOS
-
+#if E4_RTOP
+    DU *rp  = RS + RP;
+#endif // E4_RTOP
     DEBUG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
-    DEBUG("nest(%08x) sp%d, rp%d, [%d, %d]\n",
-          *ip, DEPTH, RP, DEPTH > 1 ? nos : 0, DEPTH > 0 ? tos : 0);
+    DEBUG("nest(%08x) sp%d, rp%d\n", *ip, DEPTH, (int)RDEPTH);
 
     FPTR fp = NEXT_FP;
 #if E4_TRAMP
     run(vm, Ret{ fp, ip, sp, tos });
-#else // E4_TRAMP
+#else  // E4_TRAMP
     fp(XT_PASS);                    /// * the whole word chain runs by tail calls; doSTOP returns
 #endif // E4_TRAMP
-
-    DEBUG("  %p: sp%d, rp%d, [%d, %d]\n",
-          fp, SP, RP, SP > 1? NOS : 0, SP > 0 ? TOS : 0);
 }
 
 void CALL(VM &vm, const Code &c) {
     if (c.is_udf()) {
         RS[RP++] = TOK(gStop);
         IP = (IU*)c.xt;
-        DEBUG("\n  CALL(%x): sp%d, rp%d [%d,%d] ",
-              *vm.ip, SP, RP, SP > 1 ? NOS : 0, SP > 0 ? TOS : 0);
         nest(vm);
     }
     else {
@@ -306,10 +337,12 @@ void CALL(VM &vm, const Code &c) {
 #if E4_NOS
         DU  nos = NOS;
 #endif // E4_NOS
-        
+#if E4_RTOP
+        DU *rp  = RS + RP;
+#endif // E4_RTOP
 #if E4_TRAMP
         run(vm, c.xt(vm, ip, sp, tos));
-#else // E4_TRAMP
+#else  // E4_TRAMP
         c.xt(XT_PASS);
 #endif // E4_TRAMP
     }
@@ -326,9 +359,9 @@ constexpr Code g_rom[] = {
     CODE("nop ",    {}),                             /// dict[0], not used, simplify find()
     CODE("_:",                                       ///< doLIST
          IU *w = XT(*ip++);                          /// * compiled as [doLIST][body ptr]
-         RS[RP++] = (DU)TOK(ip);                     /// * return address
+         RPUSH((DU)TOK(ip));                         /// * return address
          ip = w),
-    CODE("_;",      ip = XT(RS[--RP])),              ///< EXIT
+    CODE("_;",      ip = XT(RPOP())),                ///< EXIT
     CODE("_lit",                                     ///< doconst
          DU v = *(DU*)ip;
          ip += sizeof(DU)/sizeof(IU);                /// * should DU/IU size different
@@ -353,20 +386,20 @@ constexpr Code g_rom[] = {
          *(t+1) = TOK(ip);                           /// * encode does> body token, and bail
          UNNEST()),
     CODE("_next",
-         if (GT(RS[RP-1] -= DU1, -DU1)) JMP();       ///> loop done? no, loop back
-         else { --RP; ip++; }),                      /// * yes, bail!
+         if (GT(RTOP -= DU1, -DU1)) JMP();           ///> loop done? no, loop back
+         else { RDROP(1); ip++; }),                  /// * yes, bail!
     CODE("_loop",
-         if (GT(RS[RP-2], RS[RP-1] += DU1)) JMP();   ///> loop done? no, loop back
-         else { --RP; --RP; ip++; }),                /// * pop off counters
+         if (GT(RTOP2, RTOP += DU1)) JMP();          ///> loop done? no, loop back
+         else { RDROP(2); ip++; }),                  /// * pop off counters
     CODE("_bran", JMP()),                            ///< unconditional jmp
     CODE("_0bran",if (ZEQ(POP())) JMP(); else ip++), /// conditional jmp
     CODE("vbran",
          IU tgt = *ip;                               /// * does> target token (0 if none)
          PUSH(TOK(ip + 1));                          /// * put param addr on tos
          if (tgt) ip = XT(tgt); else UNNEST()),      /// * jump to does> body, or return
-    CODE("_for", RS[RP++] = POP()),
+    CODE("_for", RPUSH(POP())),
     CODE("_do",                                      /// ( limit start -- )
-         DU t = POP(); DU n = POP(); RS[RP++] = n; RS[RP++] = t),
+         DU t = POP(); DU n = POP(); RPUSH(n); RPUSH(t)),
     CODE("_key", PUSH(key()); UNNEST()),
     ///
     /// @defgroup Stack ops
@@ -398,14 +431,14 @@ constexpr Code g_rom[] = {
     CODE("-",       ALU(-)),
     CODE("/",       ALU(/)),
     CODE("mod",     ALU(%)),
-    CODE("*/",                              ///< ( a b c -- a*b/c )
+    CODE("*/",                                       ///< ( a b c -- a*b/c )
          DU2 n = (DU2)nos * OS3; tos = (DU)(n / tos); sp -= 2; nos = NOS),
     CODE("/mod",
          DU n = nos; DU t = tos; DU m = MOD(n, t);
          nos = m; tos = INT(n / t)),
-    CODE("*/mod",                           ///< ( a b c -- (a*b)%c )
+    CODE("*/mod",                                    ///< ( a b c -- (a*b)%c )
          DU2 n = (DU2)OS3; n *= nos; DU2 t = tos; DU m = MOD(n, t); DU q = INT(n / t);
-         sp--; nos = m; tos = q),                        /// sp-- first: nos may live in memory
+         sp--; nos = m; tos = q),                    /// sp-- first: nos may live in memory
     CODE("and",     UALU(&)),
     CODE("or",      UALU(|)),
     CODE("xor",     UALU(^)),
@@ -463,26 +496,26 @@ constexpr Code g_rom[] = {
     IMMD("(",       SCAN(')')),
     IMMD(".(",      pstr(SCAN(')'))),
     IMMD("\\",      SCAN('\n')),
-    IMMD("s\"",     s_quote(XT_RPASS, false)),
-    IMMD(".\"",     s_quote(XT_RPASS, true)),
+    IMMD("s\"",     s_quote(XT_RPAS, false)),
+    IMMD(".\"",     s_quote(XT_RPAS, true)),
     /// @}
     /// @defgroup Branching ops
     /// @brief - if...then, if...else...then
     /// @{
     IMMD("if",
-         add_xt("_0bran");                         /// if    ( -- here )
-         PUSH(HERE_TGT);                           /// save ip0
+         add_xt("_0bran");                           /// if    ( -- here )
+         PUSH(HERE_TGT);                             /// save ip0
          add_iu(0)),
-    IMMD("else",                                   /// else ( here -- there )
+    IMMD("else",                                     /// else ( here -- there )
          add_xt("_bran");
-         IU tgt  = HERE_TGT;                       /// save target
+         IU tgt  = HERE_TGT;                         /// save target
          add_iu(0);
-         IU *ip0 = (IU*)MEM(POP());                /// fetch ip0
+         IU *ip0 = (IU*)MEM(POP());                  /// fetch ip0
          *ip0 = HERE_TGT;
          PUSH(tgt)),
     IMMD("then",
          IU *ip0 = (IU*)MEM(POP());
-         *ip0 = HERE_TGT),                         /// backfill jump address
+         *ip0 = HERE_TGT),                           /// backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
@@ -517,15 +550,15 @@ constexpr Code g_rom[] = {
     /// @defgroup DO..LOOP loops
     /// @{
     IMMD("do" ,     add_xt("_do"); PUSH(HERE_TGT)),          /// do ( -- here )
-    CODE("i",       PUSH(RS[RP-1])),
-    CODE("leave",   --RP; --RP; UNNEST()),                   /// NOTE: exits the word, not just the loop
+    CODE("i",       PUSH(RTOP)),
+    CODE("leave",   RDROP(2); UNNEST()),                     /// NOTE: exits the word, not just the loop
     IMMD("loop",    add_xt("_loop"); add_iu(POPI())),        /// loop ( here -- )
     /// @}
     /// @defgroup return stack op
     /// @{
-    CODE(">r",      RS[RP++] = POP()),
-    CODE("r>",      PUSH(RS[--RP])),
-    CODE("r@",      PUSH(RS[RP-1])),                         /// same as I (the loop counter)
+    CODE(">r",      RPUSH(POP())),
+    CODE("r>",      PUSH(RPOP())),
+    CODE("r@",      PUSH(RTOP)),                             /// same as I (the loop counter)
     /// @}
     /// @defgroup Compiler ops
     /// @{
@@ -550,7 +583,7 @@ constexpr Code g_rom[] = {
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-//    CODE("exec",   IU w = POP(); doLIST(vm, w)),             /// execute word
+//    CODE("exec",   IU w = POP(); doLIST(vm, w)),           /// execute word
     CODE("create",
          def_word(WORD());
          add_xt("vbran");                                    /// bran + offset field
@@ -619,7 +652,7 @@ constexpr Code g_rom[] = {
     /// @defgroup Debug ops
     /// @{
     CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
-    CODE("abort", sp = SS; RP = 0; ip = gStop),              /// clear ss, rs, and stop
+    CODE("abort", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
     CODE("here",  PUSH(HERE)),
     IMMD("'",     const Code *w = find(WORD()); if (w) PUSH(TOK(w->xt))),
     CODE(".s",    SPILL(); ss_dump(vm, true)),
@@ -633,20 +666,20 @@ constexpr Code g_rom[] = {
              dot(CR);
          }),
     CODE("depth", PUSH(DEPTH)),
-    CODE("r",     PUSH(RP)),
+    CODE("r",     PUSH(RDEPTH)),
     CODE("dump",
          U32 n = POPI();
          mem_dump(POPI(), n, *BASE)),
     CODE("dict",  dict_dump()),
     CODE("forget",
-         const Code *w = find(WORD());                      /// bail, if not found
-         if (w && w->is_udf()) {                            /// clear to specified word
+         const Code *w = find(WORD());                       /// bail, if not found
+         if (w && w->is_udf()) {                             /// clear to specified word
              pmem.clear((int)((U8*)w->pfa - MEM0) - STRLEN(w->name));
              for (int i=dict.idx - 1; i >=0; dict.clear(i--)) {
                  if (dict[i] == w) { dict.clear(i); break; }
              }
          }
-         else if (w) LOG("%s is built-in\n", w->name);      /// clear to 'boot'
+         else if (w) LOG("%s is built-in\n", w->name);       /// clear to 'boot'
     ),
     /// @}
     /// @defgroup OS ops
