@@ -35,17 +35,21 @@
   #endif
 #endif // E4_TRAMP
 
-#if E4_TRAMP || defined(__arm__) || defined(__thumb__)
-  #define E4_NOS        0
-  #define E4_RTOP       0
-#else
-  #ifndef E4_NOS
-  #define E4_NOS        1
-  #endif  // E4_NOS
-  #ifndef E4_RTOP
-  #define E4_RTOP       1
-  #endif  // E4_RTOP
-#endif // E4_NOS
+#ifndef E4_NOS
+  #if E4_TRAMP || defined(__arm__) || defined(__thumb__)
+  #define E4_NOS  0
+  #else
+  #define E4_NOS  1
+  #endif
+#endif
+
+#ifndef E4_RTOP
+  #if E4_TRAMP || defined(__arm__) || defined(__thumb__)
+  #define E4_RTOP 0
+  #else
+  #define E4_RTOP 1
+  #endif
+#endif
 
 #if E4_TRAMP && (E4_NOS || E4_RTOP)
   #error "E4_TRAMP needs E4_NOS=0 and E4_RTOP=0"
@@ -53,8 +57,8 @@
 ///@}
 ///@name Memory block configuation
 ///@{
-#define E4_RS_SZ        32
-#define E4_SS_SZ        32
+#define E4_RS_SZ        48
+#define E4_SS_SZ        48
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
 #define E4_VM_POOL_SZ   8               /**< one plus # cors       */
