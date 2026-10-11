@@ -187,8 +187,8 @@ struct ALIGNAS VM {
 #endif // E4_NOS
 
 #if E4_RTOP
-#define ARGS      DU *rp, NARG
-#define PASS      rp, NPAS
+#define ARGS      NARG, DU *rp
+#define PASS      NPAS, rp
 #else // E4_RTOP
 #define ARGS      NARG
 #define PASS      NPAS
