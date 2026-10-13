@@ -690,7 +690,7 @@ constexpr Code g_rom[] = {
     CODE("ms",    delay(POPI())),
     CODE("bye",   vm.state=STOP),
     /// @}
-    CODE("boot",  dict.clear(); pmem.clear(sizeof(DU)))
+    CODE("boot",  dict.clear(); pmem.clear()),
 };
 constexpr int  g_romsz = sizeof(g_rom)/sizeof(Code);
 ///@}
@@ -821,6 +821,7 @@ void forth_init() {
     for (int i = pmem.idx; i < USER_AREA; i+=sizeof(IU)) {
         add_iu(0xffff);                  /// * reserved user area
     }
+    pmem.readonly_below(USER_AREA);      /// * USER_AREA protected
     dict_compile();                      ///> compile dictionary
     dict_validate();                     ///< collect XT0, and check xtoff range
 
