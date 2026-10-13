@@ -61,26 +61,14 @@ struct List {
     }              
     List &operator=(T *a) INLINE {
         if (raw) delete[] raw;
-        v = raw = a; return *this;
+        v = a; raw = 0; return *this;                ///< raw = 0 (non-owning)
     }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
     void readonly_below(int i) { ro = i; }
 
-#if RANGE_CHECK
-    T pop()     INLINE {
-        if (idx>0) return v[--idx];
-        throw "ERR: List empty";
-    }
-    T push(T t) INLINE {
-        if (idx<N) return v[max=idx++] = t;
-        throw "ERR: List full";
-    }
-
-#else  // !RANGE_CHECK
     T pop()     INLINE { return v[--idx]; }
-    T push(T t) INLINE { return v[idx++] = t; }   ///< deep copy element
-
-#endif // RANGE_CHECK
+    T push(T t) INLINE { return v[idx++] = t; }      ///< deep copy element
+    
     void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
     void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
     void clear(int tgt = 0) {
