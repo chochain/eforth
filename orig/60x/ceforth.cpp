@@ -37,28 +37,10 @@
 ///     | strlen+1     | 2-byte | 2-byte |     |      |
 ///     +--------------+--------+--------+-----+------+---- 2-byte aligned
 ///
-///> Parameter structure - 16-bit aligned (use MSB for colon/primitive word flag)
-///   * primitive word
-///     16-bit xt offset with MSB set to 1, where opcode < MAX_OP
-///     +-+--------------+
-///     |1|   opcode     |   call exec_prim(opcode)
-///     +-+--------------+
-///
-///   * colon word (user defined)
-///     16-bit pmem offset with MSB set to 1, where dict.pfa >= MAX_OP
-///     +--------------+-+
-///     |1|   dict.pfa   |   IP = dict.pfa
-///     +--------------+-+
-///
-///   * built-in word
-///     16-bit xt offset with MSB set to 0 (1 less mem lookup for xt)
-///     +-+--------------+
-///     |0| dict.xtoff() |   call (XT0 + *IP)() to execute
-///     +-+--------------+
-///
 List<Code*, E4_DICT_SZ> dict;      ///< dictionary
-List<U8,    E4_PMEM_SZ> pmem;      ///< parameter memory (for colon definitions)
-U8  *MEM0;                         ///< base of parameter memory block
+List<U8,    0>          pmem;      ///< parameter memory (for colon definitions)
+U8                      *MEM0;     ///< base of parameter memory block
+alignas(16) static U8 _pmem_buf[E4_PMEM_SZ]; ///< static to ensure alignment
 ///
 ///> Macros to abstract dict and pmem physical implementation
 ///  Note:
@@ -111,17 +93,26 @@ U8  *MEM0;                         ///< base of parameter memory block
 #define HERE_PTR  ((IU*)&pmem[HERE])
 #define HERE_TGT  (TOK(HERE_PTR))          /**< token (pointer) of current pmem position */
 #if XT0_U32
-#define XT(i)     ((IU*)(UFP)(IU)(i))
+#define ADDR(t)   ((UFP)(IU)(t))                   /**< 32-bit token => address (the only place XT0 appears) */
 #else  // !XT0_U32
-#define XT(i)     ((IU*)(Code::XT0 | (UFP)(IU)(i)))
+#define ADDR(t)   (Code::XT0 | (UFP)(IU)(t))
 #endif // XT0_U32
-#define TOK(p)    ((IU)Code::Token((void*)(p)))
-#define MEM(a)    ((U8*)XT(UINT(a)))       /**< pointer to address fetched from pmem    */
-#define BASE      (MEM0 + vm.base)         /**< pointer to base in VM user area         */
-#define IGET(ip)  (*(IU*)MEM(ip))          /**< instruction fetch from pmem+ip offset   */
-#define CELL(a)   (*(DU*)XT(a))            /**< fetch a cell from parameter memory      */
-#define JMP()     ip = XT(*ip)             /**< set IP to target address                */
-#define SETJMP(a) (*(IU*)&pmem[a] = HERE)  /**< address offset for branching opcodes    */
+#define TOK(p)    ((IU)Code::Token((void*)(p)))    /**< address => 32-bit token                 */
+///
+/// Two address spaces, never mixed:
+///   code addresses  - absolute 32-bit tokens, stored in threaded code and on the
+///                     return stack (primitives, branch targets, colon bodies, ip)
+///   data addresses  - byte offsets from pmem[0] (=MEM0); this is what a Forth
+///                     program sees on the data stack (here, base, variable, ' ...)
+///
+#define XT(t)     ((IU*)ADDR(t))                    /**< code token => threaded-code pointer   */
+#define MEM(a)    ((U8*)(MEM0 + UINT(a)))           /**< data address (offset) => byte pointer */
+#define OFF(p)    ((IU)((U8*)(p) - MEM0))           /**< pointer => data address (offset)      */
+#define CELL(a)   (*(DU*)MEM(a))                    /**< data cell (DU)                        */
+#define ICELL(a)  (*(IU*)MEM(a))                    /**< data cell (IU), e.g. branch operand   */
+#define BASE      (MEM(vm.base))                    /**< pointer to radix byte in VM user area */
+#define JMP()     ip = XT(*ip)                      /**< set IP to target address              */
+#define SETJMP()  add_iu(TOK(MEM(POP())))           /**< data address => branch-target token   */
 #define SCAN(c)   (scan(c, vm.pad, E4_PAD_SZ))
 #define WORD()    (word(vm.pad, E4_PAD_SZ))
 ///@}
@@ -236,9 +227,9 @@ void s_quote(XT_REFS, bool dotq=false) {
         IU h0  = HERE;              ///> keep current memory addr
         DU len = add_str(s);        ///> write string to PAD
         char *str = (char*)&pmem[h0] + sizeof(U16);
-        if (dotq) pstr(str, CR);
+        if (dotq) pstr(str);
         else {
-            PUSH((DU)TOK(str));     ///> addr, len
+            PUSH((DU)OFF(str));     ///> addr, len
             PUSH(len);
         }
         HERE = h0;                  ///> restore memory addr
@@ -366,21 +357,21 @@ constexpr Code g_rom[] = {
          DU v = *(DU*)ip;
          ip += sizeof(DU)/sizeof(IU);                /// * should DU/IU size different
          PUSH(v)),  /// doconst
-    CODE("_var",    PUSH(TOK(ip)); UNNEST()),
+    CODE("_var",    PUSH(OFF(ip)); UNNEST()),
     CODE("_str",
          U16 len = *(U16*)ip;                        /// 2-byte length
          char *str = (char*)ip + sizeof(U16);
-         PUSH((DU)TOK(str));
+         PUSH((DU)OFF(str));
          PUSH((DU)len);
          int bsz = sizeof(U16) + len + 1;            /// 16-bit len + string + '\0'
          ip = (IU*)((U8*)ip + ALIGN(bsz))),
     CODE("_dotq",
          U16 len = *(U16*)ip;
          char *str = (char*)ip + sizeof(U16);
-         pstr(str, CR);
+         pstr(str);
          int bsz = sizeof(U16) + len + 1;
          ip = (IU*)((U8*)ip + ALIGN(bsz))),
-    CODE("_create", PUSH(TOK(++ip)); ip++),
+    CODE("_create", PUSH(OFF(++ip)); ip++),
     CODE("_does>",
          IU *t = (IU*)dict[-1]->xt;                  ///< memory pointer to pfa 
          *(t+1) = TOK(ip);                           /// * encode does> body token, and bail
@@ -395,11 +386,13 @@ constexpr Code g_rom[] = {
     CODE("_0bran",if (ZEQ(POP())) JMP(); else ip++), /// conditional jmp
     CODE("vbran",
          IU tgt = *ip;                               /// * does> target token (0 if none)
-         PUSH(TOK(ip + 1));                          /// * put param addr on tos
+         PUSH(OFF(ip + 1));                          /// * put param addr on tos
          if (tgt) ip = XT(tgt); else UNNEST()),      /// * jump to does> body, or return
     CODE("_for", RPUSH(POP())),
     CODE("_do",                                      /// ( limit start -- )
          DU t = POP(); DU n = POP(); RPUSH(n); RPUSH(t)),
+    CODE("_is",                                      /// runtime of compiled "is" ( addr tok -- )
+         IU t = POPI(); ICELL(POPI()) = t),
     CODE("_key", PUSH(key()); UNNEST()),
     ///
     /// @defgroup Stack ops
@@ -476,7 +469,7 @@ constexpr Code g_rom[] = {
     /// @}
     /// @defgroup IO ops
     /// @{
-    CODE("base",    PUSH(vm.base)),
+    CODE("base",    PUSH(vm.base)),                  /// address of radix byte
     CODE("decimal", *BASE=10),
     CODE("hex",     *BASE=16),
     CODE("bl",      PUSH(0x20)),
@@ -504,61 +497,59 @@ constexpr Code g_rom[] = {
     /// @{
     IMMD("if",
          add_xt("_0bran");                           /// if    ( -- here )
-         PUSH(HERE_TGT);                             /// save ip0
+         PUSH(HERE);                                 /// save ip0
          add_iu(0)),
     IMMD("else",                                     /// else ( here -- there )
          add_xt("_bran");
-         IU tgt  = HERE_TGT;                         /// save target
+         IU tgt  = HERE;                             /// save target
          add_iu(0);
-         IU *ip0 = (IU*)MEM(POP());                  /// fetch ip0
-         *ip0 = HERE_TGT;
+         ICELL(POP()) = HERE_TGT;                    /// patch ip0
          PUSH(tgt)),
     IMMD("then",
-         IU *ip0 = (IU*)MEM(POP());
-         *ip0 = HERE_TGT),                           /// backfill jump address
+         ICELL(POP()) = HERE_TGT),                   /// backfill jump address
     /// @}
     /// @defgroup Loops
     /// @brief  - begin...again, begin...f until, begin...f while...repeat
     /// @{
-    IMMD("begin", PUSH(HERE_TGT)),
-    IMMD("again", add_xt("_bran");  add_iu(POPI())),         /// again    ( there -- )
-    IMMD("until", add_xt("_0bran"); add_iu(POPI())),         /// until    ( there -- )
-    IMMD("while",                                            /// while    ( there -- there here )
+    IMMD("begin", PUSH(HERE)),
+    IMMD("again", add_xt("_bran");  SETJMP()),       /// again    ( there -- )
+    IMMD("until", add_xt("_0bran"); SETJMP()),       /// until    ( there -- )
+    IMMD("while",                                    /// while    ( there -- there here )
          add_xt("_0bran");
-         PUSH(HERE_TGT);
+         PUSH(HERE);
          add_iu(0)),
-    IMMD("repeat",                                           /// repeat    ( there1 there2 -- )
+    IMMD("repeat",                                   /// repeat    ( there1 there2 -- )
          add_xt("_bran");
-         IU *t = (IU*)MEM(POP());                            /// set forward and loop back address
-         add_iu(POPI());
+         IU *t = &ICELL(POP());                      /// set forward and loop back address
+         SETJMP();
          *t = HERE_TGT),
     /// @}
     /// @defgroup FOR...NEXT loops
     /// @brief  - for...next, for...aft...then...next
     /// @{
-    IMMD("for" ,    add_xt("_for"); PUSH(HERE_TGT)),         /// for ( -- here )
-    IMMD("next",    add_xt("_next"); add_iu(POPI())),        /// next ( here -- )
-    IMMD("aft",                                              /// aft ( here -- here there )
+    IMMD("for" ,    add_xt("_for"); PUSH(HERE)),     /// for ( -- here )
+    IMMD("next",    add_xt("_next"); SETJMP()),      /// next ( here -- )
+    IMMD("aft",                                      /// aft ( here -- here there )
          POP();
          add_xt("_bran");
-         IU h = HERE_TGT;
+         IU h = HERE;
          add_iu(0);
-         PUSH(HERE_TGT);
+         PUSH(HERE);
          PUSH(h)),
     /// @}
     /// @}
     /// @defgroup DO..LOOP loops
     /// @{
-    IMMD("do" ,     add_xt("_do"); PUSH(HERE_TGT)),          /// do ( -- here )
+    IMMD("do" ,     add_xt("_do"); PUSH(HERE)),      /// do ( -- here )
     CODE("i",       PUSH(RTOP)),
-    CODE("leave",   RDROP(2); UNNEST()),                     /// NOTE: exits the word, not just the loop
-    IMMD("loop",    add_xt("_loop"); add_iu(POPI())),        /// loop ( here -- )
+    CODE("leave",   RDROP(2); UNNEST()),             /// NOTE: exits the word, not just the loop
+    IMMD("loop",    add_xt("_loop"); SETJMP()),      /// loop ( here -- )
     /// @}
     /// @defgroup return stack op
     /// @{
     CODE(">r",      RPUSH(POP())),
     CODE("r>",      PUSH(RPOP())),
-    CODE("r@",      PUSH(RTOP)),                             /// same as I (the loop counter)
+    CODE("r@",      PUSH(RTOP)),                     /// same as I (the loop counter)
     /// @}
     /// @defgroup Compiler ops
     /// @{
@@ -567,57 +558,59 @@ constexpr Code g_rom[] = {
     CODE(":",       vm.compile = def_word(WORD())),
     IMMD(";",       add_xt("_;"); vm.compile = false),
     ///=============================================================================
-    CODE("variable",                                         /// create a variable
+    CODE("variable",                                 /// create a variable
          def_word(WORD());
          add_xt("_var");
          add_du(0)),
-    CODE("constant",                                         /// create a constant
-         def_word(WORD());                                   /// create a new word on dictionary
-         add_xt("_lit");                                     /// dovar (+parameter field)
+    CODE("constant",                                 /// create a constant
+         def_word(WORD());                           /// create a new word on dictionary
+         add_xt("_lit");                             /// dovar (+parameter field)
          add_du(POP());
          add_xt("_;")),
     IMMD("postpone",  const Code *w = find(WORD()); if (w) add_w(w)),
-    CODE("immediate", dict[-1]->imm()),                      /// set immediate flag
-    CODE("exit",    UNNEST()),                               /// early exit the colon word
+    CODE("immediate", dict[-1]->imm()),              /// set immediate flag
+    CODE("exit",    UNNEST()),                       /// early exit the colon word
     /// @}
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-//    CODE("exec",   IU w = POP(); doLIST(vm, w)),           /// execute word
+//    CODE("exec",   IU w = POP(); doLIST(vm, w)),   /// execute word
     CODE("create",
          def_word(WORD());
-         add_xt("vbran");                                    /// bran + offset field
+         add_xt("vbran");                            /// bran + offset field
          add_iu(0)),
     IMMD("does>",  add_xt("_does>")),
-    IMMD("to",                                               /// alter the value of a constant, i.e. 3 to x
+    IMMD("to",                                       /// alter the value of a constant, i.e. 3 to x
          if (vm.compile) {
-             const Code *w = find(WORD());                   /// constant addr
-             add_xt("_lit");
-             add_iu(TOK(w->xt));                             /// push body address (no _: wrapper)
-             add_xt("to");                                   /// encode to opcode
+             const Code *w = find(WORD());           /// constant addr
+             if (w) {
+                 add_xt("_lit");
+                 add_iu(OFF(w->pfa));                /// push body address (no _: wrapper)
+                 add_xt("to");                       /// encode to opcode
+             }
          }
          else {
-             DU i = POP() + sizeof(IU);                      /// calculate address to memory
-             *(DU*)MEM(DALIGN(i)) = POP();                   /// update constant
+             IU i = POPI() + sizeof(IU);             /// calculate address to memory
+             CELL(DALIGN(i)) = POP();                /// update constant
          }),
-    IMMD("is",              /// ' y is x                     /// alias a word, i.e. ' y is x
+    IMMD("is",              /// ' y is x             /// alias a word, i.e. ' y is x
          const Code *w = find(WORD());
-         if (vm.compile) {
-             add_xt("_lit");
-             add_iu(TOK(w->xt));                             /// save addr on stack
-             add_xt("is");
-         }
-         else {
-             *(IU*)XT(POP()) = TOK(w->xt);
+         if (w) {
+             if (vm.compile) {
+                 add_xt("_lit");
+                 add_iu(TOK(w->xt));                 /// save token on stack
+                 add_xt("_is");                      /// runtime: ( addr tok -- )
+             }
+             else ICELL(POPI()) = TOK(w->xt);
          }),
     ///
     /// be careful with memory access, especially BYTE because
     /// it could make access misaligned which slows the access speed by 2x
     ///
-    CODE("@",                                                /// w -- n
-         IU w = POPI();
-         PUSH(w < USER_AREA ? (DU)IGET(w) : CELL(w))),       /// check user area
+    CODE("@",     tos = CELL(tos)),                          /// w -- n  (offset from pmem[0])
     CODE("!",     IU w = POPI(); CELL(w) = POP()),           /// n w --
+    CODE("c@",    tos = *MEM(tos)),                          /// w -- c  (zero-extended)
+    CODE("c!",    IU w = POPI(); *MEM(w) = (U8)POP()),       /// c w --
     CODE("+!",    IU w = POPI(); CELL(w) += POP()),          /// n w --
     CODE("?",     IU w = POPI(); dot(DOT, CELL(w))),         /// w --
     CODE(",",     DU n = POP(); add_du(n)),                  /// n -- , compile a cell
@@ -653,8 +646,9 @@ constexpr Code g_rom[] = {
     /// @{
     CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
     CODE("abort", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
-    CODE("here",  PUSH(HERE)),
-    IMMD("'",     const Code *w = find(WORD()); if (w) PUSH(TOK(w->xt))),
+    CODE("here",  PUSH(HERE)),                               /// offset of pmem top
+    IMMD("'",     const Code *w = find(WORD());
+         if (w) PUSH(w->is_udf() ? (DU)OFF(w->pfa) : (DU)TOK(w->xt))),   /// udf: body offset, prim: code token
     CODE(".s",    SPILL(); ss_dump(vm, true)),
     CODE("words", words()),
     CODE("see",
@@ -810,11 +804,13 @@ void forth_init() {
     static bool init    = false;
     if (init) return;                    ///> check dictionary initilized
 
+    pmem = _pmem_buf;
     if (!dict.v || !pmem.v) {
         LOG("forth_init memory allocation failed, %s...\n", "bail");
         exit(0);
     }
     MEM0 = &pmem[0];
+    if ((UFP)MEM0 & 3) { ERR("pmem not 4-byte aligned"); exit(1); }
 
     uvar_init();                         /// * initialize user area
     t_pool_init();                       /// * initialize thread pool
