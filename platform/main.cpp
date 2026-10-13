@@ -21,7 +21,7 @@ extern void forth_init();
 extern int  forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
 extern void forth_teardown();
 
-const char* APP_VERSION = "eForth v5.0";
+const char* APP_VERSION = "eForth v6.0";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
