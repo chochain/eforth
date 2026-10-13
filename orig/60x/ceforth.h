@@ -45,20 +45,24 @@ template<class T, int N=0>
 struct List {
     T   *v;             ///< fixed-size array storage (v[-2], v[-1] are guard cells)
     T   *raw = 0;       ///< actual allocation
-    int idx = 0;        ///< current index of array
-    int max = 0;        ///< high watermark for debugging
-    int ro  = 0;        ///< readonly index
+    int idx  = 0;       ///< current index of array
+    int max  = 0;       ///< high watermark for debugging
+    int ro   = 0;       ///< readonly index
 
+    static constexpr int G = (sizeof(T) >= 4) ? 2 : (4 / sizeof(T));   // alignment guard
     List()  {
-        raw = N ? new T[N + 2] : 0;                  ///< 2 guard cells below v[0] for register-window spills
+        raw = N ? new T[N + G] : 0;                  ///< 2 guard cells below v[0] for register-window spills
         if (N && !raw) throw "ERR: List allot failed";
-        v = raw ? raw + 2 : 0;
+        v = raw ? raw + G : 0;
     }
     ~List() {
         clear(ro);
         if (raw) delete[] raw;                       ///< free container
     }              
-    List &operator=(T *a)   INLINE { v = raw = a; return *this; }
+    List &operator=(T *a) INLINE {
+        if (raw) delete[] raw;
+        v = raw = a; return *this;
+    }
     T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
     void readonly_below(int i) { ro = i; }
 
@@ -254,7 +258,7 @@ extern const Code g_rom[] PROGMEM;
 extern const int  g_romsz;
 extern       U8   *MEM0;
 extern       List<Code*, E4_DICT_SZ> dict;
-extern       List<U8,    E4_PMEM_SZ> pmem;
+extern       List<U8,    0>          pmem;
 
 // =====================================================================
 // 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
