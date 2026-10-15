@@ -49,9 +49,15 @@ struct List {
     int max  = 0;       ///< high watermark for debugging
     int ro   = 0;       ///< readonly index
 
-    static constexpr int G = (sizeof(T) >= 4) ? 2 : (4 / sizeof(T));   // alignment guard
+    static constexpr int guard(int min=2) {          /// minimum of 2 guard cells, but pad extra if needed to reach a 4-byte boundary
+        if (N == 0) return 0;                        /// * no padding needed
+        int off = (min * sizeof(T)) % 4;             /// * byte offset if we have 2 cells only
+        return off ? min + (4 - off) / sizeof(T) : min;  /// * adjust padding needed
+    }
+    static constexpr int G = guard();
+    
     List()  {
-        raw = N ? new T[N + G] : 0;                  ///< 2 guard cells below v[0] for register-window spills
+        raw = N ? new T[N + G]{} : 0;                ///< 2 guard cells below v[0] for register-window spills
         if (N && !raw) throw "ERR: List allot failed";
         v = raw ? raw + G : 0;
     }
