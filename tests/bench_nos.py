@@ -4,8 +4,8 @@ Build ceforth with several E4_NOS / E4_RTOP (and optional align-functions) setti
 and time the 'yy' looper.  Linux/x86-64 host, no sanitizers (use a separate build for those).
 
   python3 bench_nos.py --src .                       # 4 NOS/RTOP combos, -O2
-  python3 bench_nos.py --src . --opt -Os --runs 9
-  python3 bench_nos.py --src . --align 4,16,32       # layout sensitivity
+  python3 bench_nos.py --src . --opt -Os --runs=9
+  python3 bench_nos.py --src . --align=4,16,32       # layout sensitivity
   python3 bench_nos.py --src . --configs 0,1 1,1 --perf
   python3 bench_nos.py --src . --configs 0,1 1,1 --sweep 4                    # aligned placements
   python3 bench_nos.py --src . --configs 0,1 1,1 --sweep 4 --sweep-start 2    # 2-mod-4 (misaligned)
@@ -62,8 +62,10 @@ def build(srcdir, harness, workdir, nos, rtop, align, a, sweep=False):
 
 def script(path, n):
     open(path, "w").write(
-        ": xx 999 for 34 i + drop next ; : yy 999 for xx next ;\n"
-        f": z {n} for yy next ; z\n")
+        ": fib dup 2 < if drop 1 else dup 1- fib swap 2 - fib + then ;\n"
+        f": z {n} for 30 fib drop next ; z\n")
+#        ": xx 999 for 34 i + drop next ; : yy 999 for xx next ;\n"
+#        f": z {n} for yy next ; z\n")
 
 def timed(exe, fs):
     with open(fs) as f:
