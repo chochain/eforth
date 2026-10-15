@@ -112,7 +112,7 @@ alignas(16) static U8 _pmem_buf[E4_PMEM_SZ]; ///< static to ensure alignment
 #define ICELL(a)  (*(IU*)MEM(a))                    /**< data cell (IU), e.g. branch operand   */
 #define BASE      (MEM(vm.base))                    /**< pointer to radix byte in VM user area */
 #define JMP()     ip = XT(*ip)                      /**< set IP to target address              */
-#define SETJMP()  add_iu(TOK(MEM(POP())))           /**< data address => branch-target token   */
+#define SETJMP()  add_iu(TOK(MEM(POPI())))          /**< data address => branch-target token   */
 #define SCAN(c)   (scan(c, vm.pad, E4_PAD_SZ))
 #define WORD()    (word(vm.pad, E4_PAD_SZ))
 ///@}
@@ -503,7 +503,7 @@ constexpr Code g_rom[] = {
          add_xt("_bran");
          IU tgt  = HERE;                             /// save target
          add_iu(0);
-         ICELL(POP()) = HERE_TGT;                    /// patch ip0
+         ICELL(POPI()) = HERE_TGT;                   /// patch ip0
          PUSH(tgt)),
     IMMD("then",
          ICELL(POP()) = HERE_TGT),                   /// backfill jump address
@@ -520,7 +520,7 @@ constexpr Code g_rom[] = {
          add_iu(0)),
     IMMD("repeat",                                   /// repeat    ( there1 there2 -- )
          add_xt("_bran");
-         IU *t = &ICELL(POP());                      /// set forward and loop back address
+         IU *t = &ICELL(POPI());                     /// set forward and loop back address
          SETJMP();
          *t = HERE_TGT),
     /// @}
@@ -781,7 +781,7 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     DU  n   = parse_number(idiom, *BASE, &err);
     if (err) {                           /// * not number
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
-        pstr(strerror(err), CR);         ///> and error description
+        pstr(strerror(errno), CR);       ///> and error description
         vm.compile = false;              ///> reset to interpreter mode
         vm.state   = STOP;               ///> skip the entire input buffer
         return;
