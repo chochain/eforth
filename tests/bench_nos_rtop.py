@@ -3,12 +3,12 @@
 Build ceforth with several E4_NOS / E4_RTOP (and optional align-functions) settings
 and time the 'yy' looper.  Linux/x86-64 host, no sanitizers (use a separate build for those).
 
-  python3 bench_nos.py --src .                       # 4 NOS/RTOP combos, -O2
-  python3 bench_nos.py --src . --opt -Os --runs=9
-  python3 bench_nos.py --src . --align=4,16,32       # layout sensitivity
-  python3 bench_nos.py --src . --configs 0,1 1,1 --perf
-  python3 bench_nos.py --src . --configs 0,1 1,1 --sweep 4                    # aligned placements
-  python3 bench_nos.py --src . --configs 0,1 1,1 --sweep 4 --sweep-start 2    # 2-mod-4 (misaligned)
+  python3 bench_nos_rtop.py --src .                       # 4 NOS/RTOP combos, -O2
+  python3 bench_nos_rtop.py --src . --opt -Os --runs=9
+  python3 bench_nos_rtop.py --src . --align=4,16,32       # layout sensitivity
+  python3 bench_nos_rtop.py --src . --configs 0,1 1,1 --perf
+  python3 bench_nos_rtop.py --src . --configs 0,1 1,1 --sweep 4                    # aligned placements
+  python3 bench_nos_rtop.py --src . --configs 0,1 1,1 --sweep 4 --sweep-start 2    # 2-mod-4 (misaligned)
 
 The sweep (needs the static pmem_buf version) shifts pmem by 0..4095 bytes inside a page-aligned
 buffer and reports which placements run slow.  Finding on x86-64: with pmem 4-byte aligned no
