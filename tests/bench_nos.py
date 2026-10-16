@@ -173,10 +173,11 @@ def main():
         best = min(t_run[(nos, rtop, al)]) - min(t_zero[(nos, rtop, al)])   # subtract startup
         med = statistics.median(t_run[(nos, rtop, al)]) - statistics.median(t_zero[(nos, rtop, al)])
         base = base or best
-        print(f"{nos:>3} {rtop:>4} {al or '-':>5} {best:8.1f} {med:8.1f} {best/reps:7.3f} {best/base:8.2f}x")
+        print(f"{nos:>3} {rtop:>4} {al or '0':>5} {best:8.1f} {med:8.1f} {best/reps:7.3f} {best/base:8.2f}x")
+        print(f"{{ 'nos':{nos}, 'rtop':{rtop}, 'align':{al or '0'}, 'best':{best:0.1f}, 'median':{med:0.1f}, 'avg':{best/reps:0.3f}, ")
         if a.perf:
             p = perf_stat(exe, fs_run)
-            print("      perf:", p if p else "unavailable")
+            print("  'perf': ", p if p else "unavailable", "},")
     print(f"binaries kept in {work}")
 
 if __name__ == "__main__":
