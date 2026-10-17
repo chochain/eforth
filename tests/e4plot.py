@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-option = 0   # or 0=fib or 1=yy
+option = 3   # or 0=fib, 1=yy, 2=chacha, 3=fft
 
 # Dataset parsing from benchmark logs
 labels = [
@@ -65,11 +65,64 @@ stats_yy = [
   'perf':  {'instructions': 1265762211.0, 'cycles': 386687306.0, 'branch-misses': 110963.0, 'ipc': 3.27} },
 ]
 
-out_fn   = [ 'e4plot_fib.png', 'e4plot_yy.png'  ][option]
-stat_src = [ stats_fib       , stats_yy         ][option]
-rate     = [[1e9,1e9,1e7,1e0], [2e8,2e8,2e4,1e0]][option]
-title    = [ 'fib'           , 'looper'         ][option]
-legend   = [ 'upper right'   , 'upper left'     ][option]
+stats_cha = [
+{ 'nos':0, 'rtop':0, 'align':0, 'best':339.4, 'median':334.1, 'avg':33.940, 
+  'perf':  {'instructions': 1760395796.0, 'cycles': 1338077756.0, 'branch-misses': 31924987.0, 'ipc': 1.32} },
+{ 'nos':0, 'rtop':1, 'align':0, 'best':255.6, 'median':252.1, 'avg':25.558, 
+  'perf':  {'instructions': 1498513573.0, 'cycles': 1000099053.0, 'branch-misses': 24294776.0, 'ipc': 1.5} },
+{ 'nos':1, 'rtop':0, 'align':0, 'best':297.3, 'median':294.4, 'avg':29.734, 
+  'perf':  {'instructions': 1896756807.0, 'cycles': 1182632530.0, 'branch-misses': 24485757.0, 'ipc': 1.6} },
+{ 'nos':1, 'rtop':1, 'align':0, 'best':273.1, 'median':273.1, 'avg':27.309, 
+  'perf':  {'instructions': 1635073073.0, 'cycles': 1094063433.0, 'branch-misses': 27969706.0, 'ipc': 1.49} },
+{ 'nos':0, 'rtop':0, 'align':0, 'best':303.0, 'median':304.2, 'avg':30.295, 
+  'perf':  {'instructions': 1761561818.0, 'cycles': 1213309902.0, 'branch-misses': 26536895.0, 'ipc': 1.45} },
+{ 'nos':0, 'rtop':1, 'align':0, 'best':289.0, 'median':296.6, 'avg':28.899, 
+  'perf':  {'instructions': 1500260963.0, 'cycles': 1155212925.0, 'branch-misses': 30680672.0, 'ipc': 1.3} },
+{ 'nos':1, 'rtop':0, 'align':0, 'best':307.1, 'median':315.2, 'avg':30.707, 
+  'perf':  {'instructions': 1912372837.0, 'cycles': 1228753875.0, 'branch-misses': 27550771.0, 'ipc': 1.56} },
+{ 'nos':1, 'rtop':1, 'align':0, 'best':302.6, 'median':301.9, 'avg':30.265, 
+  'perf':  {'instructions': 1651272965.0, 'cycles': 1203659076.0, 'branch-misses': 33126338.0, 'ipc': 1.37} },
+{ 'nos':0, 'rtop':0, 'align':0, 'best':314.8, 'median':320.9, 'avg':31.483, 
+  'perf':  {'instructions': 1766567658.0, 'cycles': 1285913371.0, 'branch-misses': 29085555.0, 'ipc': 1.37} },
+{ 'nos':0, 'rtop':1, 'align':0, 'best':244.4, 'median':241.0, 'avg':24.437, 
+  'perf':  {'instructions': 1504909113.0, 'cycles': 963947678.0, 'branch-misses': 19849717.0, 'ipc': 1.56} },
+{ 'nos':1, 'rtop':0, 'align':0, 'best':277.2, 'median':277.5, 'avg':27.719, 
+  'perf':  {'instructions': 1899518025.0, 'cycles': 1107355190.0, 'branch-misses': 19750481.0, 'ipc': 1.72} },
+{ 'nos':1, 'rtop':1, 'align':0, 'best':278.5, 'median':286.1, 'avg':27.852, 
+  'perf':  {'instructions': 1641146319.0, 'cycles': 1114996486.0, 'branch-misses': 25040736.0, 'ipc': 1.47} },
+]
+
+stats_fft = [
+{ 'nos':0, 'rtop':0, 'align':0, 'best':1283.0, 'median':1283.4, 'avg':128.296, 
+  'perf':  {'instructions': 5632615708.0, 'cycles': 5112637005.0, 'branch-misses': 120738725.0, 'ipc': 1.1} },
+{ 'nos':0, 'rtop':1, 'align':0, 'best':970.4, 'median':970.7, 'avg':97.044, 
+  'perf':  {'instructions': 4941679309.0, 'cycles': 3872138664.0, 'branch-misses': 92670984.0, 'ipc': 1.28} },
+{ 'nos':1, 'rtop':0, 'align':0, 'best':1018.8, 'median':1016.6, 'avg':101.880, 
+  'perf':  {'instructions': 6129246844.0, 'cycles': 4054067276.0, 'branch-misses': 70889944.0, 'ipc': 1.51} },
+{ 'nos':1, 'rtop':1, 'align':0, 'best':1110.0, 'median':1105.8, 'avg':110.997, 
+  'perf':  {'instructions': 5462932991.0, 'cycles': 4403322622.0, 'branch-misses': 114306012.0, 'ipc': 1.24} },
+{ 'nos':0, 'rtop':0, 'align':0, 'best':1364.7, 'median':1359.8, 'avg':136.468, 
+  'perf':  {'instructions': 5640466802.0, 'cycles': 5431388996.0, 'branch-misses': 138032567.0, 'ipc': 1.04} },
+{ 'nos':0, 'rtop':1, 'align':0, 'best':1135.9, 'median':1134.5, 'avg':113.590, 
+  'perf':  {'instructions': 4949548442.0, 'cycles': 4517576286.0, 'branch-misses': 122743432.0, 'ipc': 1.1} },
+{ 'nos':1, 'rtop':0, 'align':0, 'best':1228.0, 'median':1225.7, 'avg':122.797, 
+  'perf':  {'instructions': 6138692683.0, 'cycles': 4889511970.0, 'branch-misses': 100407152.0, 'ipc': 1.26} },
+{ 'nos':1, 'rtop':1, 'align':0, 'best':1037.3, 'median':1038.2, 'avg':103.729, 
+  'perf':  {'instructions': 5469956698.0, 'cycles': 4130031891.0, 'branch-misses': 99904765.0, 'ipc': 1.32} },
+{ 'nos':0, 'rtop':0, 'align':0, 'best':1438.7, 'median':1436.7, 'avg':143.875, 
+  'perf':  {'instructions': 5732500803.0, 'cycles': 5721832421.0, 'branch-misses': 138303168.0, 'ipc': 1.0} },
+{ 'nos':0, 'rtop':1, 'align':0, 'best':1208.6, 'median':1215.9, 'avg':120.863, 
+  'perf':  {'instructions': 5041751655.0, 'cycles': 4815338317.0, 'branch-misses': 122083006.0, 'ipc': 1.05} },
+{ 'nos':1, 'rtop':0, 'align':0, 'best':1166.4, 'median':1172.2, 'avg':116.639, 
+  'perf':  {'instructions': 6155134932.0, 'cycles': 4635386770.0, 'branch-misses': 87846806.0, 'ipc': 1.33} },
+{ 'nos':1, 'rtop':1, 'align':0, 'best':987.5, 'median':994.4, 'avg':98.751, 
+  'perf':  {'instructions': 5509360720.0, 'cycles': 3929308966.0, 'branch-misses': 77913527.0, 'ipc': 1.4} },
+]
+
+stat_src = [ stats_fib    , stats_yy    , stats_cha,   stats_fft    ][option]
+rate     = [[1e9,1e7,1]   , [2e8,2e5,1] , [3e8,3e7,1], [1e9,1e8,1]  ][option]
+title    = [ 'fib'        , 'looper'    , 'chacha20',  'fft'        ][option]
+legend   = [ 'upper right', 'upper left', 'upper left', 'upper left'][option]
 
 instr = np.array([])
 cycle = np.array([])
@@ -77,9 +130,9 @@ miss  = np.array([])
 bench = np.array([])
 for e in stat_src:
     instr = np.append(instr, e['perf']['instructions'] / rate[0])    
-    cycle = np.append(cycle, e['perf']['cycles']       / rate[1])
-    miss  = np.append(miss,  e['perf']['branch-misses']/ rate[2])
-    bench = np.append(bench, e['avg']                  / rate[3])
+    cycle = np.append(cycle, e['perf']['cycles']       / rate[0])
+    miss  = np.append(miss,  e['perf']['branch-misses']/ rate[1])
+    bench = np.append(bench, e['avg']                  / rate[2])
 
 for e in [instr, cycle, miss, bench]:
     print(e)
@@ -87,6 +140,7 @@ for e in [instr, cycle, miss, bench]:
 perf = 1 / bench
 base = perf[0]
 perf = (perf / base) - 1
+print("perf=", perf)
 
 x = np.arange(len(labels))
 
@@ -104,24 +158,24 @@ ax1.grid(True, axis='y', linestyle='-', alpha=0.4)
 color_instr = '#2b5c8f'
 bar1 = ax1.bar(x-0.2, instr, width=0.4, color=color_instr, alpha=0.85, edgecolor='#1a3a5f', label='Instruction Count')
 color_miss = '#c5d0f3'
-bar2 = ax1.bar(x+0.2, miss, width=0.4, color=color_miss, alpha=0.85, edgecolor='#1a3a5f', label=f"Branch Misses*{rate[0]/rate[2]}")
+bar2 = ax1.bar(x+0.2, miss, width=0.4, color=color_miss, alpha=0.85, edgecolor='#1a3a5f', label=f"Branch Misses*{rate[0]/rate[1]}")
 
 # Plot secondary data line overlapping (Cycles)
 color_cycle = '#75d0b3'
 line1 = ax1.plot(x, cycle, color=color_cycle, linewidth=0, marker='s', markersize=6, label='Cycle Executed')
 
 color_perf = '#f9afa2'
-line2 = ax1.plot(x, (perf*20)+2, color=color_perf, linewidth=0,  marker='o', markersize=20, label='Relative Performance')
+line2 = ax1.plot(x, (perf*10)+2, color=color_perf, linewidth=0,  marker='o', markersize=20, label='Relative Performance')
 # Instantiate secondary y-axis for scale-sensitive Branch Misses
 ax2 = ax1.twinx()
 ax2.set_ylabel('Relative Performance', color='black', fontsize=10, fontweight='bold')
-ax2.set_ylim(0.90, 1.30)
+ax2.set_ylim(0.80, 1.60)
 ax2.tick_params(axis='y', labelcolor=color_perf)
 
 x_range  = x.max() - x.min()
 x_offset = x_range * 0.0            # center
 for xi, yi, txt in zip(x, perf, perf):
-    ax1.text(xi, (yi*20)+2-0.03, round(txt+1,2), ha='center', va='center', fontsize=8, color='black')
+    ax1.text(xi, (yi*10)+2-0.03, round(txt+1,2), ha='center', va='center', fontsize=8, color='black')
 
 # Section divider background shading
 ax1.axvspan(-0.5, 3.5, color='gray', alpha=0.1)
@@ -140,5 +194,6 @@ ax1.legend(lines_labels, labels_all, loc=legend, framealpha=0.60)
 
 plt.title(f'eForth {title}: Register Caching vs. Optimization', fontsize=11, fontweight='bold', pad=15)
 plt.tight_layout()
+out_fn = 'e4plot_'+title+'.png'
 plt.savefig(out_fn, dpi=200)
 print(f"Chart safely compiled and exported as {out_fn}.")
