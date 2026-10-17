@@ -11,8 +11,8 @@
   2swap i a@ swap r> a@ swap ;
 : 4! ( a b c d va vb vc vd arr -- )    \ put array[a,b,c,d]
   >r ( keep arr )
-  5 pick i a! 5 pick i  a!
-  5 pick i a! 5 pick r> a!
+  4 pick i a! 4 pick i  a!
+  4 pick i a! 4 pick r> a!
   2drop 2drop ;
 : rol ( v n -- v' )                    \ rotate left n-bits
   >r dup r@ lshift swap
@@ -62,9 +62,9 @@ create vbase NT $40 * allot          \ 64-byte tmp calc array
 : 4x8 ( dcba -- a b c d a b c d )    \ unpack (5% slower)
   3 for
     dup $f and swap 4 rshift
-  next drop ;
+  next drop 2over 2over ;
 : quarter ( bcda -- )                \ run a quarter round
-  4x8 2over 2over vt 4@ qround vt 4! ;
+  4x8 vt 4@ qround vt 4! ;
 : odd_even ( -- )                    \ column, and diag rounds
   3 for
     i hidx a@                        \ fetch indices
@@ -75,7 +75,6 @@ create vbase NT $40 * allot          \ 64-byte tmp calc array
   st2vt
   $9 for odd_even next               \ 10x2 rounds
   vt+=st ;
-  
 \ validation
 create gold                          \ expected vt after one_block
   $e4e7f110 , $15593bd1 , $1fdd0f50 , $c47120a3 ,
@@ -92,9 +91,17 @@ create gold                          \ expected vt after one_block
 : bench ( -- )
   clock negate
   9999 for one_block next            \ 640KB
-  clock + lock . ." ms " cr unlock ;
+  clock + . ." ms " cr ;
+check
+bench
+bye
+
 \ multithreading
-' bench constant xt                  \ keep thread starting point
+: mt_bench ( -- )
+  clock negate
+  9999 for one_block next            \ 640KB
+  clock + lock . ." ms " cr unlock ;
+' mt_bench constant xt               \ keep thread starting point
 : run ( n -- )
   clock negate >r
   1- dup >r for                      \ keep loop count
