@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-option = 3   # or 0=fib, 1=yy, 2=chacha, 3=fft
+option = 2   # or 0=fib, 1=looper, 2=chacha, 3=fft
 
 # Dataset parsing from benchmark logs
 labels = [
@@ -146,7 +146,7 @@ x = np.arange(len(labels))
 
 fig, ax1 = plt.subplots(figsize=(6, 6))
 
-ax1.set_xlabel('Optimization Level & Caching Config (NOS, RTOP)', fontsize=10, fontweight='bold', labelpad=12)
+ax1.set_xlabel('Optimization Level & Caching Config (NOS, RP)', fontsize=10, fontweight='bold', labelpad=12)
 ax1.set_ylabel('Instructions/Cycles/BR Misses (Billions)', color='black', fontsize=10, fontweight='bold')
 ax1.set_ylim(0, 8)
 ax1.tick_params(axis='y', labelcolor='black')
