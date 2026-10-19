@@ -178,17 +178,21 @@ struct ALIGNAS VM {
 /// @param Stk Localized register pack
 #if E4_NOS
 #define NARG      DU tos, DU nos
+#define NREF      DU &tos, DU &nos
 #define NPAS      tos, nos
 #else  // E4_NOS
 #define NARG      DU tos
+#define NREF      DU &tos
 #define NPAS      tos
 #endif // E4_NOS
 
 #if E4_RTOP
 #define ARGS      NARG, DU *rp
+#define REFS      NREF, DU *&rp
 #define PASS      NPAS, rp
 #else // E4_RTOP
 #define ARGS      NARG
+#define REFS      NREF
 #define PASS      NPAS
 #endif // E4_RTOP
 
@@ -203,15 +207,8 @@ typedef void       *(*FPTR)(VM &vm, IU *ip, DU *sp, ARGS);     ///< tail-call (r
 #endif // E4_TRAMP
 
 #define XT_ARGS    VM &vm, IU *ip, DU *sp, ARGS                /** word signature      */
+#define XT_REFS    VM &vm, IU *&ip, DU *&sp, REFS              /** helper by reference */
 #define XT_PASS    vm, ip, sp, PASS                            /** forward as-is       */
-
-#if E4_NOS
-#define XT_REFS    VM &vm, DU *&sp, DU &tos, DU &nos           /** helper by reference */
-#define XT_RPAS    vm, sp, tos, nos
-#else  // E4_NOS
-#define XT_REFS    VM &vm, DU *&sp, DU &tos
-#define XT_RPAS    vm, sp, tos
-#endif // E4_NOS
 
 struct Code {
 #if XT0_U32
