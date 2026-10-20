@@ -262,8 +262,8 @@ void s_quote(XT_REFS, bool dotq=false) {
 ///
 XT_RET doSTOP(XT_ARGS) {
 #if E4_TRAMP
-    return Ret{ 0, ip, sp, tos };                          /// * fp==0 ends the trampoline
-#else // E4_TRAMP
+    return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
+#else  // E4_TRAMP
     // Commit current register window variables back to permanent storage on exit
     IP  = ip;
     SP  = sp - SS;
@@ -280,15 +280,28 @@ XT_RET doSTOP(XT_ARGS) {
 static IU gStop[] = { TOK(doSTOP) };  ///< tempoline sentinal
 
 #define UNNEST()     {                                     \
-        if (RDEPTH <= 0) return doSTOP(XT_PASS);               \
-        ip = XT(RPOP());                                 \
+        if (RDEPTH <= 0) return doSTOP(XT_PASS);           \
+        ip = XT(RPOP());                                   \
         NEXT();                                            \
     }
 
 #if E4_TRAMP
 static void run(VM &vm, Ret r) {      ///< trampoline: constant C stack, one call+return per word
-    while (r.fp) r = r.fp(vm, r.ip, r.sp, r.tos);
-    IP = r.ip; SP = r.sp - SS; r.sp[-1] = r.tos;     /// TOS shadow slot
+    IU *ip;
+    while ((ip = r.ip)) {
+        FPTR fp  = NEXT_FP;
+#if E4_RTOP    
+        r  = fp(vm, r.ip, r.sp, r.tos, r.rp);
+#else  // E4_RTOP        
+        r  = fp(vm, r.ip, r.sp, r.tos);
+#endif // E4_RTOP        
+    }
+    IP  = 0;
+    SP  = r.sp - SS;
+    r.sp[-1] = r.tos;
+#if E4_RTOP
+    RP  = r.rp - RS;
+#endif // E4_RTOP
 }
 #endif // E4_TRAMP
 
@@ -309,7 +322,7 @@ void nest(VM& vm) {                   ///< inner-interpreter i.e. doLIST
 
     FPTR fp = NEXT_FP;
 #if E4_TRAMP
-    run(vm, Ret{ fp, ip, sp, tos });
+    run(vm, fp(XT_PASS));
 #else  // E4_TRAMP
     fp(XT_PASS);                    /// * the whole word chain runs by tail calls; doSTOP returns
 #endif // E4_TRAMP
@@ -332,7 +345,7 @@ void CALL(VM &vm, const Code &c) {
         DU *rp  = RS + RP;
 #endif // E4_RTOP
 #if E4_TRAMP
-        run(vm, c.xt(vm, ip, sp, tos));
+        run(vm, c.xt(XT_PASS));
 #else  // E4_TRAMP
         c.xt(XT_PASS);
 #endif // E4_TRAMP
