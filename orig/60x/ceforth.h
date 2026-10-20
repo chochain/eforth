@@ -197,14 +197,16 @@ struct ALIGNAS VM {
 #endif // E4_RTOP
 
 #if E4_TRAMP
-struct Ret;
-typedef Ret        (*FPTR)(VM &vm, IU *ip, DU *sp, DU tos);    ///< returns the next step (4 regs on 32-bit)
-struct  Ret        { FPTR fp; IU *ip; DU *sp; DU tos; };
+#if E4_RTOP
+struct  Ret        { IU *ip; DU *sp; DU tos; DU *rp; };
+#else  // E4_RTOP
+struct  Ret        { IU *ip; DU *sp; DU tos; };
+#endif // E4_RTOP
 #define XT_RET     Ret
 #else // E4_TRAMP
-typedef void       *(*FPTR)(VM &vm, IU *ip, DU *sp, ARGS);     ///< tail-call (returns NEXT)
 #define XT_RET     void *
 #endif // E4_TRAMP
+typedef XT_RET     (*FPTR)(VM &vm, IU *ip, DU *sp, ARGS);      ///< trampoline or tail-call (returns NEXT)
 
 #define XT_ARGS    VM &vm, IU *ip, DU *sp, ARGS                /** word signature      */
 #define XT_REFS    VM &vm, IU *&ip, DU *&sp, REFS              /** helper by reference */
@@ -256,14 +258,14 @@ extern       List<U8,    0>          pmem;
 // =====================================================================
 #if XT0_U32
 #define NEXT_FP  ((FPTR)(UFP)(*ip++))
-#else
+#else  // XT0_U32
 #define NEXT_FP  ((FPTR)(Code::XT0 | (UFP)*ip++))
-#endif
+#endif // XT0_U32
 #if E4_TRAMP
-#define NEXT()   ({ FPTR fp = NEXT_FP; return Ret{ fp, ip, sp, tos }; })  /** back to trampoline */
-#else
-#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(XT_PASS); })             /** true tail call */
-#endif
+#define NEXT()   ({ return Ret{ ip, sp, PASS }; })             /** back to trampoline */
+#else  // E4_TRAMP
+#define NEXT()   ({ FPTR fp = NEXT_FP; return fp(XT_PASS); })  /** true tail call */
+#endif // E4_TRAMP
 
 #define CODE(n, g)                                              \
     rom_code(n, [](XT_ARGS)                                     \
