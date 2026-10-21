@@ -249,7 +249,7 @@ fix
 : bench ( -- ) $ff for sig fft next ;             \ 256 transforms
 : z {n} for bench next ; z
 """
-    open(path, "w").write(fft)
+    open(path, "w").write(looper)
 
 def timed(exe, fs):
     with open(fs) as f:
