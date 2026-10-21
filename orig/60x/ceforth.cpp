@@ -301,7 +301,7 @@ static void run(VM &vm, Ret r) {      ///< trampoline: constant C stack, one cal
 }
 #endif // E4_TRAMP
 
-void nest(VM& vm) {                   ///< inner-interpreter i.e. doLIST
+void nest(VM& vm) {                  ///< inner-interpreter i.e. doLIST
     vm.state = NEST;
 
     IU *ip  = IP;                    /// Extract VM state into registers
