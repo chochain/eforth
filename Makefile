@@ -30,7 +30,8 @@ OBJS_50X = \
 OBJS_60X = \
 	orig/60x/ceforth.o \
 	orig/60x/ceforth_sys.o \
-	orig/60x/ceforth_task.o
+	orig/60x/ceforth_task.o \
+	orig/60x/ceforth_coop.o
 
 exe: tests/eforth
 
