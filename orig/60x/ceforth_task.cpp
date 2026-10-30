@@ -191,7 +191,7 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
     if (_quit) return;               /// * nothing to do, bail
 
     VM_LOG(&vm, ">> sending %d items to VM%d.%d", n, tid, vm.state);
-    _ss_dup(vm, *this, n);           /// * pass n params as a msg queue
+    ss_dup(vm, *this, n);            /// * pass n params as a msg queue
     vm.state = NEST;                 /// * unblock target task
 
     NOTIFY(cv_tsk);
@@ -232,7 +232,7 @@ void VM::pull(int tid, int n) {
     WAIT(cv_tsk, [vm]{ return vm.state==STOP || _quit; });
     
     if (!_quit) {
-        _ss_dup(*this, vm, n);       /// * retrieve from completed task
+        ss_dup(*this, vm, n);        /// * retrieve from completed task
         printf(">> pulled %d items from VM%d.%d\n", n, vm.id, vm.state);
     }
     
