@@ -9,7 +9,8 @@
 #define CC_DEBUG        1               /**< debug level 0|1|2      */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
-#define DO_MULTITASK    0               /**< multitasking/pthread   */
+#define DO_MULTITASK    0               /**< multitasking           */
+#define USE_PTHREAD     0               /**< pthread or cooperative */
 ///@}
 ///@name Calling convention of the threaded-code words (see ceforth.h)
 ///@brief  override with -DE4_TRAMP=.. -DE4_NOS=..
@@ -53,6 +54,10 @@
 #if E4_TRAMP && E4_NOS
   #error "E4_TRAMP needs E4_NOS=0"
 #endif
+/// macro to string
+#define _MAC2S(x)     #x
+#define MAC2S(x)      _MAC2S(x)
+#define E4_CONFIG     "TRAMP=" MAC2S(E4_TRAMP) " NOS=" MAC2S(E4_NOS) " RTOP=" MAC2S(E4_RTOP)
 ///@}
 ///@name Memory block configuation
 ///@{
@@ -60,7 +65,7 @@
 #define E4_SS_SZ        48
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
-#define E4_VM_POOL_SZ   8               /**< one plus # cors       */
+#define E4_VM_POOL_SZ   4               /**< one plus # cors       */
 #define E4_PAD_SZ       66              /**< temp pad size         */
 #define E4_IBUF_SZ      128             /**< input buffer size     */
 #define E4_OBUF_SZ      1024            /**< output buffer size    */
@@ -133,25 +138,30 @@ typedef int32_t         DU;
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 #define ALIGN(sz)       ALIGN4(sz)
+#define DALIGN(sz)      (sz)
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(sizeof(U16)+strlen(s)+1))  /** calculate string size with alignment */
+#define CALLBACK        fout_cb((int)fout.str().length(), fout.str().c_str()); fout.str("")
 #define FLUSH           flush; CALLBACK
 ///@}
 ///@name Multi-platform support
 ///@{
 #if (ARDUINO || ESP32)
-    #include <Arduino.h>
-    #define DALIGN(sz)      (sz)
-    #define to_string(i)    string(String(i).c_str())
-    #if    ESP32
-        #define analogWrite(c,v,mx) ledcWrite((c),(8191/mx)*min((int)(v),mx))
-    #endif // ESP32
+    #if ARDUINO
+        #include <Arduino.h>
+        #define to_string(i)    string(String(i).c_str())
+    #else  // ARDUINO
+        #include <esp_task_wdt.h>
+        #include <esp_timer.h>
+        #define  PROGMEM
+        #define  millis()       ((U32)(esp_timer_get_time() / 1000LL))
+        #define  delay(ms)      vTaskDelay(pdMS_TO_TICKS(ms))
+    #endif // ARDUINO
 
 #else  // !(ARDUINO || ESP32)
     #include <chrono>
     #include <thread>
-    #define DALIGN(sz)      (sz)
     #define millis()        chrono::duration_cast<chrono::milliseconds>( \
                             chrono::steady_clock::now().time_since_epoch()).count()
     #define delay(ms)       this_thread::sleep_for(chrono::milliseconds(ms))
@@ -163,7 +173,7 @@ typedef int32_t         DU;
 ///@name Logging support
 ///@{
 #if (ARDUINO || ESP32)
-    #define LOG(fmt,...) Serial.print(fmt, __VA_ARGS__)
+    #define LOG(fmt,...) Serial.printf(fmt, __VA_ARGS__)
     #define ERR(...)     Serial.printf("[ERROR] %s\n", __VA_ARGS__)
 #else  // !(ARDUINO || ESP32)
     #define LOG(fmt,...) printf(fmt, __VA_ARGS__)
@@ -171,11 +181,11 @@ typedef int32_t         DU;
 #endif // (ARDUINO || ESP32)
 
 #if CC_DEBUG > 1
-#if (ARDUINO || ESP32)
+#if ARDUINO
     #define DEBUG(fmt,...) Serial.print(fmt, __VA_ARGS__)
-#else  // !(ARUINO || ESP32)
+#else  // !ARUINO
     #define DEBUG(fmt,...) printf(fmt, __VA_ARGS__)
-#endif // (ARDUINO || ESP32)
+#endif // ARDUINO
 #else  // CC_DEBUG > 1
 #define DEBUG(fmt,...)
 #endif // CC_DEBUG > 1
@@ -184,26 +194,27 @@ typedef int32_t         DU;
 #if CC_DEBUG
 #include <stdarg.h>
     
-#if (ARDUINO || ESP32)
+#if ARDUINO
 #define VM_HDR(vm, fmt, ...)                                \
     printf("[%02d.%d]%-4x" fmt,                             \
            (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                                \
     printf(fmt, ##__VA_ARGS__)
     
-#else // !(ESP32 || ARDUINO)
+#else // !ARDUINO
 #define VM_HDR(vm, fmt, ...)                  \
     printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                  \
     printf("\e[%dm" fmt "\e[0m\n",            \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
-#endif // (ESP32 || ARDUINO)
+#endif // ARDUINO
 #define VM_LOG(vm, fmt, ...)                  \
     VM_HDR(vm, fmt, ##__VA_ARGS__);           \
     printf("\n")
 
 #endif // CC_DEBUG
+
 #else  // !DO_MULTITASK
 #define VM_HDR(vm, fmt, ...)
 #define VM_TLR(vm, fmt, ...)
