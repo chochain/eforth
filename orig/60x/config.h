@@ -9,8 +9,8 @@
 #define CC_DEBUG        1               /**< debug level 0|1|2      */
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
-#define DO_MULTITASK    0               /**< multitasking           */
-#define USE_PTHREAD     0               /**< pthread or cooperative */
+#define DO_MULTITASK    1               /**< support multitasking   */
+#define USE_PTHREAD     1               /**< pthread or cooperative */
 ///@}
 ///@name Calling convention of the threaded-code words (see ceforth.h)
 ///@brief  override with -DE4_TRAMP=.. -DE4_NOS=..
@@ -204,7 +204,7 @@ typedef int32_t         DU;
 #else // !ARDUINO
 #define VM_HDR(vm, fmt, ...)                  \
     printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
-           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
+           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, *(vm)->ip, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                  \
     printf("\e[%dm" fmt "\e[0m\n",            \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
