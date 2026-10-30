@@ -16,6 +16,7 @@ void uvar_init() {
 }
 
 #else // DO_MULTITASK
+#if USE_PTHREAD
 List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
 ///
 ///> VM pool
@@ -23,9 +24,6 @@ List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
 VM& vm_get(int id) {
     return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
 }
-
-extern void add_du(DU v);          ///< add data unit to pmem
-extern void nest(VM &vm);          ///< Forth inner loop
 ///
 ///> VM messaging and IO control variables
 ///
@@ -168,23 +166,14 @@ void VM::join(int tid) {
 ///
 ///> hard copying data stacks, behaves like a message queue
 ///
-void VM::_ss_dup(VM &dst, VM &src, int n) {
-    dst.ss.push(dst.tos);            /// * push dest TOS
-    dst.tos = src.tos;               /// * set dest TOS
-    src.tos = src.ss[-n];            /// * set src TOS
-    for (int i = n - 1; i > 0; --i) {
-        dst.ss.push(src.ss[-i]);     /// * passing stack elements
-    }
-    src.ss.idx -= n;                 /// * pop src by n items
-}
 void VM::reset(IU cfa, vm_state st) {
     rs.idx     = ss.idx = 0;
-    ip         = cfa;
-    tos        = -DU1;
+    *ip        = cfa;
     state      = st;
     compile    = false;
     *(MEM0 + base) = 10;             /// * default radix = 10
 }
+
 void VM::stop() {
     GUARD(tsk);
     state = STOP;
@@ -267,4 +256,5 @@ void VM::io_unlock() {
     io_busy = false;                 /// * unlock
     NOTIFY(cv_io);
 }
+#endif // USE_PTHREAD
 #endif // DO_MULTITASK
