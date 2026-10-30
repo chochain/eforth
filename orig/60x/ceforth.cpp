@@ -275,6 +275,17 @@ XT_RET doSTOP(XT_ARGS) {
 }
 static IU gStop[] = { TOK(doSTOP) };  ///< tempoline sentinal
 
+#if DO_MULTITASK
+XT_RET doPAUSE(XT_ARGS) {
+    SPILL();                          /// Flush local C register to memory
+    IP = ip;                          /// Point to next IP after resume
+
+    vm.state = HOLD;
+
+//    return Ret{ 0, sp, PASS };
+    return NULL;
+}
+#endif // DO_MULTITASK
 #define UNNEST()     {                                     \
         if (RDEPTH <= 0) return doSTOP(XT_PASS);           \
         ip = XT(RPOP());                                   \
@@ -629,9 +640,11 @@ constexpr Code g_rom[] = {
          for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0)),  /// zero padding
     CODE("th",    tos = nos + tos * sizeof(DU); FILL()),     /// w i -- w'
     /// @}
-#if DO_MULTITASK
     /// @defgroup Multitasking ops
-    /// @}
+    /// @{
+    CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) vm/thread id
+#if DO_MULTITASK
+    CODE("pause", ip--; ip = (IU*)doPAUSE),                  /// Forces trampoline exit
     CODE("task",                                             /// w -- task_id
          IU w = POPI();                                      ///< dictionary index
          if (dict[w]->is_udf()) {
@@ -643,6 +656,7 @@ constexpr Code g_rom[] = {
          else pstr("  ?colon word only\n")),
     CODE("start", IU t = POPI(); SPILL(); task_start(t); RELOAD()),                       /// ( task_id -- )
     CODE("join",  IU t = POPI(); SPILL(); vm.join(t); RELOAD()),                          /// ( task_id -- )
+    CODE("abort", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
     CODE("lock",  vm.io_lock()),                             /// wait for IO semaphore
     CODE("unlock",vm.io_unlock()),                           /// release IO semaphore
     CODE("send",  IU t = POPI(); IU n = POPI(); SPILL(); vm.send(t, n); RELOAD()),        /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
@@ -653,8 +667,6 @@ constexpr Code g_rom[] = {
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
     /// @{
-    CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) thread id
-    CODE("abort", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
     CODE("here",  PUSH(HERE)),                               /// offset of pmem top
     IMMD("'",     const Code *w = find(WORD());
          if (w) PUSH(w->is_udf() ? (DU)OFF(w->pfa) : (DU)TOK(w->xt))),   /// udf: body offset, prim: code token
