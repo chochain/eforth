@@ -14,7 +14,7 @@
 
 using namespace std;
 
-#if DO_MULTITASK
+#if (DO_MULTITASK && USE_PTHREAD)
 #include <mutex>
 #include <condition_variable>
 typedef  thread             THREAD;
@@ -33,7 +33,7 @@ typedef  condition_variable COND_VAR;
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE                    /** Emscripten needs this */
 #endif
-#endif // DO_MULTITASK
+#endif // (DO_MULTITASK && USE_PTHREAD)
 ///
 /// array class template (so we don't have dependency on C++ STL)
 /// Note:
@@ -84,13 +84,6 @@ struct List {
         idx = mx;
     }
 };
-
-// The lightweight register window context passed down the execution chain by value
-struct Stk {
-    DU *sp;     ///< Stack Pointer (points one past TOS; depth = sp - ss.v)
-    DU  tos;    ///< Top of Stack
-    DU  nos;    ///< Next of Stack
-};
 ///====================================================================
 ///
 ///> VM context (single task)
@@ -109,14 +102,23 @@ struct ALIGNAS VM {
     bool     compile = false;      ///< compiler flag
 
 #if DO_MULTITASK
-    static int      NCORE;         ///< number of hardware cores
-    
+    static int      curr_vm_id;    ///< current running VM id (cooperative)
     static bool     io_busy;       ///< IO locking control
+
+    static void ss_dup(VM &dst, VM &src, int n) {
+        for (int i = n - 1; i > 0; --i) {
+            dst.ss.push(src.ss[-i]);     /// * passing stack elements
+        }
+        src.ss.idx -= n;                 /// * pop src by n items
+    }
+    
+#if USE_PTHREAD
+    static int      NCORE;         ///< number of hardware cores
     static MUTEX    io;            ///< mutex for io access
     static MUTEX    tsk;           ///< mutex for tasker
     static COND_VAR cv_io;         ///< io control
     static COND_VAR cv_tsk;        ///< tasker control
-    static void _ss_dup(VM &dst, VM &src, int n);
+#endif // USE_PTHREAD
     ///
     /// task life cycle methods
     ///
@@ -137,7 +139,100 @@ struct ALIGNAS VM {
     void io_unlock();              ///< unlock IO
 #endif // DO_MULTITASK
 };
-///
+///@name compilation flags
+///@{
+#if E4_NOS
+#define NARG      DU tos, DU nos
+#define NREF      DU &tos, DU &nos
+#define NPAS      tos, nos
+#else  // E4_NOS
+#define NARG      DU tos
+#define NREF      DU &tos
+#define NPAS      tos
+#endif // E4_NOS
+
+#if E4_RTOP
+#define ARGS      NARG, DU *rp
+#define REFS      NREF, DU *&rp
+#define PASS      NPAS, rp
+#else // E4_RTOP
+#define ARGS      NARG
+#define REFS      NREF
+#define PASS      NPAS
+#endif // E4_RTOP
+
+#if E4_TRAMP
+#if E4_RTOP
+struct  Ret        { IU *ip; DU *sp; DU tos; DU *rp; };
+#else  // E4_RTOP
+struct  Ret        { IU *ip; DU *sp; DU tos; };
+#endif // E4_RTOP
+#define XT_RET     Ret
+#else // E4_TRAMP
+#define XT_RET     void*
+#endif // E4_TRAMP
+typedef XT_RET     (*FPTR)(IU *ip, DU *sp, ARGS, VM &vm);      ///< trampoline or tail-call (returns NEXT)
+#define XT_ARGS    IU *ip, DU *sp, ARGS, VM &vm                /** word signature      */
+#define XT_REFS    IU *&ip, DU *&sp, REFS, VM &vm              /** helper by reference */
+#define XT_PASS    ip, sp, PASS, vm                            /** forward as-is       */
+///@}
+///@name data stack access macros
+///@{
+#define SS        (vm.ss.v)
+#define RS        (vm.rs.v)
+#define SP        (vm.ss.idx)
+#define RP        (vm.rs.idx)
+#define IP        (vm.ip)
+#define TOS       (sp[-1])                 /**< top of stack (memory shadow slot)       */
+#define NOS       (sp[-2])                 /**< next of stack                           */
+#define OS3       (sp[-3])                 /**< 3rd of stack in memory                  */
+#define OS4       (sp[-4])                 /**< 4th of stack in memory                  */
+#define DEPTH     ((int)(sp - SS))         /**< number of items on stack                */
+///@}
+///@name return stack access macros
+///@{
+#if E4_RTOP                                /** return stack pointer cached in a register  */
+#define RPUSH(x)   (*rp++ = (x))
+#define RPOP()     (*--rp)
+#define RTOP       (rp[-1])
+#define RTOP2      (rp[-2])
+#define RDROP(n)   (rp -= (n))
+#define RDEPTH     ((int)(rp - RS))
+#define RRESET()   (rp = RS)
+#define RSPILL()   (RP = rp - RS)          /** register => vm, before leaving the register world */
+#define RRELOAD()  (rp = RS + RP)          /** vm => register */
+#else // E4_RTOP                           /** RS/RP live in the VM struct (memory)       */
+#define RPUSH(x)   (RS[RP++] = (x))
+#define RPOP()     (RS[--RP])
+#define RTOP       (RS[RP-1])
+#define RTOP2      (RS[RP-2])
+#define RDROP(n)   (RP -= (n))
+#define RDEPTH     (RP)
+#define RRESET()   (RP = 0)
+#define RSPILL()
+#define RRELOAD()
+#endif // E4_RTOP
+///@}
+///@name register spill/reload macro (for tail-call optimization)
+///@brief 
+///   Register window <=> memory sync. Use around any call that reads or
+///   writes this VM's stack through memory (include, tasking, ...).
+///@{
+#define POP()    ({ DU _rst = tos; tos = nos; FILL(); _rst; })
+#define POPI()   (UINT(POP()))
+#if E4_NOS
+#define FILL()   ({ sp--; nos = NOS; })
+#define PUSH(v)  ({ NOS = nos; nos = tos; tos = (DU)(v); sp++; })
+#define SPILL()  ({ SP = sp - SS; RSPILL();  TOS = tos; NOS = nos; }) /**< registers => memory  */
+#define RELOAD() ({ sp = SS + SP; RRELOAD(); tos = TOS; nos = NOS; }) /**< memory => registers  */
+#else  // E4_NOS
+#define nos      (sp[-2])                                             /**< TOS-only cache: NOS stays in memory     */
+#define FILL()   ({ sp--; })
+#define PUSH(v)  ({ DU _v = (DU)(v); TOS = tos; tos = _v; sp++; })
+#define SPILL()  ({ SP = sp - SS; RSPILL();  TOS = tos; })            /**< registers => memory  */
+#define RELOAD() ({ sp = SS + SP; RRELOAD(); tos = TOS; })            /**< memory => registers  */
+#endif // E4_NOS
+///@}
 ///@name Code flag masking options
 ///@{
 #define UDF_ATTR   0x0001   /** user defined word    */
@@ -175,41 +270,6 @@ struct ALIGNAS VM {
 /// @param vm Context reference tracking task-isolated persistent structures
 /// @param ip Instruction pointer passed by reference to allow inline branches and nesting jumps
 /// @param Stk Localized register pack
-#if E4_NOS
-#define NARG      DU tos, DU nos
-#define NREF      DU &tos, DU &nos
-#define NPAS      tos, nos
-#else  // E4_NOS
-#define NARG      DU tos
-#define NREF      DU &tos
-#define NPAS      tos
-#endif // E4_NOS
-
-#if E4_RTOP
-#define ARGS      NARG, DU *rp
-#define REFS      NREF, DU *&rp
-#define PASS      NPAS, rp
-#else // E4_RTOP
-#define ARGS      NARG
-#define REFS      NREF
-#define PASS      NPAS
-#endif // E4_RTOP
-
-#if E4_TRAMP
-#if E4_RTOP
-struct  Ret        { IU *ip; DU *sp; DU tos; DU *rp; };
-#else  // E4_RTOP
-struct  Ret        { IU *ip; DU *sp; DU tos; };
-#endif // E4_RTOP
-#define XT_RET     Ret
-#else // E4_TRAMP
-#define XT_RET     void*
-#endif // E4_TRAMP
-typedef XT_RET     (*FPTR)(IU *ip, DU *sp, ARGS, VM &vm);      ///< trampoline or tail-call (returns NEXT)
-#define XT_ARGS    IU *ip, DU *sp, ARGS, VM &vm                /** word signature      */
-#define XT_REFS    IU *&ip, DU *&sp, REFS, VM &vm              /** helper by reference */
-#define XT_PASS    ip, sp, PASS, vm                            /** forward as-is       */
-
 struct Code {
 #if XT0_U32
     static constexpr UFP XT0 = 0;   ///< all code & pmem below 4GB (-no-pie, or 32-bit target): folds away
@@ -282,7 +342,7 @@ void t_pool_init();                       ///< initialize thread pool
 void t_pool_stop();                       ///< stop thread pool
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a thread with given task/VM id
-#else
+#else   // DO_MULTITASK
 #define t_pool_init()
 #define t_pool_stop()
 #endif // DO_MULTITASK
@@ -292,7 +352,7 @@ void task_start(int tid);                 ///< start a thread with given task/VM
 void forth_init();
 void forth_teardown();
 void forth_core(VM &vm, const char *idiom);
-int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
+int  forth_vm(int tid, const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 ///@}
