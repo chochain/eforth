@@ -258,6 +258,7 @@ void s_quote(XT_REFS, bool dotq=false) {
 ///
 XT_RET doSTOP(XT_ARGS) {
 #if E4_TRAMP
+    IP = 0;                           /// * vm.IP = 0 stops the VM
     return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
 #else  // E4_TRAMP
     // Commit current register window variables back to permanent storage on exit
@@ -277,15 +278,26 @@ static IU gStop[] = { TOK(doSTOP) };  ///< tempoline sentinal
 
 #if DO_MULTITASK
 XT_RET doPAUSE(XT_ARGS) {
-    SPILL();                          /// Flush local C register to memory
-    IP = ip;                          /// Point to next IP after resume
-
-    vm.state = HOLD;
-
-//    return Ret{ 0, sp, PASS };
+#if E4_TRAMP
+    IP = ip;                              /// run() must not clobber IP (see below)
+    return Ret{ 0, sp, PASS };
+#else // !E4_TRAMP
+    SPILL();  IP = ip;                    /// state stays NEST
     return NULL;
+#endif // E4_TRAMP
+}
+
+#define WAIT_FOR(cond)   while(!(cond)) {                  \
+    if (vm.id) {                                           \
+        ip--; return doPAUSE(XT_PASS);                     \
+    }  /* task: retry this word next turn */               \
+    SPILL();                                               \
+    bool ran = task_pause();                               \
+    RELOAD();                                              \
+    if (!ran) yield();                                     \
 }
 #endif // DO_MULTITASK
+
 #define UNNEST()     {                                     \
         if (RDEPTH <= 0) return doSTOP(XT_PASS);           \
         ip = XT(RPOP());                                   \
@@ -303,7 +315,7 @@ static void run(VM &vm, Ret r) {      ///< trampoline: constant C stack, one cal
         r  = fp(vm, r.ip, r.sp, r.tos);
 #endif // E4_RTOP        
     }
-    IP  = 0;
+//    if (vm.state == HOLD) vm.state = NEST; else IP  = 0;
     SP  = r.sp - SS;
     r.sp[-1] = r.tos;
 #if E4_RTOP
@@ -640,12 +652,10 @@ constexpr Code g_rom[] = {
          for (IU i = 0; i < n; i+=sizeof(DU)) add_du(DU0)),  /// zero padding
     CODE("th",    tos = nos + tos * sizeof(DU); FILL()),     /// w i -- w'
     /// @}
+#if DO_MULTITASK
     /// @defgroup Multitasking ops
     /// @{
-    CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) vm/thread id
-#if DO_MULTITASK
-    CODE("pause", ip--; ip = (IU*)doPAUSE),                  /// Forces trampoline exit
-    CODE("task",                                             /// w -- task_id
+    CODE("task",                                             /// ( w -- task_id )
          IU w = POPI();                                      ///< dictionary index
          if (dict[w]->is_udf()) {
              SPILL();
@@ -655,18 +665,27 @@ constexpr Code g_rom[] = {
          }
          else pstr("  ?colon word only\n")),
     CODE("start", IU t = POPI(); SPILL(); task_start(t); RELOAD()),                       /// ( task_id -- )
+#if USE_PTHREAD
+    CODE("pause", ip--; ip = (IU*)doPAUSE),                  /// Forces trampoline exit
     CODE("join",  IU t = POPI(); SPILL(); vm.join(t); RELOAD()),                          /// ( task_id -- )
-    CODE("abort", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
-    CODE("lock",  vm.io_lock()),                             /// wait for IO semaphore
-    CODE("unlock",vm.io_unlock()),                           /// release IO semaphore
+    CODE("stop", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
     CODE("send",  IU t = POPI(); IU n = POPI(); SPILL(); vm.send(t, n); RELOAD()),        /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
     CODE("recv",  SPILL(); vm.recv(); RELOAD()),                                /// ( -- v1 v2 .. vn ) waiting for values passed by sender
     CODE("bcast", IU n = POPI(); SPILL(); vm.bcast(n); RELOAD()),                         /// ( v1 v2 .. vn -- )
     CODE("pull",  IU t = POPI(); IU n = POPI(); SPILL(); vm.pull(t, n); RELOAD()),        /// ( tid n -- v1 v2 .. vn )
-    /// @}
+    CODE("lock",  vm.io_lock()),                              /// ( -- )
+    CODE("unlock",vm.io_unlock()),                            /// ( -- )
+#else // USE_PTHREAD
+    CODE("pause",                                             /// ( -- )
+         if (vm.id) return doPAUSE(XT_PASS);
+         SPILL(); task_pause(); RELOAD()),
+    CODE("rx?",   PUSH(io_rx_ready() ? -1 : 0)),              /// ( -- f ) non-blocking
+    CODE("rx@",   WAIT_FOR(io_rx_ready()); PUSH(io_rx_get())),/// ( -- c ) wait for a char
+#endif // USE_PTHREAD
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
     /// @{
+    CODE("rank",  PUSH(vm.id)),                              /// ( -- n ) vm/thread id
     CODE("here",  PUSH(HERE)),                               /// offset of pmem top
     IMMD("'",     const Code *w = find(WORD());
          if (w) PUSH(w->is_udf() ? (DU)OFF(w->pfa) : (DU)TOK(w->xt))),   /// udf: body offset, prim: code token
