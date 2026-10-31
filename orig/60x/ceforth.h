@@ -102,15 +102,7 @@ struct ALIGNAS VM {
     bool     compile = false;      ///< compiler flag
 
 #if DO_MULTITASK
-    static int      curr_vm_id;    ///< current running VM id (cooperative)
-    static bool     io_busy;       ///< IO locking control
-
-    static void ss_dup(VM &dst, VM &src, int n) {
-        for (int i = n - 1; i > 0; --i) {
-            dst.ss.push(src.ss[-i]);     /// * passing stack elements
-        }
-        src.ss.idx -= n;                 /// * pop src by n items
-    }
+    void reset(IU ip, vm_state st);///< reset a VM user variables
     
 #if USE_PTHREAD
     static int      NCORE;         ///< number of hardware cores
@@ -118,11 +110,10 @@ struct ALIGNAS VM {
     static MUTEX    tsk;           ///< mutex for tasker
     static COND_VAR cv_io;         ///< io control
     static COND_VAR cv_tsk;        ///< tasker control
-#endif // USE_PTHREAD
+    static bool     io_busy;
     ///
     /// task life cycle methods
     ///
-    void reset(IU ip, vm_state st);///< reset a VM user variables
     void join(int tid);            ///< wait for the given task to end
     void stop();                   ///< stop VM
     ///
@@ -137,6 +128,7 @@ struct ALIGNAS VM {
     ///
     void io_lock();                ///< lock IO
     void io_unlock();              ///< unlock IO
+#endif // USER_PTHREAD    
 #endif // DO_MULTITASK
 };
 ///@name compilation flags
@@ -341,7 +333,8 @@ void uvar_init();                         ///< setup user area
 void t_pool_init();                       ///< initialize thread pool
 void t_pool_stop();                       ///< stop thread pool
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
-void task_start(int tid);                 ///< start a thread with given task/VM id
+void task_start(int tid);                 ///< start a task with given task/VM id
+bool task_pause();                        ///< pause current task
 #else   // DO_MULTITASK
 #define t_pool_init()
 #define t_pool_stop()
@@ -377,8 +370,13 @@ const Code *find(const char *s);
 ///{@
 typedef enum { CR=0, DOT, UDOT, EMIT, SPCS } io_op;
 
+bool io_rx_ready();
+int  io_rx_get();
+int  io_tx_free();
+
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
+int  fout_pending();
 
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
