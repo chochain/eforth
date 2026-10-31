@@ -10,7 +10,7 @@
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    1               /**< support multitasking   */
-#define USE_PTHREAD     1               /**< pthread or cooperative */
+#define USE_PTHREAD     0               /**< pthread or cooperative */
 ///@}
 ///@name Calling convention of the threaded-code words (see ceforth.h)
 ///@brief  override with -DE4_TRAMP=.. -DE4_NOS=..
@@ -89,7 +89,7 @@ typedef float           DU;
 #define DU0             0.0f
 #define DU1             1.0f
 #define DU_EPS          0.00001f
-#define INT(v)          (static_cast<S32)(v))
+#define INT(v)          (static_cast<S32>(v))
 #define UINT(v)         (static_cast<U32>(v))
 #define MOD(m,n)        ((DU)fmodf(m,n))
 #define ABS(v)          (fabsf(v))
@@ -138,25 +138,25 @@ typedef int32_t         DU;
 #define ALIGN16(sz)     ((sz) + (-(sz) & 0xf))
 #define ALIGN32(sz)     ((sz) + (-(sz) & 0x1f))
 #define ALIGN(sz)       ALIGN4(sz)
-#define DALIGN(sz)      (sz)
+#define DALIGN(sz)      ALIGN4(sz)
 // #define ALIGNAS         alignas(std::hardware_destructive_interference_size) C++17 but didn't work
 #define ALIGNAS         alignas(64)
 #define STRLEN(s)       (ALIGN(sizeof(U16)+strlen(s)+1))  /** calculate string size with alignment */
-#define CALLBACK        fout_cb((int)fout.str().length(), fout.str().c_str()); fout.str("")
-#define FLUSH           flush; CALLBACK
 ///@}
 ///@name Multi-platform support
 ///@{
 #if (ARDUINO || ESP32)
     #if ARDUINO
         #include <Arduino.h>
-        #define to_string(i)    string(String(i).c_str())
-    #else  // ARDUINO
+        #define  to_string(i)   string(String(i).c_str())
+        #define  yield()        delay(1)
+    #else  // !ARDUINO
         #include <esp_task_wdt.h>
         #include <esp_timer.h>
         #define  PROGMEM
         #define  millis()       ((U32)(esp_timer_get_time() / 1000LL))
         #define  delay(ms)      vTaskDelay(pdMS_TO_TICKS(ms))
+        #define  yield()        vTaskDelay(1)
     #endif // ARDUINO
 
 #else  // !(ARDUINO || ESP32)
@@ -212,6 +212,11 @@ typedef int32_t         DU;
 #define VM_LOG(vm, fmt, ...)                  \
     VM_HDR(vm, fmt, ##__VA_ARGS__);           \
     printf("\n")
+
+#else  // !CC_DEBUG
+#define VM_HDR
+#define VM_TLR
+#define VM_LOG
 
 #endif // CC_DEBUG
 
