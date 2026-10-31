@@ -16,6 +16,17 @@ void uvar_init() {
 }
 
 #else // DO_MULTITASK
+///
+///> reset shared by ceforth_task and ceforth_coop
+///
+void VM::reset(IU cfa, vm_state st) { 
+    rs.idx     = ss.idx = 0;
+    *ip        = cfa;
+    state      = st;
+    compile    = false;
+    *(MEM0 + base) = 10;           /// * default radix = 10
+}
+
 #if USE_PTHREAD
 List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
 ///
@@ -149,6 +160,18 @@ void task_start(int tid) {
     _que.push(&vm);                              /// create event
     NOTIFY(_cv_evt);
 }
+
+///
+///> reset shared by ceforth_task and ceforth_coop
+///
+void VM::reset(IU cfa, vm_state st) { 
+    rs.idx     = ss.idx = 0;
+    *ip        = cfa;
+    state      = st;
+    compile    = false;
+    *(MEM0 + base) = 10;           /// * default radix = 10
+}
+
 ///==================================================================
 ///
 ///> VM methods
@@ -162,16 +185,6 @@ void VM::join(int tid) {
         NOTIFY(cv_tsk);
     }
     VM_LOG(this, ">> VM%d joint", vm.id);
-}
-///
-///> hard copying data stacks, behaves like a message queue
-///
-void VM::reset(IU cfa, vm_state st) {
-    rs.idx     = ss.idx = 0;
-    *ip        = cfa;
-    state      = st;
-    compile    = false;
-    *(MEM0 + base) = 10;             /// * default radix = 10
 }
 
 void VM::stop() {
@@ -191,7 +204,7 @@ void VM::send(int tid, int n) {      ///< ( v1 v2 .. vn -- )
     if (_quit) return;               /// * nothing to do, bail
 
     VM_LOG(&vm, ">> sending %d items to VM%d.%d", n, tid, vm.state);
-    ss_dup(vm, *this, n);            /// * pass n params as a msg queue
+    vm.ss.merge(this->ss);           /// * pass n params as a msg queue
     vm.state = NEST;                 /// * unblock target task
 
     NOTIFY(cv_tsk);
@@ -232,7 +245,7 @@ void VM::pull(int tid, int n) {
     WAIT(cv_tsk, [vm]{ return vm.state==STOP || _quit; });
     
     if (!_quit) {
-        ss_dup(*this, vm, n);        /// * retrieve from completed task
+        this->ss.merge(vm.ss);       /// * retrieve from completed task
         printf(">> pulled %d items from VM%d.%d\n", n, vm.id, vm.state);
     }
     
