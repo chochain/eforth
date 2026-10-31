@@ -7,6 +7,16 @@
 #include <cstdarg>                            /// va_list, va_start, va_end
 #include "ceforth.h"
 
+#if (ARDUINO || ESP32)
+bool io_rx_ready()  { return Serial.available() > 0; }
+int  io_rx_get()    { return Serial.read(); }
+int  io_tx_free()   { return Serial.availableForWrite(); }
+#else                                    // desktop stub: poll stdin with select()/poll()
+bool io_rx_ready()  { /* select() on fd 0, zero timeout */ return false; }
+int  io_rx_get()    { return getchar(); }
+int  io_tx_free()   { return 1 << 20; }
+#endif
+
 // ==================== STREAM REPLACEMENTS ====================
 static const char *tib = nullptr;             ///< Replaces istringstream (Tracks remaining input)
 static char *tob = nullptr;                   ///< Cursor for continuous appending
@@ -20,7 +30,9 @@ static void fout_flush(char post='\0') {
     
     if (post) *tob++ = post;
     *tob = '\0';                              /// Null-terminate
-    if (fout_cb) fout_cb(strlen(obuf), obuf); /// callback
+    int n = strlen(obuf);                     ///< output buf length
+    while (io_tx_free() < n) yield();         /// wait for UART drains
+    if (fout_cb) fout_cb(n, obuf);            /// callback
     tob = obuf;                               /// Reset pointer position
 }
 
@@ -83,6 +95,8 @@ void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;           ///< serial output hook up
 }
+
+int fout_pending() { return (int)(tob - obuf); }
 
 const char *scan(char c, char *buf, int max) {
     if (!tib || *tib == '\0') { buf[0] = '\0'; return buf; }
