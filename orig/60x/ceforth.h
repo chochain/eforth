@@ -345,7 +345,7 @@ bool task_pause();                        ///< pause current task
 void forth_init();
 void forth_teardown();
 void forth_core(VM &vm, const char *idiom);
-int  forth_vm(int tid, const char *cmd, void(*hook)(int, const char*)=nullptr);
+int  forth_vm(const char *cmd, void(*hook)(int, const char*)=nullptr);
 void forth_include(const char *fn);       /// load external Forth script
 void outer(istream &in);                  ///< Forth outer loop
 ///@}
@@ -372,11 +372,13 @@ typedef enum { CR=0, DOT, UDOT, EMIT, SPCS } io_op;
 
 bool io_rx_ready();
 int  io_rx_get();
+bool io_rx_eof();
 int  io_tx_free();
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
 int  fout_pending();
+bool is_forth_idle();                                    ///< if Forth core idling
 
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
@@ -390,6 +392,7 @@ void pstr(const char *str, io_op op=SPCS);               ///< print string
 ///@}
 ///@name Debug functions
 ///@{
+const Code *tok2code(IU tok);             ///< get Code pointer from given token/address
 void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
 void words();                             ///< list dictionary words
