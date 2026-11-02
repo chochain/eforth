@@ -293,7 +293,7 @@ XT_RET doPAUSE(XT_ARGS) {
         ip--; return doPAUSE(XT_PASS);                     \
     }  /* task: retry this word next turn */               \
     SPILL();                                               \
-    bool ran = task_pause();                               \
+    bool ran = task_handle_pause();                        \
     RELOAD();                                              \
     if (!ran) yield();                                     \
 }
@@ -689,7 +689,7 @@ constexpr Code g_rom[] = {
 #else // USE_PTHREAD
     CODE("pause",                                             /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
-         SPILL(); task_pause(); RELOAD()),
+         SPILL(); task_handle_pause(); RELOAD()),
 #endif // USE_PTHREAD
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
