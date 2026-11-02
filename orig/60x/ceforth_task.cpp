@@ -19,12 +19,17 @@ void uvar_init() {
 ///
 ///> reset shared by ceforth_task and ceforth_coop
 ///
+extern IU gStop[];
 void VM::reset(IU cfa, vm_state st) { 
+    IU stop_ip = Code::Token(gStop);
     rs.idx     = ss.idx = 0;
-    *ip        = cfa;
+    rs.push((DU)stop_ip);
+    ip         = (IU*)(Code::XT0 | (UFP)(cfa));
     state      = st;
     compile    = false;
     *(MEM0 + base) = 10;           /// * default radix = 10
+    
+    DEBUG("reset cfa=%x ip=%p\n", cfa, ip);
 }
 
 #if USE_PTHREAD
