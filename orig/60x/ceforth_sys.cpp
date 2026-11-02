@@ -129,22 +129,20 @@ void fout_setup(void (*hook)(int, const char*)) {
     auto cb = [](int, const char *rst) { printf("%s", rst); };
     fout_cb = hook ? hook : cb;           ///< serial output hook up
 }
-
-int fout_pending() { return (int)(tob - obuf); }
 ///
 ///> one scheduling round for the host loop, called when no input is waiting
 ///  Cooperative tasker only (DO_MULTITASK && !USE_PTHREAD); otherwise a no-op.
-///  @return true if any task ran
+///  @return true if no task ran
 ///
-bool is_forth_idle() {
+bool handle_idle() {
 #if DO_MULTITASK && !USE_PTHREAD
-    if (!tob) return false;              /// * before the first line no task can exist
+    if (!tob) return true;               /// * before the first line no task can exist
     tib = nullptr;                       /// * the last line's buffer is gone; tasks must not parse it
-    bool ran = task_pause();             /// * each NEST task runs to its next pause or end
+    bool ran = task_handle_pause();      /// * each NEST task runs to its next pause or end
     fout_flush();                        /// * their output goes out now, not on the next line
-    return ran;
+    return !ran;
 #else  // (DO_MULTITASK && !USE_PTHREAD)
-    return false;
+    return true;
 #endif // (DO_MULTITASK && !USE_PTHREAD)
 }
 
