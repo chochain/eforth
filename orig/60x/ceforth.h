@@ -334,7 +334,8 @@ void t_pool_init();                       ///< initialize thread pool
 void t_pool_stop();                       ///< stop thread pool
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a task with given task/VM id
-bool task_pause();                        ///< pause current task
+void task_status();
+bool task_handle_pause();                 ///< pause current task
 #else   // DO_MULTITASK
 #define t_pool_init()
 #define t_pool_stop()
@@ -377,8 +378,7 @@ int  io_tx_free();
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
-int  fout_pending();
-bool is_forth_idle();                                    ///< if Forth core idling
+bool handle_idle();                                      ///< if Forth core idling
 
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
 const char *word(char *buf, int max=E4_PAD_SZ);          ///< get next idiom
