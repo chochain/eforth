@@ -257,6 +257,7 @@ void s_quote(XT_REFS, bool dotq=false) {
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
 XT_RET doSTOP(XT_ARGS) {
+    if (vm.id) vm.state = STOP;       /// * finish task, free slot
 #if E4_TRAMP
     IP = 0;                           /// * vm.IP = 0 stops the VM
     return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
@@ -274,15 +275,15 @@ XT_RET doSTOP(XT_ARGS) {
     return NULL;
 #endif // E4_TRAMP
 }
-static IU gStop[] = { TOK(doSTOP) };  ///< tempoline sentinal
+IU gStop[] = { TOK(doSTOP) };         ///< tempoline sentinal
 
 #if DO_MULTITASK
 XT_RET doPAUSE(XT_ARGS) {
 #if E4_TRAMP
-    IP = ip;                              /// run() must not clobber IP (see below)
+    IP = ip;                          /// run() must not clobber IP (see below)
     return Ret{ 0, sp, PASS };
 #else // !E4_TRAMP
-    SPILL();  IP = ip;                    /// state stays NEST
+    SPILL();  IP = ip;                /// state stays NEST
     return NULL;
 #endif // E4_TRAMP
 }
@@ -425,7 +426,6 @@ constexpr Code g_rom[] = {
          DU t = POP(); DU n = POP(); RPUSH(n); RPUSH(t)),
     CODE("_is",                                      /// runtime of compiled "is" ( addr tok -- )
          IU t = POPI(); ICELL(POPI()) = t),
-    CODE("_key", PUSH(key()); UNNEST()),
     ///
     /// @defgroup Stack ops
     /// @brief - opcode sequence can be changed below this line
@@ -511,7 +511,16 @@ constexpr Code g_rom[] = {
     CODE(".r",      IU w = POPI(); dotr(w, POP(), *BASE)),
     CODE("u.r",     IU w = POPI(); dotr(w, POP(), *BASE, true)),
     CODE("type",    POP(); pstr((const char*)MEM(POP()))),
-    IMMD("key",     if (vm.compile) add_xt("_key"); else PUSH(key())),
+    CODE("key",                                      /// ( -- c ), -1 at end of input
+         WAIT_FOR(io_rx_ready() || io_rx_eof());
+         PUSH(io_rx_get())),
+    CODE("key?", PUSH(io_rx_ready() ? -1 : 0)),      /// ( -- f )
+    IMMD("char",                                     /// ( -- c ), fetch input char
+         const char *w = WORD(); DU c = w[0];
+         if (vm.compile) {
+             add_xt("_lit"); add_du(c);
+         }
+         else PUSH(c)),
     CODE("emit",    dot(EMIT, POP())),
     CODE("space",   dot(SPCS, DU1)),
     CODE("spaces",  dot(SPCS, POP())),
@@ -606,7 +615,10 @@ constexpr Code g_rom[] = {
     /// @defgroup metacompiler
     /// @brief - dict is directly used, instead of shield by macros
     /// @{
-//    CODE("exec",   IU w = POP(); doLIST(vm, w)),   /// execute word
+    CODE("exec",
+         IU tok = TOK(MEM(POPI()));                  ///< colon word MEM[addr]
+         const Code *w = tok2code(tok);              ///< fetch user Code
+         CALL(vm, *w)),                              /// * execute word
     CODE("create",
          def_word(WORD());
          add_xt("vbran");                            /// bran + offset field
@@ -655,16 +667,15 @@ constexpr Code g_rom[] = {
 #if DO_MULTITASK
     /// @defgroup Multitasking ops
     /// @{
-    CODE("task",                                             /// ( w -- task_id )
-         IU w = POPI();                                      ///< dictionary index
-         if (dict[w]->is_udf()) {
-             SPILL();
-             IU tid = task_create(dict[w]->pfa);             /// create a task starting on pfa
-             RELOAD();
-             PUSH(tid);
-         }
-         else pstr("  ?colon word only\n")),
-    CODE("start", IU t = POPI(); SPILL(); task_start(t); RELOAD()),                       /// ( task_id -- )
+    CODE("task",                                             /// ( addr -- tid ), addr from '
+         IU tok = TOK(MEM(POPI()));                          ///< colon word MEM[addr]
+         const Code *w = tok2code(tok);                      ///< fetch user Code
+         LOG("tok=%x w=%s\n", tok, w->name);
+         IU tid = 0;
+         if (w && w->is_udf()) tid = task_create(tok);       ///< task slot
+         else pstr("  ?colon word only\n");
+         PUSH(tid)),                                         /// 0 = pool full
+    CODE("start", IU t = POPI(); task_start(t)),             /// ( task_id -- )
 #if USE_PTHREAD
     CODE("pause", ip--; ip = (IU*)doPAUSE),                  /// Forces trampoline exit
     CODE("join",  IU t = POPI(); SPILL(); vm.join(t); RELOAD()),                          /// ( task_id -- )
@@ -679,8 +690,6 @@ constexpr Code g_rom[] = {
     CODE("pause",                                             /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
          SPILL(); task_pause(); RELOAD()),
-    CODE("rx?",   PUSH(io_rx_ready() ? -1 : 0)),              /// ( -- f ) non-blocking
-    CODE("rx@",   WAIT_FOR(io_rx_ready()); PUSH(io_rx_get())),/// ( -- c ) wait for a char
 #endif // USE_PTHREAD
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
