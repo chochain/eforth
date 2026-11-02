@@ -34,7 +34,8 @@ extern void forth_teardown();
 extern bool io_rx_ready();
 extern int  io_rx_get();
 extern bool io_rx_eof();
-extern bool is_forth_idle();
+extern bool handle_idle();
+extern void task_status();
 
 const char* APP_VERSION = "eForth v6.0";
 ///====================================================================
@@ -87,7 +88,7 @@ void mem_stat() {
 ///
 /// @return true if the session ended (bye), false on end of input
 ///
-static bool read_line(string &line) {       ///< non-blocking, assembles one line
+static bool read_line(string &line) {          ///< non-blocking, assembles one line
     while (io_rx_ready()) {
         int c = io_rx_get();
         if (c == '\n') return true;
@@ -98,22 +99,30 @@ static bool read_line(string &line) {       ///< non-blocking, assembles one lin
 
 bool outer_poll() {
     string line;
-    int drain = 1000;                            ///< rounds allowed after end of input
-    for (;;) {
+    int drain = 1000;                          ///< rounds allowed after end of input
+    bool bye  = false;
+    while (!bye) {
+//        this_thread::sleep_for(chrono::milliseconds(1000));
+//        task_status();
         if (read_line(line)) {
-            bool bye = forth_vm(line.c_str());   ///< line must outlive this call (tib points into it)
+//            printf("outer_poll:read_line=>%s\n", line.c_str());
+            bye = forth_vm(line.c_str());     /// line must outlive this call (tib points into it)
             line.clear();
-            if (bye) return true;
         }
-        else if (io_rx_eof()) {
-            if (!line.empty() && forth_vm(line.c_str())) return true;   /// last line, no newline
-            while (drain-- > 0 && is_forth_idle());                     /// let finite tasks finish (piped scripts)
-            return false;
+        else if (io_rx_eof()) {               /// end of input stream (ctrl-D)
+//            printf("outer_poll:rx_eof\n");
+            if (!line.empty() &&
+                forth_vm(line.c_str())) return true;   /// last line, no newline
+            printf("outer_poll:drain\n");
+            while (drain-- > 0 && !handle_idle());     /// let finite tasks finish (piped scripts)
+            break;                             /// all done, bail
         }
-        else if (!is_forth_idle()) {           /// nothing ran: don't spin the CPU
-            this_thread::sleep_for(chrono::milliseconds(1));
+        else if (handle_idle()) {              /// nothing ran: don't spin the CPU
+//            printf("outer_poll:idle\n");
+            this_thread::sleep_for(chrono::milliseconds(1000));
         }
     }
+    return bye;
 }
 ///
 /// @return true if the script ended the session (bye)
