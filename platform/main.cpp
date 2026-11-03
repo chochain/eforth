@@ -10,34 +10,23 @@
 #include <string>        // string, getline
 #include <cstdint>
 #include <cstdlib>       // srand
-#include <ctime>         // time
-#include <thread>        // this_thread
-#include <chrono>        // sleep_for
 
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #elif _WIN32 || _WIN64
 #include <windows.h>
+#include <string>
 #else // Linux || Cygwin
 #include <sys/sysinfo.h>
 #endif
 
 using namespace std;
-///
-/// Note: declared here, not by including ceforth.h, so that the macros in
-///       config.h (MAX, ABS, LOG, ERR, ...) stay out of the system headers above.
-///       Keep these in step with the definitions in ceforth.cpp.
-///
+
 extern void forth_init();
 extern int  forth_vm(const char *cmd, void(*)(int, const char*)=NULL);
 extern void forth_teardown();
-extern bool io_rx_ready();
-extern int  io_rx_get();
-extern bool io_rx_eof();
-extern bool handle_idle();
-extern void task_status();
 
-const char* APP_VERSION = "eForth v6.0";
+const char* APP_VERSION = "eForth v5.0";
 ///====================================================================
 ///
 ///> Memory statistics - for heap, stack, external memory debugging
@@ -50,7 +39,7 @@ void mem_stat() {
     int64_t memsize;
     size_t len = sizeof(memsize);
     if (sysctlbyname("hw.memsize", &memsize, &len, NULL, 0) == 0) {
-      cout << ", RAM " << (memsize >> 20) << " MB";
+        cout << ", RAM " << (memsize >> 20) << " MB";
     }
 #elif _WIN32 || _WIN64
     MEMORYSTATUSEX si;                        ///< Windows Memory Status
@@ -67,11 +56,11 @@ void mem_stat() {
 #else // Linux, Cygwin
     struct sysinfo si;
     if (sysinfo(&si) != -1) {
-      U64 f = (U64)si.freeram * si.mem_unit;
-      U64 t = (U64)si.totalram * si.mem_unit;
-      U64 p = f * 1000L / t;
-      cout << ", RAM " << static_cast<float>(p) * 0.1 << "% free (" << (f >> 20)
-           << " / " << (t >> 20) << " MB)";
+        U64 f = (U64)si.freeram * si.mem_unit;
+        U64 t = (U64)si.totalram * si.mem_unit;
+        U64 p = f * 1000L / t;
+        cout << ", RAM " << static_cast<float>(p) * 0.1 << "% free (" << (f >> 20)
+             << " / " << (t >> 20) << " MB)";
     }
 #endif
 
@@ -79,50 +68,16 @@ void mem_stat() {
 }
 ///====================================================================
 ///
+///> include external Forth script
 ///> Forth outer loop: one line at a time into the shell VM (vm 0)
 ///
-/// Note: forth_vm keeps a pointer to the line (no copy), so 'cmd' must stay
-///       alive, unchanged, for the whole call. It does here.
-///       Cooperative tasks (USE_PTHREAD=0) only advance while the shell runs
-///       'pause' or waits in 'rx@'; nothing schedules them between lines.
-///
-/// @return true if the session ended (bye), false on end of input
-///
-static bool read_line(string &line) {          ///< non-blocking, assembles one line
-    while (io_rx_ready()) {
-        int c = io_rx_get();
-        if (c == '\n') return true;
-        if (c != '\r') line += (char)c;
+bool outer(istream &in) {
+    string cmd;                               ///< input command; TODO: static pool
+    while (getline(in, cmd)) {                ///> fetch user input
+        // printf("cmd=<%s>\n", cmd.c_str());
+        if (forth_vm(cmd.c_str())) return true;     ///> run outer interpreter (single task)
     }
     return false;
-}
-
-bool outer_poll() {
-    string line;
-    int drain = 1000;                          ///< rounds allowed after end of input
-    bool bye  = false;
-    while (!bye) {
-//        this_thread::sleep_for(chrono::milliseconds(1000));
-//        task_status();
-        if (read_line(line)) {
-//            printf("outer_poll:read_line=>%s\n", line.c_str());
-            bye = forth_vm(line.c_str());     /// line must outlive this call (tib points into it)
-            line.clear();
-        }
-        else if (io_rx_eof()) {               /// end of input stream (ctrl-D)
-//            printf("outer_poll:rx_eof\n");
-            if (!line.empty() &&
-                forth_vm(line.c_str())) return true;   /// last line, no newline
-            printf("outer_poll:drain\n");
-            while (drain-- > 0 && !handle_idle());     /// let finite tasks finish (piped scripts)
-            break;                             /// all done, bail
-        }
-        else if (handle_idle()) {              /// nothing ran: don't spin the CPU
-//            printf("outer_poll:idle\n");
-            this_thread::sleep_for(chrono::milliseconds(1000));
-        }
-    }
-    return bye;
 }
 ///
 /// @return true if the script ended the session (bye)
@@ -133,13 +88,8 @@ bool forth_include(const char *fn) {
         cerr << "file " << fn << " open failed!" << endl;
         return false;
     }
-    string cmd;                                ///< input command; TODO: static pool
-    while (getline(ifile, cmd)) {              ///> fetch user input
-        // printf("cmd=<%s>\n", cmd.c_str());
-        if (forth_vm(cmd.c_str())) return true;     ///> outer interpreter, if STOP
-    }
-    return false;                              ///< no STOP
-}
+    return outer(ifile);
+}        
 ///====================================================================
 ///
 /// main program - Note: Arduino and ESP32 have their own main-loop
@@ -154,7 +104,7 @@ int main(int ac, char* av[]) {
     for (int i = 1; i < ac && !bye; i++) {    ///> load scripts named on the command line
         bye = forth_include(av[i]);
     }
-    if (!bye) outer_poll();                   ///> Forth outer interpreter
+    if (!bye) outer(cin);                     ///> Forth outer interpreter
 
     forth_teardown();                         ///> clean up before we go
     cout << APP_VERSION << " Done!" << endl;
