@@ -288,14 +288,27 @@ XT_RET doPAUSE(XT_ARGS) {
 #endif // E4_TRAMP
 }
 
-#define WAIT_FOR(cond)   while(!(cond)) {                  \
-    if (vm.id) {                                           \
-        ip--; return doPAUSE(XT_PASS);                     \
-    }  /* task: retry this word next turn */               \
+#define SYNC(g)                                            \
+    SPILL();                                               \
+    { g; }                                                 \
+    RELOAD()
+
+#if USE_PTHREAD
+#define PAUSE() delay(1)
+#else // !USE_PTHREAD
+#define PAUSE() {                                          \
     SPILL();                                               \
     bool ran = task_handle_pause();                        \
     RELOAD();                                              \
     if (!ran) yield();                                     \
+}
+#endif // USE_PTHREAD
+
+#define WAIT_FOR(cond)   while(!(cond)) {                  \
+    if (vm.id) {                                           \
+        ip--; return doPAUSE(XT_PASS);                     \
+    }  /* task: retry this word next turn */               \
+    PAUSE();                                               \
 }
 #endif // DO_MULTITASK
 
@@ -678,18 +691,19 @@ constexpr Code g_rom[] = {
     CODE("start", IU t = POPI(); task_start(t)),             /// ( task_id -- )
 #if USE_PTHREAD
     CODE("pause", ip--; ip = (IU*)doPAUSE),                  /// Forces trampoline exit
-    CODE("join",  IU t = POPI(); SPILL(); vm.join(t); RELOAD()),                          /// ( task_id -- )
-    CODE("stop", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
-    CODE("send",  IU t = POPI(); IU n = POPI(); SPILL(); vm.send(t, n); RELOAD()),        /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
-    CODE("recv",  SPILL(); vm.recv(); RELOAD()),                                /// ( -- v1 v2 .. vn ) waiting for values passed by sender
-    CODE("bcast", IU n = POPI(); SPILL(); vm.bcast(n); RELOAD()),                         /// ( v1 v2 .. vn -- )
-    CODE("pull",  IU t = POPI(); IU n = POPI(); SPILL(); vm.pull(t, n); RELOAD()),        /// ( tid n -- v1 v2 .. vn )
-    CODE("lock",  vm.io_lock()),                              /// ( -- )
-    CODE("unlock",vm.io_unlock()),                            /// ( -- )
+    CODE("join",  IU t = POPI(); SYNC(vm.join(t))),          /// ( task_id -- )
+    CODE("stop", sp = SS; RRESET(); ip = gStop),             /// clear ss, rs, and stop
+    CODE("send",  IU t = POPI(); IU n = POPI(); SYNC(vm.send(t, n))),  /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
+    CODE("recv",  SYNC(vm.recv())),                          /// ( -- v1 v2 .. vn ) waiting for values passed by sender
+    CODE("bcast", IU n = POPI(); SYNC(vm.bcast(n))),         /// ( v1 v2 .. vn -- )
+    CODE("pull",                                             /// ( tid n -- v1 v2 .. vn )
+         IU t = POPI(); IU n = POPI(); SYNC(vm.pull(t, n))),        
+    CODE("lock",  vm.io_lock()),                             /// ( -- )
+    CODE("unlock",vm.io_unlock()),                           /// ( -- )
 #else // USE_PTHREAD
-    CODE("pause",                                             /// ( -- )
+    CODE("pause",                                            /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
-         SPILL(); task_handle_pause(); RELOAD()),
+         SYNC(task_handle_pause())),
 #endif // USE_PTHREAD
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
@@ -728,11 +742,11 @@ constexpr Code g_rom[] = {
     /// @defgroup OS ops
     /// @{
     IMMD("include",                                         /// include an OS file
-         const char *f = WORD(); SPILL(); load(vm, f); RELOAD()),  
+         const char *f = WORD(); SYNC(load(vm, f))),  
     CODE("included",                                        /// include file spec on stack
          POP();                                             /// string length, not used
          const char *f = (const char*)MEM(POP());
-         SPILL(); load(vm, f); RELOAD()),                   /// include external file
+         SYNC(load(vm, f))),                                /// include external file
     CODE("ok",    mem_stat()),
     CODE("clock", PUSH(millis())),
     CODE("rnd",   PUSH(RND())),                             /// generate random number
