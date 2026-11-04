@@ -16,21 +16,6 @@ void uvar_init() {
 }
 
 #else // DO_MULTITASK
-///
-///> reset shared by ceforth_task and ceforth_coop
-///
-extern IU gStop[];
-void VM::reset(IU cfa, vm_state st) { 
-    IU stop_ip = Code::Token(gStop);
-    rs.idx     = ss.idx = 0;
-    rs.push((DU)stop_ip);
-    ip         = (IU*)(Code::XT0 | (UFP)(cfa));
-    state      = st;
-    compile    = false;
-    *(MEM0 + base) = 10;           /// * default radix = 10
-    
-    DEBUG("reset cfa=%x ip=%p\n", cfa, ip);
-}
 
 #if USE_PTHREAD
 List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
@@ -49,6 +34,16 @@ MUTEX    VM::tsk;
 MUTEX    VM::io;
 COND_VAR VM::cv_tsk;
 COND_VAR VM::cv_io;
+///
+///> reset shared by ceforth_task and ceforth_coop
+///
+void VM::reset(IU cfa, vm_state st) { 
+    rs.idx     = ss.idx = 0;
+    ip         = (IU*)(Code::XT0 | (UFP)(cfa));
+    state      = st;
+    compile    = false;
+    *(MEM0 + base) = 10;           /// * default radix = 10
+}
 
 ///============================================================
 ///
@@ -166,15 +161,12 @@ void task_start(int tid) {
     NOTIFY(_cv_evt);
 }
 
-///
-///> reset shared by ceforth_task and ceforth_coop
-///
-void VM::reset(IU cfa, vm_state st) { 
-    rs.idx     = ss.idx = 0;
-    *ip        = cfa;
-    state      = st;
-    compile    = false;
-    *(MEM0 + base) = 10;           /// * default radix = 10
+void task_status() {
+    printf("task state=");
+    for (int i=0; i<E4_VM_POOL_SZ; i++) {
+        printf("%d ", _vm[i].state);
+    }
+    printf("\n");
 }
 
 ///==================================================================
