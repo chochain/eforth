@@ -32,9 +32,10 @@ bool io_rx_eof()    { return false; }
 int  io_tx_free()   { return 1 << 20; }
 
 #else // POSIX desktop: (poll fd 0 directly, no stdio buffering)
-static int  _rx  = -1;                        ///< one-byte lookahead
-static bool _eof = false;                     ///< end of input seen
-bool io_rx_ready() {
+static MUTEX _rx_mtx;
+static int   _rx  = -1;                       ///< one-byte lookahead
+static bool  _eof = false;                    ///< end of input seen
+static bool _io_rx_ready() {                  ///< locked internal
     if (_rx >= 0) return true;
     if (_eof)     return false;
     struct pollfd p = { 0, POLLIN, 0 };
@@ -46,8 +47,9 @@ bool io_rx_ready() {
     _rx = c;
     return true;
 }
-int  io_rx_get()    { if (!io_rx_ready()) return -1; int c = _rx; _rx = -1; return c; }
-bool io_rx_eof()    { return _eof; }
+bool io_rx_ready()  { GUARD(_rx_mtx); return _io_rx_ready(); }
+int  io_rx_get()    { GUARD(_rx_mtx); if (!_io_rx_ready()) return -1; int c = _rx; _rx = -1; return c; }
+bool io_rx_eof()    { GUARD(_rx_mtx); return _eof; }
 int  io_tx_free()   { return 1 << 20; }       /// * stdout never blocks us
 #endif // (ARDUINO || ESP32)
 
@@ -132,17 +134,17 @@ void fout_setup(void (*hook)(int, const char*)) {
 ///
 ///> one scheduling round for the host loop, called when no input is waiting
 ///  Cooperative tasker only (DO_MULTITASK && !USE_PTHREAD); otherwise a no-op.
-///  @return true if no task ran
+///  @return false if any task ran
 ///
 bool handle_idle() {
 #if DO_MULTITASK && !USE_PTHREAD
-    if (!tob) return true;               /// * before the first line no task can exist
+    if (!tob) return false;              /// * before the first line no task can exist
     tib = nullptr;                       /// * the last line's buffer is gone; tasks must not parse it
     bool ran = task_handle_pause();      /// * each NEST task runs to its next pause or end
     fout_flush();                        /// * their output goes out now, not on the next line
-    return !ran;
+    return ran;
 #else  // (DO_MULTITASK && !USE_PTHREAD)
-    return true;
+    return false;
 #endif // (DO_MULTITASK && !USE_PTHREAD)
 }
 
