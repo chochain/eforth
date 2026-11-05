@@ -96,7 +96,7 @@ create gold                          \ expected vt after one_block
 \ multithreading
 : mt_bench ( -- )
   clock negate
-  999 for one_block next             \ 640KB
+  9999 for one_block next            \ 640KB
   clock + lock . ." ms " cr unlock ;
 ' mt_bench constant xt               \ keep thread starting point
 : run ( n -- )
