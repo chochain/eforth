@@ -32,7 +32,12 @@ bool io_rx_eof()    { return false; }
 int  io_tx_free()   { return 1 << 20; }
 
 #else // POSIX desktop: (poll fd 0 directly, no stdio buffering)
+#if USE_PTHREAD
 static MUTEX _rx_mtx;
+#define IO_GUARD    GUARD(_rx_mtx)
+#else  // !USE_PTHREAD
+#define IO_GUARD
+#endif // USE_PTHREAD
 static int   _rx  = -1;                       ///< one-byte lookahead
 static bool  _eof = false;                    ///< end of input seen
 static bool _io_rx_ready() {                  ///< locked internal
@@ -47,9 +52,9 @@ static bool _io_rx_ready() {                  ///< locked internal
     _rx = c;
     return true;
 }
-bool io_rx_ready()  { GUARD(_rx_mtx); return _io_rx_ready(); }
-int  io_rx_get()    { GUARD(_rx_mtx); if (!_io_rx_ready()) return -1; int c = _rx; _rx = -1; return c; }
-bool io_rx_eof()    { GUARD(_rx_mtx); return _eof; }
+bool io_rx_ready()  { IO_GUARD; return _io_rx_ready(); }
+int  io_rx_get()    { IO_GUARD; if (!_io_rx_ready()) return -1; int c = _rx; _rx = -1; return c; }
+bool io_rx_eof()    { IO_GUARD; return _eof; }
 int  io_tx_free()   { return 1 << 20; }       /// * stdout never blocks us
 #endif // (ARDUINO || ESP32)
 
