@@ -16,15 +16,24 @@ void uvar_init() {
 }
 
 #else // DO_MULTITASK
+///
+///> VM::reset shared by PTHREAD and Cooperative
+///
+extern IU gStop[];
+void VM::reset(IU cfa, vm_state st) { 
+    IU stop_ip = Code::Token(gStop);
+    rs.idx     = ss.idx = 0;
+    rs.push((DU)stop_ip);
+    ip         = (IU*)(Code::XT0 | (UFP)(cfa));
+    state      = st;
+    compile    = false;
+    *(MEM0 + base) = 10;           /// * default radix = 10
+
+    DEBUG("reset cfa=%x ip=%p\n", cfa, ip);
+}
 
 #if USE_PTHREAD
 List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
-///
-///> VM pool
-///
-VM& vm_get(int id) {
-    return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
-}
 ///
 ///> VM messaging and IO control variables
 ///
@@ -35,14 +44,10 @@ MUTEX    VM::io;
 COND_VAR VM::cv_tsk;
 COND_VAR VM::cv_io;
 ///
-///> reset shared by ceforth_task and ceforth_coop
+///> VM pool
 ///
-void VM::reset(IU cfa, vm_state st) { 
-    rs.idx     = ss.idx = 0;
-    ip         = (IU*)(Code::XT0 | (UFP)(cfa));
-    state      = st;
-    compile    = false;
-    *(MEM0 + base) = 10;           /// * default radix = 10
+VM& vm_get(int id) {
+    return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
 }
 
 ///============================================================
@@ -71,7 +76,6 @@ void _event_loop(int rank) {
             NOTIFY(_cv_evt);                      /// * notify one
         }
         VM_LOG(vm, ">> started on T%d", rank);
-        vm->rs.push(DU0);                         /// exit token
         nest(*vm);
         VM_LOG(vm, ">> finished on T%d", rank);
 
