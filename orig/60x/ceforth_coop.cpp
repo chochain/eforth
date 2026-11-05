@@ -11,21 +11,6 @@ List<VM, E4_VM_POOL_SZ> _vm;                  ///< VM pool; slot 0 is the shell
 VM& vm_get(int id) {
     return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
 }
-///
-///> reset cooperative task
-///
-extern IU gStop[];
-void VM::reset(IU cfa, vm_state st) { 
-    IU stop_ip = Code::Token(gStop);
-    rs.idx     = ss.idx = 0;
-    rs.push((DU)stop_ip);
-    ip         = (IU*)(Code::XT0 | (UFP)(cfa));
-    state      = st;
-    compile    = false;
-    *(MEM0 + base) = 10;           /// * default radix = 10
-    
-    DEBUG("reset cfa=%x ip=%p\n", cfa, ip);
-}
 
 void t_pool_init() { LOG("[SYSTEM] cooperative tasker, %d slots\n", E4_VM_POOL_SZ); }
 void t_pool_stop() {}
