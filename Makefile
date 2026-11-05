@@ -41,6 +41,8 @@ mqtt: tests/eforth_mqtt_dev tests/eforth_mqtt_ctl
 
 60x: tests/ceforth60x
 
+60c: tests/ceforth60c
+
 wasm: tests/eforth.js
 
 all: exe 60x wasm
@@ -67,6 +69,9 @@ tests/ceforth50x: platform/main.o $(OBJS_50X)
 	$(CC) $(CC_FLAG) -o $@ $^
 
 tests/ceforth60x: platform/main.o $(OBJS_60X)
+	$(CC) $(CC_FLAG) -o $@ $^
+
+tests/ceforth60c: platform/main_coop.o $(OBJS_60X)
 	$(CC) $(CC_FLAG) -o $@ $^
 
 debug60: tests/ceforth60x
