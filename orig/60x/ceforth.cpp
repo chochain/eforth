@@ -683,7 +683,6 @@ constexpr Code g_rom[] = {
     CODE("task",                                             /// ( addr -- tid ), addr from '
          IU tok = TOK(MEM(POPI()));                          ///< colon word MEM[addr]
          const Code *w = tok2code(tok);                      ///< fetch user Code
-         LOG("tok=%x w=%s\n", tok, w->name);
          IU tid = 0;
          if (w && w->is_udf()) tid = task_create(tok);       ///< task slot
          else pstr("  ?colon word only\n");
