@@ -10,7 +10,7 @@
 #define CASE_SENSITIVE  1               /**< word case sensitive    */
 #define USE_FLOAT       0               /**< support floating point */
 #define DO_MULTITASK    1               /**< support multitasking   */
-#define USE_PTHREAD     0               /**< pthread or cooperative */
+#define USE_PTHREAD     1               /**< pthread or cooperative */
 ///@}
 ///@name Calling convention of the threaded-code words (see ceforth.h)
 ///@brief  override with -DE4_TRAMP=.. -DE4_NOS=..
@@ -65,7 +65,7 @@
 #define E4_SS_SZ        48
 #define E4_DICT_SZ      400
 #define E4_PMEM_SZ      (32*1024)
-#define E4_VM_POOL_SZ   4               /**< one plus # cors       */
+#define E4_VM_POOL_SZ   8               /**< one plus # cors       */
 #define E4_PAD_SZ       66              /**< temp pad size         */
 #define E4_IBUF_SZ      128             /**< input buffer size     */
 #define E4_OBUF_SZ      1024            /**< output buffer size    */
@@ -195,16 +195,16 @@ typedef int32_t         DU;
 #include <stdarg.h>
     
 #if ARDUINO
-#define VM_HDR(vm, fmt, ...)                                \
-    printf("[%02d.%d]%-4x" fmt,                             \
-           (vm)->id, (vm)->state, (vm)->ip, ##__VA_ARGS__)
-#define VM_TLR(vm, fmt, ...)                                \
+#define VM_HDR(vm, fmt, ...)                  \
+    printf("%02d.%d" fmt,                     \
+           (vm)->id, (vm)->state, ##__VA_ARGS__)
+#define VM_TLR(vm, fmt, ...)                  \
     printf(fmt, ##__VA_ARGS__)
     
 #else // !ARDUINO
 #define VM_HDR(vm, fmt, ...)                  \
-    printf("\e[%dm[%02d.%d]%-4x" fmt "\e[0m", \
-           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, *(vm)->ip, ##__VA_ARGS__)
+    printf("\e[%dm%02d.%d" fmt "\e[0m",       \
+           ((vm)->id&7) ? 38-((vm)->id&7) : 37, (vm)->id, (vm)->state, ##__VA_ARGS__)
 #define VM_TLR(vm, fmt, ...)                  \
     printf("\e[%dm" fmt "\e[0m\n",            \
            ((vm)->id&7) ? 38-((vm)->id&7) : 37, ##__VA_ARGS__)
