@@ -700,11 +700,20 @@ constexpr Code g_rom[] = {
          IU t = POPI(); IU n = POPI(); SYNC(vm.pull(t, n))),        
     CODE("lock",  vm.io_lock()),                             /// ( -- )
     CODE("unlock",vm.io_unlock()),                           /// ( -- )
+    CODE("ms",    task_pause(POPI())),                       /// ( n -- )
 #else // USE_PTHREAD
     CODE("pause",                                            /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
          SYNC(task_pause())),
+    CODE("ms",                                               /// ( n -- )
+         int n = (int)POPI();
+         if (vm.id) {                                        /// task: sleep without blocking the ring
+             vm.wake = (U32)millis() + (U32)n;
+             return doPAUSE(XT_PASS);                        /// ip is already past 'ms', resumes after it
+         }
+         SYNC(task_pause(n))),                               /// shell: drive the ring for n ms
 #endif // USE_PTHREAD
+    CODE("ms",    delay(POPI())),                            /// ( n -- )
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
     /// @{
@@ -750,7 +759,6 @@ constexpr Code g_rom[] = {
     CODE("ok",    mem_stat()),
     CODE("clock", PUSH(millis())),
     CODE("rnd",   PUSH(RND())),                             /// generate random number
-    CODE("ms",    task_pause(POPI())),                      /// ( n -- )
     CODE("bye",   vm.state=STOP),
     /// @}
     CODE("boot",  dict.clear(); pmem.clear()),
