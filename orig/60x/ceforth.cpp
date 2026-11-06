@@ -298,7 +298,7 @@ XT_RET doPAUSE(XT_ARGS) {
 #else // !USE_PTHREAD
 #define PAUSE() {                                          \
     SPILL();                                               \
-    bool ran = task_handle_pause();                        \
+    bool ran = task_pause();                               \
     RELOAD();                                              \
     if (!ran) yield();                                     \
 }
@@ -703,7 +703,7 @@ constexpr Code g_rom[] = {
 #else // USE_PTHREAD
     CODE("pause",                                            /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
-         SYNC(task_handle_pause())),
+         SYNC(task_pause())),
 #endif // USE_PTHREAD
 #endif // DO_MULTITASK
     /// @defgroup Debug ops

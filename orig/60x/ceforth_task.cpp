@@ -189,8 +189,9 @@ void task_status() {
     printf("\n");
 }
 
-void task_pause(int ms) {
+bool task_pause(int ms) {
     delay(ms);
+    return false;
 }
 
 ///==================================================================
