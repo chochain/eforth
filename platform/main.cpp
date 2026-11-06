@@ -104,10 +104,8 @@ bool outer_poll() {
     int drain = 1000;                          ///< rounds allowed after end of input
     bool bye  = false;
     while (!bye) {
-        this_thread::sleep_for(chrono::milliseconds(1000));
-        task_status();
         if (read_line(line)) {
-            printf("outer_poll:read_line=>%s\n", line.c_str());
+//            printf("outer_poll:read_line=>%s\n", line.c_str());
             bye = forth_vm(line.c_str());     /// line must outlive this call (tib points into it)
             line.clear();
         }
@@ -120,8 +118,8 @@ bool outer_poll() {
             break;                             /// not all done yet, bail
         }
         else if (!handle_idle()) {             /// nothing ran: don't spin the CPU
-            printf("outer_poll:idle\n");
-            this_thread::sleep_for(chrono::milliseconds(1000));
+//            printf("outer_poll:idle\n");
+            this_thread::sleep_for(chrono::milliseconds(10));
         }
     }
     return bye;
