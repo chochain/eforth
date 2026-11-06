@@ -27,6 +27,7 @@ void VM::reset(IU cfa, vm_state st) {
     ip         = (IU*)(Code::XT0 | (UFP)(cfa));
     state      = st;
     compile    = false;
+    wake       = 0;
     *(MEM0 + base) = 10;           /// * default radix = 10
 
     DEBUG("reset cfa=%x ip=%p\n", cfa, ip);
