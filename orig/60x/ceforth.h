@@ -13,27 +13,6 @@
 #define XT0_MSK  0xFFFFFFFF00000000ULL
 
 using namespace std;
-
-#if (DO_MULTITASK && USE_PTHREAD)
-#include <mutex>
-#include <condition_variable>
-typedef  thread             THREAD;
-typedef  mutex              MUTEX;
-typedef  condition_variable COND_VAR;
-#define  GUARD(m)           lock_guard<mutex>  _grd_(m)
-#define  XLOCK(m)           unique_lock<mutex> _xlck_(m)   /** exclusive lock     */
-#define  WAIT(cv,g)         (cv).wait(_xlck_, g)           /** wait for condition */
-#define  NOTIFY(cv)         (cv).notify_one()              /** wake up one task   */
-#define  NOTIFY_ALL(cv)     (cv).notify_all();
-
-#ifdef _POSIX_VERSION
-#include <sched.h>                    /// CPU affinity
-#endif // _POSIX_VERSION
-
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE                    /** Emscripten needs this */
-#endif
-#endif // (DO_MULTITASK && USE_PTHREAD)
 ///
 /// array class template (so we don't have dependency on C++ STL)
 /// Note:
@@ -131,43 +110,6 @@ struct ALIGNAS VM {
 #endif // USER_PTHREAD    
 #endif // DO_MULTITASK
 };
-///@name compilation flags
-///@{
-#if E4_NOS
-#define NARG      DU tos, DU nos
-#define NREF      DU &tos, DU &nos
-#define NPAS      tos, nos
-#else  // E4_NOS
-#define NARG      DU tos
-#define NREF      DU &tos
-#define NPAS      tos
-#endif // E4_NOS
-
-#if E4_RTOP
-#define ARGS      NARG, DU *rp
-#define REFS      NREF, DU *&rp
-#define PASS      NPAS, rp
-#else // E4_RTOP
-#define ARGS      NARG
-#define REFS      NREF
-#define PASS      NPAS
-#endif // E4_RTOP
-
-#if E4_TRAMP
-#if E4_RTOP
-struct  Ret        { IU *ip; DU *sp; DU tos; DU *rp; };
-#else  // E4_RTOP
-struct  Ret        { IU *ip; DU *sp; DU tos; };
-#endif // E4_RTOP
-#define XT_RET     Ret
-#else // E4_TRAMP
-#define XT_RET     void*
-#endif // E4_TRAMP
-typedef XT_RET     (*FPTR)(IU *ip, DU *sp, ARGS, VM &vm);      ///< trampoline or tail-call (returns NEXT)
-#define XT_ARGS    IU *ip, DU *sp, ARGS, VM &vm                /** word signature      */
-#define XT_REFS    IU *&ip, DU *&sp, REFS, VM &vm              /** helper by reference */
-#define XT_PASS    ip, sp, PASS, vm                            /** forward as-is       */
-///@}
 ///@name data stack access macros
 ///@{
 #define SS        (vm.ss.v)
@@ -231,7 +173,21 @@ typedef XT_RET     (*FPTR)(IU *ip, DU *sp, ARGS, VM &vm);      ///< trampoline o
 #define IMM_ATTR   0x0002   /** immediate word       */
 #define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
 #define UDF_DICT   0x8000   /** user defined word    */
-///}
+///@}
+///@name return types for trampoline/tailcall control
+///@{
+#if E4_TRAMP
+#if E4_RTOP
+struct  Ret        { IU *ip; DU *sp; DU tos; DU *rp; };
+#else  // E4_RTOP
+struct  Ret        { IU *ip; DU *sp; DU tos; };
+#endif // E4_RTOP
+#define XT_RET     Ret
+#else // E4_TRAMP
+#define XT_RET     void*
+#endif // E4_TRAMP
+typedef XT_RET     (*FPTR)(IU *ip, DU *sp, ARGS, VM &vm); ///< trampoline or tail-call (returns NEXT)
+///@}
 ///@name Code class
 ///@brief - basic struct of dictionary entries
 ///
@@ -302,10 +258,12 @@ extern const int  g_romsz;
 extern       U8   *MEM0;
 extern       List<Code*, E4_DICT_SZ> dict;
 extern       List<U8,    0>          pmem;
-
+///@}
 // =====================================================================
 // 2. High-Performance Token Unpacking Profile (Cross-Bit Portability)
 // =====================================================================
+///@name lambda-based Forth NEXT implementation
+///@{
 #if XT0_U32
 #define NEXT_FP  ((FPTR)(UFP)(*ip++))
 #else  // XT0_U32
