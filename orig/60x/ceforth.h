@@ -67,6 +67,13 @@ struct List {
 ///
 ///> VM context (single task)
 ///
+#if (DO_MULTITASK && USE_PTHREAD)
+#include <mutex>
+#include <condition_variable>
+typedef  mutex              MUTEX;
+typedef  condition_variable COND_VAR;
+#endif // (DO_MULTITASK && USE_PTHREAD)
+
 typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
 struct ALIGNAS VM {
     List<DU, E4_SS_SZ> ss;         ///< parameter stack
