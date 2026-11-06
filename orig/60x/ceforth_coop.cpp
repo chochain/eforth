@@ -52,7 +52,7 @@ void task_status() {
 
 /// One turn of the ring: each runnable task runs until its next PAUSE or its end.
 /// Returns true if any task ran.
-bool task_handle_pause() {
+bool task_pause(int ms) {
     bool ran = false;
     for (int i = 1; i < E4_VM_POOL_SZ; i++) {
         VM &t = _vm[i];

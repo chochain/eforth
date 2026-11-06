@@ -189,6 +189,10 @@ void task_status() {
     printf("\n");
 }
 
+void task_pause(int ms) {
+    delay(ms);
+}
+
 ///==================================================================
 ///
 ///> VM methods
