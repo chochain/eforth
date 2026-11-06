@@ -295,6 +295,7 @@ XT_RET doPAUSE(XT_ARGS) {
 
 #if USE_PTHREAD
 #define PAUSE() delay(1)
+
 #else // !USE_PTHREAD
 #define PAUSE() {                                          \
     SPILL();                                               \
@@ -310,6 +311,11 @@ XT_RET doPAUSE(XT_ARGS) {
     }  /* task: retry this word next turn */               \
     PAUSE();                                               \
 }
+
+#else  // DO_MULTITASK
+#define SYNC(g)     { g; }
+#define WAIT_FOR
+
 #endif // DO_MULTITASK
 
 #define UNNEST()     {                                     \
