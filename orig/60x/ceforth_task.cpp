@@ -34,10 +34,7 @@ void VM::reset(IU cfa, vm_state st) {
 
 #if USE_PTHREAD
 #include <mutex>
-#include <condition_variable>
 typedef  thread             THREAD;
-typedef  mutex              MUTEX;
-typedef  condition_variable COND_VAR;
 #define  GUARD(m)           lock_guard<mutex>  _grd_(m)
 #define  XLOCK(m)           unique_lock<mutex> _xlck_(m)   /** exclusive lock     */
 #define  WAIT(cv,g)         (cv).wait(_xlck_, g)           /** wait for condition */
