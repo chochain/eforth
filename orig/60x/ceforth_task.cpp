@@ -33,6 +33,25 @@ void VM::reset(IU cfa, vm_state st) {
 }
 
 #if USE_PTHREAD
+#include <mutex>
+#include <condition_variable>
+typedef  thread             THREAD;
+typedef  mutex              MUTEX;
+typedef  condition_variable COND_VAR;
+#define  GUARD(m)           lock_guard<mutex>  _grd_(m)
+#define  XLOCK(m)           unique_lock<mutex> _xlck_(m)   /** exclusive lock     */
+#define  WAIT(cv,g)         (cv).wait(_xlck_, g)           /** wait for condition */
+#define  NOTIFY(cv)         (cv).notify_one()              /** wake up one task   */
+#define  NOTIFY_ALL(cv)     (cv).notify_all();
+
+#ifdef _POSIX_VERSION
+#include <sched.h>                 /// CPU affinity
+#endif // _POSIX_VERSION
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE                /** Emscripten needs this */
+#endif
+
 List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
 ///
 ///> VM messaging and IO control variables
