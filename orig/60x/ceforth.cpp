@@ -688,6 +688,7 @@ constexpr Code g_rom[] = {
          else pstr("  ?colon word only\n");
          PUSH(tid)),                                         /// 0 = pool full
     CODE("start", IU t = POPI(); task_start(t)),             /// ( task_id -- )
+    CODE(".task", task_status()),
 #if USE_PTHREAD
     CODE("pause", ip--; ip = (IU*)doPAUSE),                  /// Forces trampoline exit
     CODE("join",  IU t = POPI(); SYNC(vm.join(t))),          /// ( task_id -- )
@@ -699,10 +700,12 @@ constexpr Code g_rom[] = {
          IU t = POPI(); IU n = POPI(); SYNC(vm.pull(t, n))),        
     CODE("lock",  vm.io_lock()),                             /// ( -- )
     CODE("unlock",vm.io_unlock()),                           /// ( -- )
+    CODE("ms",    delay(POPI())),                            /// ( n -- )
 #else // USE_PTHREAD
     CODE("pause",                                            /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
          SYNC(task_handle_pause())),
+    CODE("ms",    task_handle_pause(POPI())),                /// ( n -- )
 #endif // USE_PTHREAD
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
@@ -749,7 +752,6 @@ constexpr Code g_rom[] = {
     CODE("ok",    mem_stat()),
     CODE("clock", PUSH(millis())),
     CODE("rnd",   PUSH(RND())),                             /// generate random number
-    CODE("ms",    delay(POPI())),
     CODE("bye",   vm.state=STOP),
     /// @}
     CODE("boot",  dict.clear(); pmem.clear()),
