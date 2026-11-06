@@ -33,11 +33,13 @@ int  io_tx_free()   { return 1 << 20; }
 
 #else // POSIX desktop: (poll fd 0 directly, no stdio buffering)
 #if USE_PTHREAD
-static MUTEX _rx_mtx;
-#define IO_GUARD    GUARD(_rx_mtx)
-#else  // !USE_PTHREAD
+#include <mutex>
+static mutex _rx_mtx;
+#define IO_GUARD    lock_guard<mutex> _grd_(_rx_mtx)
+#else // !USE_PTHREAD
 #define IO_GUARD
 #endif // USE_PTHREAD
+
 static int   _rx  = -1;                       ///< one-byte lookahead
 static bool  _eof = false;                    ///< end of input seen
 static bool _io_rx_ready() {                  ///< locked internal
