@@ -700,12 +700,10 @@ constexpr Code g_rom[] = {
          IU t = POPI(); IU n = POPI(); SYNC(vm.pull(t, n))),        
     CODE("lock",  vm.io_lock()),                             /// ( -- )
     CODE("unlock",vm.io_unlock()),                           /// ( -- )
-    CODE("ms",    delay(POPI())),                            /// ( n -- )
 #else // USE_PTHREAD
     CODE("pause",                                            /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
          SYNC(task_handle_pause())),
-    CODE("ms",    task_handle_pause(POPI())),                /// ( n -- )
 #endif // USE_PTHREAD
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
@@ -752,6 +750,7 @@ constexpr Code g_rom[] = {
     CODE("ok",    mem_stat()),
     CODE("clock", PUSH(millis())),
     CODE("rnd",   PUSH(RND())),                             /// generate random number
+    CODE("ms",    task_pause(POPI())),                      /// ( n -- )
     CODE("bye",   vm.state=STOP),
     /// @}
     CODE("boot",  dict.clear(); pmem.clear()),
