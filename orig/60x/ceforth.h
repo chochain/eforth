@@ -88,6 +88,8 @@ struct ALIGNAS VM {
     bool     compile = false;      ///< compiler flag
 
 #if DO_MULTITASK
+    int      wake    = 0;          ///< ticks to wait (before wake up)
+    
     void reset(IU ip, vm_state st);///< reset a VM user variables
     
 #if USE_PTHREAD
@@ -304,7 +306,6 @@ bool task_pause(int ms=0);                ///< pause current task (returns if an
 #else   // DO_MULTITASK
 #define t_pool_init()
 #define t_pool_stop()
-#define task_pause(ms)   delay(ms)
 #endif // DO_MULTITASK
 ///@}
 ///@name System interface
