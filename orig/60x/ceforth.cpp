@@ -294,10 +294,13 @@ XT_RET doPAUSE(XT_ARGS) {
     RELOAD()
 
 #if USE_PTHREAD
-#define PAUSE() delay(1)
+#define WAIT_FOR(cond) while(!(cond)) delay(1)
 
 #else // !USE_PTHREAD
-#define PAUSE() {                                          \
+#define WAIT_FOR(cond) while(!(cond)) {                    \
+    if (vm.id) {                                           \
+        ip--; return doPAUSE(XT_PASS);                     \
+    }  /* task: retry this word next turn */               \
     SPILL();                                               \
     bool ran = task_pause();                               \
     RELOAD();                                              \
@@ -305,16 +308,9 @@ XT_RET doPAUSE(XT_ARGS) {
 }
 #endif // USE_PTHREAD
 
-#define WAIT_FOR(cond)   while(!(cond)) {                  \
-    if (vm.id) {                                           \
-        ip--; return doPAUSE(XT_PASS);                     \
-    }  /* task: retry this word next turn */               \
-    PAUSE();                                               \
-}
-
 #else  // DO_MULTITASK
 #define SYNC(g)     { g; }
-#define WAIT_FOR
+#define WAIT_FOR(cond)
 
 #endif // DO_MULTITASK
 
@@ -694,9 +690,10 @@ constexpr Code g_rom[] = {
          else pstr("  ?colon word only\n");
          PUSH(tid)),                                         /// 0 = pool full
     CODE("start", IU t = POPI(); task_start(t)),             /// ( task_id -- )
-    CODE(".task", task_status()),
+    CODE("state@",IU t = POPI(); PUSH((DU)task_state(t))),   /// ( task_id -- n )
+    CODE(".task", task_status()),                            /// ( -- ), print states
 #if USE_PTHREAD
-    CODE("pause", ip--; ip = (IU*)doPAUSE),                  /// Forces trampoline exit
+    CODE("pause", yield()),                                  /// take a breather
     CODE("join",  IU t = POPI(); SYNC(vm.join(t))),          /// ( task_id -- )
     CODE("stop", sp = SS; RRESET(); ip = gStop),             /// clear ss, rs, and stop
     CODE("send",  IU t = POPI(); IU n = POPI(); SYNC(vm.send(t, n))),  /// ( v1 v2 .. vn n tid -- ) pass values onto task's stack
