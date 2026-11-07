@@ -98,20 +98,17 @@ create gold                          \ expected vt after one_block
 \   1. each task yields (pause) every 64 blocks, so they interleave
 \   2. no lock/unlock/join (pthread only): tasks count themselves
 \      into 'done', and the shell pumps the ring until all are in
-create done 0 ,                      \ finished-task counter
 : mt_bench ( -- )
   clock negate
   9999 for
     one_block
     i $3f and 0= if pause then       \ yield to the ring
   next                               \ 640KB
-  clock + . ." ms " cr
-  1 done +! ;                        \ report completion
+  clock + . ." ms " cr ;
 ' mt_bench constant xt               \ keep thread starting point
 : join ( n -- )                      \ run ring until n tasks are done
   begin pause dup state@ 0= until drop ;
 : run ( n -- )
-  0 done !
   clock negate >r
   dup 1- for xt task start next      \ create + start n tasks
   join
