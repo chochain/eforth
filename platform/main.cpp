@@ -108,6 +108,7 @@ bool outer_poll() {
 //            printf("outer_poll:read_line=>%s\n", line.c_str());
             bye = forth_vm(line.c_str());     /// line must outlive this call (tib points into it)
             line.clear();
+            printf("ok\n");
         }
         else if (io_rx_eof()) {               /// end of input stream (ctrl-D)
             printf("outer_poll:rx_eof\n");
@@ -130,11 +131,12 @@ bool outer_poll() {
 ///> include external Forth script
 ///> Forth outer loop: one line at a time into the shell VM (vm 0)
 ///
-bool outer(istream &in) {
+bool outer(istream &in, bool ok=true) {
     string cmd;                               ///< input command; TODO: static pool
     while (getline(in, cmd)) {                ///> fetch user input
         // printf("cmd=<%s>\n", cmd.c_str());
-        if (forth_vm(cmd.c_str())) return true;     ///> run outer interpreter (single task)
+        if (forth_vm(cmd.c_str())) return true;  ///> run outer interpreter (single task)
+        if (ok) printf("ok\n");
     }
     return false;
 }
@@ -147,7 +149,7 @@ bool forth_include(const char *fn) {
         cerr << "file " << fn << " open failed!" << endl;
         return false;
     }
-    return outer(ifile);
+    return outer(ifile, false);
 }
 ///====================================================================
 ///
