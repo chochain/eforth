@@ -105,7 +105,7 @@ create gold                          \ expected vt after one_block
     xt task dup start                \ start threads, keep thread ids
   next
   r> for join next
-  r> clock + . ." elapse ms" ;       \ waiting for threads to finish
+  r> clock + . ." ms elapsed " ;     \ waiting for threads to finish
 4 run
 bye
 
