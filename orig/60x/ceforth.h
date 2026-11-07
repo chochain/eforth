@@ -301,6 +301,7 @@ void t_pool_init();                       ///< initialize thread pool
 void t_pool_stop();                       ///< stop thread pool
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a task with given task/VM id
+int  task_state(int tid);                 ///< return the state of a task
 void task_status();
 bool task_pause(int ms=0);                ///< pause current task (returns if any task ran)
 #else   // DO_MULTITASK
