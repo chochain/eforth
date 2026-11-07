@@ -10,7 +10,9 @@ CC_FLAG = -std=gnu++17 -g -O2 -Wall -pthread \
           -fomit-frame-pointer -fno-stack-check -fno-stack-protector \
 		  -march=native -ffast-math -funroll-loops
 
+# make 60x                 for pthread (if multitasking enabled)
 # make EXTRA=-DCOOP 60x    for cooperative multitasking
+EXTRA   = -DCOOP
 CC_FLAG += $(EXTRA)
 
 FLST = \
