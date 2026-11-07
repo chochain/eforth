@@ -20,6 +20,8 @@ void uvar_init() {
 ///> VM::reset shared by PTHREAD and Cooperative
 ///
 extern IU gStop[];
+List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
+
 void VM::reset(IU cfa, vm_state st) { 
     IU stop_ip = Code::Token(gStop);
     rs.idx     = ss.idx = 0;
@@ -31,6 +33,18 @@ void VM::reset(IU cfa, vm_state st) {
     *(MEM0 + base) = 10;           /// * default radix = 10
 
     DEBUG("reset cfa=%x ip=%p\n", cfa, ip);
+}
+
+int task_state(int tid) {
+    return vm_get(tid).state;
+}
+
+void task_status() {
+    printf("task state=");
+    for (int i=0; i<E4_VM_POOL_SZ; i++) {
+        printf("%d ", _vm[i].state);
+    }
+    printf("\n");
 }
 
 #if USE_PTHREAD
@@ -50,7 +64,6 @@ typedef  thread             THREAD;
 #define _GNU_SOURCE                /** Emscripten needs this */
 #endif
 
-List<VM, E4_VM_POOL_SZ> _vm;       ///< VM pool
 ///
 ///> VM messaging and IO control variables
 ///
@@ -180,14 +193,6 @@ void task_start(int tid) {
     GUARD(_evt);
     _que.push(&vm);                              /// create event
     NOTIFY(_cv_evt);
-}
-
-void task_status() {
-    printf("task state=");
-    for (int i=0; i<E4_VM_POOL_SZ; i++) {
-        printf("%d ", _vm[i].state);
-    }
-    printf("\n");
 }
 
 bool task_pause(int ms) {
