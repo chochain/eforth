@@ -5,8 +5,8 @@
 #include "ceforth.h"
 
 #if DO_MULTITASK && !USE_PTHREAD
-
-List<VM, E4_VM_POOL_SZ> _vm;                  ///< VM pool; slot 0 is the shell
+extern List<VM, E4_VM_POOL_SZ> _vm;           ///< VM pool defined in ceforth_task.cpp
+extern IU gStop[];                            ///< defined in ceforth.cpp
 
 VM& vm_get(int id) {
     return _vm[(id >= 0 && id < E4_VM_POOL_SZ) ? id : 0];
@@ -40,14 +40,6 @@ void task_start(int tid) {
     if (tid > 0 && tid < E4_VM_POOL_SZ && _vm[tid].state == HOLD) {
         _vm[tid].state = NEST;                /// * now in the ring
     }
-}
-
-void task_status() {
-    printf("task state=");
-    for (int i=0; i<E4_VM_POOL_SZ; i++) {
-        printf("%d ", _vm[i].state);
-    }
-    printf("\n");
 }
 
 /// One turn of the ring: run each runnable task whose wake time has passed.
