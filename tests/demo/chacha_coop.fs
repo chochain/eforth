@@ -106,12 +106,12 @@ create gold                          \ expected vt after one_block
   next                               \ 640KB
   clock + . ." ms " cr ;
 ' mt_bench constant xt               \ keep thread starting point
-: join ( n -- )                      \ run ring until n tasks are done
+: wait ( n -- )                      \ run ring until n tasks are done
   begin pause dup state@ 0= until drop ;
 : run ( n -- )
   clock negate >r
   dup 1- for xt task start next      \ create + start n tasks
-  join
+  wait
   r> clock + . ." ms elapsed " cr ;
 4 run
 bye
