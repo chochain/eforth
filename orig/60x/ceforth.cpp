@@ -219,6 +219,7 @@ XT_RET doSTOP(XT_ARGS) {
     RP  = rp - RS;
 #endif // E4_RTOP
     return NULL;
+    
 #endif // E4_TRAMP
 }
 IU gStop[] = { TOK(doSTOP) };         ///< tempoline sentinal
@@ -239,13 +240,10 @@ XT_RET doPAUSE(XT_ARGS) {
     RELOAD()
 
 #if USE_PTHREAD
-#define JMP_YIELD() JMP()
 #define WAIT_FOR(cond) while(!(cond)) delay(1)
+#define JMP_YIELD() JMP()
 
 #else // !USE_PTHREAD
-#define JMP_YIELD()                                        \
-    JMP();                                                 \
-    if (vm.id && !((++vm.spin) & 0x3fff)) return doPAUSE(XT_PASS)
 #define WAIT_FOR(cond) while(!(cond)) {                    \
     if (vm.id) {                                           \
         ip--; return doPAUSE(XT_PASS);                     \
@@ -255,6 +253,10 @@ XT_RET doPAUSE(XT_ARGS) {
     RELOAD();                                              \
     if (!ran) yield();                                     \
 }
+#define JMP_YIELD()                                        \
+    JMP();                                                 \
+    if (vm.id && !((++vm.spin) & 0x3fff)) return doPAUSE(XT_PASS)
+
 #endif // USE_PTHREAD
 
 #else  // !DO_MULTITASK
@@ -304,6 +306,7 @@ static _INLINE_ void launch(VM &vm, FPTR fp, IU *ip) {
     
 #else  // !E4_TRAMP
     fp(XT_PASS);                    /// * the whole word chain runs by tail calls; doSTOP returns
+    
 #endif // E4_TRAMP
 }
 
