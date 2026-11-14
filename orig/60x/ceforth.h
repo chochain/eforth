@@ -66,17 +66,17 @@ struct List {
 };
 ///====================================================================
 ///
-///> Multitasking headers
+///> VM context (single task)
 ///
 #if DO_MULTITASK
 #if (ARDUINO || ESP32)
-#define E4_RTOS   1
+#define  E4_FREERTOS  1
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 typedef  SemaphoreHandle_t     R_MUTEX;
 
 #else // !(ARDUINO || ESP32): x86, ARM Linux, macOS...
-#define E4_RTOS   0
+#define  E4_FREERTOS  0
 #include <mutex>
 #include <condition_variable>
 typedef  recursive_timed_mutex R_MUTEX;
@@ -85,10 +85,7 @@ typedef  condition_variable    COND_VAR;
 
 #endif // (ARDUINO || ESP32)
 #endif // DO_MULTITASK
-///====================================================================
-///
-///> VM context (single task)
-///
+
 typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
 struct ALIGNAS VM {
     List<DU, E4_SS_SZ> ss;         ///< parameter stack
@@ -405,7 +402,7 @@ void pstr(const char *str, io_op op=SPCS);               ///< print string
 ///@name Debug functions
 ///@{
 const Code *tok2code(IU tok);             ///< get Code pointer from given token/address
-void ss_dump(VM &vm, bool forced=false);  ///< show data stack content
+void ss_dump(VM &vm);                     ///< show data stack content
 void see(IU pfa, int base);               ///< disassemble user defined word
 void words();                             ///< list dictionary words
 void dict_dump();                         ///< dump dictionary
