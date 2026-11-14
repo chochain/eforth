@@ -205,7 +205,7 @@ XT_RET doSTOP(XT_ARGS) {
 #endif // DO_MULTITASK
     
 #if E4_TRAMP
-    IP = 0;
+    IP = 0;                           /// * vm.IP = 0 stops the VM
     return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
 #else  // E4_TRAMP
     // Commit current register window variables back to permanent storage on exit
@@ -233,20 +233,19 @@ XT_RET doPAUSE(XT_ARGS) {
     return NULL;
 #endif // E4_TRAMP
 }
-
-#define JMP_YIELD()                                        \
-    JMP();                                                 \
-    if (vm.id && !((++vm.spin) & 0x3fff)) return doPAUSE(XT_PASS)
-
 #define SYNC(g)                                            \
     SPILL();                                               \
     { g; }                                                 \
     RELOAD()
 
 #if USE_PTHREAD
+#define JMP_YIELD() JMP()
 #define WAIT_FOR(cond) while(!(cond)) delay(1)
 
 #else // !USE_PTHREAD
+#define JMP_YIELD()                                        \
+    JMP();                                                 \
+    if (vm.id && !((++vm.spin) & 0x3fff)) return doPAUSE(XT_PASS)
 #define WAIT_FOR(cond) while(!(cond)) {                    \
     if (vm.id) {                                           \
         ip--; return doPAUSE(XT_PASS);                     \
@@ -669,7 +668,7 @@ constexpr Code g_rom[] = {
     CODE("here",  PUSH(HERE)),                               /// offset of pmem top
     IMMD("'",     const Code *w = find(WORD());
          if (w) PUSH(w->is_udf() ? (DU)OFF(w->pfa) : (DU)TOK(w->xt))),   /// udf: body offset, prim: code token
-    CODE(".s",    SPILL(); ss_dump(vm, true)),
+    CODE(".s",    SPILL(); ss_dump(vm)),
     CODE("words", words()),
     CODE("see",
          const Code *w = find(WORD());
@@ -709,7 +708,7 @@ constexpr Code g_rom[] = {
     CODE("rnd",   PUSH(RND())),                             /// generate random number
     CODE("bye",   vm.state=STOP),
     /// @}
-    CODE("boot",  dict.clear(); pmem.clear()),
+    CODE("boot",  if (!vm.id) { dict.clear(); pmem.clear(); }),
 };
 constexpr int  g_romsz = sizeof(g_rom)/sizeof(Code);
 ///@}
@@ -796,10 +795,10 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         
         if ((int)vm.ss.idx < 0) {                /// * underflow guard
             vm.ss.idx  = 0;
-            pstr("stack underflow", CR);
             vm.compile = false;
+            vm.state   = QUERY;
             fin_drop();
-            vm.state = QUERY;
+            pstr("stack underflow", CR);
         }
         return;
     }
@@ -808,10 +807,10 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     DU  n   = parse_number(idiom, *BASE, &err);
     if (err) {                           /// * not number
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
-        pstr(strerror(errno), CR);       ///> and error description
+        if (errno) pstr(strerror(errno), CR); ///> and error description
         vm.compile = false;              ///> reset to interpreter mode
+        vm.state   = QUERY;              ///> skip the entire input buffer
         fin_drop();                      /// * skip the rest of the line
-        vm.state = QUERY;                ///> skip the entire input buffer
         return;
     }
     DEBUG(" => %d\n", n);
