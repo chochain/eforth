@@ -101,6 +101,7 @@ struct ALIGNAS VM {
     vm_state state   = STOP;       ///< VM status
     IU       base    = 0;          ///< numeric radix (a pointer)
     bool     compile = false;      ///< compiler flag
+    bool     ses     = false;      ///< true: web-session shell (owns a text line, not just a word)
 
 #if DO_MULTITASK
     int      wake    = 0;          ///< ms timestamp to wake at (0 = not sleeping)
@@ -134,7 +135,6 @@ struct ALIGNAS VM {
 #else // !USE_PTHREAD
     IU          sid     = 0;       ///< owning session id (0 = none)
     int         fb      = 0;       ///< output chunks sent for the current line
-    bool        ses     = false;   ///< true: web-session shell (owns a text line, not just a word)
     const char *tib     = NULL;    ///< input cursor, parked here while swapped out
     char       *tbuf    = NULL;    ///< owned copy of the current line
     uint32_t    key     = 0;       ///< owner: browser-tab id (0 = none)
@@ -333,7 +333,7 @@ void task_status();
 bool task_pause(int ms=0);                ///< pause current task (returns if any task ran)
 #if USE_PTHREAD
 #define FORTH_LOCK()
-#define FORTH_UNLOCK()
+#define FORTH_UNLOCK(f)
 
 #else // !USE_PTHREAD
 bool    forth_lock(int ms);                 ///< engine lock (recursive), ms<0 = wait forever
@@ -346,7 +346,7 @@ void    forth_unlock(bool vm0=false);
 #define vm_pool_init()
 #define vm_pool_stop()
 #define FORTH_LOCK()
-#define FORTH_UNLOCK()
+#define FORTH_UNLOCK(f)
 
 #endif // DO_MULTITASK
 ///@}
