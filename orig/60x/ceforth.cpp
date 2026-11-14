@@ -201,13 +201,13 @@ void s_quote(XT_REFS, bool dotq=false) {
 ///
 XT_RET doSTOP(XT_ARGS) {
 #if DO_MULTITASK
-    vm.state = (vm.id && !vm.ses) ? STOP : QUERY; /// * session shell stays; plain task frees its slot
+    vm.state = vm.ses ? QUERY : STOP; /// * session shell stays; plain task frees its slot
 #endif // DO_MULTITASK
     
 #if E4_TRAMP
     IP = 0;                           /// * vm.IP = 0 stops the VM
     return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
-#else  // E4_TRAMP
+#else  // !E4_TRAMP
     // Commit current register window variables back to permanent storage on exit
     IP  = ip;
     SP  = sp - SS;
@@ -228,7 +228,7 @@ XT_RET doPAUSE(XT_ARGS) {
 #if E4_TRAMP
     IP = ip;                          /// run() must not clobber IP (see below)
     return Ret{ 0, sp, PASS };
-#else // !E4_TRAMP
+#else  // !E4_TRAMP
     SPILL();  IP = ip;                /// state stays NEST
     return NULL;
 #endif // E4_TRAMP
@@ -298,10 +298,11 @@ static _INLINE_ void launch(VM &vm, FPTR fp, IU *ip) {
     Ret r = fp(XT_PASS);            /// * trampoline record
 #if E4_RTOP
     run(r.ip, r.sp, r.tos, r.rp, vm);
-#else  // E4_RTOP
+#else  // !E4_RTOP
     run(r.ip, r.sp, r.tos, vm);
 #endif // E4_RTOP
-#else  // E4_TRAMP
+    
+#else  // !E4_TRAMP
     fp(XT_PASS);                    /// * the whole word chain runs by tail calls; doSTOP returns
 #endif // E4_TRAMP
 }
@@ -309,7 +310,7 @@ static _INLINE_ void launch(VM &vm, FPTR fp, IU *ip) {
 void nest(VM& vm) {                 ///< inner-interpreter i.e. doLIST
 #if DO_MULTITASK    
     if (!IP) {                      /// * nothing to resume, treat as finished
-        vm.state = (vm.id && !vm.ses) ? STOP : QUERY;
+        vm.state = vm.ses ? QUERY : STOP;
         return;
     }
 #endif // DO_MULTITASK    
@@ -706,7 +707,7 @@ constexpr Code g_rom[] = {
     CODE("ok",    mem_stat()),
     CODE("clock", PUSH(millis())),
     CODE("rnd",   PUSH(RND())),                             /// generate random number
-    CODE("bye",   vm.state=STOP),
+    CODE("bye",   vm.ses = false; vm.state=STOP),
     /// @}
     CODE("boot",  if (!vm.id) { dict.clear(); pmem.clear(); }),
 };
@@ -860,21 +861,21 @@ void forth_teardown() {
 }
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
-    FORTH_LOCK();                                           /// * sessions share the engine
-    VM &vm = vm_get(0);                                     ///< get main thread
+    FORTH_LOCK();                        /// * sessions share the engine
+    VM &vm = vm_get(0);                  ///< get main thread
     fout_setup(hook);
 
     /// COOPERATIVE RESUME RESCUE:
     /// Only refresh the global input pointer (tib) if we are executing a brand new command chain.
     /// If vm.state is HOLD, we leave tib exactly where it was when it paused!
     if (vm.state == STOP || vm.state == QUERY) {
-        fin_setup(line);                  /// This sets tib = line and clears obuf
+        fin_setup(line);                 /// This sets tib = line and clears obuf
         vm.state = QUERY;
     }
     
     char idiom[E4_IBUF_SZ];
     if (vm.state == NEST) {
-        nest(vm);                         /// Resume colon word execution chain
+        nest(vm);                        /// Resume colon word execution chain
     }
     else {
         /// Continue parsing idioms right from the current tib position!
