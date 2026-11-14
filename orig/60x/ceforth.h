@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>     // uintxx_t
 #include "config.h"     // configuation and cross-platform support
+
 #ifndef XT0_U32
   #if __SIZEOF_POINTER__ == 8
   #define XT0_U32  0      /** 64-bit: build with -DXT0_U32=1 -no-pie to fold XT0 */
@@ -43,18 +44,18 @@ struct List {
         clear(ro);
         if (raw) delete[] raw;                       ///< free container
     }              
-    List &operator=(T *a) INLINE {
+    List &operator=(T *a) _INLINE_ {
         if (raw) delete[] raw;
         v = a; raw = 0; return *this;                ///< raw = 0 (non-owning)
     }
-    T    &operator[](int i) INLINE { return i < 0 ? v[idx + i] : v[i]; }
+    T    &operator[](int i) _INLINE_ { return i < 0 ? v[idx + i] : v[i]; }
     void readonly_below(int i) { ro = i; }
 
-    T pop()     INLINE { return v[--idx]; }
-    T push(T t) INLINE { return v[idx++] = t; }      ///< deep copy element
+    T pop()     _INLINE_ { return v[--idx]; }
+    T push(T t) _INLINE_ { return v[idx++] = t; }    ///< deep copy element
     
-    void push(T *a, int n) INLINE { for (int i=0; i<n; i++) push(*(a+i)); }
-    void merge(List& a)    INLINE { for (int i=0; i<a.idx; i++) push(a[i]); }
+    void push(T *a, int n) _INLINE_ { for (int i=0; i<n; i++) push(*(a+i)); }
+    void merge(List& a)    _INLINE_ { for (int i=0; i<a.idx; i++) push(a[i]); }
     void clear(int tgt = 0) {
         int mx = (tgt > ro) ? tgt : ro;
         if constexpr (std::is_pointer<T>::value) {
@@ -65,15 +66,29 @@ struct List {
 };
 ///====================================================================
 ///
-///> VM context (single task)
+///> Multitasking headers
 ///
-#if (DO_MULTITASK && USE_PTHREAD)
+#if DO_MULTITASK
+#if (ARDUINO || ESP32)
+#define E4_RTOS   1
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+typedef  SemaphoreHandle_t     R_MUTEX;
+
+#else // !(ARDUINO || ESP32): x86, ARM Linux, macOS...
+#define E4_RTOS   0
 #include <mutex>
 #include <condition_variable>
-typedef  mutex              MUTEX;
-typedef  condition_variable COND_VAR;
-#endif // (DO_MULTITASK && USE_PTHREAD)
+typedef  recursive_timed_mutex R_MUTEX;
+typedef  mutex                 MUTEX;
+typedef  condition_variable    COND_VAR;
 
+#endif // (ARDUINO || ESP32)
+#endif // DO_MULTITASK
+///====================================================================
+///
+///> VM context (single task)
+///
 typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
 struct ALIGNAS VM {
     List<DU, E4_SS_SZ> ss;         ///< parameter stack
@@ -88,8 +103,7 @@ struct ALIGNAS VM {
     bool     compile = false;      ///< compiler flag
 
 #if DO_MULTITASK
-    int      wake    = 0;          ///< ticks to wait (before wake up)
-    
+    int      wake    = 0;          ///< ms timestamp to wake at (0 = not sleeping)
     void reset(IU ip, vm_state st);///< reset a VM user variables
     
 #if USE_PTHREAD
@@ -116,7 +130,19 @@ struct ALIGNAS VM {
     ///
     void io_lock();                ///< lock IO
     void io_unlock();              ///< unlock IO
-#endif // USER_PTHREAD    
+    
+#else // !USE_PTHREAD
+    IU          sid     = 0;       ///< owning session id (0 = none)
+    int         fb      = 0;       ///< output chunks sent for the current line
+    bool        ses     = false;   ///< true: web-session shell (owns a text line, not just a word)
+    const char *tib     = NULL;    ///< input cursor, parked here while swapped out
+    char       *tbuf    = NULL;    ///< owned copy of the current line
+    uint32_t    key     = 0;       ///< owner: browser-tab id (0 = none)
+    uint32_t    last    = 0;       ///< millis() of last release, for LRU eviction
+    bool        busy    = false;   ///< a request is in flight on this VM
+    uint32_t    spin    = 0;
+    
+#endif // USER_PTHREAD
 #endif // DO_MULTITASK
 };
 ///@name data stack access macros
@@ -176,13 +202,6 @@ struct ALIGNAS VM {
 #define RELOAD() ({ sp = SS + SP; RRELOAD(); tos = TOS; })            /**< memory => registers  */
 #endif // E4_NOS
 ///@}
-///@name Code flag masking options
-///@{
-#define UDF_ATTR   0x0001   /** user defined word    */
-#define IMM_ATTR   0x0002   /** immediate word       */
-#define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
-#define UDF_DICT   0x8000   /** user defined word    */
-///@}
 ///@name return types for trampoline/tailcall control
 ///@{
 #if E4_TRAMP
@@ -196,6 +215,13 @@ struct  Ret        { IU *ip; DU *sp; DU tos; };
 #define XT_RET     void*
 #endif // E4_TRAMP
 typedef XT_RET     (*FPTR)(IU *ip, DU *sp, ARGS, VM &vm); ///< trampoline or tail-call (returns NEXT)
+///@}
+///@name Code flag masking options
+///@{
+#define UDF_ATTR   0x0001   /** user defined word    */
+#define IMM_ATTR   0x0002   /** immediate word       */
+#define EXT_FLAG   0x8000   /** prim/xt/pfa selector */
+#define UDF_DICT   0x8000   /** user defined word    */
 ///@}
 ///@name Code class
 ///@brief - basic struct of dictionary entries
@@ -241,17 +267,17 @@ struct Code {
     U8 attr = 0;            ///< only 2 LSBs used (can steal from xt/pfa)
 
 #if __SIZEOF_POINTER__ == 8
-    static IU Token(void *fp) INLINE { return (IU)((UFP)fp & 0xFFFFFFFF); }
+    static IU Token(void *fp) _INLINE_ { return (IU)((UFP)fp & 0xFFFFFFFF); }
 #else
-    static IU Token(void *fp) INLINE { return (IU)((UFP)fp); }
+    static IU Token(void *fp) _INLINE_ { return (IU)((UFP)fp); }
 #endif
     ///
     ///> constructors for built-in, and colon words
     ///
     constexpr Code(const char *n, FPTR f, U8 a=0) : name(n), xt(f), attr(a) {}        ///< built-in
-    bool is_imm() const INLINE { return attr & IMM_ATTR;    }
-    bool is_udf() const INLINE { return attr & UDF_ATTR;    }
-    void imm()    INLINE { attr |= IMM_ATTR;          }
+    bool is_imm() const _INLINE_ { return attr & IMM_ATTR;    }
+    bool is_udf() const _INLINE_ { return attr & UDF_ATTR;    }
+    void imm()    _INLINE_ { attr |= IMM_ATTR;          }
 };
 ///@}
 ///@name Dictionary Compiler macros
@@ -286,10 +312,10 @@ extern       List<U8,    0>          pmem;
 
 #define CODE(n, g)                                              \
     rom_code(n, [](XT_ARGS)                                     \
-        INLINE -> XT_RET{ g; NEXT(); }, (U8)0)
+        _INLINE_ -> XT_RET{ g; NEXT(); }, (U8)0)
 #define IMMD(n, g)                                              \
     rom_code(n, [](XT_ARGS)                                     \
-        INLINE -> XT_RET{ g; NEXT(); }, (U8)IMM_ATTR)
+        _INLINE_ -> XT_RET{ g; NEXT(); }, (U8)IMM_ATTR)
 ///@}
 ///@name Multitasking support
 ///@{
@@ -297,16 +323,31 @@ VM&  vm_get(int id=0);                    ///< get a VM with given id
 void uvar_init();                         ///< setup user area
 
 #if DO_MULTITASK
-void t_pool_init();                       ///< initialize thread pool
-void t_pool_stop();                       ///< stop thread pool
+void vm_pool_init();                      ///< initialize thread pool
+void vm_pool_stop();                      ///< stop thread pool
+
 int  task_create(IU pfa);                 ///< create a VM starting on pfa
 void task_start(int tid);                 ///< start a task with given task/VM id
 int  task_state(int tid);                 ///< return the state of a task
 void task_status();
 bool task_pause(int ms=0);                ///< pause current task (returns if any task ran)
+#if USE_PTHREAD
+#define FORTH_LOCK()
+#define FORTH_UNLOCK()
+
+#else // !USE_PTHREAD
+bool    forth_lock(int ms);                 ///< engine lock (recursive), ms<0 = wait forever
+void    forth_unlock(bool vm0=false);
+#define FORTH_LOCK()     forth_lock(-1)
+#define FORTH_UNLOCK(f)  forth_unlock(f)
+#endif  // USE_PTHREAD
+
 #else   // DO_MULTITASK
-#define t_pool_init()
-#define t_pool_stop()
+#define vm_pool_init()
+#define vm_pool_stop()
+#define FORTH_LOCK()
+#define FORTH_UNLOCK()
+
 #endif // DO_MULTITASK
 ///@}
 ///@name System interface
@@ -346,6 +387,9 @@ int  io_tx_free();
 
 void fin_setup(const char *line);
 void fout_setup(void (*hook)(int, const char*));
+void io_attach(VM &vm);                                  ///< swap a VM's input cursor in
+void io_detach(VM &vm);                                  ///< park it again, flush output
+void fin_drop();                                         ///< discard rest of current input line
 bool handle_idle();                                      ///< if Forth core idling
 
 const char *scan(char c, char *buf, int max=E4_PAD_SZ);  ///< scan input stream for a given char
