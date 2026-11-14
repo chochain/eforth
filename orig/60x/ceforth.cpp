@@ -258,9 +258,10 @@ XT_RET doPAUSE(XT_ARGS) {
 }
 #endif // USE_PTHREAD
 
-#else  // DO_MULTITASK
+#else  // !DO_MULTITASK
 #define SYNC(g)     { g; }
 #define WAIT_FOR(cond)
+#define JMP_YIELD() JMP()
 
 #endif // DO_MULTITASK
 
