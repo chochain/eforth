@@ -131,7 +131,8 @@ const Code *find(const char *s) {
         DEBUG("find(%s) => %s[%d]:%08zx attr=%d %s\n",
             s, w->is_udf() ? "dict" : "g_rom", i, (UFP)w->xt, w->attr, w->name);
     }
-    else { DEBUG("find(%s) => %s\n", s, "N/A"); }
+    else DEBUG("find(%s) => %s\n", s, "N/A");
+    
     return w;
 }
 ///@}
@@ -199,13 +200,12 @@ void s_quote(XT_REFS, bool dotq=false) {
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
 XT_RET doSTOP(XT_ARGS) {
-#if DO_MULTITASK && !USE_PTHREAD
-    if (vm.id) vm.state = vm.ses ? QUERY : STOP;  /// * session shell stays; plain task frees its slot
-#else
-    if (vm.id) vm.state = STOP;       /// * finish task, free slot
-#endif
+#if DO_MULTITASK
+    vm.state = (vm.id && !vm.ses) ? STOP : QUERY; /// * session shell stays; plain task frees its slot
+#endif // DO_MULTITASK
+    
 #if E4_TRAMP
-    IP = 0;                           /// * vm.IP = 0 stops the VM
+    IP = 0;
     return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
 #else  // E4_TRAMP
     // Commit current register window variables back to permanent storage on exit
@@ -308,10 +308,12 @@ static _INLINE_ void launch(VM &vm, FPTR fp, IU *ip) {
 }
 
 void nest(VM& vm) {                 ///< inner-interpreter i.e. doLIST
+#if DO_MULTITASK    
     if (!IP) {                      /// * nothing to resume, treat as finished
-        vm.state = (vm.id && vm.ses) ? QUERY : STOP;
+        vm.state = (vm.id && !vm.ses) ? STOP : QUERY;
         return;
     }
+#endif // DO_MULTITASK    
     vm.state = NEST;
     IU  *ip = IP;
     FPTR fp = NEXT_FP;              /// * consumes *ip++
@@ -791,14 +793,13 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
             add_w(w);                            /// * add to colon word
         }
         else CALL(vm, *w);                       /// * execute word
+        
         if ((int)vm.ss.idx < 0) {                /// * underflow guard
             vm.ss.idx  = 0;
-            vm.compile = false;
             pstr("stack underflow", CR);
-#if DO_MULTITASK && !USE_PTHREAD
-            if (vm.ses) { fin_drop(); vm.state = QUERY; return; }
-#endif
-            vm.state = STOP;
+            vm.compile = false;
+            fin_drop();
+            vm.state = QUERY;
         }
         return;
     }
@@ -809,14 +810,8 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
         pstr(strerror(errno), CR);       ///> and error description
         vm.compile = false;              ///> reset to interpreter mode
-#if DO_MULTITASK && !USE_PTHREAD
-        if (vm.ses) {                    /// * session: keep the slot, just drop the line
-            fin_drop();
-            vm.state = QUERY;
-            return;
-        }
-#endif
-        vm.state   = STOP;               ///> skip the entire input buffer
+        fin_drop();                      /// * skip the rest of the line
+        vm.state = QUERY;                ///> skip the entire input buffer
         return;
     }
     DEBUG(" => %d\n", n);
