@@ -98,7 +98,7 @@ struct ALIGNAS VM {
     vm_state state   = STOP;       ///< VM status
     IU       base    = 0;          ///< numeric radix (a pointer)
     bool     compile = false;      ///< compiler flag
-    bool     ses     = false;      ///< true: web-session shell (owns a text line, not just a word)
+    bool     ses     = true;       ///< true: web-session shell (owns a text line, not just a word)
 
 #if DO_MULTITASK
     int      wake    = 0;          ///< ms timestamp to wake at (0 = not sleeping)
