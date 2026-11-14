@@ -13,6 +13,31 @@ enum {                                      ///< forth_run() results
     RUN_GONE = -2                           ///< session closed or aborted: drop it
 };
 
+#if E4_FREERTOS
+static R_MUTEX _lock = nullptr;
+static bool _lock_ready()  { return _lock != nullptr; }
+static void _lock_create() { if (!_lock) _lock = xSemaphoreCreateRecursiveMutex(); }
+static bool _lock_take(int ms) {
+    return xSemaphoreTakeRecursive(
+        _lock, ms < 0 ? portMAX_DELAY : pdMS_TO_TICKS(ms)) == pdTRUE;
+}
+static void _lock_give()   { xSemaphoreGiveRecursive(_lock); }
+
+#else // !E4_FREERTOS: x86, ARM Linux, macOS...
+static R_MUTEX _lock;                  ///< same semantics as FreeRTOS recursive mutex
+static bool _lock_on = false;          ///< armed by vm_pool_init, like _lock != nullptr
+
+static bool _lock_ready()  { return _lock_on; }
+static void _lock_create() { _lock_on = true; }
+static bool _lock_take(int ms) {
+    if (ms < 0)  { _lock.lock(); return true; }
+    if (ms == 0) return _lock.try_lock();
+    return _lock.try_lock_for(std::chrono::milliseconds(ms));
+}
+static void _lock_give()   { _lock.unlock(); }
+
+#endif // E4_FREERTOS
+
 extern List<VM, E4_VM_POOL_SZ> _vm;    ///< VM pool defined in ceforth_task.cpp
 extern IU gStop[];                     ///< defined in ceforth.cpp
 
@@ -25,30 +50,6 @@ VM& vm_get(int id) {
 ///
 ///> engine lock: one slice of Forth at a time (dictionary, pmem, tib and obuf are shared)
 ///
-#if E4_RTOS
-static R_MUTEX _lock = nullptr;
-static bool _lock_ready()  { return _lock != nullptr; }
-static void _lock_create() { if (!_lock) _lock = xSemaphoreCreateRecursiveMutex(); }
-static bool _lock_take(int ms) {
-    return xSemaphoreTakeRecursive(
-        _lock, ms < 0 ? portMAX_DELAY : pdMS_TO_TICKS(ms)) == pdTRUE;
-}
-static void _lock_give()   { xSemaphoreGiveRecursive(_lock); }
-
-#else  // !E4_RTOS
-static R_MUTEX _lock;                  ///< same semantics as FreeRTOS recursive mutex
-static bool _lock_on = false;          ///< armed by vm_pool_init, like _lock != nullptr
-
-static bool _lock_ready()  { return _lock_on; }
-static void _lock_create() { _lock_on = true; }
-static bool _lock_take(int ms) {
-    if (ms < 0)  { _lock.lock(); return true; }
-    if (ms == 0) return _lock.try_lock();
-    return _lock.try_lock_for(std::chrono::milliseconds(ms));
-}
-static void _lock_give()   { _lock.unlock(); }
-#endif // E4_RTOS
-
 bool forth_lock(int ms) {
     if (!_lock_ready()) return true;   /// * before vm_pool_init: single threaded
     return _lock_take(ms);
@@ -121,7 +122,7 @@ int forth_run(
         }
         if (vm.state == NEST || vm.wake) { rc = RUN_MORE; break; }
     }
-    if (rc == RUN_DONE && !vm.compile) ss_dump(vm);
+    if (rc == RUN_DONE && !vm.compile) { ss_dump(vm); pstr("ok\n"); }
     
     g_compiler = vm.compile ? tid : -1;
     io_detach(vm);                                          /// * park tib, flush output
