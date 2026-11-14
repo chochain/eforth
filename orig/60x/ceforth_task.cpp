@@ -40,11 +40,11 @@ int task_state(int tid) {
 }
 
 void task_status() {
-    printf("task state=");
+    LOG("%s", "task state=");
     for (int i=0; i<E4_VM_POOL_SZ; i++) {
-        printf("%d ", _vm[i].state);
+        LOG("%d ", _vm[i].state);
     }
-    printf("\n");
+    LOG("%s", "\n");
 }
 
 #if USE_PTHREAD
