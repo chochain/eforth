@@ -33,8 +33,7 @@ int  io_tx_free()   { return 1 << 20; }
 
 #else // POSIX desktop: (poll fd 0 directly, no stdio buffering)
 #if USE_PTHREAD
-#include <mutex>
-static mutex _rx_mtx;
+static  MUTEX       _rx_mtx;
 #define IO_GUARD    lock_guard<mutex> _grd_(_rx_mtx)
 #else // !USE_PTHREAD
 #define IO_GUARD
@@ -411,14 +410,13 @@ void load(VM &vm, const char* fn) {
     --load_dp;                           /// * decrement depth counter
 }
 
-void ss_dump(VM &vm, bool forced) {
+void ss_dump(VM &vm) {
     if (load_dp) return;                 /// * skip when including file
     
     for (int i=0; i<SS.idx; i++) {
         char tmp[66];
         fout("%s ", _format(SS[i], *MEM(vm.base), tmp, sizeof(tmp), 0));
     }
-    if (!forced) fout("ok\n");
     fout_flush();
 }
 void mem_dump(U32 p0, IU sz, int base) {
