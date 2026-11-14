@@ -139,6 +139,25 @@ void fout_setup(void (*hook)(int, const char*)) {
     fout_cb = hook ? hook : cb;           ///< serial output hook up
 }
 ///
+///> per-VM input swap: tib/obuf stay global, the engine lock makes that safe
+///
+#if DO_MULTITASK && !USE_PTHREAD
+void io_attach(VM &vm) {
+    if (!tob) { obuf[0] = '\0'; tob = obuf; }
+    tib = vm.tib;
+}
+void io_detach(VM &vm) {
+    vm.tib = tib;
+    fout_flush();
+    tib = nullptr;
+}
+void fin_drop() { tib = nullptr; }
+#else  // DO_MULTITASK && !USE_PTHREAD
+void io_attach(VM &) {}
+void io_detach(VM &) {}
+void fin_drop() { tib = nullptr; }
+#endif // DO_MULTITASK && !USE_PTHREAD
+///
 ///> one scheduling round for the host loop, called when no input is waiting
 ///  Cooperative tasker only (DO_MULTITASK && !USE_PTHREAD); otherwise a no-op.
 ///  @return false if any task ran
@@ -146,9 +165,12 @@ void fout_setup(void (*hook)(int, const char*)) {
 bool handle_idle() {
 #if DO_MULTITASK && !USE_PTHREAD
     if (!tob) return false;              /// * before the first line no task can exist
+    if (!forth_lock(0)) return true;     /// * a session slice owns the engine: not idle
+    fout_setup(nullptr);                 /// * free-running tasks print to the serial console
     tib = nullptr;                       /// * the last line's buffer is gone; tasks must not parse it
     bool ran = task_pause();             /// * each NEST task runs to its next pause or end
     fout_flush();                        /// * their output goes out now, not on the next line
+    forth_unlock();
     return ran;
 #else  // (DO_MULTITASK && !USE_PTHREAD)
     return false;
@@ -279,7 +301,7 @@ static const struct { const char *name; see_op op; } SEE_OP[] = {
     { "_;",    EXIT  },                     ///< end of word
     { "_lit",  LIT   },                     ///< [_lit][value]
     { "_var",  VAR   },                     ///< [_var][data...]
-    { "vbran", VBRAN },                     ///< [vbran][does> token][data...]
+    { "_vbran",VBRAN },                     ///< [vbran][does> token][data...]
     { "_str",  STR   },                     ///< [_str][len16, chars, 0, pad]
     { "_dotq", DOTQ  },                     ///< [_dotq][len16, chars, 0, pad]
     { "_bran", BRAN  }, { "_0bran", BRAN }, ///< [op][target token]
@@ -396,18 +418,21 @@ void ss_dump(VM &vm, bool forced) {
         char tmp[66];
         fout("%s ", _format(SS[i], *MEM(vm.base), tmp, sizeof(tmp), 0));
     }
+    if (!forced) fout("ok\n");
     fout_flush();
 }
 void mem_dump(U32 p0, IU sz, int base) {
+    auto spc = [](int j) { return j % 4 == 3 ? " " : ""; };
     for (IU i=p0 & ~15; i<=(p0+sz); i+=16) {
         fout("%08zx %04x: ", (UFP)&pmem[i], i);
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j];
-            fout("%02x%s", (int)c, (j % 4 == 3 ? " " : ""));
+            fout("%02x%s", (int)c, spc(j));
         }
+        fout(" ");
         for (int j=0; j<16; j++) {
             U8 c = pmem[i+j] & 0x7f;
-            fout("%c", ((c==0x7f||c<0x20) ? '_' : c));
+            fout("%c", ((c==0x7f||c<0x20) ? '.' : c));
         }
         fout_flush('\n');
         yield();
