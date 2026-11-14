@@ -45,62 +45,6 @@ alignas(16) static U8 _pmem_buf[E4_PMEM_SZ]; ///< static to ensure alignment
 ///> Macros to abstract dict and pmem physical implementation
 ///  Note:
 ///    so we can change pmem implementation anytime without affecting opcodes defined below
-///
-///@name data stack access macros
-///@{
-#define SS        (vm.ss.v)
-#define RS        (vm.rs.v)
-#define SP        (vm.ss.idx)
-#define RP        (vm.rs.idx)
-#define IP        (vm.ip)
-#define TOS       (sp[-1])                 /**< top of stack (memory shadow slot)       */
-#define NOS       (sp[-2])                 /**< next of stack                           */
-#define OS3       (sp[-3])                 /**< 3rd of stack in memory                  */
-#define OS4       (sp[-4])                 /**< 4th of stack in memory                  */
-#define DEPTH     ((int)(sp - SS))         /**< number of items on stack                */
-///@}
-///@name return stack access macros
-///@{
-#if E4_RTOP                                /** return stack pointer cached in a register  */
-#define RPUSH(x)   (*rp++ = (x))
-#define RPOP()     (*--rp)
-#define RTOP       (rp[-1])
-#define RTOP2      (rp[-2])
-#define RDROP(n)   (rp -= (n))
-#define RDEPTH     ((int)(rp - RS))
-#define RRESET()   (rp = RS)
-#define RSPILL()   (RP = rp - RS)          /** register => vm, before leaving the register world */
-#define RRELOAD()  (rp = RS + RP)          /** vm => register */
-#else // E4_RTOP                           /** RS/RP live in the VM struct (memory)       */
-#define RPUSH(x)   (RS[RP++] = (x))
-#define RPOP()     (RS[--RP])
-#define RTOP       (RS[RP-1])
-#define RTOP2      (RS[RP-2])
-#define RDROP(n)   (RP -= (n))
-#define RDEPTH     (RP)
-#define RRESET()   (RP = 0)
-#define RSPILL()
-#define RRELOAD()
-#endif // E4_RTOP
-///@}
-///@name register spill/reload macro (for tail-call optimization)
-///@brief 
-///   Register window <=> memory sync. Use around any call that reads or
-///   writes this VM's stack through memory (include, tasking, ...).
-///@{
-#if E4_NOS
-#define FILL()   ({ sp--; nos = NOS; })
-#define PUSH(v)  ({ NOS = nos; nos = tos; tos = (DU)(v); sp++; })
-#define SPILL()  ({ SP = sp - SS; RSPILL();  TOS = tos; NOS = nos; }) /**< registers => memory  */
-#define RELOAD() ({ sp = SS + SP; RRELOAD(); tos = TOS; nos = NOS; }) /**< memory => registers  */
-#else  // E4_NOS
-#define nos      (sp[-2])                                             /**< TOS-only cache: NOS stays in memory     */
-#define FILL()   ({ sp--; })
-#define PUSH(v)  ({ DU _v = (DU)(v); TOS = tos; tos = _v; sp++; })
-#define SPILL()  ({ SP = sp - SS; RSPILL();  TOS = tos; })            /**< registers => memory  */
-#define RELOAD() ({ sp = SS + SP; RRELOAD(); tos = TOS; })            /**< memory => registers  */
-#endif // E4_NOS
-///@}
 ///@name Direct array-index tracking mappings
 ///@{
 #define HERE      (pmem.idx)                       /**< current parameter memory index          */
@@ -195,8 +139,6 @@ const Code *find(const char *s) {
 ///
 ///> macros to reduce function verbosity
 ///
-#define POP()    ({ DU _rst = tos; tos = nos; FILL(); _rst; })
-#define POPI()   (UINT(POP()))
 #define BOOL(f)  ((f)?-1:0)               /**< Forth boolean representation */
 #define ALU(op)  ({ tos = nos op tos; FILL(); })
 #define UALU(op) ({ tos = UINT(nos) op UINT(tos); FILL(); })
@@ -257,7 +199,11 @@ void s_quote(XT_REFS, bool dotq=false) {
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
 XT_RET doSTOP(XT_ARGS) {
+#if DO_MULTITASK && !USE_PTHREAD
+    if (vm.id) vm.state = vm.ses ? QUERY : STOP;  /// * session shell stays; plain task frees its slot
+#else
     if (vm.id) vm.state = STOP;       /// * finish task, free slot
+#endif
 #if E4_TRAMP
     IP = 0;                           /// * vm.IP = 0 stops the VM
     return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
@@ -287,6 +233,10 @@ XT_RET doPAUSE(XT_ARGS) {
     return NULL;
 #endif // E4_TRAMP
 }
+
+#define JMP_YIELD()                                        \
+    JMP();                                                 \
+    if (vm.id && !((++vm.spin) & 0x3fff)) return doPAUSE(XT_PASS)
 
 #define SYNC(g)                                            \
     SPILL();                                               \
@@ -320,47 +270,53 @@ XT_RET doPAUSE(XT_ARGS) {
         NEXT();                                            \
     }
 
-#if E4_TRAMP
-static void run(VM &vm, Ret r) {      ///< trampoline: constant C stack, one call+return per word
-    IU *ip;
-    while ((ip = r.ip)) {
-        FPTR fp  = NEXT_FP;
-#if E4_RTOP    
-        r  = fp(vm, r.ip, r.sp, r.tos, r.rp);
-#else  // E4_RTOP        
-        r  = fp(vm, r.ip, r.sp, r.tos);
-#endif // E4_RTOP        
-    }
-//    if (vm.state == HOLD) vm.state = NEST; else IP  = 0;
-    SP  = r.sp - SS;
-    r.sp[-1] = r.tos;
+#if (E4_TRAMP && XT0_U32)
+extern "C" void e4_run(XT_ARGS, Ret *out);
+static void run(XT_ARGS) {
+    Ret o;
+    e4_run(XT_PASS, &o);
 #if E4_RTOP
-    RP  = r.rp - RS;
+    RP = o.rp - RS;
 #endif // E4_RTOP
+    SP = o.sp - SS;
+    o.sp[-1] = o.tos;
 }
-#endif // E4_TRAMP
+#endif // (E4_TRAMP && XT0_U32)
 
-void nest(VM& vm) {                  ///< inner-interpreter i.e. doLIST
-    vm.state = NEST;
-
-    IU *ip  = IP;                    /// Extract VM state into registers
+///> common launcher: load VM state into registers, run fp, let doSTOP/doPAUSE spill back
+static _INLINE_ void launch(VM &vm, FPTR fp, IU *ip) {
     DU *sp  = SS + SP;
-    DU  tos = TOS;                   /// Direct load. Unguarded garbage behavior if empty
+    DU  tos = TOS;                  /// Direct load. Unguarded garbage behavior if empty
 #if E4_NOS
     DU  nos = NOS;
 #endif // E4_NOS
 #if E4_RTOP
     DU *rp  = RS + RP;
 #endif // E4_RTOP
-    DEBUG("\nXT0=%zx *IP=[%x,%x] ", Code::XT0, *ip, *(ip+1));
-    DEBUG("nest(%08x) sp%d, rp%d\n", *ip, DEPTH, (int)RDEPTH);
 
-    FPTR fp = NEXT_FP;
 #if E4_TRAMP
-    run(vm, fp(XT_PASS));
+    Ret r = fp(XT_PASS);            /// * trampoline record
+#if E4_RTOP
+    run(r.ip, r.sp, r.tos, r.rp, vm);
+#else  // E4_RTOP
+    run(r.ip, r.sp, r.tos, vm);
+#endif // E4_RTOP
 #else  // E4_TRAMP
     fp(XT_PASS);                    /// * the whole word chain runs by tail calls; doSTOP returns
 #endif // E4_TRAMP
+}
+
+void nest(VM& vm) {                 ///< inner-interpreter i.e. doLIST
+    if (!IP) {                      /// * nothing to resume, treat as finished
+        vm.state = (vm.id && vm.ses) ? QUERY : STOP;
+        return;
+    }
+    vm.state = NEST;
+    IU  *ip = IP;
+    FPTR fp = NEXT_FP;              /// * consumes *ip++
+    DEBUG("nest(%08x) sp%d, rp%d\n", *ip, DEPTH, (int)RDEPTH);
+    
+    launch(vm, fp, ip);
 }
 
 void CALL(VM &vm, const Code &c) {
@@ -369,22 +325,7 @@ void CALL(VM &vm, const Code &c) {
         IP = (IU*)c.xt;
         nest(vm);
     }
-    else {
-        IU *ip  = gStop;
-        DU *sp  = SS + SP;
-        DU  tos = TOS;
-#if E4_NOS
-        DU  nos = NOS;
-#endif // E4_NOS
-#if E4_RTOP
-        DU *rp  = RS + RP;
-#endif // E4_RTOP
-#if E4_TRAMP
-        run(vm, c.xt(XT_PASS));
-#else  // E4_TRAMP
-        c.xt(XT_PASS);
-#endif // E4_TRAMP
-    }
+    else launch(vm, c.xt, gStop);   /// * primitive: run it, then NEXT lands on doSTOP
 }
 
 ///====================================================================
@@ -425,14 +366,14 @@ constexpr Code g_rom[] = {
          *(t+1) = TOK(ip);                           /// * encode does> body token, and bail
          UNNEST()),
     CODE("_next",
-         if (GT(RTOP -= DU1, -DU1)) JMP();           ///> loop done? no, loop back
+         if (GT(RTOP -= DU1, -DU1)) { JMP_YIELD(); } ///> loop done? no, loop back
          else { RDROP(1); ip++; }),                  /// * yes, bail!
     CODE("_loop",
-         if (GT(RTOP2, RTOP += DU1)) JMP();          ///> loop done? no, loop back
+         if (GT(RTOP2, RTOP += DU1)) { JMP_YIELD(); }///> loop done? no, loop back
          else { RDROP(2); ip++; }),                  /// * pop off counters
     CODE("_bran", JMP()),                            ///< unconditional jmp
     CODE("_0bran",if (ZEQ(POP())) JMP(); else ip++), /// conditional jmp
-    CODE("vbran",
+    CODE("_vbran",
          IU tgt = *ip;                               /// * does> target token (0 if none)
          PUSH(OFF(ip + 1));                          /// * put param addr on tos
          if (tgt) ip = XT(tgt); else UNNEST()),      /// * jump to does> body, or return
@@ -636,7 +577,7 @@ constexpr Code g_rom[] = {
          CALL(vm, *w)),                              /// * execute word
     CODE("create",
          def_word(WORD());
-         add_xt("vbran");                            /// bran + offset field
+         add_xt("_vbran");                            /// bran + offset field
          add_iu(0)),
     IMMD("does>",  add_xt("_does>")),
     IMMD("to",                                       /// alter the value of a constant, i.e. 3 to x
@@ -708,6 +649,7 @@ constexpr Code g_rom[] = {
     CODE("pause",                                            /// ( -- )
          if (vm.id) return doPAUSE(XT_PASS);
          SYNC(task_pause())),
+    CODE("abort", sp = SS; RRESET(); ip = gStop),            /// clear ss, rs, and stop
     CODE("ms",                                               /// ( n -- )
          int n = (int)POPI();
          if (vm.id) {                                        /// task: sleep without blocking the ring
@@ -848,6 +790,15 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
             add_w(w);                            /// * add to colon word
         }
         else CALL(vm, *w);                       /// * execute word
+        if ((int)vm.ss.idx < 0) {                /// * underflow guard
+            vm.ss.idx  = 0;
+            vm.compile = false;
+            pstr("stack underflow", CR);
+#if DO_MULTITASK && !USE_PTHREAD
+            if (vm.ses) { fin_drop(); vm.state = QUERY; return; }
+#endif
+            vm.state = STOP;
+        }
         return;
     }
     /// try as a number
@@ -857,6 +808,13 @@ void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
         pstr(idiom); pstr("? ", CR);     ///> display error prompt
         pstr(strerror(errno), CR);       ///> and error description
         vm.compile = false;              ///> reset to interpreter mode
+#if DO_MULTITASK && !USE_PTHREAD
+        if (vm.ses) {                    /// * session: keep the slot, just drop the line
+            fin_drop();
+            vm.state = QUERY;
+            return;
+        }
+#endif
         vm.state   = STOP;               ///> skip the entire input buffer
         return;
     }
@@ -887,7 +845,7 @@ void forth_init() {
     if ((UFP)MEM0 & 3) { ERR("pmem not 4-byte aligned"); exit(1); }
 
     uvar_init();                         /// * initialize user area
-    t_pool_init();                       /// * initialize thread pool
+    vm_pool_init();                      /// * initialize thread pool
     VM &vm0   = vm_get(0);               /// * initialize main vm
     vm0.state = QUERY;
     vm0.ip    = (IU*)MEM0;
@@ -903,19 +861,37 @@ void forth_init() {
 }
 
 void forth_teardown() {
-    t_pool_stop();
+    vm_pool_stop();
 }
 
 int forth_vm(const char *line, void(*hook)(int, const char*)) {
+    FORTH_LOCK();                                           /// * sessions share the engine
     VM &vm = vm_get(0);                                     ///< get main thread
     fout_setup(hook);
-    fin_setup(line);                                        /// * refresh buffer if not resuming
+
+    /// COOPERATIVE RESUME RESCUE:
+    /// Only refresh the global input pointer (tib) if we are executing a brand new command chain.
+    /// If vm.state is HOLD, we leave tib exactly where it was when it paused!
+    if (vm.state == STOP || vm.state == QUERY) {
+        fin_setup(line);                  /// This sets tib = line and clears obuf
+        vm.state = QUERY;
+    }
     
     char idiom[E4_IBUF_SZ];
-    while (fetch(idiom, E4_IBUF_SZ)) {                      /// * parse a word
-        forth_core(vm, idiom);                              /// * outer interpreter
+    if (vm.state == NEST) {
+        nest(vm);                         /// Resume colon word execution chain
+    }
+    else {
+        /// Continue parsing idioms right from the current tib position!
+        while (fetch(idiom, E4_IBUF_SZ)) {
+            forth_core(vm, idiom);
+            if (vm.state == HOLD || vm.state == STOP) break;
+        }
     }
     if (!vm.compile) ss_dump(vm);
     
+    FORTH_UNLOCK(vm.compile);
+    
     return vm.state==STOP;
 }
+
