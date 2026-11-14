@@ -13,7 +13,7 @@
 #ifdef COOP
 #define USE_PTHREAD     0               /**< pthread or cooperative */
 #else  // !COOP
-#define USE_PTHREAD     1
+#define USE_PTHREAD     (DO_MULTITASK)
 #endif // COOP
 ///@}
 ///@name Memory block configuation
