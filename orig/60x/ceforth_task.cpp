@@ -113,7 +113,7 @@ void _event_loop(int rank) {
     }
 }
 
-void t_pool_init() {
+void vm_pool_init() {
     VM::NCORE = thread::hardware_concurrency();   /// * number of cores
     
     _pool = new THREAD[E4_VM_POOL_SZ];            ///< a thread each core
@@ -145,7 +145,7 @@ void t_pool_init() {
     printf("CPU cores=%d, thread pool[%d] initialized\n", VM::NCORE, E4_VM_POOL_SZ);
 }
 
-void t_pool_stop() {
+void vm_pool_stop() {
     {
         GUARD(_evt);
         _quit = true;                             /// * stop event queue
