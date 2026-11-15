@@ -5,12 +5,13 @@
 #include "ceforth.h"
 
 #if DO_MULTITASK && !USE_PTHREAD
-enum {                                      ///< forth_run() results
-    RUN_WAIT =  2,                          ///< sleeping (ms), call again later
-    RUN_DONE =  1,                          ///< line consumed
-    RUN_MORE =  0,                          ///< paused, runnable now: call again with line=NULL
-    RUN_BUSY = -1,                          ///< engine/compiler taken: call again, SAME arguments
-    RUN_GONE = -2                           ///< session closed or aborted: drop it
+
+enum ses_state {                        ///< forth_run() results
+    SES_WAIT =  2,                      ///< sleeping (ms), call again later
+    SES_DONE =  1,                      ///< line consumed
+    SES_MORE =  0,                      ///< paused, runnable now: call again with line=NULL
+    SES_BUSY = -1,                      ///< engine/compiler taken: call again, SAME arguments
+    SES_GONE = -2                       ///< session closed or aborted: drop it
 };
 
 #if E4_FREERTOS
@@ -72,11 +73,11 @@ int      forth_fb(uint32_t tid) { return vm_get(tid).fb; }
 ///  A slice runs until the line is consumed, or the VM pauses/sleeps, then
 ///  parks its input cursor and returns, so other sessions get the engine.
 ///
-///  @return RUN_DONE  line consumed (stack printed)
-///          RUN_MORE  paused, runnable now          => call again with line=NULL
-///          RUN_WAIT  sleeping (ms), not due yet    => call again later
-///          RUN_BUSY  engine/compiler taken          => call again, SAME arguments
-///          RUN_GONE  session closed or aborted      => drop it
+///  @return SES_DONE  line consumed (stack printed)
+///          SES_MORE  paused, runnable now          => call again with line=NULL
+///          SES_WAIT  sleeping (ms), not due yet    => call again later
+///          SES_BUSY  engine/compiler taken          => call again, SAME arguments
+///          SES_GONE  session closed or aborted      => drop it
 ///
 static inline bool due(const VM &v) {
     return !v.wake || (S32)(millis() - v.wake) >= 0;
@@ -85,14 +86,14 @@ static inline bool due(const VM &v) {
 int forth_run(
     uint32_t tid, uint32_t sid,
     const char *line, void (*hook)(int, const char*)) {
-    if (tid <= 0)       return RUN_GONE;
-    if (!forth_lock(0)) return RUN_BUSY;                    /// * never block a dispatcher worker
+    if (tid <= 0)       return SES_GONE;
+    if (!forth_lock(0)) return SES_BUSY;                    /// * never block a dispatcher worker
     VM &vm = vm_get(tid);
-    if (vm.kind != K_SESSION || vm.sid != sid) {                         /// * stale msg: closed, or slot reused
-        forth_unlock(); return RUN_GONE;
+    if (vm.kind != K_SESSION || vm.sid != sid) {            /// * stale msg: closed, or slot reused
+        forth_unlock(); return SES_GONE;
     }
     if (g_compiler >= 0 && g_compiler != (int)tid) {        /// * someone else has an open ':' definition
-        forth_unlock(); return RUN_BUSY;
+        forth_unlock(); return SES_BUSY;
     }
     
     fout_setup(hook);
@@ -107,11 +108,11 @@ int forth_run(
     g_cur = tid;
     io_attach(vm);
 
-    int  rc = RUN_DONE;
+    int  rc = SES_DONE;
     char idiom[E4_IBUF_SZ];
     for (;;) {
         if (vm.state == HOLD) {                             /// * sleeping
-            if (vm.wake && !due(vm)) { rc = RUN_WAIT; break; }
+            if (vm.wake && !due(vm)) { rc = SES_WAIT; break; }
             vm.wake  = 0;
             vm.state = NEST;
         }
@@ -122,14 +123,14 @@ int forth_run(
             if (!fetch(idiom, E4_IBUF_SZ)) break;           /// * line consumed
             forth_core(vm, idiom);
         }
-        if (vm.state == NEST || vm.state == HOLD) { rc = RUN_MORE; break; }
+        if (vm.state == NEST || vm.state == HOLD) { rc = SES_MORE; break; }
     }
-    if (rc == RUN_DONE && !vm.compile) { ss_dump(vm); pstr("ok\n"); }
+    if (rc == SES_DONE && !vm.compile) { ss_dump(vm); pstr("ok\n"); }
     
     g_compiler = vm.compile ? tid : -1;
     io_detach(vm);                                          /// * park tib, flush output
 
-    if (rc == RUN_DONE) vm.tib = nullptr;
+    if (rc == SES_DONE) vm.tib = nullptr;
     g_cur = 0;
 
     forth_unlock();
@@ -307,15 +308,15 @@ static bool one_turn() {
     bool ran = false, sleep = false;
     for (int i = 1; i < E4_VM_POOL_SZ; i++) {
         VM &t = _vm[i];
-        if (t.kind != K_TASK) continue;          /// * sessions are driven by forth_run()
+        if (t.kind != K_TASK) continue;       /// * sessions are driven by forth_run()
         if (t.state == HOLD) {
-            if (!t.wake) continue;               /// * created, not started
+            if (!t.wake) continue;            /// * created, not started
             if (!due(t.wake)) { sleep = true; continue; }
             t.wake  = 0;
-            t.state = NEST;                      /// * HOLD -> NEST: alarm rang
+            t.state = NEST;                   /// * HOLD -> NEST: alarm rang
         }
         if (t.state != NEST) continue;
-        nest(t);                           /// * returns at its pause/ms, or at doSTOP
+        nest(t);                              /// * returns at its pause/ms, or at doSTOP
         ran = true;
     }
     if (!ran && sleep) { delay(1); return true; }
@@ -331,7 +332,7 @@ bool task_pause(int ms) {
     U32  t0   = millis();
     do {
         if (one_turn()) busy = true;
-        else            delay(1);         /// * no tasks at all, don't spin
+        else            delay(1);             /// * no tasks at all, don't spin
     } while ((S32)(millis() - t0) < ms);
     return busy;
 }
