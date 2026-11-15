@@ -11,6 +11,7 @@ void uvar_init() {
     U8 *b = &pmem[pmem.idx++];     ///< *base
     *b = 10;                       /// * default 10
     _vm0.id   = 0;                 /// * VM id
+    _vm0.kind = K_SHELL;
     _vm0.base = (IU)(b - MEM0);    /// * base idx
     pmem.idx  = ALIGN16(pmem.idx); /// 16-byte aligned
 }
@@ -164,6 +165,7 @@ void uvar_init() {
         U8 *b = &pmem[pmem.idx++];                ///< *base
         *b = 10;                                  /// * default 10
         _vm[i].id   = i;                          /// * VM id
+        _vm[i].kind = i ? K_TASK : K_SHELL;
         _vm[i].base = (IU)(b - MEM0);             /// * base idx
     }
     pmem.idx = DALIGN(pmem.idx);                  /// DU aligned
