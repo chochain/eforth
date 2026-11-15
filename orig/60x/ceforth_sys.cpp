@@ -403,7 +403,7 @@ void load(VM &vm, const char* fn) {
     load_dp++;                           /// * increment depth counter
     RS.push(*vm.ip);                     /// * save context
     RS.push(vm.state);
-    vm.state = NEST;                     /// * +recursive
+    vm.state = QUERY;                    /// * nested outer loop parses fresh lines
     forth_include(fn);                   /// * include file
     vm.state = static_cast<vm_state>(RS.pop());
     *vm.ip   = UINT(RS.pop());           /// * context restored
