@@ -281,6 +281,22 @@ static void run(XT_ARGS) {
     SP = o.sp - SS;
     o.sp[-1] = o.tos;
 }
+#elif E4_TRAMP
+static void run(XT_ARGS) {            ///< reference C trampoline
+    while (ip) {
+        FPTR fp = NEXT_FP;            /// * consumes *ip++
+        Ret  r  = fp(ip, sp, PASS, vm);
+        ip = r.ip;  sp = r.sp;  tos = r.tos;
+#if E4_RTOP
+        rp = r.rp;
+#endif // E4_RTOP
+    }
+#if E4_RTOP
+    RP = rp - RS;
+#endif // E4_RTOP
+    SP = sp - SS;
+    sp[-1] = tos;
+}
 #endif // (E4_TRAMP && XT0_U32)
 
 ///> common launcher: load VM state into registers, run fp, let doSTOP/doPAUSE spill back
