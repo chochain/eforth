@@ -134,7 +134,11 @@ void fin_setup(const char *line) {
 }
 
 void fout_setup(void (*hook)(int, const char*)) {
+#if (ARDUINO || ESP32)
+    auto cb = [](int n, const char *rst) { Serial.write((const uint8_t*)rst, n); };
+#else  // !(ARDUINO || ESP32)
     auto cb = [](int, const char *rst) { printf("%s", rst); };
+#endif // (ARDUINO || ESP32)
     fout_cb = hook ? hook : cb;           ///< serial output hook up
 }
 ///
