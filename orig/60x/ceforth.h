@@ -86,7 +86,27 @@ typedef  condition_variable    COND_VAR;
 #endif // (ARDUINO || ESP32)
 #endif // DO_MULTITASK
 
-typedef enum { STOP=0, HOLD, QUERY, NEST } vm_state;
+///
+///> VM state machine (one machine; forth_run()'s RUN_* result is just this state seen after a slice)
+///
+///   STOP   slot free, or a task that finished
+///   HOLD   not runnable now: created-not-started (wake==0), sleeping until wake (wake!=0), or waiting for a message
+///   QUERY  shell/session idle, input consumed, waiting for the next line
+///   NEST   runnable, paused inside a word: ip is valid and can be resumed
+///   RUN    a slice is executing right now (set by launch(), left by doSTOP/doPAUSE)
+///
+///   STOP -> HOLD    task created / session opened
+///   HOLD -> NEST    start, wake time due, message arrived      (pthread: HOLD -> RUN when a thread picks it up)
+///   QUERY/NEST -> RUN  slice begins
+///   RUN -> NEST     pause            RUN -> HOLD   ms, recv
+///   RUN -> QUERY    word/line done (SHELL, SESSION)            RUN -> STOP   word done (TASK)
+///
+///   What a VM *is* never changes the machine: it is vm.kind, set once at creation.
+///   'bye' ends the VM's run: a shell is left in STOP (forth_vm reports it), a task finishes, a session ends its word.
+///
+typedef enum { STOP=0, HOLD, QUERY, NEST, RUN } vm_state;
+typedef enum { K_TASK=0, K_SHELL, K_SESSION }   vm_kind;   ///< K_SHELL: vm 0, K_SESSION: web session, K_TASK: the rest
+
 struct ALIGNAS VM {
     List<DU, E4_SS_SZ> ss;         ///< parameter stack
     List<DU, E4_RS_SZ> rs;         ///< parameter stack
@@ -98,7 +118,7 @@ struct ALIGNAS VM {
     vm_state state   = STOP;       ///< VM status
     IU       base    = 0;          ///< numeric radix (a pointer)
     bool     compile = false;      ///< compiler flag
-    bool     ses     = true;       ///< true: web-session shell (owns a text line, not just a word)
+    vm_kind  kind    = K_TASK;     ///< what this VM is (set once, never used as state)
 
 #if DO_MULTITASK
     int      wake    = 0;          ///< ms timestamp to wake at (0 = not sleeping)
@@ -142,6 +162,7 @@ struct ALIGNAS VM {
 #endif // USER_PTHREAD
 #endif // DO_MULTITASK
 };
+#define VM_IDLE(vm) ((vm).state = ((vm).kind == K_TASK) ? STOP : QUERY)  /** end of a run: task frees its slot, shells go idle */
 ///@name data stack access macros
 ///@{
 #define SS        (vm.ss.v)
