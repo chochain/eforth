@@ -88,7 +88,7 @@ int forth_run(
     if (tid <= 0)       return RUN_GONE;
     if (!forth_lock(0)) return RUN_BUSY;                    /// * never block a dispatcher worker
     VM &vm = vm_get(tid);
-    if (!vm.ses || vm.sid != sid) {                         /// * stale msg: closed, or slot reused
+    if (vm.kind != K_SESSION || vm.sid != sid) {                         /// * stale msg: closed, or slot reused
         forth_unlock(); return RUN_GONE;
     }
     if (g_compiler >= 0 && g_compiler != (int)tid) {        /// * someone else has an open ':' definition
@@ -102,6 +102,7 @@ int forth_run(
         vm.tib   = vm.tbuf;
         vm.fb    = 0;
         vm.state = QUERY;
+        vm.wake  = 0;
     }
     g_cur = tid;
     io_attach(vm);
@@ -109,9 +110,10 @@ int forth_run(
     int  rc = RUN_DONE;
     char idiom[E4_IBUF_SZ];
     for (;;) {
-        if (vm.wake) {
-            if (!due(vm)) { rc = RUN_WAIT; break; }         /// * still sleeping
-            vm.wake = 0;
+        if (vm.state == HOLD) {                             /// * sleeping
+            if (vm.wake && !due(vm)) { rc = RUN_WAIT; break; }
+            vm.wake  = 0;
+            vm.state = NEST;
         }
         if (vm.state == NEST) {
             nest(vm);                                       /// * resume the word that paused
@@ -120,7 +122,7 @@ int forth_run(
             if (!fetch(idiom, E4_IBUF_SZ)) break;           /// * line consumed
             forth_core(vm, idiom);
         }
-        if (vm.state == NEST || vm.wake) { rc = RUN_MORE; break; }
+        if (vm.state == NEST || vm.state == HOLD) { rc = RUN_MORE; break; }
     }
     if (rc == RUN_DONE && !vm.compile) { ss_dump(vm); pstr("ok\n"); }
     
@@ -147,6 +149,7 @@ void uvar_init() {
         _vm[i].id    = i;
         _vm[i].base  = (IU)(b - MEM0);
         _vm[i].state = STOP;                  /// * free slot
+        _vm[i].kind  = i ? K_TASK : K_SHELL;
     }
     _vm[0].state = QUERY;                     /// * the shell
     pmem.idx = ALIGN4(pmem.idx);              /// * was DALIGN, a no-op
@@ -173,7 +176,7 @@ int task_create(IU pfa) {                     ///< returns tid, or 0 if the pool
 
 void task_start(int tid) {
     if (tid > 0 && tid < E4_VM_POOL_SZ &&
-        _vm[tid].state == HOLD && !_vm[tid].ses) {
+        _vm[tid].state == HOLD && _vm[tid].kind == K_TASK && !_vm[tid].wake) {
         _vm[tid].state = NEST;                /// * now in the ring
     }
 }
@@ -194,7 +197,7 @@ int session_open(uint32_t sid) {              ///< returns tid, or 0 if the pool
     v.wake    = 0;
     v.sid     = sid;
     v.fb      = 0;
-    v.ses     = true;
+    v.kind    = K_SESSION;
     v.tib     = nullptr;
     v.tbuf    = nullptr;
     v.key     = 0;
@@ -209,7 +212,7 @@ bool session_close(uint32_t tid) {
     if (tid <= 0 || tid >= E4_VM_POOL_SZ) return false;
     
     VM &v = _vm[tid];
-    if (!v.ses) return false;
+    if (v.kind != K_SESSION) return false;
     
     if (!forth_lock(250)) {                   /// * a slice of this VM may be running
         LOG("[SYSTEM] session_close(%d) timed out\n", tid);
@@ -223,7 +226,7 @@ bool session_close(uint32_t tid) {
     v.compile = false;
     v.wake    = 0;
     v.sid     = 0;                            /// * stale RESUME msgs now fail the sid check
-    v.ses     = false;
+    v.kind    = K_TASK;
     v.tib     = nullptr;
     v.tbuf    = nullptr;
     v.key     = 0;
@@ -238,7 +241,7 @@ static int session_lru() {                    ///< oldest idle persistent sessio
     int best = 0;
     for (int i = 1; i < E4_VM_POOL_SZ; i++) {
         VM &v = _vm[i];
-        if (!v.ses || v.busy) continue;
+        if (v.kind != K_SESSION || v.busy) continue;
         if (!best || (S32)(_vm[best].last - v.last) > 0) best = i;
     }
     return best;
@@ -248,7 +251,7 @@ static int session_lru() {                    ///< oldest idle persistent sessio
 int session_attach(uint32_t key, uint32_t sid) {
     int t = 0;
     for (int i = 1; i < E4_VM_POOL_SZ; i++) {
-        if (_vm[i].ses && _vm[i].key == key) { t = i; break; }
+        if (_vm[i].kind == K_SESSION && _vm[i].key == key) { t = i; break; }
     }
     if (t) {
         if (_vm[t].busy) return -1;           /// * previous line of this tab still running
@@ -273,7 +276,7 @@ int session_attach(uint32_t key, uint32_t sid) {
 bool session_release(uint32_t tid, bool abort) {
     if (tid <= 0 || tid >= E4_VM_POOL_SZ) return false;
     VM &v = _vm[tid];
-    if (!v.ses) return false;
+    if (v.kind != K_SESSION) return false;
 
     v.sid  = 0;                               /// * first: in-flight slices drop themselves
     v.busy = false;
@@ -304,8 +307,14 @@ static bool one_turn() {
     bool ran = false, sleep = false;
     for (int i = 1; i < E4_VM_POOL_SZ; i++) {
         VM &t = _vm[i];
-        if (t.state != NEST || t.ses) continue;  /// * sessions are driven by forth_run()
-        if (!due(t.wake)) { sleep = true; continue; }
+        if (t.kind != K_TASK) continue;          /// * sessions are driven by forth_run()
+        if (t.state == HOLD) {
+            if (!t.wake) continue;               /// * created, not started
+            if (!due(t.wake)) { sleep = true; continue; }
+            t.wake  = 0;
+            t.state = NEST;                      /// * HOLD -> NEST: alarm rang
+        }
+        if (t.state != NEST) continue;
         nest(t);                           /// * returns at its pause/ms, or at doSTOP
         ran = true;
     }
