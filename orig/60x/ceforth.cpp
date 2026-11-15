@@ -200,10 +200,7 @@ void s_quote(XT_REFS, bool dotq=false) {
 ///          * 32-bit Param ref       Ir/Dr = 3.1M/0.8M (843ms)
 ///
 XT_RET doSTOP(XT_ARGS) {
-#if DO_MULTITASK
-    vm.state = vm.ses ? QUERY : STOP; /// * session shell stays; plain task frees its slot
-#endif // DO_MULTITASK
-    
+    if (vm.state == RUN) VM_IDLE(vm); /// * RUN -> QUERY (shell/session) or STOP (task)
 #if E4_TRAMP
     IP = 0;                           /// * vm.IP = 0 stops the VM
     return Ret{ 0, sp, PASS };        /// * ip==0 ends the trampoline
@@ -226,11 +223,12 @@ IU gStop[] = { TOK(doSTOP) };         ///< tempoline sentinal
 
 #if DO_MULTITASK
 XT_RET doPAUSE(XT_ARGS) {
+    vm.state = vm.wake ? HOLD : NEST; /// * RUN -> HOLD (ms) or NEST (pause)
 #if E4_TRAMP
     IP = ip;                          /// run() must not clobber IP (see below)
     return Ret{ 0, sp, PASS };
 #else  // !E4_TRAMP
-    SPILL();  IP = ip;                /// state stays NEST
+    SPILL();  IP = ip;                /// resumable from IP
     return NULL;
 #endif // E4_TRAMP
 }
@@ -287,6 +285,8 @@ static void run(XT_ARGS) {
 
 ///> common launcher: load VM state into registers, run fp, let doSTOP/doPAUSE spill back
 static _INLINE_ void launch(VM &vm, FPTR fp, IU *ip) {
+    vm.state = RUN;                 /// * a slice is executing
+    
     DU *sp  = SS + SP;
     DU  tos = TOS;                  /// Direct load. Unguarded garbage behavior if empty
 #if E4_NOS
@@ -311,13 +311,10 @@ static _INLINE_ void launch(VM &vm, FPTR fp, IU *ip) {
 }
 
 void nest(VM& vm) {                 ///< inner-interpreter i.e. doLIST
-#if DO_MULTITASK    
-    if (!IP) {                      /// * nothing to resume, treat as finished
-        vm.state = vm.ses ? QUERY : STOP;
+    if (!IP) {                      /// * nothing to resume
+        VM_IDLE(vm);
         return;
     }
-#endif // DO_MULTITASK    
-    vm.state = NEST;
     IU  *ip = IP;
     FPTR fp = NEXT_FP;              /// * consumes *ip++
     DEBUG("nest(%08x) sp%d, rp%d\n", *ip, DEPTH, (int)RDEPTH);
@@ -664,6 +661,7 @@ constexpr Code g_rom[] = {
          }
          SYNC(task_pause(n))),                               /// shell: drive the ring for n ms
 #endif // USE_PTHREAD
+#else  // !DO_MULTITASK
     CODE("ms",    delay(POPI())),                            /// ( n -- )
 #endif // DO_MULTITASK
     /// @defgroup Debug ops
@@ -710,7 +708,7 @@ constexpr Code g_rom[] = {
     CODE("ok",    mem_stat()),
     CODE("clock", PUSH(millis())),
     CODE("rnd",   PUSH(RND())),                             /// generate random number
-    CODE("bye",   vm.ses = false; vm.state=STOP),
+    CODE("bye",   if (vm.kind == K_SHELL) vm.state = STOP; ip = gStop),   /// shell: STOP survives doSTOP (it only leaves RUN)
     /// @}
     CODE("boot",  if (!vm.id) { dict.clear(); pmem.clear(); }),
 };
@@ -788,7 +786,6 @@ DU2 parse_number(const char *idiom, int base, int *err) {
 void forth_core(VM& vm, const char *idiom) {     ///> aka QUERY
     DEBUG("forth_core(%s) ", idiom);
     
-    vm.state = QUERY;
     const Code *w = find(idiom);                 ///> * get token by searching through dict
 
     if (w) {                                     ///> * word found?
@@ -868,29 +865,24 @@ int forth_vm(const char *line, void(*hook)(int, const char*)) {
     VM &vm = vm_get(0);                  ///< get main thread
     fout_setup(hook);
 
-    /// COOPERATIVE RESUME RESCUE:
-    /// Only refresh the global input pointer (tib) if we are executing a brand new command chain.
-    /// If vm.state is HOLD, we leave tib exactly where it was when it paused!
-    if (vm.state == STOP || vm.state == QUERY) {
-        fin_setup(line);                 /// This sets tib = line and clears obuf
+    if (vm.state == QUERY || vm.state == STOP) {       /// * idle shell: fresh line
+        fin_setup(line);                 /// * tib = line, obuf cleared
         vm.state = QUERY;
     }
-    
     char idiom[E4_IBUF_SZ];
     if (vm.state == NEST) {
-        nest(vm);                        /// Resume colon word execution chain
+        nest(vm);                        /// * resume the word that paused
     }
     else {
-        /// Continue parsing idioms right from the current tib position!
         while (fetch(idiom, E4_IBUF_SZ)) {
             forth_core(vm, idiom);
-            if (vm.state == HOLD || vm.state == STOP) break;
+            if (vm.state == STOP) break; /// * bye
         }
     }
     if (!vm.compile) ss_dump(vm);
     
     FORTH_UNLOCK(vm.compile);
     
-    return vm.state==STOP;
+    return vm.state == STOP;             /// * shell ended (bye)
 }
 
